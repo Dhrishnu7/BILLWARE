@@ -1286,8 +1286,9 @@
 
             try {
                 // Try to load from Supabase
+                const session = (typeof mmGetSession === 'function') ? mmGetSession() : null;
                 const data = await dbGetReportData();
-                if (data && (Array.isArray(data.bills) || Array.isArray(data.purchases))) {
+                if (session && data && (Array.isArray(data.bills) || Array.isArray(data.purchases))) {
                     dbPurchases = data.purchases || [];
                     dbBills = data.bills || [];
                     useSupabase = true;
