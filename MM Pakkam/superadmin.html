@@ -235,11 +235,12 @@
 
     <!-- TABS -->
     <div class="tab-bar">
-        <button class="tab active" onclick="switchTab('overview',this)">📊 Overview</button>
-        <button class="tab" onclick="switchTab('accounts',this)">🏪 Accounts <span class="badge green" id="tabAcctCount">0</span></button>
+        <button class="tab active" onclick="switchTab('overview',this)">👀 Overview</button>
+        <button class="tab" onclick="switchTab('accounts',this)">👥 Accounts <span class="badge green" id="tabAcctCount">0</span></button>
         <button class="tab" onclick="switchTab('shops',this)">🏪 Shops <span class="badge blue" id="tabShopCount" style="background:#3b82f6;">0</span></button>
-        <button class="tab" onclick="switchTab('requests',this)">🔔 Requests <span class="badge" id="tabPendCount">0</span></button>
-        <button class="tab" onclick="switchTab('activity',this)">📋 Activity</button>
+        <button class="tab" onclick="switchTab('requests',this)">📩 Requests <span class="badge" id="tabPendCount">0</span></button>
+        <button class="tab" onclick="switchTab('pwdresets',this)">🔑 Resets <span class="badge" id="tabPwdResetCount" style="background:rgba(234,179,8,.2); border-color:rgba(234,179,8,.4); color:#fde047;">0</span></button>
+        <button class="tab" onclick="switchTab('activity',this)">⚡ Activity</button>
     </div>
 
     <!-- TAB: OVERVIEW -->
@@ -340,6 +341,15 @@
         <div id="extraUserReqGrid"><div class="ld"><div class="sp"></div>Loading...</div></div>
     </div>
 
+    <!-- TAB: PASSWORD RESETS -->
+    <div class="tab-panel" id="tab-pwdresets">
+        <div class="sh"><span>🔑</span><h2>Password Reset Requests</h2><span class="cnt" id="pwdResetCnt">0</span></div>
+        <p style="font-size:0.85rem; color:var(--text3); margin-bottom:20px;">Approve requests to generate a 6-digit PIN. Provide this PIN to the owner so they can reset their password.</p>
+        <div class="pending-grid" id="pwdResetGrid">
+            <div class="ld"><div class="sp"></div>Loading...</div>
+        </div>
+    </div>
+
     <!-- TAB: ACTIVITY -->
     <div class="tab-panel" id="tab-activity">
         <div class="two-col">
@@ -436,7 +446,7 @@ async function loadAll() {
 
     renderStats(); renderInfoRow(); renderOnline(); renderRevChart(); renderCustChart();
     renderAccounts(); renderRequests(); renderShops(); renderActivity(); renderSignups();
-    renderShopEditRequests(); renderExtraUserRequests();
+    renderShopEditRequests(); renderExtraUserRequests(); renderPasswordResets();
 }
 
 // ── STATS ──
@@ -797,6 +807,66 @@ async function rejectExtraUser(id) {
         .update({ status: 'rejected', reviewed_at: new Date().toISOString() }).eq('id', id);
     if (error) { alert('Error: ' + error.message); return; }
     renderExtraUserRequests();
+}
+
+async function renderPasswordResets() {
+    const grid = document.getElementById('pwdResetGrid');
+    const badge = document.getElementById('tabPwdResetCount');
+    const cntBadge = document.getElementById('pwdResetCnt');
+    
+    const { data: resets } = await sb.from('password_reset_requests').select('*').eq('status', 'pending');
+    
+    const count = resets ? resets.length : 0;
+    badge.innerText = count;
+    cntBadge.innerText = count;
+    
+    if (count === 0) {
+        grid.innerHTML = '<div class="no-pending">No pending password reset requests.</div>';
+        return;
+    }
+    
+    let html = '';
+    for (let r of resets) {
+        const d = new Date(r.created_at).toLocaleString();
+        html += `
+        <div class="pcard">
+            <div class="pcard-top">
+                <div class="pcard-avatar">${r.username.substring(0,1).toUpperCase()}</div>
+                <div>
+                    <div class="pcard-name">${r.username}</div>
+                    <div class="pcard-meta">${d}</div>
+                </div>
+            </div>
+            <div style="font-size:0.85rem; color:var(--text2); margin-bottom:12px;">
+                <strong>Reason:</strong> ${r.reason}
+            </div>
+            <div class="pcard-actions">
+                <button class="approve-btn" onclick="approvePwdReset('${r.id}', '${r.username}')">Approve & Gen PIN</button>
+                <button class="reject-btn" onclick="rejectPwdReset('${r.id}')">Reject</button>
+            </div>
+        </div>
+        `;
+    }
+    grid.innerHTML = html;
+}
+
+async function approvePwdReset(id, username) {
+    if (!confirm('Approve reset for ' + username + '? This will generate a PIN you must share with them.')) return;
+    const pin = Math.floor(100000 + Math.random() * 900000).toString();
+    const { error } = await sb.from('password_reset_requests').update({ status: 'approved', pin: pin }).eq('id', id);
+    if (error) return alert('Error: ' + error.message);
+    
+    // Show PIN to admin in a way they can easily copy
+    prompt(`Password Reset Approved for ${username}!\n\nGive them this exact 6-digit PIN:\n${pin}\n\nPress Ctrl+C to copy.`, pin);
+    
+    await renderPasswordResets();
+}
+
+async function rejectPwdReset(id) {
+    if (!confirm('Reject this password reset request?')) return;
+    const { error } = await sb.from('password_reset_requests').update({ status: 'rejected' }).eq('id', id);
+    if (error) return alert('Error: ' + error.message);
+    await renderPasswordResets();
 }
 
 async function approveAccount(id) {

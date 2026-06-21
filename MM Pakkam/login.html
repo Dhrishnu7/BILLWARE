@@ -600,7 +600,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                 </span>
-                <p>Forgot your password? Contact the <strong>pharmacy owner</strong> to reset your account. Worker accounts are managed from the <strong>Users</strong> panel.</p>
+                <p>Forgot your password? <a href="#" onclick="showForgotPassword(); return false;" style="color:#0ea5e9; text-decoration:none; font-weight:600;">Click here to reset it</a>.</p>
             </div>
 
             <!-- New store sign-up link -->
@@ -810,5 +810,123 @@
                 banner.style.display = 'none';
             });
         });
-    </script></body>
+        <!-- Forgot Password Modal -->
+        <div class="modal-overlay" id="forgotPwdModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); backdrop-filter:blur(4px); z-index:9999; align-items:center; justify-content:center;">
+            <div class="modal" style="background:#fff; width:90%; max-width:400px; border-radius:20px; padding:2rem; box-shadow:0 20px 40px rgba(0,0,0,0.2); position:relative; animation: fadeUp 0.3s ease;">
+                <button onclick="document.getElementById('forgotPwdModal').style.display='none'" style="position:absolute; top:1rem; right:1.5rem; background:none; border:none; font-size:1.8rem; cursor:pointer; color:#64748b;">&times;</button>
+                <h2 style="margin-top:0; color:#0f172a; font-weight:800; margin-bottom:1.5rem;" id="fpTitle">Reset Password</h2>
+                
+                <!-- Section 1: Request Reset -->
+                <div id="fpRequestSection">
+                    <p style="font-size:0.9rem; color:#475569; margin-bottom:1rem; line-height:1.5;">Enter your username and the reason for your reset. Your super admin will review it.</p>
+                    <div class="form-group">
+                        <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">Username</label>
+                        <input type="text" id="fpReqUsername" class="form-control" placeholder="Enter your username">
+                    </div>
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">Reason</label>
+                        <input type="text" id="fpReqReason" class="form-control" placeholder="e.g. Forgot my password">
+                    </div>
+                    <button class="btn" style="width:100%; margin-top:1.5rem; background:#0f172a; color:#fff;" onclick="submitFpRequest()">Submit Request</button>
+                    <div style="text-align:center; margin-top:1rem;">
+                        <a href="#" onclick="showFpPinSection(); return false;" style="font-size:0.85rem; color:#0ea5e9; font-weight:600; text-decoration:none;">I already have a Reset PIN</a>
+                    </div>
+                </div>
+
+                <!-- Section 2: Enter PIN -->
+                <div id="fpPinSection" style="display:none;">
+                    <p style="font-size:0.9rem; color:#475569; margin-bottom:1rem; line-height:1.5;">Enter your username, the 6-digit PIN provided by your admin, and your new password.</p>
+                    <div class="form-group">
+                        <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">Username</label>
+                        <input type="text" id="fpPinUsername" class="form-control" placeholder="Enter your username">
+                    </div>
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">6-Digit PIN</label>
+                        <input type="text" id="fpPinCode" class="form-control" placeholder="123456" maxlength="6" style="letter-spacing:2px; font-weight:bold;">
+                    </div>
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">New Password</label>
+                        <input type="password" id="fpPinNewPwd" class="form-control" placeholder="Enter new password">
+                    </div>
+                    <button class="btn" style="width:100%; margin-top:1.5rem; background:#059669; color:#fff;" onclick="submitFpPin()">Set New Password</button>
+                    <div style="text-align:center; margin-top:1rem;">
+                        <a href="#" onclick="showFpRequestSection(); return false;" style="font-size:0.85rem; color:#64748b; font-weight:600; text-decoration:none;">&larr; Back to Request Reset</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            function showForgotPassword() {
+                document.getElementById('forgotPwdModal').style.display = 'flex';
+                showFpRequestSection();
+            }
+            function showFpRequestSection() {
+                document.getElementById('fpRequestSection').style.display = 'block';
+                document.getElementById('fpPinSection').style.display = 'none';
+                document.getElementById('fpTitle').innerText = 'Request Password Reset';
+            }
+            function showFpPinSection() {
+                document.getElementById('fpRequestSection').style.display = 'none';
+                document.getElementById('fpPinSection').style.display = 'block';
+                document.getElementById('fpTitle').innerText = 'Enter Reset PIN';
+            }
+
+            async function submitFpRequest() {
+                const user = document.getElementById('fpReqUsername').value.trim();
+                const reason = document.getElementById('fpReqReason').value.trim();
+                if(!user || !reason) return alert('Please enter both username and reason.');
+                
+                const origText = event.target.innerText;
+                event.target.innerText = 'Submitting...';
+                event.target.disabled = true;
+
+                const res = await dbCreatePasswordResetRequest(user, reason);
+                event.target.innerText = origText;
+                event.target.disabled = false;
+
+                if (res) {
+                    alert('Reset request submitted successfully! Please contact your super admin to get your PIN.');
+                    showFpPinSection();
+                    document.getElementById('fpPinUsername').value = user;
+                } else {
+                    alert('Failed to submit request. Are you online?');
+                }
+            }
+
+            async function submitFpPin() {
+                const user = document.getElementById('fpPinUsername').value.trim();
+                const pin = document.getElementById('fpPinCode').value.trim();
+                const newPwd = document.getElementById('fpPinNewPwd').value;
+                if(!user || !pin || !newPwd) return alert('Please fill all fields.');
+
+                const origText = event.target.innerText;
+                event.target.innerText = 'Verifying...';
+                event.target.disabled = true;
+
+                const isValid = await dbCheckResetPin(user, pin);
+                if (!isValid) {
+                    event.target.innerText = origText;
+                    event.target.disabled = false;
+                    return alert('Invalid or expired PIN for this username.');
+                }
+
+                // PIN is valid! Change password.
+                const changeRes = await mmChangeUserPassword(user, newPwd);
+                if (changeRes.success) {
+                    await dbMarkResetCompleted(user, pin);
+                    alert('Password successfully changed! You can now log in.');
+                    document.getElementById('forgotPwdModal').style.display = 'none';
+                    document.getElementById('username').value = user;
+                    document.getElementById('password').value = '';
+                    document.getElementById('password').focus();
+                } else {
+                    alert('Failed to change password: ' + changeRes.message);
+                }
+                
+                event.target.innerText = origText;
+                event.target.disabled = false;
+            }
+        </script>
+    </body>
 </html>

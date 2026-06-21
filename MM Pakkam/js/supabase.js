@@ -538,3 +538,85 @@ async function dbSyncDown() {
         console.error('[Sync] Failed to sync down:', e);
     }
 }
+
+// ==========================================
+// PASSWORD RESET REQUESTS
+// ==========================================
+
+async function dbCreatePasswordResetRequest(username, reason) {
+    if (!useSupabase) return null;
+    try {
+        const { data, error } = await _supabase
+            .from('password_reset_requests')
+            .insert([{ username: username.trim(), reason: reason.trim() }])
+            .select();
+        if (error) throw error;
+        return data;
+    } catch (e) {
+        console.error('Create Reset Req Error:', e);
+        return null;
+    }
+}
+
+async function dbGetPendingResetRequests() {
+    if (!useSupabase) return [];
+    try {
+        const { data, error } = await _supabase
+            .from('password_reset_requests')
+            .select('*')
+            .eq('status', 'pending');
+        if (error) throw error;
+        return data || [];
+    } catch (e) {
+        console.error('Get Reset Req Error:', e);
+        return [];
+    }
+}
+
+async function dbUpdateResetRequest(id, status, pin) {
+    if (!useSupabase) return false;
+    try {
+        const { error } = await _supabase
+            .from('password_reset_requests')
+            .update({ status, pin })
+            .eq('id', id);
+        if (error) throw error;
+        return true;
+    } catch (e) {
+        console.error('Update Reset Req Error:', e);
+        return false;
+    }
+}
+
+async function dbCheckResetPin(username, pin) {
+    if (!useSupabase) return false;
+    try {
+        const { data, error } = await _supabase
+            .from('password_reset_requests')
+            .select('*')
+            .eq('username', username.trim())
+            .eq('pin', pin.trim())
+            .eq('status', 'approved');
+        if (error) throw error;
+        return data && data.length > 0;
+    } catch (e) {
+        console.error('Check Reset PIN Error:', e);
+        return false;
+    }
+}
+
+async function dbMarkResetCompleted(username, pin) {
+    if (!useSupabase) return false;
+    try {
+        const { error } = await _supabase
+            .from('password_reset_requests')
+            .update({ status: 'completed' })
+            .eq('username', username.trim())
+            .eq('pin', pin.trim());
+        if (error) throw error;
+        return true;
+    } catch (e) {
+        console.error('Mark Reset Completed Error:', e);
+        return false;
+    }
+}
