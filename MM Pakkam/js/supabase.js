@@ -1,5 +1,5 @@
 /**
- * supabase.js — Supabase Client for MM Pakkam
+ * supabase.js — Supabase Client for Billware
  * DATA ISOLATION: Every read/write is HARD-SCOPED to the current user's username.
  * If user is not logged in, ALL functions return empty immediately — never expose other users' data.
  */

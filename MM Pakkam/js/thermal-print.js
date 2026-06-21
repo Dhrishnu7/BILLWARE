@@ -178,7 +178,7 @@ const ThermalPrinter = (() => {
         }
 
         const shop = shopProfile || window.mmShopProfile || {};
-        const shopName    = shop.shop_name    || 'MM Pakkam';
+        const shopName    = shop.shop_name    || 'Billware';
         const shopPhone   = shop.phone        || '';
         const shopAddr1   = shop.address_line1 || '';
         const shopAddr2   = shop.address_line2 || '';

@@ -1,5 +1,5 @@
 /**
- * MM Pakkam — Notification Engine v2
+ * Billware — Notification Engine v2
  * Categories:
  *   💊 medicines  — expiry & stock alerts (from purchases)
  *   📋 requests   — shop edit / extra worker request approvals

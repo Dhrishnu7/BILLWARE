@@ -1,4 +1,4 @@
-// ── MM Pakkam Service Worker ──
+// ── Billware Service Worker ──
 // IMPORTANT: Change CACHE_NAME on every deploy so installed apps get the latest version
 const CACHE_NAME = 'mm-pakkam-v106';
 

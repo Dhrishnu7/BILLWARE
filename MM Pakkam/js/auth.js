@@ -1,5 +1,5 @@
 /**
- * auth.js — MM Pakkam Authentication Module
+ * auth.js — Billware Authentication Module
  * Users stored in Supabase (mm_users table) — works across ALL devices and deployments.
  * Session stored in localStorage/sessionStorage (device-specific by design).
  */
@@ -288,7 +288,7 @@ async function mmRequireAuth() {
 
 /**
  * Dynamically update the navbar logo and page title with the shop's own branding.
- * Falls back to 'MM Pakkam' for accounts without a shop profile.
+ * Falls back to 'Billware' for accounts without a shop profile.
  */
 function mmInjectShopBranding() {
     const profile = window.mmShopProfile;

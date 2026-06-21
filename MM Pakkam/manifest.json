@@ -1,7 +1,7 @@
 {
-  "name": "Mudhalvar Marundhagam Pakkam",
-  "short_name": "MM Pakkam",
-  "description": "Pharmacy billing, purchase, sales and report management system for Mudhalvar Marundhagam Pakkam.",
+  "name": "Billware",
+  "short_name": "Billware",
+  "description": "Pharmacy billing, purchase, sales and report management system for Billware.",
   "start_url": "/login.html",
   "scope": "/",
   "id": "/login.html",

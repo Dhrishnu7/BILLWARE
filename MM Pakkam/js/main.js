@@ -1,5 +1,5 @@
 /**
- * Mudhalvar Marundhagam Pakkam - Main Script
+ * Billware - Main Script
  */
 
 document.addEventListener('DOMContentLoaded', () => {

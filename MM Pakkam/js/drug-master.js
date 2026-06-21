@@ -1,5 +1,5 @@
 /**
- * drug-master.js -- MM Pakkam Global Drug Master
+ * drug-master.js -- Billware Global Drug Master
  * Two-layer search:
  *   1. Built-in seed list (200+ common Indian medicines, works offline)
  *   2. Supabase drug_master table (full list, optional)
