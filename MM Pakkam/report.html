@@ -1472,7 +1472,7 @@
             const to   = document.getElementById('toDate').value;
             const type = document.getElementById('reportType').value;
 
-            const shList = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]').map(d => d.trim().toLowerCase());
+            const shList = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]').map(d => String(d || "").trim().toLowerCase());
 
             currentData = allData.filter(r => {
                 const inDate = (!from || r.date >= from) && (!to || r.date <= to);
@@ -1481,7 +1481,7 @@
                 if (type === 'all') {
                     inType = true;
                 } else if (type === 'schedule_h') {
-                    inType = shList.includes((r.product || '').trim().toLowerCase());
+                    inType = shList.includes(String(r.product || "").trim().toLowerCase());
                 } else {
                     inType = r.type === type;
                 }
@@ -2013,7 +2013,7 @@
                 // Match by product name. If multiple, take the average or latest rate.
                 // For simplicity, find the first matching purchase in rawPurchasesMap
                 let costPerUnit = 0;
-                const match = purchases.find(p => (p.product_name || p.productName || '').toLowerCase() === (s.product || '').toLowerCase());
+                const match = purchases.find(p => String(p.product_name || p.productName || "").toLowerCase() === String(s.product || "").toLowerCase());
                 
                 if (match) {
                     const pRate = parseFloat(match.rate) || 0;
@@ -2040,7 +2040,7 @@
                     
                     // calculate COGS for this sale
                     let costPerUnit = 0;
-                    const match = purchases.find(p => (p.product_name || p.productName || '').toLowerCase() === (r.product || '').toLowerCase());
+                    const match = purchases.find(p => String(p.product_name || p.productName || "").toLowerCase() === String(r.product || "").toLowerCase());
                     if (match) {
                         const pRate = parseFloat(match.rate) || 0;
                         const pPack = parseFloat(match.pack) || 1;
@@ -2329,8 +2329,8 @@
             // Subtract sold quantities
             sales.forEach(bill => {
                 (bill.medicines || []).forEach(m => {
-                    const name  = (m.product || '').trim();
-                    const batch = (m.batch   || '').trim();
+                    const name  = String(m.product || "").trim();
+                    const batch = String(m.batch || "").trim();
                     if (!name) return;
                     const key = name.toLowerCase() + '|' + batch.toLowerCase();
                     if (!map[key]) {
@@ -2350,7 +2350,7 @@
         }
 
         function renderStockTable(query) {
-            const q = (query || '').trim().toLowerCase();
+            const q = String(query || "").trim().toLowerCase();
             const filtered = q
                 ? _stockData.filter(r =>
                     r.name.toLowerCase().includes(q) ||
@@ -2796,7 +2796,7 @@
         let _allSalesForSearch = [];
 
         function doBillSearch() {
-            const query = document.getElementById('billSearchInput').value.trim().toLowerCase();
+            const query = String(document.getElementById('billSearchInput').value || "").trim().toLowerCase();
             const table = document.getElementById('billsResultsTable');
             const tbody = document.getElementById('billsResultsBody');
             const empty = document.getElementById('billsEmptyState');
@@ -2815,12 +2815,12 @@
             const queryTerms = query.split(/\\s+/).filter(t => t.length > 0);
 
             const results = _allSalesForSearch.filter(s => {
-                const cName = (s.customerName || '').trim().toLowerCase();
+                const cName = String(s.customerName || "").trim().toLowerCase();
                 
                 // Lookup phone from mm_customers
                 let cPhone = '';
                 if (cName) {
-                    const cust = customers.find(c => (c.name || '').trim().toLowerCase() === cName);
+                    const cust = customers.find(c => String(c.name || "").trim().toLowerCase() === cName);
                     if (cust && cust.phone) {
                         cPhone = cust.phone.toLowerCase();
                     }
@@ -2860,7 +2860,7 @@
                 // Lookup phone again for display
                 let dispPhone = bill.customerPhone || '';
                 if (!dispPhone && bill.customerName) {
-                    const cust = customers.find(c => (c.name || '').trim().toLowerCase() === (bill.customerName || '').trim().toLowerCase());
+                    const cust = customers.find(c => String(c.name || "").trim().toLowerCase() === String(bill.customerName || "").trim().toLowerCase());
                     if (cust && cust.phone) dispPhone = cust.phone;
                 }
 
@@ -2885,10 +2885,10 @@
         }
 
         function getBillHTML(bill) {
-            let deliveryAddress = (bill.deliveryAddress || '').trim();
+            let deliveryAddress = String(bill.deliveryAddress || "").trim();
             if (!deliveryAddress && bill.customerName) {
                 const customers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
-                const cust = customers.find(c => (c.name || '').trim().toLowerCase() === (bill.customerName || '').trim().toLowerCase());
+                const cust = customers.find(c => String(c.name || "").trim().toLowerCase() === String(bill.customerName || "").trim().toLowerCase());
                 if (cust) deliveryAddress = cust.address || '';
             }
 
