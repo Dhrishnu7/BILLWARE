@@ -763,8 +763,12 @@ function mmInjectUserBar() {
         </button>
     `;
 
-    const header = document.querySelector('header');
-    if (header) header.appendChild(bar);
+    const headerRight = document.getElementById('headerRight');
+    if (headerRight) headerRight.appendChild(bar);
+    else {
+        const header = document.querySelector('header');
+        if (header) header.appendChild(bar);
+    }
 
     // Update dashboard welcome message with username
     const dashWelcome = document.querySelector('.dashboard-header h2');
