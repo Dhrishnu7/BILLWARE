@@ -1,0 +1,2094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0d9488">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MM Pakkam">
+    <link rel="apple-touch-icon" href="/icon-512.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Sales | Mudhalvar Marundhagam Pakkam</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            background-color: #f0fdf4;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(142,76%,88%,1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, hsla(199,89%,90%,1) 0px, transparent 50%);
+            background-attachment: fixed;
+            display: flex;
+            flex-direction: column;
+            color: #0f172a;
+        }
+
+        /* -- Navbar -- */
+        header {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255,255,255,0.6);
+            box-shadow: 0 2px 20px rgba(0,0,0,0.05);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            text-decoration: none;
+            transition: transform 0.2s ease;
+        }
+        .logo:hover { transform: translateY(-1px); }
+
+        .logo-icon {
+            width: 46px; height: 46px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #0284c7, #0ea5e9, #10b981);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 900; font-size: 1.25rem; letter-spacing: 0.5px;
+            box-shadow: 0 6px 16px rgba(14, 165, 233, 0.4), inset 0 2px 4px rgba(255,255,255,0.4);
+            border: 1px solid rgba(255,255,255,0.5);
+            flex-shrink: 0; position: relative; overflow: hidden;
+        }
+        .logo-icon::after {
+            content: ''; position: absolute;
+            top: 0; left: -100%; width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
+            transform: skewX(-20deg); animation: shimmer 3s infinite;
+        }
+        @keyframes shimmer { 0% { left: -100%; } 20% { left: 200%; } 100% { left: 200%; } }
+
+        .logo-text {
+            font-size: 1.35rem; font-weight: 800;
+            background: linear-gradient(to right, #0f172a, #334155);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: -0.01em;
+        }
+        .back-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 0.5rem 1.2rem;
+            background: white;
+            border: 1.5px solid rgba(16,185,129,0.3);
+            border-radius: 50px;
+            font-size: 0.85rem; font-weight: 600; color: #059669;
+            text-decoration: none; transition: all 0.25s ease;
+        }
+        .back-btn:hover {
+            background: #10b981; color: white; border-color: #10b981;
+            box-shadow: 0 4px 16px rgba(16,185,129,0.35);
+            transform: translateY(-1px);
+        }
+
+        /* -- Page Content -- */
+        .page-content {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; padding: 2.5rem 1.5rem 4rem;
+        }
+
+        /* -- Page Header -- */
+        .page-header {
+            text-align: center; margin-bottom: 2rem;
+            animation: fadeUp 0.5s ease forwards; opacity: 0;
+        }
+        .breadcrumb { font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.6rem; }
+        .breadcrumb a { color: #059669; text-decoration: none; font-weight: 500; }
+        .page-header h1 { font-size: 1.9rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+        .page-header p { color: #64748b; margin-top: 0.4rem; font-size: 0.95rem; }
+
+        /* -- Main Card -- */
+        .form-card {
+            background: rgba(255,255,255,0.88);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.9);
+            border-radius: 24px;
+            padding: 2.5rem;
+            width: 100%; max-width: 1100px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            animation: fadeUp 0.6s ease 0.1s forwards; opacity: 0;
+        }
+
+        /* -- Top meta grid -- */
+        .meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 1.1rem 1.4rem;
+            margin-bottom: 2rem;
+        }
+        @media (max-width: 860px) { .meta-grid { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 500px) { .meta-grid { grid-template-columns: 1fr; } }
+
+        /* -- Form Groups -- */
+        .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+        .form-group label {
+            font-size: 0.72rem; font-weight: 800;
+            letter-spacing: 0.07em; text-transform: uppercase;
+            color: #065f46;
+        }
+        .form-group input, .form-group select {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.92rem; color: #0f172a;
+            background: #f8fffe;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 0.7rem 0.9rem;
+            outline: none; width: 100%;
+            transition: all 0.22s ease;
+            appearance: none; -webkit-appearance: none;
+        }
+        .form-group select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.9rem center;
+            padding-right: 2.2rem;
+        }
+        input[list] {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.9rem center;
+            padding-right: 2.2rem;
+        }
+        .form-group input::placeholder { color: #cbd5e1; }
+        .form-group input:hover, .form-group select:hover { border-color: #6ee7b7; background: white; }
+        .form-group input:focus, .form-group select:focus {
+            border-color: #10b981; background: white;
+            box-shadow: 0 0 0 4px rgba(16,185,129,0.12);
+        }
+        #billNo {
+            font-weight: 800; font-size: 1rem;
+            color: #065f46;
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            border-color: #6ee7b7;
+            letter-spacing: 0.04em;
+            cursor: default;
+        }
+
+        /* -- Section Label -- */
+        .section-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 1rem;
+        }
+        .section-label h2 {
+            font-size: 1rem;
+            font-weight: 800;
+            color: #065f46;
+            letter-spacing: -0.01em;
+        }
+        .section-label .pill {
+            background: #d1fae5;
+            color: #059669;
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 2px 10px;
+            border-radius: 20px;
+            letter-spacing: 0.04em;
+        }
+
+        /* -- Medicine Table -- */
+        .table-wrap {
+            overflow-x: auto;
+            border-radius: 14px;
+            border: 1.5px solid #d1fae5;
+            box-shadow: 0 2px 12px rgba(16,185,129,0.07);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 860px;
+        }
+        thead th {
+            background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+            padding: 0.75rem 0.8rem;
+            text-align: left;
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: #065f46;
+            white-space: nowrap;
+            border-bottom: 1.5px solid #a7f3d0;
+        }
+        thead th:first-child { border-radius: 12px 0 0 0; width: 36px; text-align: center; }
+        thead th:last-child  { border-radius: 0 12px 0 0; width: 44px; text-align: center; }
+
+        tbody tr {
+            transition: background 0.18s ease;
+        }
+        tbody tr:nth-child(even) { background: rgba(209,250,229,0.15); }
+        tbody tr:hover { background: rgba(209,250,229,0.35); }
+
+        tbody td {
+            padding: 0.45rem 0.55rem;
+            border-bottom: 1px solid #f0fdf4;
+            vertical-align: middle;
+        }
+        tbody tr:last-child td { border-bottom: none; }
+        tbody td:first-child { text-align: center; font-size: 0.75rem; font-weight: 700; color: #94a3b8; }
+        tbody td:last-child  { text-align: center; }
+
+        /* Table inputs */
+        .t-input {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            color: #0f172a;
+            background: transparent;
+            border: 1.5px solid transparent;
+            border-radius: 8px;
+            padding: 0.45rem 0.55rem;
+            width: 100%;
+            outline: none;
+            transition: all 0.18s ease;
+        }
+        .t-input:hover { border-color: #a7f3d0; background: white; }
+        .t-input:focus { border-color: #10b981; background: white; box-shadow: 0 0 0 3px rgba(16,185,129,0.12); }
+        .t-input::placeholder { color: #d1d5db; font-size: 0.8rem; }
+        .t-input[readonly] {
+            font-weight: 700;
+            color: #059669;
+            background: #f0fdf4;
+            border-color: transparent;
+            cursor: default;
+        }
+        .t-input[readonly]:hover { border-color: transparent; background: #f0fdf4; }
+
+        /* Remove row btn */
+        .remove-row-btn {
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            background: #fee2e2;
+            color: #ef4444;
+            border: none; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            transition: all 0.18s ease;
+            font-size: 0.9rem; font-weight: 700;
+            flex-shrink: 0;
+        }
+        .remove-row-btn:hover { background: #ef4444; color: white; transform: scale(1.15); }
+        .remove-row-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+        /* -- Table Footer -- */
+        .table-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 1rem;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .add-row-btn {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 0.6rem 1.3rem;
+            background: white;
+            border: 1.5px dashed #6ee7b7;
+            border-radius: 50px;
+            font-size: 0.85rem; font-weight: 700; color: #059669;
+            cursor: pointer; transition: all 0.22s ease;
+            font-family: 'Inter', sans-serif;
+        }
+        .add-row-btn:hover {
+            background: #d1fae5; border-style: solid;
+            border-color: #10b981;
+            transform: translateY(-1px);
+        }
+        .add-row-btn:disabled {
+            opacity: 0.45; cursor: not-allowed; transform: none;
+        }
+
+        /* Grand Total Box */
+        .grand-total-box {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: linear-gradient(135deg, #065f46, #059669);
+            color: white;
+            padding: 0.85rem 1.5rem;
+            border-radius: 14px;
+            box-shadow: 0 6px 20px rgba(5,150,105,0.35);
+        }
+        .grand-total-box .gt-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+        .grand-total-box .gt-value {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        /* Divider */
+        .divider {
+            height: 1.5px;
+            background: linear-gradient(90deg, #6ee7b7, transparent);
+            margin: 1.8rem 0;
+            border-radius: 2px;
+        }
+
+        /* -- Buttons -- */
+        .form-actions { display: flex; gap: 0.8rem; margin-top: 2rem; }
+        .btn {
+            flex: 1; display: inline-flex; align-items: center;
+            justify-content: center; gap: 8px;
+            padding: 0.95rem 1.5rem; border-radius: 12px;
+            font-size: 0.97rem; font-weight: 700;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer; border: none; transition: all 0.25s ease;
+        }
+        .btn-cancel { background: #f1f5f9; color: #64748b; border: 1.5px solid #e2e8f0; }
+        .btn-cancel:hover { background: #e2e8f0; color: #334155; }
+        .btn-save {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white; box-shadow: 0 4px 16px rgba(16,185,129,0.35);
+        }
+        .btn-save:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(16,185,129,0.45); }
+        .btn-save:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+
+        /* -- Toast -- */
+        .toast {
+            position: fixed; bottom: 2rem; right: 2rem;
+            background: white; border: 1.5px solid #a7f3d0;
+            border-radius: 16px; padding: 1rem 1.4rem;
+            display: flex; align-items: center; gap: 12px;
+            font-size: 0.9rem; font-weight: 600; color: #065f46;
+            box-shadow: 0 10px 30px rgba(16,185,129,0.18);
+            transform: translateY(100px); opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175,0.885,0.32,1.275);
+            z-index: 999;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast-icon {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: #d1fae5;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+
+        /* Row count badge */
+        .row-count-badge {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #64748b;
+            background: #f1f5f9;
+            border-radius: 20px;
+            padding: 2px 10px;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes rowSlideIn {
+            from { opacity: 0; transform: translateX(-8px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes autofillFlash {
+            0%   { background: #bbf7d0; border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.25); }
+            70%  { background: #d1fae5; border-color: #6ee7b7; box-shadow: 0 0 0 2px rgba(16,185,129,0.1); }
+            100% { background: white;   border-color: #10b981; box-shadow: none; }
+        }
+        .autofilled {
+            animation: autofillFlash 1s ease forwards;
+            font-weight: 600;
+            color: #065f46 !important;
+        }
+
+        @media (max-width: 580px) {
+            header { padding: 0.8rem 1rem; }
+            .logo-text { font-size: 0.95rem; }
+            .form-card { padding: 1.5rem 1rem; }
+            .grand-total-box .gt-value { font-size: 1.2rem; }
+            .form-actions { flex-direction: column; }
+            .btn { flex: unset; width: 100%; }
+        }
+
+        /* -- Import button (green) -- */
+        .import-btn-sm {
+            display:inline-flex; align-items:center; gap:5px;
+            padding:3px 11px; border-radius:20px;
+            border:1.5px solid rgba(16,185,129,0.4);
+            background:#d1fae5; color:#059669;
+            font-family:'Inter',sans-serif; font-size:0.7rem; font-weight:700;
+            cursor:pointer; transition:all 0.2s ease; margin-left:auto;
+        }
+        .import-btn-sm:hover { background:#10b981; color:white; border-color:#10b981; }
+        .clear-btn-sm {
+            display:inline-flex; align-items:center; gap:5px;
+            padding:3px 11px; border-radius:20px;
+            border:1.5px solid rgba(239,68,68,0.4);
+            background:#fef2f2; color:#ef4444;
+            font-family:'Inter',sans-serif; font-size:0.7rem; font-weight:700;
+            cursor:pointer; transition:all 0.2s ease;
+        }
+        .clear-btn-sm:hover { background:#ef4444; color:white; border-color:#ef4444; }
+
+        /* -- Import Modal -- */
+        .modal-overlay {
+            position:fixed; inset:0;
+            background:rgba(15,23,42,0.55);
+            backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+            display:flex; align-items:center; justify-content:center;
+            z-index:9999; opacity:0; pointer-events:none;
+            transition:opacity 0.25s ease;
+        }
+        .modal-overlay.open { opacity:1; pointer-events:all; }
+        .modal-card {
+            background:white; border-radius:22px; width:92%; max-width:500px;
+            max-height:86vh; display:flex; flex-direction:column; overflow:hidden;
+            box-shadow:0 25px 60px rgba(0,0,0,0.22);
+            transform:scale(0.95) translateY(14px);
+            transition:transform 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+        }
+        .modal-overlay.open .modal-card { transform:scale(1) translateY(0); }
+        .modal-hd {
+            padding:1.4rem 1.8rem 1rem; border-bottom:1px solid #f1f5f9;
+            display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+        }
+        .modal-hd h3 { font-size:1.05rem; font-weight:800; color:#0f172a; }
+        .modal-x {
+            width:28px; height:28px; border-radius:50%; border:none;
+            background:#f1f5f9; color:#64748b; font-size:1.1rem;
+            cursor:pointer; display:flex; align-items:center; justify-content:center;
+        }
+        .modal-x:hover { background:#e2e8f0; }
+        .modal-bd { padding:1.4rem 1.8rem; flex:1; overflow-y:auto; }
+        .modal-ft {
+            padding:0.9rem 1.8rem; border-top:1px solid #f1f5f9;
+            background:#fafafa; display:flex; gap:0.7rem; flex-shrink:0;
+        }
+        /* Drop zone (green) */
+        .drop-zone {
+            border:2.5px dashed #6ee7b7; border-radius:14px;
+            padding:2.5rem 1.5rem; text-align:center; cursor:pointer;
+            background:#f0fdf4; position:relative; transition:all 0.22s;
+        }
+        .drop-zone:hover,.drop-zone.drag-over { background:#d1fae5; border-color:#10b981; }
+        .drop-zone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+        .dz-ico { font-size:2.4rem; margin-bottom:0.6rem; }
+        .dz-txt { font-weight:700; color:#065f46; font-size:0.93rem; }
+        .dz-sub { font-size:0.77rem; color:#047857; margin-top:0.3rem; }
+        /* Column picker */
+        .step-lbl { font-size:0.73rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:#64748b; margin-bottom:0.6rem; }
+        .col-grid { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.6rem; }
+        .col-pill {
+            padding:5px 13px; border-radius:20px; border:1.5px solid #e2e8f0;
+            background:#f8fafc; font-family:'Inter',sans-serif; font-size:0.78rem; font-weight:600;
+            cursor:pointer; color:#334155; transition:all 0.18s; text-align:left;
+        }
+        .col-pill:hover { border-color:#10b981; color:#059669; }
+        .col-pill.sel { background:linear-gradient(135deg,#10b981,#059669); color:white; border-color:#10b981; }
+        .stats-txt { font-size:0.73rem; color:#94a3b8; margin-bottom:0.6rem; }
+        /* Preview list */
+        .prev-box { border:1.5px solid #e2e8f0; border-radius:10px; max-height:150px; overflow-y:auto; background:#f8fafc; margin-top:0.5rem; }
+        .prev-item { padding:5px 13px; font-size:0.82rem; color:#0f172a; border-bottom:1px solid #f1f5f9; }
+        .prev-item:last-child { border-bottom:none; }
+        .prev-more { padding:5px 13px; font-size:0.73rem; font-weight:700; color:#64748b; background:#f1f5f9; border-top:1px solid #e2e8f0; }
+        .import-count { font-size:0.76rem; font-weight:700; color:#059669; margin-top:0.5rem; }
+        /* Modal buttons (green) */
+        .btn-do-import {
+            flex:1; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+            padding:0.7rem 1.2rem; border-radius:10px;
+            font-size:0.9rem; font-weight:700; font-family:'Inter',sans-serif;
+            cursor:pointer; border:none;
+            background:linear-gradient(135deg,#10b981,#059669); color:white;
+            box-shadow:0 4px 14px rgba(16,185,129,0.3); transition:all 0.22s;
+        }
+        .btn-do-import:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(16,185,129,0.4); }
+        .btn-do-import:disabled { opacity:0.4; cursor:not-allowed; transform:none; box-shadow:none; }
+        .btn-mcancel {
+            padding:0.7rem 1.2rem; border-radius:10px;
+            font-size:0.9rem; font-weight:700; font-family:'Inter',sans-serif;
+            cursor:pointer; border:1.5px solid #e2e8f0; background:white; color:#64748b;
+            transition:background 0.18s;
+        }
+        .btn-mcancel:hover { background:#f1f5f9; }
+
+        /* -- Quick-Add Customer/Doctor -- */
+        .field-label-row {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 0;
+        }
+        .quick-add-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 10px; border-radius: 20px;
+            border: 1.5px solid rgba(16,185,129,0.45);
+            background: #d1fae5; color: #059669;
+            font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 700;
+            cursor: pointer; transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .quick-add-btn:hover { background: #10b981; color: white; border-color: #10b981; }
+
+        /* Quick-Add Modal */
+        .qa-modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(15,23,42,0.5);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 10000; opacity: 0; pointer-events: none;
+            transition: opacity 0.22s ease;
+        }
+        .qa-modal-overlay.open { opacity: 1; pointer-events: all; }
+        .qa-modal-card {
+            background: white; border-radius: 20px;
+            width: 92%; max-width: 400px;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.2);
+            transform: scale(0.95) translateY(12px);
+            transition: transform 0.28s cubic-bezier(0.175,0.885,0.32,1.275);
+            overflow: hidden;
+        }
+        .qa-modal-overlay.open .qa-modal-card { transform: scale(1) translateY(0); }
+        .qa-modal-hd {
+            padding: 1.2rem 1.6rem 0.8rem;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .qa-modal-hd h3 { font-size: 1rem; font-weight: 800; color: #0f172a; }
+        .qa-modal-x {
+            width: 28px; height: 28px; border-radius: 50%; border: none;
+            background: #f1f5f9; color: #64748b; font-size: 1.1rem;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+        .qa-modal-x:hover { background: #e2e8f0; }
+        .qa-modal-bd { padding: 1.2rem 1.6rem; }
+        .qa-form-group { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; }
+        .qa-form-group label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #065f46; }
+        .qa-form-group input, .qa-form-group textarea {
+            font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #0f172a;
+            background: #f8fffe; border: 1.5px solid #e2e8f0;
+            border-radius: 10px; padding: 0.65rem 0.9rem;
+            outline: none; width: 100%; transition: all 0.2s;
+            resize: vertical;
+        }
+        .qa-form-group input:focus, .qa-form-group textarea:focus {
+            border-color: #10b981; background: white;
+            box-shadow: 0 0 0 3px rgba(16,185,129,0.12);
+        }
+        .qa-form-group input::placeholder, .qa-form-group textarea::placeholder { color: #cbd5e1; }
+        .qa-modal-ft {
+            padding: 0.8rem 1.6rem 1.2rem;
+            display: flex; gap: 0.7rem;
+        }
+        .qa-save-btn {
+            flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 0.65rem 1rem; border-radius: 10px;
+            font-size: 0.9rem; font-weight: 700; font-family: 'Inter', sans-serif;
+            cursor: pointer; border: none;
+            background: linear-gradient(135deg, #10b981, #059669); color: white;
+            box-shadow: 0 4px 14px rgba(16,185,129,0.3); transition: all 0.22s;
+        }
+        .qa-save-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16,185,129,0.4); }
+        .qa-cancel-btn {
+            padding: 0.65rem 1rem; border-radius: 10px;
+            font-size: 0.9rem; font-weight: 700; font-family: 'Inter', sans-serif;
+            cursor: pointer; border: 1.5px solid #e2e8f0; background: white; color: #64748b;
+            transition: background 0.18s;
+        }
+        .qa-cancel-btn:hover { background: #f1f5f9; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/keyboard-nav.js"></script>
+    <script src="js/thermal-print.js"></script>
+</head>
+<body>
+    <script>
+        mmRequireAuth();
+        document.addEventListener('DOMContentLoaded', () => mmInjectUserBar());
+    </script>
+
+    <!-- Navbar -->
+    <header>
+        <a class="logo" href="index.html">
+            <div class="logo-icon">MM</div>
+            <span class="logo-text">Mudhalvar Marundhagam Pakkam</span>
+        </a>
+        <a class="back-btn" href="index.html">&#8592; Back</a>
+    </header>
+
+    <!-- Page Content -->
+    <div class="page-content">
+
+        <div class="page-header">
+            <div class="breadcrumb"><a href="index.html">Home</a> &rsaquo; Sales</div>
+            <h1>New Sale Bill</h1>
+            <p>Add up to 15 medicines at once and save as one bill</p>
+        </div>
+
+        <div class="form-card">
+            <form id="salesForm" onsubmit="handleSubmit(event)" novalidate>
+
+                <!-- -- Bill Meta Info -- -->
+                <div class="meta-grid">
+                    <div class="form-group">
+                        <label>Bill No</label>
+                        <input type="text" id="billNo" readonly tabindex="-1">
+                    </div>
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="saleDate">
+                    </div>
+                    <div class="form-group">
+                        <div class="field-label-row">
+                            <label>Customer Name</label>
+                            <button type="button" class="quick-add-btn" onclick="openQuickAdd('customer')">
+                                + New Customer
+                            </button>
+                        </div>
+                        <input type="text" id="customerName" list="customerList" placeholder="Select or type…" autocomplete="off">
+                        <datalist id="customerList"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <div class="field-label-row">
+                            <label>Doctor Name</label>
+                            <button type="button" class="quick-add-btn" onclick="openQuickAdd('doctor')">
+                                + New Doctor
+                            </button>
+                        </div>
+                        <input type="text" id="doctorName" list="doctorList" placeholder="Select or type…" autocomplete="off">
+                        <datalist id="doctorList"></datalist>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- -- Medicine Table -- -->
+                <div class="section-label">
+                    <h2>Medicine Details</h2>
+                    <span class="pill">UP TO 15 ITEMS</span>
+                    <span class="row-count-badge" id="rowCountBadge">1 / 15</span>
+                    <div style="display:flex; gap:0.5rem; margin-left:auto;">
+                        <button type="button" class="clear-btn-sm" onclick="clearImportedMedicines()">
+                            🗑️ Clear Imported
+                        </button>
+                        <button type="button" class="import-btn-sm" onclick="openImportModal()" style="margin-left:0;">
+                            📋 Import Medicine List
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table id="medicineTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Product Name</th>
+                                <th>Batch No</th>
+                                <th>Exp. Date</th>
+                                <th title="Units per pack/strip">Pack</th>
+                                <th>Stock</th>
+                                <th>Qty</th>
+                                <th title="MRP is auto-filled from Purchase MRP ÷ Pack">MRP (₹)</th>
+                                <th>Purchase Rate (₹)</th>
+                                <th>GST %</th>
+                                <th>Disc %</th>
+                                <th title="Total = (MRP × Qty) − Discount% + GST%">Total (₹)</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="medicineRows">
+                            <!-- Rows injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Table Footer: Add Row + Grand Total -->
+                <div class="table-footer">
+                    <button type="button" class="add-row-btn" id="addRowBtn" onclick="addRow()">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
+                        </svg>
+                        Add Medicine Row
+                    </button>
+
+                    <div class="grand-total-box">
+                        <div>
+                            <div class="gt-label">Grand Total</div>
+                            <div class="gt-value" id="grandTotal">₹ 0.00</div>
+                        </div>
+                        <svg width="28" height="28" fill="none" stroke="white" stroke-width="1.8" viewBox="0 0 24 24" opacity="0.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l6-6m0 0l-6 0m6 0l0 6M3 3h2l.4 2M7 13h10l4-8H5.4"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- -- Printer Status Bar -- -->
+                <div id="printerBar" style="display:flex; align-items:center; gap:0.8rem; margin-bottom:1rem; padding:0.7rem 1rem; background:rgba(248,250,252,0.9); border:1.5px solid #e2e8f0; border-radius:12px; font-size:0.82rem; font-family:'Inter',sans-serif;">
+                    <span id="printerStatusDot" style="width:10px;height:10px;border-radius:50%;background:#cbd5e1;flex-shrink:0;"></span>
+                    <span id="printerStatusText" style="color:#64748b; font-weight:600;">No printer connected</span>
+                    <button type="button" id="connectPrinterBtn" onclick="handleConnectPrinter()" style="margin-left:auto; padding:0.4rem 0.9rem; border-radius:8px; border:1.5px solid #0ea5e9; background:white; color:#0ea5e9; font-weight:700; font-size:0.78rem; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.2s;" onmouseover="this.style.background='#0ea5e9';this.style.color='white';" onmouseout="this.style.background='white';this.style.color='#0ea5e9';">🖨️ Connect Printer</button>
+                    <button type="button" id="disconnectPrinterBtn" onclick="handleDisconnectPrinter()" style="display:none; padding:0.4rem 0.9rem; border-radius:8px; border:1.5px solid #ef4444; background:white; color:#ef4444; font-weight:700; font-size:0.78rem; cursor:pointer; font-family:'Inter',sans-serif;" onmouseover="this.style.background='#ef4444';this.style.color='white';" onmouseout="this.style.background='white';this.style.color='#ef4444';">✕ Disconnect</button>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; margin-bottom: 1rem;">
+                    <div style="display:flex; align-items:center; gap: 0.5rem; background:white; padding: 0.5rem 1rem; border-radius: 12px; border: 1.5px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
+                        <label style="font-size:0.85rem; font-weight:700; color:#475569;">Payment Mode:</label>
+                        <select id="paymentMode" style="border:none; outline:none; font-size:0.9rem; font-weight:700; color:#0f172a; cursor:pointer; background:transparent;">
+                            <option value="cash">💵 Cash</option>
+                            <option value="upi">📱 UPI</option>
+                            <option value="credit">📒 Credit (Khata)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- -- Form Actions -- -->
+                <div class="form-actions">
+                    <button type="button" class="btn btn-cancel" onclick="window.location.href='index.html'">Cancel</button>
+                    <button type="submit" class="btn btn-save" id="saveBtn">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Save Bill
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <div class="toast-icon">
+            <svg width="16" height="16" fill="none" stroke="#059669" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+        </div>
+        <div>
+            <div style="font-weight:800;" id="toastTitle">Bill Saved!</div>
+            <div style="font-size:0.78rem; color:#34d399; margin-top:2px;" id="toastSub">Billing record added successfully.</div>
+        </div>
+    </div>
+
+    <script>
+        const MAX_ROWS = 15;
+        let rowCount = 0;
+        let globalRowCounter = 0;
+
+        /* -- Auto Bill No -- */
+        async function generateBillNo() {
+            try {
+                if (typeof dbNextBillNo === 'function') {
+                    const nextNo = await dbNextBillNo();
+                    document.getElementById('billNo').value = nextNo;
+                    return;
+                }
+            } catch(e) {}
+            const counter = parseInt(localStorage.getItem('mm_bill_counter') || '0') + 1;
+            document.getElementById('billNo').value = 'MM-' + String(counter).padStart(3, '0');
+        }
+        generateBillNo();
+
+        /* -- Default Date -- */
+        document.getElementById('saleDate').valueAsDate = new Date();
+
+        /* -- Build medicine lookup map from purchases -- */
+        function buildMedicineMap() {
+            const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+            const map = {};
+            purchases.forEach(p => {
+                if (p.productName) {
+                    const baseName = p.productName.trim();
+                    // Always map the base name (latest entry wins)
+                    map[baseName.toLowerCase()] = p;
+                    // Also map the batch-specific name
+                    if (p.batchNo) {
+                        const batchName = `${baseName} (Batch: ${p.batchNo.trim()})`;
+                        map[batchName.toLowerCase()] = p;
+                    }
+                }
+            });
+            return map;
+        }
+
+        /* -- Calculate Stock -- */
+        function getStock(productName, batchNo) {
+            if (!productName) return 0;
+            const name = productName.trim().toLowerCase();
+            const batch = (batchNo || '').trim().toLowerCase();
+            
+            const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+            let totalPurchased = 0;
+            purchases.forEach(p => {
+                if ((p.productName || '').trim().toLowerCase() === name) {
+                    if (!batch || (p.batchNo || '').trim().toLowerCase() === batch) {
+                        totalPurchased += parseFloat(p.quantity) || 0;
+                    }
+                }
+            });
+            
+            const sales = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+            let totalSold = 0;
+            sales.forEach(s => {
+                (s.medicines || []).forEach(m => {
+                    if ((m.product || '').trim().toLowerCase() === name) {
+                        if (!batch || (m.batch || '').trim().toLowerCase() === batch) {
+                            totalSold += parseFloat(m.qty) || 0;
+                        }
+                    }
+                });
+            });
+            
+            return totalPurchased - totalSold;
+        }
+
+        /* -- Build datalist options: ONLY unique base medicine names (no batch suffixes) -- */
+        function getMedicineOptions() {
+            const medList   = JSON.parse(localStorage.getItem('mm_medicine_list') || '[]');
+            const purchases = JSON.parse(localStorage.getItem('mm_purchases')     || '[]');
+            const seen = new Set(), names = [];
+            
+            medList.forEach(m => {
+                const t = (m || '').trim();
+                if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); names.push(t); }
+            });
+
+            // Only add the BASE name from purchases (not the batch-specific variant)
+            purchases.forEach(p => {
+                if (p.productName) {
+                    const base = p.productName.trim();
+                    if (base && !seen.has(base.toLowerCase())) { seen.add(base.toLowerCase()); names.push(base); }
+                }
+            });
+            
+            return names.map(n => `<option value="${n.replace(/"/g, '&quot;')}">`).join('');
+        }
+
+        /* -- Get all batches for a given medicine name -- */
+        function getBatchesForProduct(productName) {
+            if (!productName) return [];
+            const name = productName.trim().toLowerCase();
+            const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+            const seen = new Set(), batches = [];
+            purchases.forEach(p => {
+                if ((p.productName || '').trim().toLowerCase() === name && p.batchNo) {
+                    const bk = p.batchNo.trim().toLowerCase();
+                    if (!seen.has(bk)) {
+                        seen.add(bk);
+                        batches.push(p);
+                    }
+                }
+            });
+            return batches; // array of purchase objects, one per batch
+        }
+
+        /* -- Refresh the single global datalist (handles 15,000+ items easily) -- */
+        function refreshGlobalMedicineList() {
+            const dl = document.getElementById('globalMedicineList');
+            if (dl) dl.innerHTML = getMedicineOptions();
+        }
+
+        /* -- Refresh Customer & Doctor Datalists -- */
+        function refreshNamesLists() {
+            const custSet = new Set(), docSet = new Set();
+            const custNames = [], docNames = [];
+
+            // Add official customers
+            const customers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+            customers.forEach(c => {
+                const n = (c.name || '').trim();
+                if (n && !custSet.has(n.toLowerCase())) { custSet.add(n.toLowerCase()); custNames.push(n); }
+            });
+
+            // Add official doctors
+            const doctors = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
+            doctors.forEach(d => {
+                const n = (d.name || '').trim();
+                if (n && !docSet.has(n.toLowerCase())) { docSet.add(n.toLowerCase()); docNames.push(n); }
+            });
+
+            // Add from sales history
+            const sales = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+            sales.forEach(s => {
+                const c = (s.customerName || '').trim();
+                const d = (s.doctorName || '').trim();
+                if (c && !custSet.has(c.toLowerCase())) { custSet.add(c.toLowerCase()); custNames.push(c); }
+                if (d && !docSet.has(d.toLowerCase())) { docSet.add(d.toLowerCase()); docNames.push(d); }
+            });
+
+            const cList = document.getElementById('customerList');
+            const dList = document.getElementById('doctorList');
+            if(cList) cList.innerHTML = custNames.map(n => `<option value="${n.replace(/"/g, '&quot;')}">`).join('');
+            if(dList) dList.innerHTML = docNames.map(n => `<option value="${n.replace(/"/g, '&quot;')}">`).join('');
+        }
+
+        /* -- Flash autofilled cells -- */
+        function flashCell(el) {
+            el.classList.remove('autofilled');
+            void el.offsetWidth; // reflow to restart animation
+            el.classList.add('autofilled');
+            setTimeout(() => el.classList.remove('autofilled'), 1100);
+        }
+
+        /* -- Autofill a row: populate batch dropdown when medicine name is chosen -- */
+        function autoFillRow(id) {
+            const productInput = document.getElementById('product_' + id);
+            const batchSelect  = document.getElementById('batch_' + id);
+            if (!productInput || !batchSelect) return;
+            const productVal = productInput.value.trim();
+
+            // Clear batch dropdown and dependent fields
+            batchSelect.innerHTML = '<option value="">— Select Batch —</option>';
+            ['exp_','pack_','mrp_','rate_','gst_','stock_','total_'].forEach(pfx => {
+                const el = document.getElementById(pfx + id);
+                if (el) el.value = '';
+            });
+
+            if (!productVal) return;
+
+            const batches = getBatchesForProduct(productVal);
+            if (batches.length === 0) return;
+
+            // Populate batch dropdown options
+            batches.forEach(p => {
+                const stock = getStock(p.productName, p.batchNo);
+                const opt = document.createElement('option');
+                opt.value = p.batchNo;
+                opt.textContent = p.batchNo;
+                opt.title = `Exp: ${p.expireDate || '-'}  |  Stock: ${stock}`;
+                batchSelect.appendChild(opt);
+            });
+
+            // If only one batch, auto-select it
+            if (batches.length === 1) {
+                batchSelect.value = batches[0].batchNo;
+                selectBatch(id);
+            } else {
+                batchSelect.focus();
+            }
+        }
+
+        /* -- Called when user picks a batch from the dropdown -- */
+        function selectBatch(id) {
+            const productInput = document.getElementById('product_' + id);
+            const batchSelect  = document.getElementById('batch_' + id);
+            if (!productInput || !batchSelect) return;
+
+            const productVal = productInput.value.trim();
+            const batchVal   = batchSelect.value.trim();
+            if (!productVal || !batchVal) return;
+
+            // Check if this medicine+batch is already in another row
+            let isDuplicate = false;
+            document.querySelectorAll('[id^="product_"]').forEach(el => {
+                if (el.id !== 'product_' + id) {
+                    const rowId = el.id.split('_')[1];
+                    const otherBatch = document.getElementById('batch_' + rowId);
+                    if (el.value.trim().toLowerCase() === productVal.toLowerCase() &&
+                        otherBatch && otherBatch.value.trim().toLowerCase() === batchVal.toLowerCase()) {
+                        isDuplicate = true;
+                    }
+                }
+            });
+            if (isDuplicate) {
+                alert('This medicine with this batch is already in the bill.');
+                batchSelect.value = '';
+                return;
+            }
+
+            // Find the purchase record for this product+batch
+            const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+            const match = purchases.find(p =>
+                (p.productName || '').trim().toLowerCase() === productVal.toLowerCase() &&
+                (p.batchNo     || '').trim().toLowerCase() === batchVal.toLowerCase()
+            );
+            if (!match) return;
+
+            const purchaseMrp  = parseFloat(match.mrp)  || 0;
+            const purchasePack = parseFloat(match.pack) || 1;
+            const salesMrp     = purchasePack > 0
+                ? parseFloat((purchaseMrp / purchasePack).toFixed(2))
+                : purchaseMrp;
+
+            const fields = [
+                { el: document.getElementById('exp_'  + id), val: match.expireDate || '' },
+                { el: document.getElementById('pack_' + id), val: match.pack        || '' },
+                { el: document.getElementById('mrp_'  + id), val: salesMrp > 0 ? salesMrp : '' },
+                { el: document.getElementById('rate_' + id), val: match.rate        || '' },
+                { el: document.getElementById('gst_'  + id), val: match.gst         || '' },
+            ];
+            fields.forEach(({ el, val }) => {
+                if (!el) return;
+                el.value = val;
+                if (val !== '') flashCell(el);
+            });
+
+            const stockEl = document.getElementById('stock_' + id);
+            if (stockEl) {
+                stockEl.value = getStock(match.productName, match.batchNo);
+                flashCell(stockEl);
+                checkStockOnQtyChange(id);
+            }
+            calcRowTotal(id);
+        }
+
+        /* -- Update row count badge and add btn -- */
+        function updateUI() {
+            const badge = document.getElementById('rowCountBadge');
+            if(badge) badge.textContent = rowCount + ' / ' + MAX_ROWS;
+            const addBtn = document.getElementById('addRowBtn');
+            if(addBtn) addBtn.disabled = rowCount >= MAX_ROWS;
+            
+            // disable remove button if only 1 row
+            const removeBtns = document.querySelectorAll('.remove-row-btn');
+            removeBtns.forEach(btn => btn.disabled = (rowCount <= 1));
+            
+            updateGrandTotal();
+        }
+
+        /* -- Calc row total -- */
+        function calcRowTotal(rowId) {
+            const qty      = parseFloat(document.getElementById('qty_'      + rowId)?.value) || 0;
+            const mrp      = parseFloat(document.getElementById('mrp_'      + rowId)?.value) || 0;
+            const gst      = parseFloat(document.getElementById('gst_'      + rowId)?.value) || 0;
+            const discount = parseFloat(document.getElementById('discount_' + rowId)?.value) || 0;
+            // Formula: Total = (MRP × Qty) − Discount% + GST%
+            const base      = qty * mrp;
+            const afterDisc = base * (1 - discount / 100);
+            const total     = afterDisc * (1 + gst / 100);
+            const totalEl   = document.getElementById('total_' + rowId);
+            if (totalEl) totalEl.value = total > 0 ? total.toFixed(2) : '';
+            updateGrandTotal();
+        }
+
+        /* -- Grand Total -- */
+        function updateGrandTotal() {
+            let sum = 0;
+            document.querySelectorAll('[id^="total_"]').forEach(el => {
+                sum += parseFloat(el.value) || 0;
+            });
+            document.getElementById('grandTotal').textContent = '₹ ' + sum.toFixed(2);
+        }
+
+        /* -- Remove Row -- */
+        function removeRow(rowId) {
+            const row = document.getElementById('row_' + rowId);
+            if (row) {
+                row.style.opacity = '0';
+                row.style.transform = 'translateX(10px)';
+                row.style.transition = 'all 0.2s ease';
+                setTimeout(() => {
+                    row.remove();
+                    rowCount--;
+                    // Renumber
+                    let i = 1;
+                    document.querySelectorAll('#medicineRows tr').forEach(r => {
+                        r.querySelector('.row-num').textContent = i++;
+                    });
+                    updateUI();
+                }, 200);
+            }
+        }
+
+
+        /* -- Stock check on qty change -- */
+        function checkStockOnQtyChange(rowId) {
+            const qtyEl = document.getElementById('qty_' + rowId);
+            const stockEl = document.getElementById('stock_' + rowId);
+            if (qtyEl && stockEl) {
+                const qty = parseFloat(qtyEl.value) || 0;
+                const stock = parseFloat(stockEl.value) || 0;
+                if (qty > stock) {
+                    qtyEl.style.borderColor = '#ef4444';
+                    qtyEl.style.color = '#ef4444';
+                    qtyEl.title = 'Quantity exceeds available stock!';
+                } else {
+                    qtyEl.style.borderColor = '';
+                    qtyEl.style.color = '';
+                    qtyEl.title = '';
+                }
+            }
+            calcRowTotal(rowId);
+        }
+        /* -- Add Row -- */
+        function addRow() {
+            if (rowCount >= MAX_ROWS) return;
+            rowCount++;
+            globalRowCounter++;
+            const id = globalRowCounter;
+            const tbody = document.getElementById('medicineRows');
+
+            const tr = document.createElement('tr');
+            tr.id = 'row_' + id;
+            tr.style.animation = 'rowSlideIn 0.25s ease forwards';
+            tr.innerHTML = `
+                <td><span class="row-num">${rowCount}</span></td>
+                <td>
+                    <input class="t-input" id="product_${id}" type="text"
+                        list="globalMedicineList" placeholder="Medicine name"
+                        autocomplete="off" style="min-width:150px;"
+                        onchange="autoFillRow(${id})">
+                </td>
+                <td><select class="t-input" id="batch_${id}" style="min-width:210px; max-width:210px; text-overflow: ellipsis;" onchange="selectBatch(${id})"><option value="">— Select Batch —</option></select></td>
+                <td><input class="t-input" id="exp_${id}"   type="month" style="min-width:120px;"></td>
+                <td><input class="t-input" id="pack_${id}"  type="number" placeholder="-" min="1" step="1" style="min-width:60px;" title="Units per pack"></td>
+                <td><input class="t-input" id="stock_${id}" type="number" readonly placeholder="0" style="min-width:60px; color:#059669; font-weight:bold;" title="Available Stock"></td>
+                <td><input class="t-input" id="qty_${id}"   type="number" placeholder="0" min="0" style="min-width:60px;"
+                    oninput="checkStockOnQtyChange(${id}); calcRowTotal(${id})"></td>
+                <td><input class="t-input" id="mrp_${id}"   type="number" placeholder="0.00" min="0" step="0.01" style="min-width:70px;"></td>
+                <td><input class="t-input" id="rate_${id}"  type="number" placeholder="0.00" min="0" step="0.01" style="min-width:70px;"
+                    oninput="calcRowTotal(${id})"></td>
+                <td><input class="t-input" id="gst_${id}"   type="number" placeholder="0" min="0" max="100" step="0.01" style="min-width:56px;"
+                    oninput="calcRowTotal(${id})"></td>
+                <td><input class="t-input" id="discount_${id}" type="number" placeholder="0" min="0" max="100" step="0.01" style="min-width:56px;"
+                    oninput="calcRowTotal(${id})"></td>
+                <td><input class="t-input" id="total_${id}" type="text" readonly placeholder="—" style="min-width:80px;"></td>
+                <td>
+                    <button type="button" class="remove-row-btn" onclick="removeRow(${id})" title="Remove row"
+                        ${rowCount <= 1 ? 'disabled' : ''}>
+                        &times;
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+
+            updateUI();
+            // Focus product name of new row
+            setTimeout(() => document.getElementById('product_' + id)?.focus(), 50);
+            return id; // return row id for programmatic use
+        }
+
+        /* -- Auto-fill Schedule H drugs from register into sales rows -- */
+        function autoFillScheduleH() {
+            const billNo       = (document.getElementById('billNo').value || '').trim();
+            const customerName = (document.getElementById('customerName').value || '').trim().toLowerCase();
+            const doctorName   = (document.getElementById('doctorName').value || '').trim().toLowerCase();
+
+            if (!billNo || !customerName) return; // need at least bill + customer
+
+            const register = JSON.parse(localStorage.getItem('mm_schedule_h_register') || '[]');
+            if (register.length === 0) return;
+
+            // Find matching entries: same billNo AND (customer or doctor match)
+            const matches = register.filter(e => {
+                const eBill = (e.billNo || '').trim();
+                const eCust = (e.patientName || '').trim().toLowerCase();
+                const eDoc  = (e.doctorName || '').trim().toLowerCase();
+                return eBill === billNo && eCust === customerName;
+            });
+
+            if (matches.length === 0) return;
+
+            // Check which drugs are already in the table to avoid duplicates
+            const existingDrugs = new Set();
+            document.querySelectorAll('[id^="product_"]').forEach(el => {
+                const rid = el.id.split('_')[1];
+                const batch = (document.getElementById('batch_' + rid)?.value || '').trim().toLowerCase();
+                existingDrugs.add((el.value || '').trim().toLowerCase() + '|' + batch);
+            });
+
+            let addedCount = 0;
+            matches.forEach(entry => {
+                const drugKey = (entry.drugName || '').toLowerCase() + '|' + (entry.batchNo || '').toLowerCase();
+                if (existingDrugs.has(drugKey)) return; // skip duplicates
+                existingDrugs.add(drugKey);
+
+                // If the first row is empty, use it; otherwise add a new row
+                let targetId;
+                const firstProduct = document.querySelector('[id^="product_"]');
+                if (firstProduct && !firstProduct.value.trim() && addedCount === 0) {
+                    targetId = firstProduct.id.split('_')[1];
+                } else {
+                    targetId = addRow();
+                    if (!targetId) return; // max rows reached
+                }
+
+                // Set product name and populate the batch dropdown
+                const productEl = document.getElementById('product_' + targetId);
+                if (productEl) {
+                    productEl.value = entry.drugName || '';
+                    flashCell(productEl);
+                }
+
+                // Build batch dropdown options for this drug
+                const batchSelect = document.getElementById('batch_' + targetId);
+                if (batchSelect && entry.batchNo) {
+                    batchSelect.innerHTML = '<option value="">— Select Batch —</option>';
+                    const opt = document.createElement('option');
+                    opt.value = entry.batchNo;
+                    const stock = getStock(entry.drugName, entry.batchNo);
+                    opt.textContent = `${entry.batchNo}  |  Exp: ${entry.expireDate || '-'}  |  Stock: ${stock}`;
+                    batchSelect.appendChild(opt);
+                    batchSelect.value = entry.batchNo;
+                    flashCell(batchSelect);
+                }
+
+                // Fill remaining fields
+                const otherFields = {
+                    ['exp_' + targetId]:  entry.expireDate || '',
+                    ['pack_' + targetId]: entry.pack || '',
+                    ['qty_' + targetId]:  entry.qty || '',
+                    ['mrp_' + targetId]:  entry.mrp || '',
+                    ['rate_' + targetId]: entry.rate || '',
+                    ['gst_' + targetId]:  entry.gst || '',
+                };
+                Object.entries(otherFields).forEach(([elId, val]) => {
+                    const el = document.getElementById(elId);
+                    if (el) {
+                        el.value = val;
+                        if (val !== '' && val !== 0) flashCell(el);
+                    }
+                });
+
+                calcRowTotal(targetId);
+                addedCount++;
+            });
+
+            if (addedCount > 0) {
+                updateGrandTotal();
+                // Show toast
+                document.getElementById('toastTitle').textContent = '⚠️ Schedule H Drugs Added!';
+                document.getElementById('toastSub').textContent = `${addedCount} Schedule H drug(s) auto-filled from register.`;
+                document.getElementById('toast').classList.add('show');
+                setTimeout(() => document.getElementById('toast').classList.remove('show'), 3500);
+            }
+        }
+
+        // Hook up auto-fill on customer/doctor name change
+        document.addEventListener('DOMContentLoaded', () => {
+            const custEl = document.getElementById('customerName');
+            const docEl  = document.getElementById('doctorName');
+            if (custEl) custEl.addEventListener('change', autoFillScheduleH);
+            if (docEl)  docEl.addEventListener('change', autoFillScheduleH);
+        });
+
+        /* -- Collect all rows data -- */
+        function collectMedicines() {
+            const rows = document.querySelectorAll('#medicineRows tr');
+            const medicines = [];
+            rows.forEach(row => {
+                const inputs = row.querySelectorAll('.t-input');
+                // id pattern: product_ID
+                const productEl = row.querySelector('[id^="product_"]');
+                if (!productEl) return;
+                const rid = productEl.id.replace('product_', '');
+                const product  = (document.getElementById('product_'  + rid)?.value || '').trim();
+                const batch    = (document.getElementById('batch_'    + rid)?.value || '').trim();
+                const exp      = (document.getElementById('exp_'      + rid)?.value || '').trim();
+                const pack     = parseFloat(document.getElementById('pack_'     + rid)?.value) || 0;
+                const qty      = parseFloat(document.getElementById('qty_'      + rid)?.value) || 0;
+                const mrp      = parseFloat(document.getElementById('mrp_'      + rid)?.value) || 0;
+                const rate     = parseFloat(document.getElementById('rate_'     + rid)?.value) || 0;
+                const gst      = parseFloat(document.getElementById('gst_'      + rid)?.value) || 0;
+                const discount = parseFloat(document.getElementById('discount_' + rid)?.value) || 0;
+                const total    = parseFloat(document.getElementById('total_'    + rid)?.value) || 0;
+                if (product && qty > 0) {
+                    medicines.push({ product, batch, exp, pack, qty, mrp, rate, gst, discount, total });
+                }
+            });
+            return medicines;
+        }
+
+        /* -- Submit -- */
+        async function handleSubmit(e) {
+            e.preventDefault();
+
+            const medicines = collectMedicines();
+            if (medicines.length === 0) {
+                alert('Please add at least one medicine before saving.');
+                return;
+            }
+
+            for (const med of medicines) {
+                const stock = getStock(med.product, med.batch);
+                if (med.qty > stock) {
+                    alert(`Cannot proceed. Quantity (${med.qty}) for "${med.product}" (Batch: ${med.batch}) is more than available stock (${stock}).`);
+                    return;
+                }
+            }
+
+            const btn = document.getElementById('saveBtn');
+            btn.disabled = true;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin .7s linear infinite"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg> Saving...`;
+
+            // Increment counter & save
+            const counter = parseInt(localStorage.getItem('mm_bill_counter') || '0') + 1;
+            localStorage.setItem('mm_bill_counter', String(counter));
+
+            const grandTotal = document.getElementById('grandTotal').textContent;
+
+            const billInput = document.getElementById('billNo').value;
+            let finalBillNo = billInput;
+            try {
+                if (typeof dbNextBillNo === 'function' && billInput.startsWith('MM-')) {
+                    finalBillNo = await dbNextBillNo();
+                }
+            } catch(e) {}
+
+            const customerName = document.getElementById('customerName').value.trim();
+            const paymentMode = document.getElementById('paymentMode').value;
+
+            if (paymentMode === 'credit' && !customerName) {
+                alert('A valid Customer Name is required for Credit sales.');
+                document.getElementById('customerName').focus();
+                return;
+            }
+
+            const bill = {
+                billNo:       finalBillNo,
+                date:         document.getElementById('saleDate').value,
+                customerName: customerName,
+                doctorName:   document.getElementById('doctorName').value.trim(),
+                medicines:    medicines,
+                grandTotal:   grandTotal,
+                paymentMode:  paymentMode,
+                savedAt:      new Date().toISOString()
+            };
+
+            // -- Save to Supabase --
+            const result = await dbSaveBill(bill);
+
+            // Also keep localStorage as offline fallback
+            const sales = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+            sales.push(bill);
+            localStorage.setItem('mm_sales', JSON.stringify(sales));
+
+            // Update Customer Balance if Credit
+            if (paymentMode === 'credit' && customerName) {
+                const customers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+                let cust = customers.find(c => (c.name || '').toLowerCase() === customerName.toLowerCase());
+                
+                // Get numeric total
+                const numTotal = parseFloat(grandTotal.replace(/[^\d.]/g, '')) || 0;
+
+                if (cust) {
+                    cust.balance = (cust.balance || 0) + numTotal;
+                } else {
+                    cust = { name: customerName, phone: '', address: '', balance: numTotal };
+                    customers.push(cust);
+                }
+                localStorage.setItem('mm_customers', JSON.stringify(customers));
+            }
+
+            // Show Success Modal
+            document.getElementById('successModalSub').innerHTML = `Bill No: <strong>${bill.billNo}</strong><br>Total Amount: <strong>${grandTotal}</strong>`;
+            document.getElementById('successModal').classList.add('open');
+            window.currentPrintBill = bill;
+
+            // ── Silent Print via WebUSB ──
+            if (ThermalPrinter.isConnected()) {
+                const shopProfile = window.mmShopProfile || null;
+                const printed = await ThermalPrinter.print(bill, shopProfile);
+                if (printed) {
+                    document.getElementById('toastTitle').textContent = '🖨️ Printed!';
+                    document.getElementById('toastSub').textContent   = 'Bill sent directly to printer.';
+                    document.getElementById('toast').classList.add('show');
+                    setTimeout(() => document.getElementById('toast').classList.remove('show'), 2500);
+                }
+            }
+
+            if (result.success) {
+                btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Saved!`;
+            } else {
+                // If failed, push to SCOPED pending queue to be synced later
+                const session = typeof mmGetSession === 'function' ? mmGetSession() : null;
+                const pendingKey = session ? `mm_${session.tenant_id || session.username}_pending_sales` : 'mm_pending_sales';
+                const pending = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+                pending.push(bill);
+                localStorage.setItem(pendingKey, JSON.stringify(pending));
+                btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01"/></svg> Saved Offline (Pending Sync)`;
+                // Notify the offline banner so it updates its count instantly
+                if (typeof window.updateOfflineBanner === 'function') window.updateOfflineBanner();
+            }
+
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Save Bill`;
+
+                // Reset form in background
+                document.getElementById('customerName').value = '';
+                document.getElementById('doctorName').value   = '';
+                document.getElementById('paymentMode').value  = 'cash';
+                document.getElementById('medicineRows').innerHTML = '';
+                rowCount = 0;
+                addRow(); // start fresh with 1 row
+                document.getElementById('saleDate').valueAsDate = new Date();
+                generateBillNo();
+                refreshNamesLists();
+            }, 3000);
+        }
+
+        /* -- Init: start with 1 row -- */
+        addRow();
+
+        /* ── Hook keyboard-nav.js into addRow for F2 / Enter-on-last-field ── */
+        window.__kbAddRow = function() {
+            const newId = addRow();
+            if (newId) setTimeout(() => document.getElementById('product_' + newId)?.focus(), 50);
+        };
+
+        /* ── Printer Status UI ── */
+        function updatePrinterStatus() {
+            const dot        = document.getElementById('printerStatusDot');
+            const txt        = document.getElementById('printerStatusText');
+            const connectBtn = document.getElementById('connectPrinterBtn');
+            const discBtn    = document.getElementById('disconnectPrinterBtn');
+            if (!dot) return;
+
+            if (!ThermalPrinter.isSupported()) {
+                dot.style.background = '#f59e0b';
+                txt.textContent = 'WebUSB not supported — use Chrome/Edge';
+                connectBtn.style.display = 'none';
+                return;
+            }
+
+            if (ThermalPrinter.isConnected()) {
+                dot.style.background = '#10b981';
+                const name = ThermalPrinter.getSavedPrinterName() || 'Thermal Printer';
+                txt.textContent = '● ' + name + ' — ready';
+                txt.style.color = '#065f46';
+                connectBtn.style.display = 'none';
+                discBtn.style.display    = '';
+            } else {
+                dot.style.background = '#cbd5e1';
+                txt.textContent = 'No printer connected — click to set up';
+                txt.style.color = '#64748b';
+                connectBtn.style.display = '';
+                discBtn.style.display    = 'none';
+            }
+        }
+
+        async function handleConnectPrinter() {
+            const btn = document.getElementById('connectPrinterBtn');
+            btn.textContent = 'Connecting...';
+            btn.disabled = true;
+            const ok = await ThermalPrinter.connect();
+            btn.disabled = false;
+            btn.textContent = '🖨️ Connect Printer';
+            updatePrinterStatus();
+            if (ok) {
+                document.getElementById('toastTitle').textContent = '🖨️ Printer Connected!';
+                document.getElementById('toastSub').textContent   = 'Bills will now print silently — no popups!';
+                document.getElementById('toast').classList.add('show');
+                setTimeout(() => document.getElementById('toast').classList.remove('show'), 3000);
+            }
+        }
+
+        function handleDisconnectPrinter() {
+            ThermalPrinter.disconnect();
+            updatePrinterStatus();
+        }
+
+        // Load shop profile for receipt header
+        if (typeof dbGetShopProfile === 'function') {
+            dbGetShopProfile().then(p => { if (p) window.mmShopProfile = p; });
+        }
+
+        // Update status once printer module has had time to auto-reconnect
+        setTimeout(updatePrinterStatus, 600);
+
+        /* ════════════════════════════════════════
+           Medicine List — localStorage helpers
+        ════════════════════════════════════════ */
+        const ML_KEY = 'mm_medicine_list';
+        const getMedList = () => JSON.parse(localStorage.getItem(ML_KEY) || '[]');
+        const setMedList = list => localStorage.setItem(ML_KEY, JSON.stringify(list));
+
+        function clearImportedMedicines() {
+            if (confirm("Are you sure you want to clear all imported medicines? (Purchase history will remain).")) {
+                localStorage.removeItem(ML_KEY);
+                refreshGlobalMedicineList();
+                document.getElementById('toastTitle').textContent=`Cleared!`;
+                document.getElementById('toastSub').textContent=`Imported medicines removed.`;
+                document.getElementById('toast').classList.add('show');
+                setTimeout(()=>document.getElementById('toast').classList.remove('show'),3000);
+            }
+        }
+
+        /* -- Import Modal State -- */
+        let _iRows=[], _iHdrs=[], _iCol=-1, _iNames=[], _iFileCount=0;
+
+        function openImportModal() {
+            _iRows=[]; _iHdrs=[]; _iCol=-1; _iNames=[]; _iFileCount=0;
+            document.getElementById('importModal').classList.add('open');
+            document.getElementById('importStep1').style.display='block';
+            document.getElementById('importStep2').style.display='none';
+            document.getElementById('importConfirmBtn').disabled=true;
+            const fi=document.getElementById('fileInput'); if(fi) fi.value='';
+        }
+        function closeImportModal() { document.getElementById('importModal').classList.remove('open'); }
+
+        function handleFileInput(e) {
+            const files=[...e.target.files].filter(f=>/\.(csv|xlsx|xls)$/i.test(f.name));
+            if(files.length) processFileList(files);
+        }
+        function handleFileDrop(e) {
+            e.preventDefault();
+            document.getElementById('dropZone').classList.remove('drag-over');
+            const files=[...e.dataTransfer.files].filter(f=>/\.(csv|xlsx|xls)$/i.test(f.name));
+            if(files.length) processFileList(files);
+        }
+
+        function processFileList(files) {
+            _iFileCount=files.length; _iRows=[]; _iHdrs=[];
+            let done=0;
+            const results=new Array(files.length).fill(null);
+            files.forEach((file,fi) => {
+                const rdr=new FileReader();
+                rdr.onload=ev=>{
+                    try {
+                        const isCSV=file.name.toLowerCase().endsWith('.csv');
+                        const wb=XLSX.read(ev.target.result,{type:isCSV?'string':'array'});
+                        const ws=wb.Sheets[wb.SheetNames[0]];
+                        results[fi]=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+                    } catch(err){ console.warn('File read error',err); results[fi]=[]; }
+                    if(++done===files.length){
+                        results.forEach((raw,i)=>{
+                            if(!raw||!raw.length) return;
+                            if(i===0){ _iHdrs=raw[0].map(String); _iRows.push(...raw.slice(1)); }
+                            else {
+                                const isHdr=raw[0].some((c,j)=>_iHdrs[j]&&String(c).toLowerCase()===_iHdrs[j].toLowerCase());
+                                _iRows.push(...(isHdr?raw.slice(1):raw));
+                            }
+                        });
+                        showColumnPicker();
+                    }
+                };
+                file.name.toLowerCase().endsWith('.csv')?rdr.readAsText(file):rdr.readAsArrayBuffer(file);
+            });
+        }
+
+        function showColumnPicker() {
+            document.getElementById('importStep1').style.display='none';
+            document.getElementById('importStep2').style.display='block';
+            const maxC=Math.max(_iHdrs.length,..._iRows.slice(0,10).map(r=>r.length||0),1);
+            const grid=document.getElementById('importColBtns'); grid.innerHTML='';
+            let autoIdx=-1;
+            for(let i=0;i<maxC;i++){
+                const hdr=_iHdrs[i]?String(_iHdrs[i]):`Column ${i+1}`;
+                const smp=_iRows.slice(0,3).map(r=>r[i]?String(r[i]):'').filter(Boolean).join(' · ');
+                const btn=document.createElement('button');
+                btn.type='button'; btn.className='col-pill'; btn.dataset.ci=i;
+                btn.innerHTML=`<b>${hdr}</b>${smp?`<br><small style="opacity:.7">${smp}</small>`:''}` ;
+                btn.onclick=()=>pickCol(i);
+                grid.appendChild(btn);
+                if(autoIdx<0&&/medicine|drug|product|name|item|med|brand|generic/i.test(hdr)) autoIdx=i;
+            }
+            document.getElementById('importStats').textContent=`${_iRows.length} data row(s) from ${_iFileCount} file(s)`;
+            if(autoIdx>=0) setTimeout(()=>pickCol(autoIdx),80);
+        }
+
+        function pickCol(idx) {
+            _iCol=idx;
+            document.querySelectorAll('.col-pill').forEach(b=>b.classList.remove('sel'));
+            const b=document.querySelector(`.col-pill[data-ci="${idx}"]`); if(b) b.classList.add('sel');
+            const seen=new Set(); _iNames=[];
+            _iRows.forEach(row=>{
+                const v=String(row[idx]??'').trim();
+                if(v&&!seen.has(v.toLowerCase())){seen.add(v.toLowerCase());_iNames.push(v);}
+            });
+            const pv=document.getElementById('importPreview');
+            pv.style.display='block';
+            pv.innerHTML=_iNames.slice(0,25).map(n=>`<div class="prev-item">${n}</div>`).join('')
+                +(_iNames.length>25?`<div class="prev-more">+${_iNames.length-25} more…</div>`:'');
+            document.getElementById('importCount').textContent=`✓ ${_iNames.length} unique medicine name(s) found`;
+            document.getElementById('importConfirmBtn').disabled=_iNames.length===0;
+        }
+
+        function doImport() {
+            if(!_iNames.length) return;
+            const existing=getMedList();
+            const seen=new Set(existing.map(n=>n.toLowerCase()));
+            const fresh=_iNames.filter(n=>!seen.has(n.toLowerCase()));
+            setMedList([...existing,...fresh]);
+            refreshGlobalMedicineList(); // refresh the single datalist
+            closeImportModal();
+            document.getElementById('toastTitle').textContent=`${fresh.length} medicine(s) imported!`;
+            document.getElementById('toastSub').textContent=`${getMedList().length} total in medicine list.`;
+            document.getElementById('toast').classList.add('show');
+            setTimeout(()=>document.getElementById('toast').classList.remove('show'),3000);
+        }
+
+        /* ══════════════════════════════════════
+           Quick-Add Customer / Doctor
+        ══════════════════════════════════════ */
+        let _qaType = 'customer'; // 'customer' or 'doctor'
+
+        function openQuickAdd(type) {
+            _qaType = type;
+            document.getElementById('qaModalTitle').textContent =
+                type === 'customer' ? '➕ New Customer' : '➕ New Doctor';
+            document.getElementById('qaName').value    = '';
+            document.getElementById('qaPhone').value   = '';
+            document.getElementById('qaAddress').value = '';
+            document.getElementById('qaModal').classList.add('open');
+            setTimeout(() => document.getElementById('qaName').focus(), 100);
+        }
+
+        function closeQuickAdd() {
+            document.getElementById('qaModal').classList.remove('open');
+        }
+
+        async function saveQuickAdd() {
+            const name    = document.getElementById('qaName').value.trim();
+            const phone   = document.getElementById('qaPhone').value.trim();
+            const address = document.getElementById('qaAddress').value.trim();
+
+            if (!name) {
+                const el = document.getElementById('qaName');
+                el.style.borderColor = '#ef4444';
+                el.style.boxShadow   = '0 0 0 3px rgba(239,68,68,0.12)';
+                el.focus();
+                setTimeout(() => { el.style.borderColor = ''; el.style.boxShadow = ''; }, 1500);
+                return;
+            }
+
+            if (_qaType === 'customer') {
+                // Save to Supabase
+                dbAddCustomer(name, phone, address);
+
+                const list = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+                const exists = list.some(c => c.name.toLowerCase() === name.toLowerCase());
+                if (!exists) {
+                    list.push({ name, phone, address });
+                    localStorage.setItem('mm_customers', JSON.stringify(list));
+                }
+                // Auto-fill the customer field
+                document.getElementById('customerName').value = name;
+            } else {
+                // Save to Supabase
+                dbAddDoctor(name, phone, '', address);
+
+                const list = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
+                const exists = list.some(d => d.name.toLowerCase() === name.toLowerCase());
+                if (!exists) {
+                    list.push({ name, phone, address });
+                    localStorage.setItem('mm_doctors', JSON.stringify(list));
+                }
+                // Auto-fill the doctor field
+                document.getElementById('doctorName').value = name;
+            }
+
+            // Refresh datalists so the new name is available
+            refreshNamesLists();
+            closeQuickAdd();
+
+            // Show quick toast
+            const label = _qaType === 'customer' ? 'Customer' : 'Doctor';
+            document.getElementById('toastTitle').textContent = `${label} Added!`;
+            document.getElementById('toastSub').textContent   = `"${name}" saved and selected.`;
+            document.getElementById('toast').classList.add('show');
+            setTimeout(() => document.getElementById('toast').classList.remove('show'), 2500);
+        }
+
+        // Close modal when clicking the overlay background
+        document.getElementById('qaModal').addEventListener('click', function(e) {
+            if (e.target === this) closeQuickAdd();
+        });
+
+        // Allow Enter key in qaName to move to next field
+        document.getElementById('qaModal')?.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeQuickAdd();
+        });
+
+        /* -- Success Modal & Print -- */
+        function closeSuccessModal() {
+            document.getElementById('successModal').classList.remove('open');
+        }
+
+        function printInvoice() {
+            const bill = window.currentPrintBill;
+            if (!bill) return;
+
+            // Delivery address lookup from mm_customers
+            let deliveryAddress = (bill.deliveryAddress || '').trim();
+            if (!deliveryAddress && bill.customerName) {
+                const customers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+                const cust = customers.find(c => (c.name || '').trim().toLowerCase() === (bill.customerName || '').trim().toLowerCase());
+                if (cust) deliveryAddress = cust.address || '';
+            }
+
+            const fmtTime = new Date(bill.savedAt || Date.now()).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+            const fmtDate = new Date(bill.savedAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+            // Shop profile — use stored values or fall back to defaults
+            const sp = window.mmShopProfile || {};
+            const invShopName  = sp.shop_name      || 'MM Pakkam';
+            const invAddr1     = sp.address_line1  || '';
+            const invAddr2     = sp.address_line2  || '';
+            const invPhone     = sp.phone          || '';
+            const invDlNo      = sp.dl_no          || '';
+            const invGstin     = sp.gstin          || '';
+            const invFooter    = sp.footer_msg     || '"Wishing you a speedy recovery!"';
+            const invTermsRaw  = sp.terms || 'Goods once sold cannot be taken back or exchanged.\nMedicines should be stored as per manufacturer guidelines.\nSubject to local jurisdiction only.';
+            const invTermsHtml = invTermsRaw.split('\n').filter(Boolean).map(t => `<li>${t}</li>`).join('');
+
+            // Correct calculations: base = qty × MRP
+            let totalValue = 0, totalCGST = 0, totalSGST = 0, totalDiscount = 0;
+            const rows = (bill.medicines || []).map((m, i) => {
+                const mrpUnit  = parseFloat(m.mrp)      || 0;
+                const qty      = parseFloat(m.qty)      || 0;
+                const discPct  = parseFloat(m.discount) || 0;
+                const gstPct   = parseFloat(m.gst)      || 0;
+                const base     = qty * mrpUnit;
+                const discVal  = base * (discPct / 100);
+                const netBase  = base - discVal;
+                const cgst     = netBase * (gstPct / 200);
+                const sgst     = netBase * (gstPct / 200);
+                const payable  = netBase + cgst + sgst;
+                totalValue    += netBase;
+                totalCGST     += cgst;
+                totalSGST     += sgst;
+                totalDiscount += discVal;
+                return { i: i + 1, m, mrpUnit, qty, discPct, discVal, netBase, gstPct, cgst, sgst, payable };
+            });
+
+            const tableRows = rows.map(r => `
+                <tr>
+                    <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; color: #64748b;">${r.i}</td>
+                    <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0;">
+                        <div style="font-weight: 600; color: #0f172a; font-size: 13px;">${r.m.product}</div>
+                        <div style="color: #64748b; font-size: 11px; margin-top: 4px;">Exp: <span style="color:#0f172a">${r.m.exp || '-'}</span> &nbsp;|&nbsp; Batch: <span style="color:#0f172a">${r.m.batch || '-'}</span></div>
+                    </td>
+                    <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: 600; color: #0f172a;">${r.qty}</td>
+                    <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; color: #475569;">${r.mrpUnit.toFixed(2)}</td>
+                    <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; color: #475569;">${r.discPct > 0 ? r.discPct + '%' : '-'}</td>
+                    <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; color: #475569;">${r.gstPct}%</td>
+                    <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #0f172a;">${r.payable.toFixed(2)}</td>
+                </tr>
+            `).join('');
+
+            const printWindow = window.open('', '_blank');
+            if(!printWindow) {
+                alert('Please allow popups to print invoices.');
+                return;
+            }
+
+            const html = `
+                <html>
+                <head>
+                    <title>Invoice - ${bill.billNo}</title>
+                    <style>
+                        body { margin: 0; padding: 0; background: #fff; }
+                        @media print {
+                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                            @page { margin: 0.5cm; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div style="font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 800px; margin: 0 auto; color: #1e293b; background: #fff; padding: 30px; box-sizing: border-box; font-size: 13px; line-height: 1.5;">
+                        
+                        <!-- Header: Logo/Title Left, Info Right -->
+                        <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 25px;">
+                            <tr>
+                                <td valign="top">
+                                    <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px;">${invShopName}</h1>
+                                    ${invAddr1 ? `<p style="margin: 0 0 4px; color: #475569;">${invAddr1}</p>` : ''}
+                                    ${invAddr2 ? `<p style="margin: 0 0 4px; color: #475569;">${invAddr2}</p>` : ''}
+                                    ${invPhone ? `<p style="margin: 0; color: #475569;">Phone: <strong style="color: #0f172a;">${invPhone}</strong></p>` : ''}
+                                </td>
+                                <td valign="top" align="right">
+                                    <h2 style="margin: 0 0 10px; font-size: 28px; font-weight: 800; color: #cbd5e1; text-transform: uppercase; letter-spacing: 2px;">Invoice</h2>
+                                    <table cellpadding="0" cellspacing="0" style="font-size: 12px; color: #475569; margin-left: auto;">
+                                        <tr><td style="padding-bottom: 4px; padding-right: 15px;">Invoice No:</td><td style="padding-bottom: 4px; font-weight: 600; color: #0f172a; text-align: right;">${bill.billNo || '-'}</td></tr>
+                                        <tr><td style="padding-bottom: 4px; padding-right: 15px;">Date:</td><td style="padding-bottom: 4px; font-weight: 600; color: #0f172a; text-align: right;">${fmtDate}</td></tr>
+                                        <tr><td>Time:</td><td style="font-weight: 600; color: #0f172a; text-align: right;">${fmtTime}</td></tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- Meta Details (GST, DL) -->
+                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 25px; background-color: #f8fafc; border-radius: 8px;">
+                            <tr>
+                                <td style="padding: 12px 15px; width: 50%;">
+                                    <span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">D.L.No</span><br>
+                                    <strong style="font-size: 13px;">${invDlNo || '—'}</strong>
+                                </td>
+                                <td style="padding: 12px 15px; width: 50%; text-align: right;">
+                                    <span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">GSTIN</span><br>
+                                    <strong style="font-size: 13px;">${invGstin || '—'}</strong>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- Billing Info -->
+                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 30px;">
+                            <tr>
+                                <td valign="top" width="50%">
+                                    <h3 style="margin: 0 0 8px; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Billed To</h3>
+                                    <p style="margin: 0 0 4px; font-size: 15px; font-weight: 700; color: #0f172a;">${bill.customerName || 'Cash / Walk-in Customer'}</p>
+                                    ${bill.customerPhone ? `<p style="margin: 0 0 4px; color: #475569;">${bill.customerPhone}</p>` : ''}
+                                    ${deliveryAddress ? `<p style="margin: 0; color: #475569; max-width: 80%;">${deliveryAddress}</p>` : ''}
+                                </td>
+                                <td valign="top" width="50%" align="right">
+                                    <h3 style="margin: 0 0 8px; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Prescribed By</h3>
+                                    <p style="margin: 0; font-size: 15px; font-weight: 700; color: #0f172a;">${bill.doctorName ? `Dr. ${bill.doctorName}` : 'Self Prescribed'}</p>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- Items Table -->
+                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin-bottom: 30px;">
+                            <thead>
+                                <tr>
+                                    <th style="padding: 12px 8px; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600;">#</th>
+                                    <th style="padding: 12px 8px; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600;">Product / Details</th>
+                                    <th style="padding: 12px 8px; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; text-align: center; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600;">Qty</th>
+                                    <th style="padding: 12px 8px; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600;">MRP</th>
+                                    <th style="padding: 12px 8px; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600;">Disc</th>
+                                    <th style="padding: 12px 8px; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600;">GST</th>
+                                    <th style="padding: 12px 8px; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600;">Net Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows}
+                            </tbody>
+                        </table>
+
+                        <!-- Footer Summary -->
+                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 40px;">
+                            <tr>
+                                <!-- Terms -->
+                                <td valign="top" width="55%" style="padding-right: 30px;">
+                                    <h4 style="margin: 0 0 8px; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Terms & Conditions</h4>
+                                    <ol style="margin: 0; padding-left: 15px; color: #64748b; font-size: 11px; line-height: 1.6;">
+                                        ${invTermsHtml}
+                                    </ol>
+                                    <div style="margin-top: 25px; padding: 12px; background: #f8fafc; border-left: 3px solid #cbd5e1; border-radius: 4px;">
+                                        <p style="margin: 0; font-size: 13px; color: #334155; font-weight: 500; font-style: italic;">${invFooter}</p>
+                                    </div>
+                                </td>
+                                
+                                <!-- Calculations -->
+                                <td valign="top" width="45%">
+                                    <table width="100%" cellpadding="0" cellspacing="0">
+                                        <tr>
+                                            <td style="padding: 6px 0; color: #64748b;">Total Value</td>
+                                            <td style="padding: 6px 0; text-align: right; font-weight: 500;">₹${totalValue.toFixed(2)}</td>
+                                        </tr>
+                                        ${totalDiscount > 0 ? `
+                                        <tr>
+                                            <td style="padding: 6px 0; color: #ef4444;">Discount</td>
+                                            <td style="padding: 6px 0; text-align: right; color: #ef4444; font-weight: 500;">- ₹${totalDiscount.toFixed(2)}</td>
+                                        </tr>` : ''}
+                                        <tr>
+                                            <td style="padding: 6px 0; color: #64748b;">CGST</td>
+                                            <td style="padding: 6px 0; text-align: right; font-weight: 500;">₹${totalCGST.toFixed(2)}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 6px 0; color: #64748b;">SGST</td>
+                                            <td style="padding: 6px 0; text-align: right; font-weight: 500;">₹${totalSGST.toFixed(2)}</td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="2" style="padding-top: 12px;">
+                                                <div style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; color: white; padding: 15px 20px; border-radius: 8px; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                                                    <span style="font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Net Payable</span>
+                                                    <span style="font-size: 22px; font-weight: 800;">₹${parseFloat(bill.total||0).toFixed(2)}</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- Signature -->
+                        <div style="text-align: right; padding-top: 20px;">
+                            <div style="display: inline-block; text-align: center;">
+                                <div style="border-bottom: 1px solid #cbd5e1; width: 180px; margin-bottom: 8px;"></div>
+                                <span style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 1px;">Authorized Signatory</span>
+                            </div>
+                        </div>
+
+                    </div>
+                </body>
+                </html>
+            `;
+            printWindow.document.write(html);
+            printWindow.document.close();
+
+            setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+            }, 500);
+
+            closeSuccessModal();
+        }
+    </script>
+
+    <!-- -- Single Global Datalist for 15,000+ items -- -->
+    <datalist id="globalMedicineList"></datalist>
+    <script>
+        refreshGlobalMedicineList();
+        refreshNamesLists();
+
+        // -- Sync from Supabase on Load --
+        (async function syncFromDatabase() {
+            try {
+                const [customers, doctors] = await Promise.all([
+                    dbGetCustomers(),
+                    dbGetDoctors()
+                ]);
+                if (customers && customers.length > 0) {
+                    localStorage.setItem('mm_customers', JSON.stringify(customers));
+                }
+                if (doctors && doctors.length > 0) {
+                    localStorage.setItem('mm_doctors', JSON.stringify(doctors));
+                }
+                refreshNamesLists();
+            } catch (err) {
+                console.error("Database sync failed:", err);
+            }
+        })();
+    </script>
+
+    <!-- -- Quick-Add Customer / Doctor Modal -- -->
+    <div class="qa-modal-overlay" id="qaModal">
+        <div class="qa-modal-card">
+            <div class="qa-modal-hd">
+                <h3 id="qaModalTitle">➕ New Customer</h3>
+                <button class="qa-modal-x" type="button" onclick="closeQuickAdd()">×</button>
+            </div>
+            <div class="qa-modal-bd">
+                <div class="qa-form-group">
+                    <label>Name <span style="color:#ef4444">*</span></label>
+                    <input type="text" id="qaName" placeholder="e.g. Ramesh Kumar" autocomplete="off">
+                </div>
+                <div class="qa-form-group">
+                    <label>Phone Number</label>
+                    <input type="tel" id="qaPhone" placeholder="e.g. 9876543210">
+                </div>
+                <div class="qa-form-group">
+                    <label>Address / Place</label>
+                    <textarea id="qaAddress" rows="2" placeholder="Enter address…"></textarea>
+                </div>
+            </div>
+            <div class="qa-modal-ft">
+                <button class="qa-cancel-btn" type="button" onclick="closeQuickAdd()">Cancel</button>
+                <button class="qa-save-btn" type="button" onclick="saveQuickAdd()">✓ Save &amp; Select</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- -- Success Modal -- -->
+    <div class="modal-overlay" id="successModal">
+        <div class="modal-card" style="max-width: 400px; text-align: center;">
+            <div class="modal-bd" style="padding: 2.5rem 2rem;">
+                <div style="font-size: 3.5rem; margin-bottom: 0.5rem; animation: fadeUp 0.5s ease;">🎉</div>
+                <h3 style="font-size: 1.35rem; font-weight: 800; color: #0f172a; margin-bottom: 0.5rem;">Order Placed Successfully!</h3>
+                <p style="color: #64748b; font-size: 0.95rem; margin-bottom: 1.8rem; line-height: 1.5;" id="successModalSub"></p>
+                <div style="display: flex; gap: 0.8rem; justify-content: center;">
+                    <button class="btn-mcancel" onclick="closeSuccessModal()" style="flex: 1;">Cancel</button>
+                    <button class="btn-do-import" onclick="printInvoice()" style="flex: 1; background: linear-gradient(135deg, #0ea5e9, #0284c7); box-shadow: 0 4px 14px rgba(14,165,233,0.3);">
+                        🖨️ Print Invoice
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- -- Import Medicine List Modal -- -->
+    <div class="modal-overlay" id="importModal">
+        <div class="modal-card">
+            <div class="modal-hd">
+                <h3>├░┼╕ΓÇ£ΓÇ╣ Import Medicine List</h3>
+                <button class="modal-x" type="button" onclick="closeImportModal()">×</button>
+            </div>
+            <!-- Step 1: File Upload -->
+            <div class="modal-bd" id="importStep1">
+                <div class="drop-zone" id="dropZone"
+                     ondragover="event.preventDefault();this.classList.add('drag-over')"
+                     ondragleave="this.classList.remove('drag-over')"
+                     ondrop="handleFileDrop(event)">
+                    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" multiple onchange="handleFileInput(event)">
+                    <div class="dz-ico">📋</div>
+                    <div class="dz-txt">Drop files here or click to browse</div>
+                    <div class="dz-sub">Supports .xlsx, .xls, .csv &mdash; multiple files allowed</div>
+                </div>
+            </div>
+            <!-- Step 2: Column Picker + Preview -->
+            <div class="modal-bd" id="importStep2" style="display:none">
+                <div class="step-lbl">Which column has the medicine names?</div>
+                <div class="col-grid" id="importColBtns"></div>
+                <div class="stats-txt" id="importStats"></div>
+                <div class="prev-box" id="importPreview" style="display:none"></div>
+                <div class="import-count" id="importCount"></div>
+            </div>
+            <div class="modal-ft">
+                <button class="btn-mcancel" type="button" onclick="closeImportModal()">Cancel</button>
+                <button class="btn-do-import" id="importConfirmBtn" type="button" onclick="doImport()" disabled>
+                    ✓ Import Medicines
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PWA Install Banner -->
+    <div id="pwaInstallBanner" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;background:linear-gradient(135deg,#0d9488,#0891b2);color:white;padding:14px 24px;border-radius:50px;box-shadow:0 8px 32px rgba(13,148,136,0.45);align-items:center;gap:12px;font-family:'Inter',sans-serif;font-size:0.9rem;font-weight:600;cursor:pointer;white-space:nowrap;">
+        <span style="font-size:1.2rem;">📲</span>
+        <span>Install MM Pakkam as App</span>
+        <span id="pwaInstallClose" style="margin-left:6px;opacity:0.7;font-size:1rem;padding:0 4px;" title="Dismiss">&times;</span>
+    </div>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => {
+                        console.log('[PWA] SW registered:', reg.scope);
+                        reg.addEventListener('updatefound', () => {
+                            const nw = reg.installing;
+                            if (!nw) return;
+                            nw.addEventListener('statechange', () => {
+                                if (nw.state === 'installed') {
+                                    nw.postMessage({ type: 'SKIP_WAITING' });
+                                }
+                            });
+                        });
+                    })
+                    .catch(e => console.warn('[PWA] SW failed:', e));
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    window.location.reload();
+                });
+            });
+        }
+        let _pwaPrompt = null;
+        window.addEventListener('beforeinstallprompt', e => {
+            e.preventDefault();
+            _pwaPrompt = e;
+            const banner = document.getElementById('pwaInstallBanner');
+            if (banner) banner.style.display = 'flex';
+        });
+        window.addEventListener('appinstalled', () => {
+            const banner = document.getElementById('pwaInstallBanner');
+            if (banner) banner.style.display = 'none';
+            _pwaPrompt = null;
+        });
+        document.addEventListener('DOMContentLoaded', () => {
+            const banner = document.getElementById('pwaInstallBanner');
+            if (!banner) return;
+            banner.addEventListener('click', async (e) => {
+                if (e.target.id === 'pwaInstallClose') { banner.style.display = 'none'; return; }
+                if (!_pwaPrompt) return;
+                _pwaPrompt.prompt();
+                const { outcome } = await _pwaPrompt.userChoice;
+                _pwaPrompt = null;
+                banner.style.display = 'none';
+            });
+        });
+    </script>
+
+</body>
+</html>
+

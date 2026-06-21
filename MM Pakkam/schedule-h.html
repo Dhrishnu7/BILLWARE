@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#dc2626">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MM Pakkam">
+    <link rel="apple-touch-icon" href="/icon-512.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Schedule H Register | Mudhalvar Marundhagam Pakkam</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            background-color: #fef2f2;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(0,89%,92%,1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, hsla(30,84%,90%,1) 0px, transparent 50%);
+            background-attachment: fixed;
+            display: flex;
+            flex-direction: column;
+            color: #0f172a;
+        }
+
+        /* ── Navbar ── */
+        header {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255,255,255,0.6);
+            box-shadow: 0 2px 20px rgba(0,0,0,0.05);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            text-decoration: none;
+            transition: transform 0.2s ease;
+        }
+        .logo:hover { transform: translateY(-1px); }
+
+        .logo-icon {
+            width: 46px; height: 46px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #0284c7, #0ea5e9, #10b981);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 900; font-size: 1.25rem; letter-spacing: 0.5px;
+            box-shadow: 0 6px 16px rgba(14, 165, 233, 0.4), inset 0 2px 4px rgba(255,255,255,0.4);
+            border: 1px solid rgba(255,255,255,0.5);
+            flex-shrink: 0; position: relative; overflow: hidden;
+        }
+        .logo-icon::after {
+            content: ''; position: absolute;
+            top: 0; left: -100%; width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
+            transform: skewX(-20deg); animation: shimmer 3s infinite;
+        }
+        @keyframes shimmer { 0% { left: -100%; } 20% { left: 200%; } 100% { left: 200%; } }
+
+        .logo-text {
+            font-size: 1.35rem; font-weight: 800;
+            background: linear-gradient(to right, #0f172a, #334155);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: -0.01em;
+        }
+
+        .back-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 0.5rem 1.2rem;
+            background: white;
+            border: 1.5px solid rgba(220,38,38,0.3);
+            border-radius: 50px;
+            font-size: 0.85rem; font-weight: 600; color: #dc2626;
+            text-decoration: none;
+            transition: all 0.25s ease;
+        }
+        .back-btn:hover {
+            background: #dc2626; color: white; border-color: #dc2626;
+            box-shadow: 0 4px 16px rgba(220,38,38,0.35);
+            transform: translateY(-1px);
+        }
+
+        /* ── Page Content ── */
+        .page-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2.5rem 1.5rem 4rem;
+        }
+
+        /* ── Page Header ── */
+        .page-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            animation: fadeUp 0.5s ease forwards;
+            opacity: 0;
+        }
+        .breadcrumb {
+            font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.6rem;
+        }
+        .breadcrumb a { color: #dc2626; text-decoration: none; font-weight: 500; }
+        .page-header h1 {
+            font-size: 1.9rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em;
+        }
+        .page-header p { color: #64748b; margin-top: 0.4rem; font-size: 0.95rem; }
+
+        /* ── Tab Pills ── */
+        .tab-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            animation: fadeUp 0.55s ease 0.05s forwards;
+            opacity: 0;
+        }
+        .tab-pill {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 0.7rem 1.6rem;
+            border-radius: 50px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem; font-weight: 700;
+            cursor: pointer; border: 1.5px solid #e2e8f0;
+            background: rgba(255,255,255,0.7);
+            color: #64748b;
+            transition: all 0.25s ease;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        .tab-pill:hover {
+            border-color: #fca5a5;
+            color: #dc2626;
+            background: #fff5f5;
+        }
+        .tab-pill.active {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            border-color: #dc2626;
+            box-shadow: 0 4px 16px rgba(220,38,38,0.35);
+        }
+
+        /* ── Form Card ── */
+        .form-card {
+            background: rgba(255,255,255,0.88);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.9);
+            border-radius: 24px;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 1000px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            animation: fadeUp 0.6s ease 0.1s forwards;
+            opacity: 0;
+        }
+
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ── Section Label ── */
+        .section-label {
+            font-size: 0.72rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.08em; color: #64748b; margin-bottom: 1rem;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .section-label::after {
+            content: ''; flex: 1; height: 1px;
+            background: linear-gradient(90deg, #fecaca, transparent);
+        }
+
+        /* ── Grid Layout ── */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.2rem 1.4rem;
+        }
+        .form-grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem 1.2rem;
+        }
+        .full-width { grid-column: 1 / -1; }
+
+        /* ── Form Groups ── */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+        }
+
+        .form-group label {
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #991b1b;
+        }
+
+        .form-group input, .form-group select {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            color: #0f172a;
+            background: #fffbfb;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0.8rem 1rem;
+            outline: none;
+            width: 100%;
+            transition: all 0.22s ease;
+        }
+        .form-group input::placeholder { color: #cbd5e1; }
+
+        .form-group input:hover, .form-group select:hover {
+            border-color: #fca5a5;
+            background: white;
+        }
+        .form-group input:focus, .form-group select:focus {
+            border-color: #dc2626;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(220,38,38,0.12);
+        }
+
+        input[list] {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.9rem center;
+            padding-right: 2.2rem;
+        }
+
+        /* ── Divider ── */
+        .divider {
+            grid-column: 1 / -1;
+            height: 1.5px;
+            background: linear-gradient(90deg, #fecaca, transparent);
+            margin: 0.4rem 0;
+            border-radius: 2px;
+        }
+
+        /* ── Buttons ── */
+        .form-actions {
+            display: flex;
+            gap: 0.8rem;
+            margin-top: 1.5rem;
+        }
+        .btn {
+            flex: 1;
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 0.9rem 1.5rem;
+            border-radius: 12px;
+            font-size: 0.95rem; font-weight: 700;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer; border: none;
+            transition: all 0.25s ease;
+        }
+        .btn-cancel {
+            background: #f1f5f9; color: #64748b; border: 1.5px solid #e2e8f0;
+        }
+        .btn-cancel:hover { background: #e2e8f0; color: #334155; }
+
+        .btn-save {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            box-shadow: 0 4px 16px rgba(220,38,38,0.35);
+        }
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(220,38,38,0.45);
+        }
+        .btn-save:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+
+        /* ── Toast ── */
+        .toast {
+            position: fixed;
+            bottom: 2rem; right: 2rem;
+            background: white;
+            border: 1.5px solid #fecaca;
+            border-radius: 16px;
+            padding: 1rem 1.4rem;
+            display: flex; align-items: center; gap: 12px;
+            font-size: 0.9rem; font-weight: 600; color: #991b1b;
+            box-shadow: 0 10px 30px rgba(220,38,38,0.18);
+            transform: translateY(100px); opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175,0.885,0.32,1.275);
+            z-index: 999;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast-icon {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: #fee2e2;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+
+        /* ── Search Bar ── */
+        .search-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 1.2rem;
+        }
+        .search-bar input {
+            flex: 1;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem; color: #0f172a;
+            background: #fffbfb;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0.7rem 1rem 0.7rem 2.6rem;
+            outline: none; width: 100%;
+            transition: all 0.22s ease;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: 0.9rem center;
+        }
+        .search-bar input:focus {
+            border-color: #dc2626;
+            background-color: white;
+            box-shadow: 0 0 0 4px rgba(220,38,38,0.1);
+        }
+        .search-bar input::placeholder { color: #cbd5e1; }
+        .search-count {
+            font-size: 0.75rem; font-weight: 700; color: #94a3b8;
+            white-space: nowrap;
+        }
+
+        /* ── Register Table ── */
+        .table-wrap {
+            overflow-x: auto;
+            border-radius: 14px;
+            border: 1.5px solid #fecaca;
+            box-shadow: 0 2px 12px rgba(220,38,38,0.07);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1200px;
+        }
+        thead th {
+            background: linear-gradient(135deg, #fef2f2, #fee2e2);
+            padding: 0.75rem 0.8rem;
+            text-align: left;
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: #991b1b;
+            white-space: nowrap;
+            border-bottom: 1.5px solid #fca5a5;
+        }
+        thead th:first-child { border-radius: 12px 0 0 0; }
+        thead th:last-child  { border-radius: 0 12px 0 0; width: 50px; text-align: center; }
+
+        tbody tr {
+            transition: background 0.18s ease;
+        }
+        tbody tr:nth-child(even) { background: rgba(254,226,226,0.15); }
+        tbody tr:hover { background: rgba(254,226,226,0.35); }
+
+        tbody td {
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid #fef2f2;
+            vertical-align: middle;
+            font-size: 0.88rem;
+            color: #1e293b;
+        }
+        tbody tr:last-child td { border-bottom: none; }
+        tbody td:last-child { text-align: center; }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #94a3b8;
+        }
+        .empty-state .es-icon { font-size: 2.5rem; margin-bottom: 0.7rem; }
+        .empty-state .es-title { font-size: 1rem; font-weight: 700; color: #64748b; margin-bottom: 0.3rem; }
+        .empty-state .es-sub { font-size: 0.85rem; }
+
+        /* Remove row btn */
+        .remove-row-btn {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            background: #fee2e2;
+            color: #ef4444;
+            border: none; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            transition: all 0.18s ease;
+            font-size: 0.85rem; font-weight: 700;
+            flex-shrink: 0;
+        }
+        .remove-row-btn:hover { background: #ef4444; color: white; transform: scale(1.15); }
+
+        /* ── Drug List (Tab 2) ── */
+        .add-drug-row {
+            display: flex;
+            gap: 0.8rem;
+            margin-bottom: 1.5rem;
+        }
+        .add-drug-row input {
+            flex: 1;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem; color: #0f172a;
+            background: #fffbfb;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0.8rem 1rem;
+            outline: none;
+            transition: all 0.22s ease;
+        }
+        .add-drug-row input:focus {
+            border-color: #dc2626;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(220,38,38,0.12);
+        }
+        .add-drug-row input::placeholder { color: #cbd5e1; }
+
+        .btn-add-drug {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 0.8rem 1.5rem;
+            border-radius: 12px;
+            font-size: 0.9rem; font-weight: 700;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer; border: none;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            box-shadow: 0 4px 14px rgba(220,38,38,0.3);
+            transition: all 0.22s ease;
+            white-space: nowrap;
+        }
+        .btn-add-drug:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(220,38,38,0.4);
+        }
+
+        .drug-list-actions {
+            display: flex; gap: 0.5rem; align-items: center;
+            justify-content: flex-end; margin-bottom: 1rem;
+        }
+        .import-btn-sm {
+            display:inline-flex; align-items:center; gap:5px;
+            padding:3px 11px; border-radius:20px;
+            border:1.5px solid rgba(220,38,38,0.4);
+            background:#fee2e2; color:#dc2626;
+            font-family:'Inter',sans-serif; font-size:0.7rem; font-weight:700;
+            cursor:pointer; transition:all 0.2s ease;
+        }
+        .import-btn-sm:hover { background:#dc2626; color:white; border-color:#dc2626; }
+        .clear-btn-sm {
+            display:inline-flex; align-items:center; gap:5px;
+            padding:3px 11px; border-radius:20px;
+            border:1.5px solid rgba(239,68,68,0.4);
+            background:#fef2f2; color:#ef4444;
+            font-family:'Inter',sans-serif; font-size:0.7rem; font-weight:700;
+            cursor:pointer; transition:all 0.2s ease;
+        }
+        .clear-btn-sm:hover { background:#ef4444; color:white; border-color:#ef4444; }
+
+        .drug-chip {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 0.5rem 0.7rem 0.5rem 1rem;
+            background: rgba(255,255,255,0.8);
+            border: 1.5px solid #fecaca;
+            border-radius: 10px;
+            font-size: 0.88rem; color: #1e293b; font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .drug-chip:hover {
+            border-color: #fca5a5;
+            box-shadow: 0 2px 8px rgba(220,38,38,0.08);
+        }
+        .drug-chip .del-chip {
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: #fee2e2;
+            color: #ef4444;
+            border: none; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            transition: all 0.15s ease;
+            font-size: 0.75rem; font-weight: 700;
+            flex-shrink: 0;
+        }
+        .drug-chip .del-chip:hover { background: #ef4444; color: white; }
+
+        .drug-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+        }
+
+        .drug-count-badge {
+            font-size: 0.75rem; font-weight: 700;
+            color: #991b1b; background: #fee2e2;
+            padding: 2px 10px; border-radius: 20px;
+            margin-left: 0.5rem;
+        }
+
+        /* ── Import Modal ── */
+        .modal-overlay {
+            position:fixed; inset:0;
+            background:rgba(15,23,42,0.55);
+            backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+            display:flex; align-items:center; justify-content:center;
+            z-index:9999; opacity:0; pointer-events:none;
+            transition:opacity 0.25s ease;
+        }
+        .modal-overlay.open { opacity:1; pointer-events:all; }
+        .modal-card {
+            background:white; border-radius:22px; width:92%; max-width:500px;
+            max-height:86vh; display:flex; flex-direction:column; overflow:hidden;
+            box-shadow:0 25px 60px rgba(0,0,0,0.22);
+            transform:scale(0.95) translateY(14px);
+            transition:transform 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+        }
+        .modal-overlay.open .modal-card { transform:scale(1) translateY(0); }
+        .modal-hd {
+            padding:1.4rem 1.8rem 1rem; border-bottom:1px solid #f1f5f9;
+            display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+        }
+        .modal-hd h3 { font-size:1.05rem; font-weight:800; color:#0f172a; }
+        .modal-x {
+            width:28px; height:28px; border-radius:50%; border:none;
+            background:#f1f5f9; color:#64748b; font-size:1.1rem;
+            cursor:pointer; display:flex; align-items:center; justify-content:center;
+        }
+        .modal-x:hover { background:#e2e8f0; }
+        .modal-bd { padding:1.4rem 1.8rem; flex:1; overflow-y:auto; }
+        .modal-ft {
+            padding:0.9rem 1.8rem; border-top:1px solid #f1f5f9;
+            background:#fafafa; display:flex; gap:0.7rem; flex-shrink:0;
+        }
+        /* Drop zone */
+        .drop-zone {
+            border:2.5px dashed #fca5a5; border-radius:14px;
+            padding:2.5rem 1.5rem; text-align:center; cursor:pointer;
+            background:#fef2f2; position:relative; transition:all 0.22s;
+        }
+        .drop-zone:hover,.drop-zone.drag-over { background:#fee2e2; border-color:#dc2626; }
+        .drop-zone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+        .dz-ico { font-size:2.4rem; margin-bottom:0.6rem; }
+        .dz-txt { font-weight:700; color:#991b1b; font-size:0.93rem; }
+        .dz-sub { font-size:0.77rem; color:#b91c1c; margin-top:0.3rem; }
+        /* Column picker */
+        .step-lbl { font-size:0.73rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:#64748b; margin-bottom:0.6rem; }
+        .col-grid { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.6rem; }
+        .col-pill {
+            padding:5px 13px; border-radius:20px; border:1.5px solid #e2e8f0;
+            background:#f8fafc; font-family:'Inter',sans-serif; font-size:0.78rem; font-weight:600;
+            cursor:pointer; color:#334155; transition:all 0.18s; text-align:left;
+        }
+        .col-pill:hover { border-color:#dc2626; color:#dc2626; }
+        .col-pill.sel { background:linear-gradient(135deg,#ef4444,#dc2626); color:white; border-color:#dc2626; }
+        .stats-txt { font-size:0.73rem; color:#94a3b8; margin-bottom:0.6rem; }
+        /* Preview list */
+        .prev-box { border:1.5px solid #e2e8f0; border-radius:10px; max-height:150px; overflow-y:auto; background:#f8fafc; margin-top:0.5rem; }
+        .prev-item { padding:5px 13px; font-size:0.82rem; color:#0f172a; border-bottom:1px solid #f1f5f9; }
+        .prev-item:last-child { border-bottom:none; }
+        .prev-more { padding:5px 13px; font-size:0.73rem; font-weight:700; color:#64748b; background:#f1f5f9; border-top:1px solid #e2e8f0; }
+        .import-count { font-size:0.76rem; font-weight:700; color:#dc2626; margin-top:0.5rem; }
+        /* Modal buttons */
+        .btn-do-import {
+            flex:1; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+            padding:0.7rem 1.2rem; border-radius:10px;
+            font-size:0.9rem; font-weight:700; font-family:'Inter',sans-serif;
+            cursor:pointer; border:none;
+            background:linear-gradient(135deg,#ef4444,#dc2626); color:white;
+            box-shadow:0 4px 14px rgba(220,38,38,0.3); transition:all 0.22s;
+        }
+        .btn-do-import:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(220,38,38,0.4); }
+        .btn-do-import:disabled { opacity:0.4; cursor:not-allowed; transform:none; box-shadow:none; }
+        .btn-mcancel {
+            padding:0.7rem 1.2rem; border-radius:10px;
+            font-size:0.9rem; font-weight:700; font-family:'Inter',sans-serif;
+            cursor:pointer; border:1.5px solid #e2e8f0; background:white; color:#64748b;
+            transition:background 0.18s;
+        }
+        .btn-mcancel:hover { background:#f1f5f9; }
+
+        /* ── Animations ── */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes rowSlideIn {
+            from { opacity: 0; transform: translateX(-8px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 700px) {
+            header { padding: 0.8rem 1rem; }
+            .logo-text { font-size: 0.95rem; }
+            .form-card { padding: 1.5rem 1rem; }
+            .form-grid { grid-template-columns: 1fr; }
+            .form-grid-3 { grid-template-columns: 1fr; }
+            .full-width { grid-column: 1; }
+            .tab-pill { padding: 0.6rem 1rem; font-size: 0.82rem; }
+            .form-actions { flex-direction: column; }
+            .btn { flex: unset; width: 100%; }
+            .add-drug-row { flex-direction: column; }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/keyboard-nav.js"></script>
+</head>
+<body>
+    <script>
+        mmRequireAuth();
+        document.addEventListener('DOMContentLoaded', () => mmInjectUserBar());
+    </script>
+
+    <!-- Navbar -->
+    <header>
+        <a class="logo" href="index.html">
+            <div class="logo-icon">MM</div>
+            <span class="logo-text">Mudhalvar Marundhagam Pakkam</span>
+        </a>
+        <a class="back-btn" href="index.html">&#8592; Back</a>
+    </header>
+
+    <!-- Page Content -->
+    <div class="page-content">
+
+        <div class="page-header">
+            <div class="breadcrumb"><a href="index.html">Home</a> &rsaquo; Schedule H Register</div>
+            <h1>⚠️ Schedule H Drug Register</h1>
+            <p>Maintain a mandatory register for restricted Schedule H drug sales</p>
+        </div>
+
+        <!-- Tab Pills -->
+        <div class="tab-bar">
+            <button class="tab-pill active" onclick="switchTab('register')" id="tabRegister">📋 Drug Register</button>
+            <button class="tab-pill" onclick="switchTab('manage')" id="tabManage">💊 Manage Drug List</button>
+        </div>
+
+        <div class="form-card">
+
+            <!-- ═══ TAB 1: Drug Register ═══ -->
+            <div class="tab-panel active" id="panelRegister">
+                <form id="registerForm" onsubmit="handleRegisterSubmit(event)" novalidate>
+
+                    <div class="section-label">📝 Sale Details</div>
+                    <div class="form-grid" style="margin-bottom: 1.5rem;">
+                        <div class="form-group">
+                            <label>Date</label>
+                            <input type="date" id="entryDate">
+                        </div>
+                        <div class="form-group">
+                            <label>Bill No</label>
+                            <input type="text" id="billNo" placeholder="e.g. SH-001">
+                        </div>
+                        <div class="form-group">
+                            <label>Firm</label>
+                            <input type="text" id="firmName" placeholder="Supplier / Firm name…">
+                        </div>
+                    </div>
+
+
+
+
+
+                    <div class="section-label">💊 Drug Details</div>
+                    <div class="form-grid" style="margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Drug Name</label>
+                            <input type="text" id="drugName" list="drugList" placeholder="Select Schedule H drug…" autocomplete="off">
+                            <datalist id="drugList"></datalist>
+                        </div>
+                        <div class="form-group">
+                            <label>Batch No</label>
+                            <input type="text" id="batchNo" placeholder="e.g. BT20240001">
+                        </div>
+                        <div class="form-group">
+                            <label>Expire Date</label>
+                            <input type="month" id="expireDate" placeholder="YYYY-MM">
+                        </div>
+                        <div class="form-group">
+                            <label>Pack</label>
+                            <input type="text" id="pack" placeholder="e.g. 10s, 15ml">
+                        </div>
+                    </div>
+                    <div class="form-grid" style="margin-bottom: 1.5rem;">
+                        <div class="form-group">
+                            <label>Quantity</label>
+                            <input type="number" id="qty" placeholder="0" min="1" step="1" oninput="calcTotal()">
+                        </div>
+                        <div class="form-group">
+                            <label>MRP (₹)</label>
+                            <input type="number" id="mrp" placeholder="0.00" min="0" step="0.01" oninput="calcTotal()">
+                        </div>
+                        <div class="form-group">
+                            <label>Rate (₹)</label>
+                            <input type="number" id="rate" placeholder="0.00" min="0" step="0.01" oninput="calcTotal()">
+                        </div>
+                        <div class="form-group">
+                            <label>GST (%)</label>
+                            <input type="number" id="gst" placeholder="0" min="0" step="0.01" oninput="calcTotal()">
+                        </div>
+                    </div>
+                    <div style="background:#fef2f2; border:1.5px solid #fecaca; border-radius:14px; padding:1rem 1.4rem; margin-bottom:0.5rem; display:flex; align-items:center; justify-content:space-between;">
+                        <span style="font-size:0.85rem; font-weight:800; color:#991b1b; text-transform:uppercase; letter-spacing:0.06em;">Total Amount</span>
+                        <span id="totalDisplay" style="font-size:1.3rem; font-weight:800; color:#dc2626;">₹ 0.00</span>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-cancel" onclick="resetRegisterForm()">Clear</button>
+                        <button type="submit" class="btn btn-save" id="saveEntryBtn">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            Save Entry
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Register Log -->
+                <div style="margin-top: 2.5rem;">
+                    <div class="section-label">📄 Register Log</div>
+
+                    <div class="search-bar">
+                        <input type="text" id="logSearch" placeholder="Search by patient, doctor, drug, batch…" oninput="renderRegisterLog()">
+                        <span class="search-count" id="logCount"></span>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Bill No</th>
+                                    <th>Patient</th>
+                                    <th>Doctor</th>
+                                    <th>Drug</th>
+                                    <th>Batch</th>
+                                    <th>Exp</th>
+                                    <th>Pack</th>
+                                    <th>Qty</th>
+                                    <th>MRP</th>
+                                    <th>Rate</th>
+                                    <th>GST</th>
+                                    <th>Total</th>
+                                    <th>Firm</th>
+
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="registerLogBody">
+                                <!-- Rows inserted by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ TAB 2: Manage Drug List ═══ -->
+            <div class="tab-panel" id="panelManage">
+
+                <div class="section-label">➕ Add Schedule H Drug</div>
+                <div class="add-drug-row">
+                    <input type="text" id="newDrugName" placeholder="Enter Schedule H drug name…" onkeydown="if(event.key==='Enter'){event.preventDefault();addDrug();}">
+                    <button type="button" class="btn-add-drug" onclick="addDrug()">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
+                        </svg>
+                        Add Drug
+                    </button>
+                </div>
+
+                <div class="drug-list-actions">
+                    <button type="button" class="clear-btn-sm" onclick="clearAllDrugs()">
+                        🗑️ Clear All
+                    </button>
+                    <button type="button" class="import-btn-sm" onclick="openImportModal()">
+                        📋 Import from Excel/CSV
+                    </button>
+                </div>
+
+                <div class="section-label">
+                    📋 Schedule H Drug List
+                    <span class="drug-count-badge" id="drugCountBadge">0 drugs</span>
+                </div>
+
+                <div class="search-bar">
+                    <input type="text" id="drugSearch" placeholder="Search drugs…" oninput="renderDrugList()">
+                </div>
+
+                <div class="drug-grid" id="drugGrid">
+                    <!-- Drug chips rendered by JS -->
+                </div>
+
+                <div id="drugEmptyState" class="empty-state" style="display:none;">
+                    <div class="es-icon">💊</div>
+                    <div class="es-title">No Schedule H Drugs Added</div>
+                    <div class="es-sub">Add drugs manually or import from Excel/CSV</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <div class="toast-icon">
+            <svg width="16" height="16" fill="none" stroke="#dc2626" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+        </div>
+        <div>
+            <div style="font-weight:800;" id="toastTitle">Saved!</div>
+            <div style="font-size:0.78rem; color:#f87171; margin-top:2px;" id="toastSub">Record added successfully.</div>
+        </div>
+    </div>
+
+    <!-- ── Import Drug List Modal ── -->
+    <div class="modal-overlay" id="importModal">
+        <div class="modal-card">
+            <div class="modal-hd">
+                <h3>📋 Import Schedule H Drug List</h3>
+                <button class="modal-x" type="button" onclick="closeImportModal()">×</button>
+            </div>
+            <!-- Step 1: File Upload -->
+            <div class="modal-bd" id="importStep1">
+                <div class="drop-zone" id="dropZone"
+                     ondragover="event.preventDefault();this.classList.add('drag-over')"
+                     ondragleave="this.classList.remove('drag-over')"
+                     ondrop="handleFileDrop(event)">
+                    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" multiple onchange="handleFileInput(event)">
+                    <div class="dz-ico">📥</div>
+                    <div class="dz-txt">Drop files here or click to browse</div>
+                    <div class="dz-sub">Supports .xlsx, .xls, .csv &mdash; multiple files allowed</div>
+                </div>
+            </div>
+            <!-- Step 2: Column Picker + Preview -->
+            <div class="modal-bd" id="importStep2" style="display:none">
+                <div class="step-lbl">Which column has the drug names?</div>
+                <div class="col-grid" id="importColBtns"></div>
+                <div class="stats-txt" id="importStats"></div>
+                <div class="prev-box" id="importPreview" style="display:none"></div>
+                <div class="import-count" id="importCount"></div>
+            </div>
+            <div class="modal-ft">
+                <button class="btn-mcancel" type="button" onclick="closeImportModal()">Cancel</button>
+                <button class="btn-do-import" id="importConfirmBtn" type="button" onclick="doImport()" disabled>
+                    ✓ Import Drugs
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ══════════════════════════════════════════════════════════════════
+           Constants & Helpers
+        ══════════════════════════════════════════════════════════════════ */
+        const SH_DRUGS_KEY    = 'mm_schedule_h_drugs';
+        const SH_REGISTER_KEY = 'mm_schedule_h_register';
+
+        const getDrugList     = () => JSON.parse(localStorage.getItem(SH_DRUGS_KEY) || '[]');
+        const setDrugList     = list => localStorage.setItem(SH_DRUGS_KEY, JSON.stringify(list));
+        const getRegister     = () => JSON.parse(localStorage.getItem(SH_REGISTER_KEY) || '[]');
+        const setRegister     = list => localStorage.setItem(SH_REGISTER_KEY, JSON.stringify(list));
+
+        function genId() {
+            return Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+        }
+
+        function showToast(title, subtitle) {
+            const t  = document.getElementById('toast');
+            const ti = document.getElementById('toastTitle');
+            const ts = document.getElementById('toastSub');
+            if (ti) ti.textContent = title;
+            if (ts) ts.textContent = subtitle;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           Tab Switching
+        ══════════════════════════════════════════════════════════════════ */
+        function switchTab(tab) {
+            document.getElementById('panelRegister').classList.toggle('active', tab === 'register');
+            document.getElementById('panelManage').classList.toggle('active', tab === 'manage');
+            document.getElementById('tabRegister').classList.toggle('active', tab === 'register');
+            document.getElementById('tabManage').classList.toggle('active', tab === 'manage');
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           Datalist Builders
+        ══════════════════════════════════════════════════════════════════ */
+        function refreshPatientList() {
+            const customers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+            const sales     = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+            const seen = new Set(), names = [];
+
+            customers.forEach(c => {
+                const n = (c.name || '').trim();
+                if (n && !seen.has(n.toLowerCase())) { seen.add(n.toLowerCase()); names.push(n); }
+            });
+            sales.forEach(s => {
+                const n = (s.customerName || '').trim();
+                if (n && !seen.has(n.toLowerCase())) { seen.add(n.toLowerCase()); names.push(n); }
+            });
+
+            const dl = document.getElementById('patientList');
+            if (dl) dl.innerHTML = names.map(n => `<option value="${n.replace(/"/g, '&quot;')}">`).join('');
+        }
+
+        function refreshDoctorList() {
+            const doctors = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
+            const sales   = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+            const seen = new Set(), names = [];
+
+            doctors.forEach(d => {
+                const n = (d.name || '').trim();
+                if (n && !seen.has(n.toLowerCase())) { seen.add(n.toLowerCase()); names.push(n); }
+            });
+            sales.forEach(s => {
+                const n = (s.doctorName || '').trim();
+                if (n && !seen.has(n.toLowerCase())) { seen.add(n.toLowerCase()); names.push(n); }
+            });
+
+            const dl = document.getElementById('doctorList');
+            if (dl) dl.innerHTML = names.map(n => `<option value="${n.replace(/"/g, '&quot;')}">`).join('');
+        }
+
+        function refreshDrugDatalist() {
+            const drugs = getDrugList();
+            const dl = document.getElementById('drugList');
+            if (dl) dl.innerHTML = drugs.map(n => `<option value="${n.replace(/"/g, '&quot;')}">`).join('');
+        }
+
+        /* ── Auto-fill patient address from mm_customers ── */
+        document.addEventListener('DOMContentLoaded', () => {
+            const patientNameEl = document.getElementById('patientName');
+            const patientAddrEl = document.getElementById('patientAddress');
+
+            if (patientNameEl) {
+                patientNameEl.addEventListener('change', () => {
+                    const name = patientNameEl.value.trim().toLowerCase();
+                    if (!name) return;
+                    const customers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+                    const match = customers.find(c => (c.name || '').trim().toLowerCase() === name);
+                    if (match && match.address && patientAddrEl) {
+                        patientAddrEl.value = match.address;
+                    }
+                });
+            }
+
+            const doctorNameEl = document.getElementById('doctorName');
+            const doctorAddrEl = document.getElementById('doctorAddress');
+
+            if (doctorNameEl) {
+                doctorNameEl.addEventListener('change', () => {
+                    const name = doctorNameEl.value.trim().toLowerCase();
+                    if (!name) return;
+                    const doctors = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
+                    const match = doctors.find(d => (d.name || '').trim().toLowerCase() === name);
+                    if (match && match.address && doctorAddrEl) {
+                        doctorAddrEl.value = match.address;
+                    }
+                });
+            }
+        });
+
+        /* ══════════════════════════════════════════════════════════════════
+           TAB 1: Register Form
+        ══════════════════════════════════════════════════════════════════ */
+        // Default today
+        document.getElementById('entryDate').valueAsDate = new Date();
+
+        function calcTotal() {
+            const qty  = parseFloat(document.getElementById('qty').value) || 0;
+            const rate = parseFloat(document.getElementById('rate').value) || 0;
+            const gst  = parseFloat(document.getElementById('gst').value) || 0;
+            const base = qty * rate;
+            const total = base + (base * gst / 100);
+            document.getElementById('totalDisplay').textContent = '₹ ' + total.toFixed(2);
+        }
+
+        function resetRegisterForm() {
+            document.getElementById('registerForm').reset();
+            document.getElementById('entryDate').valueAsDate = new Date();
+            document.getElementById('totalDisplay').textContent = '₹ 0.00';
+        }
+
+        function handleRegisterSubmit(e) {
+            e.preventDefault();
+
+            const drugName = document.getElementById('drugName').value.trim();
+            const patientName = document.getElementById('patientName').value.trim();
+
+            if (!drugName) {
+                showToast('Missing Drug', 'Please select or enter a drug name.');
+                return;
+            }
+            if (!patientName) {
+                showToast('Missing Patient', 'Please enter the patient name.');
+                return;
+            }
+
+            const qty  = parseFloat(document.getElementById('qty').value) || 0;
+            const rate = parseFloat(document.getElementById('rate').value) || 0;
+            const gst  = parseFloat(document.getElementById('gst').value) || 0;
+            const base = qty * rate;
+            const total = base + (base * gst / 100);
+
+            const entry = {
+                id:               genId(),
+                date:             document.getElementById('entryDate').value,
+                billNo:           document.getElementById('billNo').value.trim(),
+                firmName:         document.getElementById('firmName').value.trim(),
+                patientName:      patientName,
+                patientAddress:   document.getElementById('patientAddress').value.trim(),
+                doctorName:       document.getElementById('doctorName').value.trim(),
+                doctorAddress:    document.getElementById('doctorAddress').value.trim(),
+                drugName:         drugName,
+                batchNo:          document.getElementById('batchNo').value.trim(),
+                expireDate:       document.getElementById('expireDate').value,
+                pack:             document.getElementById('pack').value.trim(),
+                qty:              qty,
+                mrp:              parseFloat(document.getElementById('mrp').value) || 0,
+                rate:             rate,
+                gst:              gst,
+                total:            total,
+
+                savedAt:          new Date().toISOString()
+            };
+
+            const register = getRegister();
+            register.push(entry);
+            setRegister(register);
+
+            showToast('Entry Saved!', `${drugName} — ${patientName}`);
+            resetRegisterForm();
+            renderRegisterLog();
+        }
+
+        /* ── Render Register Log ── */
+        function renderRegisterLog() {
+            const register = getRegister();
+            const searchTerm = (document.getElementById('logSearch').value || '').trim().toLowerCase();
+            const tbody = document.getElementById('registerLogBody');
+
+            // Sort newest first
+            const sorted = [...register].reverse();
+
+            // Filter
+            const filtered = sorted.filter(entry => {
+                if (!searchTerm) return true;
+                return (entry.patientName || '').toLowerCase().includes(searchTerm)
+                    || (entry.doctorName || '').toLowerCase().includes(searchTerm)
+                    || (entry.drugName || '').toLowerCase().includes(searchTerm)
+                    || (entry.batchNo || '').toLowerCase().includes(searchTerm)
+
+                    || (entry.date || '').includes(searchTerm);
+            });
+
+            document.getElementById('logCount').textContent = `${filtered.length} of ${register.length}`;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="15">
+                            <div class="empty-state">
+                                <div class="es-icon">📋</div>
+                                <div class="es-title">${register.length === 0 ? 'No Entries Yet' : 'No Matches Found'}</div>
+                                <div class="es-sub">${register.length === 0 ? 'Log a Schedule H drug sale above to get started' : 'Try a different search term'}</div>
+                            </div>
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(entry => {
+                const dateStr = entry.date ? new Date(entry.date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+                return `
+                <tr style="animation: rowSlideIn 0.3s ease forwards;">
+                    <td style="white-space:nowrap; font-weight:600; font-size:0.82rem;">${dateStr}</td>
+                    <td style="font-size:0.84rem; font-weight:600;">${esc(entry.billNo || '—')}</td>
+                    <td>
+                        <div style="font-weight:600;">${esc(entry.patientName)}</div>
+                        ${entry.patientAddress ? `<div style="font-size:0.73rem; color:#94a3b8;">${esc(entry.patientAddress)}</div>` : ''}
+                    </td>
+                    <td>
+                        <div style="font-weight:600;">${esc(entry.doctorName || '—')}</div>
+                        ${entry.doctorAddress ? `<div style="font-size:0.73rem; color:#94a3b8;">${esc(entry.doctorAddress)}</div>` : ''}
+                    </td>
+                    <td style="font-weight:700; color:#991b1b;">${esc(entry.drugName)}</td>
+                    <td style="font-size:0.84rem;">${esc(entry.batchNo || '—')}</td>
+                    <td style="font-size:0.84rem;">${esc(entry.expireDate || '—')}</td>
+                    <td style="font-size:0.84rem;">${esc(entry.pack || '—')}</td>
+                    <td style="font-weight:700;">${entry.qty || '—'}</td>
+                    <td style="font-size:0.84rem;">₹${(entry.mrp || 0).toFixed(2)}</td>
+                    <td style="font-size:0.84rem;">₹${(entry.rate || 0).toFixed(2)}</td>
+                    <td style="font-size:0.84rem;">${entry.gst || 0}%</td>
+                    <td style="font-weight:700; color:#dc2626;">₹${(entry.total || 0).toFixed(2)}</td>
+                    <td style="font-size:0.84rem;">${esc(entry.firmName || '—')}</td>
+
+                    <td>
+                        <button class="remove-row-btn" onclick="deleteEntry('${entry.id}')" title="Delete entry">✕</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function esc(str) {
+            const d = document.createElement('div');
+            d.textContent = str || '';
+            return d.innerHTML;
+        }
+
+        function deleteEntry(id) {
+            if (!confirm('Delete this register entry?')) return;
+            const register = getRegister().filter(e => e.id !== id);
+            setRegister(register);
+            renderRegisterLog();
+            showToast('Deleted', 'Entry removed from register.');
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           TAB 2: Manage Drug List
+        ══════════════════════════════════════════════════════════════════ */
+        function addDrug() {
+            const input = document.getElementById('newDrugName');
+            const name = (input.value || '').trim();
+            if (!name) {
+                showToast('Empty Name', 'Please enter a drug name.');
+                return;
+            }
+
+            const drugs = getDrugList();
+            if (drugs.some(d => d.toLowerCase() === name.toLowerCase())) {
+                showToast('Duplicate', 'This drug is already in the list.');
+                return;
+            }
+
+            drugs.push(name);
+            drugs.sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+            setDrugList(drugs);
+            input.value = '';
+            renderDrugList();
+            refreshDrugDatalist();
+            showToast('Drug Added!', `"${name}" added to Schedule H list.`);
+        }
+
+        function removeDrug(name) {
+            const drugs = getDrugList().filter(d => d !== name);
+            setDrugList(drugs);
+            renderDrugList();
+            refreshDrugDatalist();
+            showToast('Removed', `"${name}" removed from list.`);
+        }
+
+        function clearAllDrugs() {
+            if (!confirm('Remove ALL Schedule H drugs from the list?')) return;
+            localStorage.removeItem(SH_DRUGS_KEY);
+            renderDrugList();
+            refreshDrugDatalist();
+            showToast('Cleared!', 'All Schedule H drugs removed.');
+        }
+
+        function renderDrugList() {
+            const drugs = getDrugList();
+            const searchTerm = (document.getElementById('drugSearch').value || '').trim().toLowerCase();
+            const filtered = drugs.filter(d => !searchTerm || d.toLowerCase().includes(searchTerm));
+
+            document.getElementById('drugCountBadge').textContent = `${drugs.length} drug${drugs.length !== 1 ? 's' : ''}`;
+            const grid = document.getElementById('drugGrid');
+            const empty = document.getElementById('drugEmptyState');
+
+            if (drugs.length === 0) {
+                grid.innerHTML = '';
+                empty.style.display = 'block';
+                return;
+            }
+
+            empty.style.display = 'none';
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '<div style="padding:1rem; color:#94a3b8; font-size:0.9rem;">No matching drugs found.</div>';
+                return;
+            }
+
+            grid.innerHTML = filtered.map(name => `
+                <div class="drug-chip">
+                    <span>${esc(name)}</span>
+                    <button class="del-chip" onclick="removeDrug('${name.replace(/'/g, "\\'")}')" title="Remove">✕</button>
+                </div>
+            `).join('');
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           Import Modal (Excel/CSV)
+        ══════════════════════════════════════════════════════════════════ */
+        let _iRows = [], _iHdrs = [], _iCol = -1, _iNames = [], _iFileCount = 0;
+
+        function openImportModal() {
+            _iRows = []; _iHdrs = []; _iCol = -1; _iNames = []; _iFileCount = 0;
+            document.getElementById('importModal').classList.add('open');
+            document.getElementById('importStep1').style.display = 'block';
+            document.getElementById('importStep2').style.display = 'none';
+            document.getElementById('importConfirmBtn').disabled = true;
+            const fi = document.getElementById('fileInput');
+            if (fi) fi.value = '';
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').classList.remove('open');
+        }
+
+        function handleFileInput(e) {
+            const files = [...e.target.files].filter(f => /\.(csv|xlsx|xls)$/i.test(f.name));
+            if (files.length) processFileList(files);
+        }
+
+        function handleFileDrop(e) {
+            e.preventDefault();
+            document.getElementById('dropZone').classList.remove('drag-over');
+            const files = [...e.dataTransfer.files].filter(f => /\.(csv|xlsx|xls)$/i.test(f.name));
+            if (files.length) processFileList(files);
+        }
+
+        function processFileList(files) {
+            _iFileCount = files.length; _iRows = []; _iHdrs = [];
+            let done = 0;
+            const results = new Array(files.length).fill(null);
+            files.forEach((file, fi) => {
+                const rdr = new FileReader();
+                rdr.onload = ev => {
+                    try {
+                        const isCSV = file.name.toLowerCase().endsWith('.csv');
+                        const wb = XLSX.read(ev.target.result, { type: isCSV ? 'string' : 'array' });
+                        const ws = wb.Sheets[wb.SheetNames[0]];
+                        results[fi] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+                    } catch (err) { console.warn('File read error', err); results[fi] = []; }
+                    if (++done === files.length) {
+                        results.forEach((raw, i) => {
+                            if (!raw || !raw.length) return;
+                            if (i === 0) { _iHdrs = raw[0].map(String); _iRows.push(...raw.slice(1)); }
+                            else {
+                                const isHdr = raw[0].some((c, j) => _iHdrs[j] && String(c).toLowerCase() === _iHdrs[j].toLowerCase());
+                                _iRows.push(...(isHdr ? raw.slice(1) : raw));
+                            }
+                        });
+                        showColumnPicker();
+                    }
+                };
+                file.name.toLowerCase().endsWith('.csv') ? rdr.readAsText(file) : rdr.readAsArrayBuffer(file);
+            });
+        }
+
+        function showColumnPicker() {
+            document.getElementById('importStep1').style.display = 'none';
+            document.getElementById('importStep2').style.display = 'block';
+            const maxC = Math.max(_iHdrs.length, ..._iRows.slice(0, 10).map(r => r.length || 0), 1);
+            const grid = document.getElementById('importColBtns');
+            grid.innerHTML = '';
+            let autoIdx = -1;
+            for (let i = 0; i < maxC; i++) {
+                const hdr = _iHdrs[i] ? String(_iHdrs[i]) : `Column ${i + 1}`;
+                const smp = _iRows.slice(0, 3).map(r => r[i] ? String(r[i]) : '').filter(Boolean).join(' · ');
+                const btn = document.createElement('button');
+                btn.type = 'button'; btn.className = 'col-pill'; btn.dataset.ci = i;
+                btn.innerHTML = `<b>${hdr}</b>${smp ? `<br><small style="opacity:.7">${smp}</small>` : ''}`;
+                btn.onclick = () => pickCol(i);
+                grid.appendChild(btn);
+                if (autoIdx < 0 && /medicine|drug|product|name|item|med|brand|generic|schedule/i.test(hdr)) autoIdx = i;
+            }
+            document.getElementById('importStats').textContent = `${_iRows.length} data row(s) from ${_iFileCount} file(s)`;
+            if (autoIdx >= 0) setTimeout(() => pickCol(autoIdx), 80);
+        }
+
+        function pickCol(idx) {
+            _iCol = idx;
+            document.querySelectorAll('.col-pill').forEach(b => b.classList.remove('sel'));
+            const b = document.querySelector(`.col-pill[data-ci="${idx}"]`);
+            if (b) b.classList.add('sel');
+            const seen = new Set(); _iNames = [];
+            _iRows.forEach(row => {
+                const v = String(row[idx] ?? '').trim();
+                if (v && !seen.has(v.toLowerCase())) { seen.add(v.toLowerCase()); _iNames.push(v); }
+            });
+            const pv = document.getElementById('importPreview');
+            pv.style.display = 'block';
+            pv.innerHTML = _iNames.slice(0, 25).map(n => `<div class="prev-item">${n}</div>`).join('')
+                + (_iNames.length > 25 ? `<div class="prev-more">+${_iNames.length - 25} more…</div>` : '');
+            document.getElementById('importCount').textContent = `✓ ${_iNames.length} unique drug name(s) found`;
+            document.getElementById('importConfirmBtn').disabled = _iNames.length === 0;
+        }
+
+        function doImport() {
+            if (!_iNames.length) return;
+            const existing = getDrugList();
+            const seen = new Set(existing.map(n => n.toLowerCase()));
+            const fresh = _iNames.filter(n => !seen.has(n.toLowerCase()));
+            const merged = [...existing, ...fresh].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+            setDrugList(merged);
+            renderDrugList();
+            refreshDrugDatalist();
+            closeImportModal();
+            showToast(`${fresh.length} drug(s) imported!`, `${merged.length} total in Schedule H list.`);
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           Initialize on Page Load
+        ══════════════════════════════════════════════════════════════════ */
+        window.addEventListener('DOMContentLoaded', () => {
+            refreshPatientList();
+            refreshDoctorList();
+            refreshDrugDatalist();
+            renderRegisterLog();
+            renderDrugList();
+        });
+    </script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => {
+                        console.log('[PWA] SW registered:', reg.scope);
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            if (!newWorker) return;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
+                                    window.location.reload();
+                                }
+                            });
+                        });
+                    })
+                    .catch(e => console.warn('[PWA] SW failed:', e));
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    window.location.reload();
+                });
+            });
+        }
+    </script>
+</body>
+</html>

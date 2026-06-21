@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billware</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="js/auth.js"></script>
+    <script src="js/notifications.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            background-color: #f0fdfa;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(199,89%,90%,1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, hsla(160,84%,90%,1) 0px, transparent 50%);
+            background-attachment: fixed;
+            display: flex;
+            flex-direction: column;
+            color: #0f172a;
+        }
+
+        /* -- Navbar -- */
+        header {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255,255,255,0.6);
+            box-shadow: 0 2px 20px rgba(0,0,0,0.05);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            text-decoration: none;
+            transition: transform 0.2s ease;
+        }
+        .logo:hover { transform: translateY(-1px); }
+
+        .logo-icon {
+            width: 46px; height: 46px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #0284c7, #0ea5e9, #10b981);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 900; font-size: 1.25rem; letter-spacing: 0.5px;
+            box-shadow: 0 6px 16px rgba(14, 165, 233, 0.4), inset 0 2px 4px rgba(255,255,255,0.4);
+            border: 1px solid rgba(255,255,255,0.5);
+            flex-shrink: 0; position: relative; overflow: hidden;
+        }
+        .logo-icon::after {
+            content: ''; position: absolute;
+            top: 0; left: -100%; width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
+            transform: skewX(-20deg); animation: shimmer 3s infinite;
+        }
+        @keyframes shimmer { 0% { left: -100%; } 20% { left: 200%; } 100% { left: 200%; } }
+
+        .logo-text {
+            font-size: 1.35rem; font-weight: 800;
+            background: linear-gradient(to right, #0f172a, #334155);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: -0.01em;
+        }
+
+        /* -- Dashboard Wrapper -- */
+        .dashboard-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 3.5rem 2rem 4rem;
+        }
+
+        /* -- Dashboard Header -- */
+        .dashboard-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .dashboard-header h2 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        .dashboard-header p {
+            color: #64748b;
+            font-size: 1rem;
+        }
+
+        /* -- Cards Grid -- */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.6rem;
+            width: 100%;
+            max-width: 1280px;
+        }
+
+        /* -- Card -- */
+        .section-card {
+            background: rgba(255,255,255,0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.9);
+            border-radius: 20px;
+            padding: 2.5rem 1.5rem 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.07);
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: fadeUp 0.6s ease forwards;
+            opacity: 0;
+        }
+
+        /* Top accent bar */
+        .section-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            border-radius: 20px 20px 0 0;
+        }
+
+        .section-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            background: rgba(255,255,255,0.95);
+        }
+        .section-card:hover::before { opacity: 1; }
+
+        /* Per-card colors */
+        .card-customer { --c: #0ea5e9; }
+        .card-customer::before { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
+        .card-customer:hover { box-shadow: 0 20px 40px rgba(14,165,233,0.2); }
+
+        .card-doctor { --c: #8b5cf6; }
+        .card-doctor::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+        .card-doctor:hover { box-shadow: 0 20px 40px rgba(139,92,246,0.2); }
+
+        .card-purchase { --c: #f59e0b; }
+        .card-purchase::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .card-purchase:hover { box-shadow: 0 20px 40px rgba(245,158,11,0.2); }
+
+        .card-sales { --c: #10b981; }
+        .card-sales::before { background: linear-gradient(90deg, #10b981, #34d399); }
+        .card-sales:hover { box-shadow: 0 20px 40px rgba(16,185,129,0.2); }
+
+        .card-report { --c: #f43f5e; }
+        .card-report::before { background: linear-gradient(90deg, #f43f5e, #fb7185); }
+        .card-report:hover { box-shadow: 0 20px 40px rgba(244,63,94,0.2); }
+
+        .card-schedule-h { --c: #dc2626; }
+        .card-schedule-h::before { background: linear-gradient(90deg, #dc2626, #ef4444); }
+        .card-schedule-h:hover { box-shadow: 0 20px 40px rgba(220,38,38,0.2); }
+
+        .card-khata { --c: #d97706; }
+        .card-khata::before { background: linear-gradient(90deg, #d97706, #f59e0b); }
+        .card-khata:hover { box-shadow: 0 20px 40px rgba(217,119,6,0.2); }
+
+        /* -- Icon -- */
+        .icon-wrapper {
+            width: 68px; height: 68px;
+            border-radius: 18px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 1.3rem;
+            transition: all 0.35s ease;
+            background: color-mix(in srgb, var(--c) 12%, white);
+        }
+
+        .icon-wrapper svg {
+            width: 32px; height: 32px;
+            stroke: var(--c);
+            stroke-width: 1.7;
+            fill: none;
+            transition: stroke 0.3s;
+        }
+
+        .section-card:hover .icon-wrapper {
+            background: var(--c);
+            box-shadow: 0 10px 28px color-mix(in srgb, var(--c) 40%, transparent);
+            transform: rotate(-6deg) scale(1.1);
+        }
+        .section-card:hover .icon-wrapper svg { stroke: white; }
+
+        .section-card h3 {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 0.6rem;
+            letter-spacing: 0.01em;
+        }
+
+        .section-card p {
+            font-size: 0.88rem;
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+        /* Stagger */
+        .dashboard > a:nth-child(1) { animation-delay: 0.08s; }
+        .dashboard > a:nth-child(2) { animation-delay: 0.16s; }
+        .dashboard > a:nth-child(3) { animation-delay: 0.24s; }
+        .dashboard > a:nth-child(4) { animation-delay: 0.32s; }
+        .dashboard > a:nth-child(5) { animation-delay: 0.40s; }
+        .dashboard > a:nth-child(6) { animation-delay: 0.48s; }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* -- Footer -- */
+        footer {
+            text-align: center;
+            padding: 1.2rem;
+            font-size: 0.82rem;
+            color: #94a3b8;
+            border-top: 1px solid rgba(0,0,0,0.05);
+        }
+
+        /* -- Responsive -- */
+        @media (max-width: 1100px) {
+            .dashboard { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 700px) {
+            .dashboard { grid-template-columns: 1fr 1fr; gap: 1rem; }
+            .logo-text { font-size: 1rem; }
+            .dashboard-header h2 { font-size: 1.6rem; }
+        }
+
+        /* ── Bell Button ── */
+        .bell-btn {
+            position: relative;
+            background: rgba(255,255,255,0.8);
+            border: 1.5px solid rgba(0,0,0,0.08);
+            border-radius: 50%;
+            width: 44px; height: 44px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        }
+        .bell-btn:hover { background: white; box-shadow: 0 4px 16px rgba(0,0,0,0.12); transform: scale(1.05); }
+        .bell-btn svg { width: 20px; height: 20px; stroke: #334155; transition: stroke 0.2s; }
+        .bell-btn:hover svg { stroke: #0f172a; }
+        .bell-badge {
+            position: absolute;
+            top: -4px; right: -4px;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            font-size: 0.62rem;
+            font-weight: 800;
+            min-width: 18px; height: 18px;
+            border-radius: 9px;
+            display: flex; align-items: center; justify-content: center;
+            border: 2px solid white;
+            padding: 0 4px;
+            animation: bellPop 0.4s cubic-bezier(0.175,0.885,0.32,1.275);
+        }
+        @keyframes bellPop { from{transform:scale(0)} to{transform:scale(1)} }
+        .bell-shake { animation: bellShake 0.5s ease !important; }
+        @keyframes bellShake {
+            0%,100%{transform:rotate(0)}
+            20%{transform:rotate(-15deg)}
+            40%{transform:rotate(15deg)}
+            60%{transform:rotate(-10deg)}
+            80%{transform:rotate(10deg)}
+        }
+
+        /* ── Inbox Drawer ── */
+        .inbox-overlay {
+            position: fixed; inset: 0;
+            background: rgba(15,23,42,0.35);
+            backdrop-filter: blur(4px);
+            z-index: 900;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .inbox-overlay.open { opacity: 1; pointer-events: all; }
+
+        .inbox-drawer {
+            position: fixed;
+            top: 0; right: 0;
+            width: min(420px, 100vw);
+            height: 100vh;
+            background: #f8fafc;
+            z-index: 901;
+            transform: translateX(100%);
+            transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+            display: flex; flex-direction: column;
+            box-shadow: -8px 0 40px rgba(0,0,0,0.15);
+        }
+        .inbox-drawer.open { transform: translateX(0); }
+
+        .inbox-head {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: white;
+            padding: 20px 20px 16px;
+            display: flex; align-items: center; justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .inbox-head-left { display: flex; align-items: center; gap: 10px; }
+        .inbox-head h2 { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.01em; }
+        .inbox-head .unread-pill {
+            background: #ef4444;
+            color: white;
+            font-size: 0.68rem;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
+        .inbox-close-btn {
+            background: rgba(255,255,255,0.1);
+            border: none; border-radius: 50%;
+            width: 34px; height: 34px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; color: white;
+            transition: background 0.2s;
+        }
+        .inbox-close-btn:hover { background: rgba(255,255,255,0.2); }
+
+        .inbox-toolbar {
+            display: flex; flex-direction: column;
+            padding: 0;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            flex-shrink: 0;
+        }
+        .inbox-filter-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 10px 16px 8px;
+        }
+        .inbox-toolbar-actions {
+            display: flex; justify-content: flex-end;
+            padding: 0 16px 8px;
+        }
+        .inbox-tab {
+            padding: 4px 11px;
+            border-radius: 20px;
+            border: 1.5px solid #e2e8f0;
+            font-size: 0.7rem; font-weight: 600;
+            cursor: pointer; background: white;
+            color: #64748b;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .inbox-tab.active {
+            background: #0f172a; color: white; border-color: #0f172a;
+        }
+
+        .mark-all-btn {
+            font-size: 0.72rem; font-weight: 600; color: #0891b2;
+            background: none; border: none; cursor: pointer; padding: 4px 8px;
+            border-radius: 6px; transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .mark-all-btn:hover { background: #e0f2fe; }
+
+        .inbox-body {
+            flex: 1; overflow-y: auto; padding: 12px;
+        }
+        .inbox-body::-webkit-scrollbar { width: 4px; }
+        .inbox-body::-webkit-scrollbar-track { background: transparent; }
+        .inbox-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+        /* Notification Cards */
+        .notif-card {
+            background: white;
+            border-radius: 14px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            border: 1.5px solid #e2e8f0;
+            display: flex; gap: 12px; align-items: flex-start;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .notif-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); transform: translateY(-1px); }
+        .notif-card.unread { border-left-width: 4px; }
+        .notif-card.read { opacity: 0.65; }
+
+        .notif-icon {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+        .notif-content { flex: 1; min-width: 0; }
+        .notif-title {
+            font-size: 0.87rem; font-weight: 700;
+            color: #0f172a; margin-bottom: 4px;
+            line-height: 1.3;
+        }
+        .notif-meta {
+            display: flex; align-items: center; gap: 7px;
+            margin-bottom: 4px; flex-wrap: wrap;
+        }
+        .notif-category-tag {
+            font-size: 0.6rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.05em;
+            padding: 2px 7px; border-radius: 20px;
+            flex-shrink: 0;
+        }
+        .notif-msg {
+            font-size: 0.78rem; color: #64748b;
+            line-height: 1.5; margin-bottom: 5px;
+        }
+        .notif-time {
+            font-size: 0.68rem; color: #94a3b8; font-weight: 500;
+        }
+        .notif-unread-dot {
+            width: 8px; height: 8px;
+            background: #ef4444;
+            border-radius: 50%;
+            flex-shrink: 0;
+            margin-top: 5px;
+        }
+
+
+        .inbox-empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #94a3b8;
+        }
+        .inbox-empty svg { width: 52px; height: 52px; margin: 0 auto 16px; display: block; stroke: #cbd5e1; }
+        .inbox-empty h3 { font-size: 1rem; font-weight: 700; color: #64748b; margin-bottom: 6px; }
+        .inbox-empty p { font-size: 0.82rem; line-height: 1.6; }
+
+        .inbox-loading {
+            display: flex; align-items: center; justify-content: center;
+            gap: 10px; padding: 40px 20px;
+            color: #94a3b8; font-size: 0.85rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spin { animation: spin 1s linear infinite; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0d9488">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Billware">
+    <link rel="apple-touch-icon" href="/icon-512.png">
+    <meta name="mobile-web-app-capable" content="yes"></head>
+<body>
+    <script>
+        // -- Auth Guard --
+        mmRequireAuth();
+        document.addEventListener('DOMContentLoaded', () => mmInjectUserBar());
+    </script>
+
+    <!-- Navbar -->
+    <header>
+        <div class="logo">
+            <div class="logo-icon">BW</div>
+            <span class="logo-text">Billware</span>
+        </div>
+        <button class="bell-btn" id="bellBtn" onclick="openInbox()" title="Notifications">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+        </button>
+    </header>
+
+    <!-- Inbox Overlay -->
+    <div class="inbox-overlay" id="inboxOverlay" onclick="closeInbox()"></div>
+
+    <!-- Inbox Drawer -->
+    <div class="inbox-drawer" id="inboxDrawer">
+        <div class="inbox-head">
+            <div class="inbox-head-left">
+                <svg width="20" height="20" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                </svg>
+                <h2>Inbox</h2>
+                <span class="unread-pill" id="inboxUnreadPill" style="display:none">0 new</span>
+            </div>
+            <button class="inbox-close-btn" onclick="closeInbox()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="inbox-toolbar">
+            <div class="inbox-filter-tabs">
+                <button class="inbox-tab active" id="tabAll" onclick="filterNotif('all')">All</button>
+                <button class="inbox-tab" id="tabMedicines" onclick="filterNotif('medicines')">💊 Medicines</button>
+                <button class="inbox-tab" id="tabRequests" onclick="filterNotif('requests')">📋 Requests</button>
+                <button class="inbox-tab" id="tabBusiness" onclick="filterNotif('business')">📊 Business</button>
+                <button class="inbox-tab" id="tabUpdates" onclick="filterNotif('updates')">📢 Updates</button>
+            </div>
+            <div class="inbox-toolbar-actions">
+                <button class="mark-all-btn" onclick="markAllRead()">✓ Mark all read</button>
+            </div>
+        </div>
+        <div class="inbox-body" id="inboxBody">
+            <div class="inbox-loading">
+                <svg class="spin" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
+                Loading alerts…
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="dashboard-wrapper">
+
+        <div class="dashboard-header">
+            <h2 id="dashWelcome">Welcome to your Dashboard</h2>
+            <p>Select an action below to get started</p>
+        </div>
+
+        <div class="dashboard">
+
+            <!-- ADD CUSTOMER -->
+            <a class="section-card card-customer" href="customer.html">
+                <div class="icon-wrapper">
+                    <svg viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                    </svg>
+                </div>
+                <h3>ADD CUSTOMER</h3>
+                <p>Register a new patient or customer into the system.</p>
+            </a>
+
+            <!-- ADD DOCTOR -->
+            <a class="section-card card-doctor" href="doctor.html">
+                <div class="icon-wrapper">
+                    <svg viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                </div>
+                <h3>ADD DOCTOR</h3>
+                <p>Register a new prescribing doctor and clinic details.</p>
+            </a>
+
+            <!-- PURCHASE -->
+            <a class="section-card card-purchase" href="purchase.html">
+                <div class="icon-wrapper">
+                    <svg viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                    </svg>
+                </div>
+                <h3>PURCHASE</h3>
+                <p>Record incoming stock, supplier invoices and inventory.</p>
+            </a>
+
+            <!-- SALES -->
+            <a class="section-card card-sales" href="sales.html">
+                <div class="icon-wrapper">
+                    <svg viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                </div>
+                <h3>SALES</h3>
+                <p>Process billing, generate receipts and checkout customers.</p>
+            </a>
+
+            <!-- REPORT -->
+            <a class="section-card card-report" href="report.html">
+                <div class="icon-wrapper">
+                    <svg viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                </div>
+                <h3>REPORT</h3>
+                <p>View sales summaries, stock levels and daily analytics.</p>
+            </a>
+
+            <!-- SCHEDULE H DRUG -->
+            <a class="section-card card-schedule-h" href="schedule-h.html">
+                <div class="icon-wrapper">
+                    <svg viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <h3>SCHEDULE H DRUG</h3>
+                <p>Manage restricted drugs register and log prescription sales.</p>
+            </a>
+
+        </div>
+
+        <!-- NEW ROW: Khata/Ledger -->
+        <div class="sections-grid" style="margin-top:2rem;">
+            <!-- KHATA / LEDGER -->
+            <a class="section-card card-khata" href="khata.html">
+                <div class="icon-wrapper">
+                    <svg viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <h3>KHATA / LEDGER</h3>
+                <p>Manage customer credit, pending balances and payments.</p>
+            </a>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        &copy; 2026 Billware. All rights reserved.
+    </footer>
+
+    <!-- PWA Install Banner -->
+    <div id="pwaInstallBanner" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;background:linear-gradient(135deg,#0d9488,#0891b2);color:white;padding:14px 24px;border-radius:50px;box-shadow:0 8px 32px rgba(13,148,136,0.45);display:none;align-items:center;gap:12px;font-family:'Inter',sans-serif;font-size:0.9rem;font-weight:600;cursor:pointer;white-space:nowrap;animation:pwaBounceIn 0.5s cubic-bezier(0.175,0.885,0.32,1.275) forwards;">
+        <span style="font-size:1.2rem;">📲</span>
+        <span>Install Billware as App</span>
+        <span id="pwaInstallClose" style="margin-left:6px;opacity:0.7;font-size:1rem;padding:0 4px;" title="Dismiss">&times;</span>
+    </div>
+    <style>
+        @keyframes pwaBounceIn { from{opacity:0;transform:translateX(-50%) translateY(30px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+    </style>
+    <script>
+        // ── Service Worker — auto-reload on new version ──
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => {
+                        console.log('[PWA] SW registered:', reg.scope);
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            if (!newWorker) return;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
+                                    window.location.reload();
+                                }
+                            });
+                        });
+                    })
+                    .catch(e => console.warn('[PWA] SW failed:', e));
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    window.location.reload();
+                });
+            });
+        }
+
+        // ── PWA Install Prompt ──
+        let _pwaPrompt = null;
+        window.addEventListener('beforeinstallprompt', e => {
+            e.preventDefault();
+            _pwaPrompt = e;
+            const banner = document.getElementById('pwaInstallBanner');
+            if (banner) { banner.style.display = 'flex'; }
+        });
+
+        window.addEventListener('appinstalled', () => {
+            const banner = document.getElementById('pwaInstallBanner');
+            if (banner) banner.style.display = 'none';
+            _pwaPrompt = null;
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const banner = document.getElementById('pwaInstallBanner');
+            if (!banner) return;
+            banner.addEventListener('click', async (e) => {
+                if (e.target.id === 'pwaInstallClose') {
+                    banner.style.display = 'none';
+                    return;
+                }
+                if (!_pwaPrompt) return;
+                _pwaPrompt.prompt();
+                const { outcome } = await _pwaPrompt.userChoice;
+                console.log('[PWA] Install outcome:', outcome);
+                _pwaPrompt = null;
+                banner.style.display = 'none';
+            });
+        });
+    </script>
+    <script>
+        // Set personalised welcome as soon as DOM is ready
+        (function() {
+            function setWelcome() {
+                try {
+                    const session = JSON.parse(
+                        localStorage.getItem('mm_session') ||
+                        sessionStorage.getItem('mm_session') ||
+                        'null'
+                    );
+                    const el = document.getElementById('dashWelcome');
+                    if (el && session && session.username) {
+                        el.textContent = 'Welcome, ' + session.username + '!';
+                    }
+                } catch(e) {}
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', setWelcome);
+            } else {
+                setWelcome();
+            }
+        })();
+    </script>
+
+    <script>
+    // ── Inbox / Notification System v2 ──
+    let _allNotifs = [];
+    let _activeFilter = 'all';
+
+    // Category display config used in card rendering
+    const CAT_META = {
+        medicines: { label: '💊 Medicine', bg: '#dcfce7', color: '#15803d' },
+        requests:  { label: '📋 Request',  bg: '#dbeafe', color: '#1d4ed8' },
+        business:  { label: '📊 Business', bg: '#ede9fe', color: '#6d28d9' },
+        updates:   { label: '📢 Update',   bg: '#fce7f3', color: '#be185d' },
+    };
+
+    async function loadNotifications() {
+        try {
+            // Fetch all data sources independently — one failure won't break others
+            const [purchases, bills] = await Promise.all([
+                dbGetPurchases().catch(() => []),
+                dbGetBills().catch(() => [])
+            ]);
+
+            // Fetch request statuses (filtered by current user via RLS / user_id)
+            const session = mmGetSession ? mmGetSession() : null;
+            const tenantId = session ? (session.tenant_id || session.username) : null;
+            let shopEditReqs = [], extraUserReqs = [], announcements = [];
+            if (tenantId) {
+                const [er, eu, ann] = await Promise.all([
+                    _supabase.from('shop_edit_requests').select('*').eq('user_id', tenantId).in('status', ['approved','rejected']).order('reviewed_at', { ascending: false }).limit(10),
+                    _supabase.from('extra_user_requests').select('*').eq('user_id', tenantId).in('status', ['approved','rejected']).order('reviewed_at', { ascending: false }).limit(10),
+                    _supabase.from('mm_announcements').select('*').order('created_at', { ascending: false }).limit(10)
+                ]);
+                shopEditReqs = er.data || [];
+                extraUserReqs = eu.data || [];
+                announcements = ann.data || []; // gracefully empty if table doesn't exist
+            }
+
+            // Generate all categories and merge
+            const medicineAlerts = MMNotifications.generateMedicineAlerts(purchases);
+            const requestAlerts  = MMNotifications.generateRequestAlerts(shopEditReqs, extraUserReqs);
+            const businessAlerts = MMNotifications.generateBusinessAlerts(bills);
+            const systemAlerts   = MMNotifications.generateSystemAlerts(announcements);
+
+            _allNotifs = MMNotifications.sort([
+                ...medicineAlerts,
+                ...requestAlerts,
+                ...businessAlerts,
+                ...systemAlerts
+            ]);
+
+            updateBellBadge();
+            updateTabCounts();
+        } catch(e) {
+            console.warn('[Inbox] Failed to load notifications:', e);
+        }
+    }
+
+    function updateBellBadge() {
+        const unread = _allNotifs.filter(n => !n.isRead).length;
+        const btn = document.getElementById('bellBtn');
+        if (!btn) return;
+        const old = btn.querySelector('.bell-badge');
+        if (old) old.remove();
+        if (unread > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'bell-badge';
+            badge.textContent = unread > 99 ? '99+' : unread;
+            btn.appendChild(badge);
+            const svg = btn.querySelector('svg');
+            if (svg) { svg.classList.add('bell-shake'); setTimeout(() => svg.classList.remove('bell-shake'), 600); }
+        }
+    }
+
+    function updateTabCounts() {
+        // Show unread counts on each tab button
+        const cats = { medicines: 0, requests: 0, business: 0, updates: 0 };
+        _allNotifs.forEach(n => { if (!n.isRead && cats[n.category] !== undefined) cats[n.category]++; });
+        const tabMap = { medicines: 'tabMedicines', requests: 'tabRequests', business: 'tabBusiness', updates: 'tabUpdates' };
+        Object.entries(cats).forEach(([cat, count]) => {
+            const btn = document.getElementById(tabMap[cat]);
+            if (!btn) return;
+            // Remove old badge
+            const old = btn.querySelector('.tab-badge');
+            if (old) old.remove();
+            if (count > 0) {
+                const b = document.createElement('span');
+                b.className = 'tab-badge';
+                b.style.cssText = 'background:#ef4444;color:white;font-size:.55rem;font-weight:800;padding:1px 5px;border-radius:10px;margin-left:4px;';
+                b.textContent = count;
+                btn.appendChild(b);
+            }
+        });
+    }
+
+    function openInbox() {
+        document.getElementById('inboxOverlay').classList.add('open');
+        document.getElementById('inboxDrawer').classList.add('open');
+        document.body.style.overflow = 'hidden';
+        renderInbox();
+    }
+
+    function closeInbox() {
+        document.getElementById('inboxOverlay').classList.remove('open');
+        document.getElementById('inboxDrawer').classList.remove('open');
+        document.body.style.overflow = '';
+    }
+
+    function filterNotif(type) {
+        _activeFilter = type;
+        document.querySelectorAll('.inbox-tab').forEach(t => t.classList.remove('active'));
+        const map = { all: 'tabAll', medicines: 'tabMedicines', requests: 'tabRequests', business: 'tabBusiness', updates: 'tabUpdates' };
+        document.getElementById(map[type])?.classList.add('active');
+        renderInbox();
+    }
+
+    function renderInbox() {
+        const body = document.getElementById('inboxBody');
+        const pill = document.getElementById('inboxUnreadPill');
+
+        const filtered = _allNotifs.filter(n => _activeFilter === 'all' || n.category === _activeFilter);
+
+        const unread = _allNotifs.filter(n => !n.isRead).length;
+        pill.textContent = `${unread} new`;
+        pill.style.display = unread > 0 ? '' : 'none';
+
+        if (!filtered.length) {
+            const emptyMsgs = {
+                all:       ['All Clear! 🎉', 'No alerts right now. Everything looks good!'],
+                medicines: ['No Medicine Alerts 💚', 'No expiry or stock issues found.'],
+                requests:  ['No Requests 📋', 'No approvals or rejections to show.'],
+                business:  ['No Business Data 📊', 'Make some sales to see your summary here.'],
+                updates:   ['No Updates 📢', 'No system announcements at the moment.'],
+            };
+            const [h, p] = emptyMsgs[_activeFilter] || emptyMsgs.all;
+            body.innerHTML = `
+            <div class="inbox-empty">
+                <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <h3>${h}</h3>
+                <p>${p}</p>
+            </div>`;
+            return;
+        }
+
+        body.innerHTML = filtered.map(n => {
+            const cat = CAT_META[n.category] || CAT_META.updates;
+            const safeId = n.id.replace(/'/g, "\\'")
+            return `
+            <div class="notif-card ${n.isRead ? 'read' : 'unread'}"
+                 style="border-left-color:${n.color};background:${n.isRead ? 'white' : n.bg};"
+                 onclick="markOneRead('${safeId}', this)">
+                <div class="notif-icon">${n.icon}</div>
+                <div class="notif-content">
+                    <div class="notif-meta">
+                        <span class="notif-category-tag" style="background:${cat.bg};color:${cat.color};">${cat.label}</span>
+                    </div>
+                    <div class="notif-title" style="color:${n.isRead ? '#334155' : n.color}">${n.title}</div>
+                    <div class="notif-msg">${n.message}</div>
+                    <div class="notif-time">${n.time}</div>
+                </div>
+                ${!n.isRead ? '<div class="notif-unread-dot"></div>' : ''}
+            </div>`;
+        }).join('');
+    }
+
+    function markOneRead(id, cardEl) {
+        MMNotifications.markRead([id]);
+        const notif = _allNotifs.find(n => n.id === id);
+        if (notif) notif.isRead = true;
+        if (cardEl) {
+            cardEl.classList.remove('unread');
+            cardEl.classList.add('read');
+            cardEl.style.background = 'white';
+            cardEl.querySelector('.notif-unread-dot')?.remove();
+            const title = cardEl.querySelector('.notif-title');
+            if (title) title.style.color = '#334155';
+        }
+        updateBellBadge();
+        updateTabCounts();
+        const pill = document.getElementById('inboxUnreadPill');
+        const unread = _allNotifs.filter(n => !n.isRead).length;
+        pill.textContent = `${unread} new`;
+        if (!unread) pill.style.display = 'none';
+    }
+
+    function markAllRead() {
+        MMNotifications.markAllRead(_allNotifs);
+        _allNotifs.forEach(n => n.isRead = true);
+        updateBellBadge();
+        updateTabCounts();
+        renderInbox();
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeInbox(); });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(loadNotifications, 800);
+    });
+    </script></body>
+</html>
+

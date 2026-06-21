@@ -1,0 +1,53 @@
+{
+  "name": "Mudhalvar Marundhagam Pakkam",
+  "short_name": "MM Pakkam",
+  "description": "Pharmacy billing, purchase, sales and report management system for Mudhalvar Marundhagam Pakkam.",
+  "start_url": "/login.html",
+  "scope": "/",
+  "id": "/login.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f0fdfa",
+  "theme_color": "#0d9488",
+  "lang": "en",
+  "prefer_related_applications": false,
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Sales",
+      "short_name": "Sales",
+      "description": "Go to Sales / Billing",
+      "url": "/sales.html",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Purchase",
+      "short_name": "Purchase",
+      "description": "Record a new purchase",
+      "url": "/purchase.html",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Report",
+      "short_name": "Report",
+      "description": "View sales report",
+      "url": "/report.html",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

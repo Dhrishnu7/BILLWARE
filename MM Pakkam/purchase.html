@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase | Mudhalvar Marundhagam Pakkam</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            background-color: #fffbeb;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(43,96%,88%,1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, hsla(160,84%,90%,1) 0px, transparent 50%);
+            background-attachment: fixed;
+            display: flex;
+            flex-direction: column;
+            color: #0f172a;
+        }
+
+        /* ── Navbar ── */
+        header {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255,255,255,0.6);
+            box-shadow: 0 2px 20px rgba(0,0,0,0.05);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            text-decoration: none;
+            transition: transform 0.2s ease;
+        }
+        .logo:hover { transform: translateY(-1px); }
+
+        .logo-icon {
+            width: 46px; height: 46px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #0284c7, #0ea5e9, #10b981);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 900; font-size: 1.25rem; letter-spacing: 0.5px;
+            box-shadow: 0 6px 16px rgba(14, 165, 233, 0.4), inset 0 2px 4px rgba(255,255,255,0.4);
+            border: 1px solid rgba(255,255,255,0.5);
+            flex-shrink: 0; position: relative; overflow: hidden;
+        }
+        .logo-icon::after {
+            content: ''; position: absolute;
+            top: 0; left: -100%; width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
+            transform: skewX(-20deg); animation: shimmer 3s infinite;
+        }
+        @keyframes shimmer { 0% { left: -100%; } 20% { left: 200%; } 100% { left: 200%; } }
+
+        .logo-text {
+            font-size: 1.35rem; font-weight: 800;
+            background: linear-gradient(to right, #0f172a, #334155);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: -0.01em;
+        }
+
+        .back-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 0.5rem 1.2rem;
+            background: white;
+            border: 1.5px solid rgba(245,158,11,0.3);
+            border-radius: 50px;
+            font-size: 0.85rem; font-weight: 600; color: #d97706;
+            text-decoration: none;
+            transition: all 0.25s ease;
+        }
+        .back-btn:hover {
+            background: #f59e0b; color: white; border-color: #f59e0b;
+            box-shadow: 0 4px 16px rgba(245,158,11,0.35);
+            transform: translateY(-1px);
+        }
+
+        /* ── Page Content ── */
+        .page-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2.5rem 1.5rem 4rem;
+        }
+
+        /* ── Page Header ── */
+        .page-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            animation: fadeUp 0.5s ease forwards;
+            opacity: 0;
+        }
+        .breadcrumb {
+            font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.6rem;
+        }
+        .breadcrumb a { color: #d97706; text-decoration: none; font-weight: 500; }
+        .page-header h1 {
+            font-size: 1.9rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em;
+        }
+        .page-header p { color: #64748b; margin-top: 0.4rem; font-size: 0.95rem; }
+
+        /* ── Form Card ── */
+        .form-card {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.9);
+            border-radius: 24px;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 800px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            animation: fadeUp 0.6s ease 0.1s forwards;
+            opacity: 0;
+        }
+
+        /* ── Section Label ── */
+        .section-label {
+            font-size: 0.72rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.08em; color: #64748b; margin-bottom: 1rem;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .section-label::after {
+            content: ''; flex: 1; height: 1px;
+            background: linear-gradient(90deg, #e2e8f0, transparent);
+        }
+
+        /* ── Grid Layout ── */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.2rem 1.4rem;
+        }
+        .form-grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem 1.2rem;
+        }
+        .full-width { grid-column: 1 / -1; }
+
+        /* ── Form Groups ── */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+        }
+
+        .form-group label {
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #92400e;
+        }
+
+        .form-group input {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            color: #0f172a;
+            background: #fafaf8;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0.8rem 1rem;
+            outline: none;
+            width: 100%;
+            transition: all 0.22s ease;
+        }
+        .form-group input::placeholder { color: #cbd5e1; }
+
+        .form-group input:hover {
+            border-color: #fcd34d;
+            background: white;
+        }
+        .form-group input:focus {
+            border-color: #f59e0b;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(245,158,11,0.12);
+        }
+        .form-group input[readonly] {
+            font-weight: 700;
+            color: #92400e;
+            background: #fef3c7;
+            border-color: #fcd34d;
+            cursor: default;
+        }
+
+        /* ── Divider ── */
+        .divider {
+            grid-column: 1 / -1;
+            height: 1.5px;
+            background: linear-gradient(90deg, #fde68a, transparent);
+            margin: 0.4rem 0;
+            border-radius: 2px;
+        }
+
+        /* ── Line Items Area ── */
+        .line-items-container {
+            margin-top: 1.5rem;
+        }
+
+        .line-item {
+            background: rgba(255,255,255,0.7);
+            border: 1.5px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.4rem;
+            margin-bottom: 1rem;
+            position: relative;
+            transition: all 0.25s ease;
+            animation: itemSlideIn 0.35s ease forwards;
+        }
+        .line-item:hover {
+            border-color: #fcd34d;
+            box-shadow: 0 4px 16px rgba(245,158,11,0.08);
+        }
+        @keyframes itemSlideIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .line-item-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+        .item-number {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 0.78rem; font-weight: 800; color: #d97706;
+            text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .item-number .badge {
+            width: 24px; height: 24px; border-radius: 8px;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white; font-size: 0.72rem; font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .remove-item-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 12px; border-radius: 20px;
+            border: 1.5px solid rgba(239,68,68,0.3);
+            background: #fef2f2; color: #ef4444;
+            font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 700;
+            cursor: pointer; transition: all 0.2s ease;
+        }
+        .remove-item-btn:hover { background: #ef4444; color: white; border-color: #ef4444; }
+
+        /* ── Add More Button ── */
+        .add-item-btn {
+            width: 100%;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 0.9rem;
+            border-radius: 14px;
+            border: 2px dashed #fcd34d;
+            background: rgba(254,243,199,0.3);
+            color: #d97706;
+            font-family: 'Inter', sans-serif; font-size: 0.9rem; font-weight: 700;
+            cursor: pointer; transition: all 0.25s ease;
+            margin-bottom: 1.5rem;
+        }
+        .add-item-btn:hover {
+            background: #fef3c7; border-color: #f59e0b;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(245,158,11,0.15);
+        }
+        .add-item-btn .plus-icon {
+            width: 22px; height: 22px; border-radius: 7px;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white; font-size: 1rem; font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* ── Grand Total ── */
+        .grand-total-bar {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border: 1.5px solid #fcd34d;
+            border-radius: 14px;
+            padding: 1rem 1.4rem;
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+        .grand-total-bar .gt-label {
+            font-size: 0.82rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.06em; color: #92400e;
+        }
+        .grand-total-bar .gt-count {
+            font-size: 0.75rem; font-weight: 600; color: #a16207; margin-top: 2px;
+        }
+        .grand-total-bar .gt-value {
+            font-size: 1.35rem; font-weight: 800; color: #92400e;
+        }
+
+        /* ── Buttons ── */
+        .form-actions {
+            display: flex;
+            gap: 0.8rem;
+        }
+        .btn {
+            flex: 1;
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 0.9rem 1.5rem;
+            border-radius: 12px;
+            font-size: 0.95rem; font-weight: 700;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer; border: none;
+            transition: all 0.25s ease;
+        }
+        .btn-cancel {
+            background: #f1f5f9; color: #64748b; border: 1.5px solid #e2e8f0;
+        }
+        .btn-cancel:hover { background: #e2e8f0; color: #334155; }
+
+        .btn-save {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            box-shadow: 0 4px 16px rgba(245,158,11,0.35);
+        }
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(245,158,11,0.45);
+        }
+        .btn-save:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+
+        /* ── Toast ── */
+        .toast {
+            position: fixed;
+            bottom: 2rem; right: 2rem;
+            background: white;
+            border: 1.5px solid #fde68a;
+            border-radius: 16px;
+            padding: 1rem 1.4rem;
+            display: flex; align-items: center; gap: 12px;
+            font-size: 0.9rem; font-weight: 600; color: #92400e;
+            box-shadow: 0 10px 30px rgba(245,158,11,0.18);
+            transform: translateY(100px); opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175,0.885,0.32,1.275);
+            z-index: 999;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast-icon {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: #fef3c7;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 580px) {
+            header { padding: 0.8rem 1rem; }
+            .logo-text { font-size: 0.95rem; }
+            .form-card { padding: 1.8rem 1.2rem; }
+            .form-grid { grid-template-columns: 1fr; }
+            .form-grid-3 { grid-template-columns: 1fr; }
+            .full-width { grid-column: 1; }
+            .line-item { padding: 1rem; }
+        }
+
+        /* ── Field label row (label + import button) ── */
+        .field-label-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:0; }
+        .import-btn-sm {
+            display:inline-flex; align-items:center; gap:5px;
+            padding:3px 11px; border-radius:20px;
+            border:1.5px solid rgba(245,158,11,0.4);
+            background:#fef3c7; color:#d97706;
+            font-family:'Inter',sans-serif; font-size:0.7rem; font-weight:700;
+            cursor:pointer; transition:all 0.2s ease;
+        }
+        .import-btn-sm:hover { background:#f59e0b; color:white; border-color:#f59e0b; }
+        .clear-btn-sm {
+            display:inline-flex; align-items:center; gap:5px;
+            padding:3px 11px; border-radius:20px;
+            border:1.5px solid rgba(239,68,68,0.4);
+            background:#fef2f2; color:#ef4444;
+            font-family:'Inter',sans-serif; font-size:0.7rem; font-weight:700;
+            cursor:pointer; transition:all 0.2s ease;
+        }
+        .clear-btn-sm:hover { background:#ef4444; color:white; border-color:#ef4444; }
+
+        /* ── Import Modal ── */
+        .modal-overlay {
+            position:fixed; inset:0;
+            background:rgba(15,23,42,0.55);
+            backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+            display:flex; align-items:center; justify-content:center;
+            z-index:9999; opacity:0; pointer-events:none;
+            transition:opacity 0.25s ease;
+        }
+        .modal-overlay.open { opacity:1; pointer-events:all; }
+        .modal-card {
+            background:white; border-radius:22px; width:92%; max-width:500px;
+            max-height:86vh; display:flex; flex-direction:column; overflow:hidden;
+            box-shadow:0 25px 60px rgba(0,0,0,0.22);
+            transform:scale(0.95) translateY(14px);
+            transition:transform 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+        }
+        .modal-overlay.open .modal-card { transform:scale(1) translateY(0); }
+        .modal-hd {
+            padding:1.4rem 1.8rem 1rem; border-bottom:1px solid #f1f5f9;
+            display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+        }
+        .modal-hd h3 { font-size:1.05rem; font-weight:800; color:#0f172a; }
+        .modal-x {
+            width:28px; height:28px; border-radius:50%; border:none;
+            background:#f1f5f9; color:#64748b; font-size:1.1rem;
+            cursor:pointer; display:flex; align-items:center; justify-content:center;
+        }
+        .modal-x:hover { background:#e2e8f0; }
+        .modal-bd { padding:1.4rem 1.8rem; flex:1; overflow-y:auto; }
+        .modal-ft {
+            padding:0.9rem 1.8rem; border-top:1px solid #f1f5f9;
+            background:#fafafa; display:flex; gap:0.7rem; flex-shrink:0;
+        }
+        /* Drop zone */
+        .drop-zone {
+            border:2.5px dashed #fcd34d; border-radius:14px;
+            padding:2.5rem 1.5rem; text-align:center; cursor:pointer;
+            background:#fffbeb; position:relative; transition:all 0.22s;
+        }
+        .drop-zone:hover,.drop-zone.drag-over { background:#fef3c7; border-color:#f59e0b; }
+        .drop-zone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+        .dz-ico { font-size:2.4rem; margin-bottom:0.6rem; }
+        .dz-txt { font-weight:700; color:#92400e; font-size:0.93rem; }
+        .dz-sub { font-size:0.77rem; color:#a16207; margin-top:0.3rem; }
+        /* Column picker */
+        .step-lbl { font-size:0.73rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:#64748b; margin-bottom:0.6rem; }
+        .col-grid { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.6rem; }
+        .col-pill {
+            padding:5px 13px; border-radius:20px; border:1.5px solid #e2e8f0;
+            background:#f8fafc; font-family:'Inter',sans-serif; font-size:0.78rem; font-weight:600;
+            cursor:pointer; color:#334155; transition:all 0.18s; text-align:left;
+        }
+        .col-pill:hover { border-color:#f59e0b; color:#d97706; }
+        .col-pill.sel { background:linear-gradient(135deg,#f59e0b,#d97706); color:white; border-color:#f59e0b; }
+        .stats-txt { font-size:0.73rem; color:#94a3b8; margin-bottom:0.6rem; }
+        /* Preview list */
+        .prev-box { border:1.5px solid #e2e8f0; border-radius:10px; max-height:150px; overflow-y:auto; background:#f8fafc; margin-top:0.5rem; }
+        .prev-item { padding:5px 13px; font-size:0.82rem; color:#0f172a; border-bottom:1px solid #f1f5f9; }
+        .prev-item:last-child { border-bottom:none; }
+        .prev-more { padding:5px 13px; font-size:0.73rem; font-weight:700; color:#64748b; background:#f1f5f9; border-top:1px solid #e2e8f0; }
+        .import-count { font-size:0.76rem; font-weight:700; color:#059669; margin-top:0.5rem; }
+        /* Modal buttons */
+        .btn-do-import {
+            flex:1; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+            padding:0.7rem 1.2rem; border-radius:10px;
+            font-size:0.9rem; font-weight:700; font-family:'Inter',sans-serif;
+            cursor:pointer; border:none;
+            background:linear-gradient(135deg,#f59e0b,#d97706); color:white;
+            box-shadow:0 4px 14px rgba(245,158,11,0.3); transition:all 0.22s;
+        }
+        .btn-do-import:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(245,158,11,0.4); }
+        .btn-do-import:disabled { opacity:0.4; cursor:not-allowed; transform:none; box-shadow:none; }
+        .btn-mcancel {
+            padding:0.7rem 1.2rem; border-radius:10px;
+            font-size:0.9rem; font-weight:700; font-family:'Inter',sans-serif;
+            cursor:pointer; border:1.5px solid #e2e8f0; background:white; color:#64748b;
+            transition:background 0.18s;
+        }
+        .btn-mcancel:hover { background:#f1f5f9; }
+
+        /* ── Medicine import buttons row in header ── */
+        .med-import-actions {
+            display: flex; gap: 0.5rem; align-items: center;
+            justify-content: flex-end; margin-bottom: 0.6rem;
+        }
+
+        /* ── Invoice Import Modal extras ── */
+        .inv-field-map {
+            display:grid; grid-template-columns:1fr 1fr; gap:0.55rem 1rem;
+            margin:0.8rem 0;
+        }
+        .inv-field-row { display:flex; flex-direction:column; gap:4px; }
+        .inv-field-lbl { font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:#64748b; }
+        .inv-field-select {
+            padding:6px 10px; border-radius:8px; border:1.5px solid #e2e8f0;
+            font-family:'Inter',sans-serif; font-size:0.82rem; font-weight:600;
+            color:#0f172a; background:white; cursor:pointer;
+        }
+        .inv-field-select:focus { outline:none; border-color:#f59e0b; }
+        .inv-preview-table { width:100%; border-collapse:collapse; font-size:0.78rem; margin-top:0.5rem; }
+        .inv-preview-table th { background:#f1f5f9; padding:5px 8px; text-align:left; font-weight:800; color:#475569; border-bottom:2px solid #e2e8f0; white-space:nowrap; }
+        .inv-preview-table td { padding:5px 8px; border-bottom:1px solid #f1f5f9; color:#0f172a; white-space:nowrap; }
+        .inv-preview-table tr:last-child td { border-bottom:none; }
+        .inv-prev-wrap { overflow:auto; max-height:160px; border:1.5px solid #e2e8f0; border-radius:10px; margin-top:0.5rem; }
+        .btn-do-import.inv {
+            background:linear-gradient(135deg,#0ea5e9,#0284c7); color:white;
+            box-shadow:0 4px 14px rgba(14,165,233,0.3);
+        }
+        .btn-do-import.inv:hover { box-shadow:0 6px 20px rgba(14,165,233,0.4); }
+        .import-btn-sm.inv-btn {
+            background:linear-gradient(135deg,#0ea5e9,#0284c7); color:white;
+            border:none; box-shadow:0 2px 8px rgba(14,165,233,0.25);
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/keyboard-nav.js"></script>
+    <script src="js/drug-master.js"></script>
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0d9488">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MM Pakkam">
+    <link rel="apple-touch-icon" href="/icon-512.png">
+    <meta name="mobile-web-app-capable" content="yes"></head>
+<body>
+    <script>
+        mmRequireAuth();
+        document.addEventListener('DOMContentLoaded', () => mmInjectUserBar());
+    </script>
+
+    <!-- Navbar -->
+    <header>
+        <a class="logo" href="index.html">
+            <div class="logo-icon">MM</div>
+            <span class="logo-text">Mudhalvar Marundhagam Pakkam</span>
+        </a>
+        <a class="back-btn" href="index.html">&#8592; Back</a>
+    </header>
+
+    <!-- Page Content -->
+    <div class="page-content">
+
+        <div class="page-header">
+            <div class="breadcrumb"><a href="index.html">Home</a> &rsaquo; Purchase</div>
+            <h1>Add Purchase</h1>
+            <p>Add multiple items in one go — same bill, multiple products</p>
+        </div>
+
+        <div class="form-card">
+            <form id="purchaseForm" onsubmit="handleSubmit(event)" novalidate>
+
+                <!-- ═══ Bill Header Section ═══ -->
+                <div class="section-label">📋 Bill Details</div>
+                <div class="form-grid" style="margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label>Bill No</label>
+                        <input type="text" id="billNo" placeholder="e.g. BL-001">
+                    </div>
+                    <div class="form-group">
+                        <label>Firm</label>
+                        <input type="text" id="firm" placeholder="e.g. Sun Pharma">
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Date</label>
+                        <input type="date" id="purchaseDate">
+                    </div>
+                </div>
+
+                <!-- ═══ Medicine Import Actions ═══ -->
+                <div class="med-import-actions">
+                    <button type="button" class="clear-btn-sm" onclick="clearImportedMedicines()">
+                        🗑️ Clear Imported
+                    </button>
+                    <button type="button" class="import-btn-sm" onclick="openImportModal()">
+                        📋 Import Medicine Names
+                    </button>
+                    <button type="button" class="import-btn-sm inv-btn" onclick="openInvoiceImportModal()">
+                        📥 Import Full Invoice
+                    </button>
+                </div>
+
+                <!-- ═══ Line Items Section ═══ -->
+                <div class="section-label">💊 Product Items</div>
+                <div class="line-items-container" id="lineItemsContainer">
+                    <!-- Line items will be rendered here by JS -->
+                </div>
+
+                <!-- Add More Button -->
+                <button type="button" class="add-item-btn" onclick="addLineItem()">
+                    <span class="plus-icon">+</span>
+                    Add Another Item
+                </button>
+
+                <!-- Grand Total -->
+                <div class="grand-total-bar">
+                    <div>
+                        <div class="gt-label">Grand Total</div>
+                        <div class="gt-count" id="itemCountLabel">1 item</div>
+                    </div>
+                    <div class="gt-value" id="grandTotalValue">₹ 0.00</div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-cancel" onclick="window.location.href='index.html'">Cancel</button>
+                    <button type="submit" class="btn btn-save" id="saveBtn">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Save All Purchases
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <div class="toast-icon">
+            <svg width="16" height="16" fill="none" stroke="#d97706" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+        </div>
+        <div>
+            <div style="font-weight:800;" id="toastTitle">Purchase Saved!</div>
+            <div style="font-size:0.78rem; color:#fbbf24; margin-top:2px;" id="toastSub">Record added successfully.</div>
+        </div>
+    </div>
+
+    <script>
+        // ── Default today's date ──
+        document.getElementById('purchaseDate').valueAsDate = new Date();
+
+        // ── Line Item Counter ──
+        let lineItemCounter = 0;
+
+        // ── Create a single line item HTML ──
+        function createLineItemHTML(index) {
+            const id = `item_${index}`;
+            return `
+            <div class="line-item" id="${id}" data-index="${index}">
+                <div class="line-item-header">
+                    <div class="item-number">
+                        <span class="badge">${getVisualIndex(index)}</span>
+                        Item ${getVisualIndex(index)}
+                    </div>
+                    <button type="button" class="remove-item-btn" onclick="removeLineItem('${id}')">
+                        ✕ Remove
+                    </button>
+                </div>
+                <div class="form-grid" style="margin-bottom:0.6rem;">
+                    <div class="form-group full-width">
+                        <label>Product Name</label>
+                        <input type="text" class="li-productName"
+                               placeholder="Type or select medicine…" autocomplete="off">
+                    </div>
+                </div>
+                <div class="form-grid-3">
+                    <div class="form-group">
+                        <label>Batch No</label>
+                        <input type="text" class="li-batchNo" placeholder="e.g. BT20240001">
+                    </div>
+                    <div class="form-group">
+                        <label>Expire Date</label>
+                        <input type="month" class="li-expireDate">
+                    </div>
+                    <div class="form-group">
+                        <label>Pack</label>
+                        <input type="number" class="li-pack" placeholder="e.g. 10" min="1" step="1">
+                    </div>
+                </div>
+                <div class="form-grid-3" style="margin-top:0.8rem;">
+                    <div class="form-group">
+                        <label>Quantity</label>
+                        <input type="number" class="li-quantity" placeholder="0" min="0" oninput="calcItemTotal('${id}')">
+                    </div>
+                    <div class="form-group">
+                        <label>MRP (₹)</label>
+                        <input type="number" class="li-mrp" placeholder="0.00" min="0" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Rate (₹)</label>
+                        <input type="number" class="li-rate" placeholder="0.00" min="0" step="0.01" oninput="calcItemTotal('${id}')">
+                    </div>
+                </div>
+                <div class="form-grid" style="margin-top:0.8rem;">
+                    <div class="form-group">
+                        <label>GST (%)</label>
+                        <input type="number" class="li-gst" placeholder="e.g. 12" min="0" max="100" step="0.01" oninput="calcItemTotal('${id}')">
+                    </div>
+                    <div class="form-group">
+                        <label>Total (₹)</label>
+                        <input type="text" class="li-total" placeholder="Auto-calculated" readonly>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        function getVisualIndex(internalIndex) {
+            const container = document.getElementById('lineItemsContainer');
+            const items = container.querySelectorAll('.line-item');
+            let vi = 0;
+            for (const item of items) {
+                vi++;
+                if (item.dataset.index == internalIndex) return vi;
+            }
+            // Fallback for new items not yet in DOM
+            return items.length + 1;
+        }
+
+        function addLineItem() {
+            lineItemCounter++;
+            const container = document.getElementById('lineItemsContainer');
+            container.insertAdjacentHTML('beforeend', createLineItemHTML(lineItemCounter));
+            renumberItems();
+            updateGrandTotal();
+            // -- Attach Drug Master autocomplete to the new item's product name input --
+            const newEl   = document.getElementById(`item_${lineItemCounter}`);
+            const inputEl = newEl?.querySelector('.li-productName');
+            if (inputEl && newEl && typeof DrugMaster !== 'undefined') {
+                DrugMaster.init(inputEl, newEl);
+            }
+        }
+
+        function removeLineItem(id) {
+            const container = document.getElementById('lineItemsContainer');
+            const items = container.querySelectorAll('.line-item');
+            if (items.length <= 1) {
+                showToast('Cannot Remove', 'At least one item is required.');
+                return;
+            }
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.transition = 'all 0.3s ease';
+                el.style.opacity = '0';
+                el.style.transform = 'translateX(-20px)';
+                setTimeout(() => {
+                    el.remove();
+                    renumberItems();
+                    updateGrandTotal();
+                }, 300);
+            }
+        }
+
+        function renumberItems() {
+            const container = document.getElementById('lineItemsContainer');
+            const items = container.querySelectorAll('.line-item');
+            items.forEach((item, i) => {
+                const badge = item.querySelector('.badge');
+                const numLabel = item.querySelector('.item-number');
+                if (badge) badge.textContent = i + 1;
+                if (numLabel) {
+                    numLabel.innerHTML = `<span class="badge">${i + 1}</span> Item ${i + 1}`;
+                }
+            });
+            const count = items.length;
+            document.getElementById('itemCountLabel').textContent = `${count} item${count !== 1 ? 's' : ''}`;
+        }
+
+        // ── Calculate per-item total ──
+        function calcItemTotal(itemId) {
+            const el = document.getElementById(itemId);
+            if (!el) return;
+            const qty  = parseFloat(el.querySelector('.li-quantity').value) || 0;
+            const rate = parseFloat(el.querySelector('.li-rate').value)     || 0;
+            const gst  = parseFloat(el.querySelector('.li-gst').value)     || 0;
+            const total = (rate * qty) + (rate * qty * gst / 100);
+            el.querySelector('.li-total').value = total > 0 ? '₹ ' + total.toFixed(2) : '';
+            updateGrandTotal();
+        }
+
+        // ── Grand Total ──
+        function updateGrandTotal() {
+            const container = document.getElementById('lineItemsContainer');
+            const items = container.querySelectorAll('.line-item');
+            let grand = 0;
+            items.forEach(item => {
+                const totalStr = item.querySelector('.li-total').value || '';
+                const num = parseFloat(totalStr.replace(/[^0-9.]/g, '')) || 0;
+                grand += num;
+            });
+            document.getElementById('grandTotalValue').textContent = '₹ ' + grand.toFixed(2);
+        }
+
+        // ── Submit all items ──
+        async function handleSubmit(e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('saveBtn');
+            const container = document.getElementById('lineItemsContainer');
+            const items = container.querySelectorAll('.line-item');
+
+            if (items.length === 0) {
+                showToast('No Items', 'Please add at least one item.');
+                return;
+            }
+
+            // Gather header data
+            const billNo = document.getElementById('billNo').value.trim();
+            const firm   = document.getElementById('firm').value.trim();
+            const date   = document.getElementById('purchaseDate').value;
+
+            // Gather all line items
+            const records = [];
+            let hasEmptyName = false;
+            let hasMissingDetails = false;
+
+            items.forEach(item => {
+                const productName = item.querySelector('.li-productName').value.trim();
+                const batchNo     = item.querySelector('.li-batchNo').value.trim();
+                const expireDate  = item.querySelector('.li-expireDate').value;
+                const quantity    = item.querySelector('.li-quantity').value;
+                const rate        = item.querySelector('.li-rate').value;
+                const mrp         = item.querySelector('.li-mrp').value;
+
+                if (!productName) { 
+                    hasEmptyName = true; 
+                } else {
+                    // If product name exists, check if key details are missing/zero
+                    if (!batchNo || !expireDate || !quantity || quantity === '0' || !rate || rate === '0' || rate === '0.00' || !mrp || mrp === '0' || mrp === '0.00') {
+                        hasMissingDetails = true;
+                    }
+                }
+
+                records.push({
+                    billNo,
+                    firm,
+                    date,
+                    productName,
+                    batchNo,
+                    expireDate,
+                    pack:       item.querySelector('.li-pack').value,
+                    quantity,
+                    mrp,
+                    rate,
+                    gst:        item.querySelector('.li-gst').value,
+                    savedAt:    new Date().toISOString()
+                });
+            });
+
+            if (hasEmptyName) {
+                if (!confirm('Some items have empty product names. Save anyway?')) return;
+            }
+            if (hasMissingDetails) {
+                if (!confirm('You have entered a Product Name but left some details (Batch, Expiry, Qty, MRP, or Rate) empty or zero. Are you sure you want to save this incomplete record?')) return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin .7s linear infinite"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg> Saving ${records.length} item(s)...`;
+
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const record of records) {
+                const result = await dbAddPurchase(record);
+                if (result.success) {
+                    successCount++;
+                } else {
+                    failCount++;
+                    console.error('Failed to save:', record, result.message);
+                    const pending = JSON.parse(localStorage.getItem('mm_pending_purchases') || '[]');
+                    pending.push(record);
+                    localStorage.setItem('mm_pending_purchases', JSON.stringify(pending));
+                }
+
+                // Also keep localStorage as offline fallback
+                const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+                purchases.push(record);
+                localStorage.setItem('mm_purchases', JSON.stringify(purchases));
+            }
+
+            if (failCount === 0) {
+                showToast(
+                    `${successCount} Purchase(s) Saved!`,
+                    `All ${successCount} item(s) added successfully.`
+                );
+                btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Saved!`;
+            } else {
+                // For any failures, we save them to the pending queue to sync later
+                showToast(
+                    `Saved Offline`,
+                    `${failCount} item(s) saved offline and will sync automatically when online.`
+                );
+                btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01"/></svg> Saved Offline (Pending Sync)`;
+            }
+
+            setTimeout(() => {
+                document.getElementById('toast').classList.remove('show');
+                btn.disabled = false;
+                btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Save All Purchases`;
+                if (failCount === 0) {
+                    // Reset form: clear header + rebuild single line item
+                    document.getElementById('purchaseForm').reset();
+                    document.getElementById('purchaseDate').valueAsDate = new Date();
+                    document.getElementById('lineItemsContainer').innerHTML = '';
+                    lineItemCounter = 0;
+                    addLineItem();
+                }
+            }, 3000);
+        }
+
+        // ── Toast helper ──
+        function showToast(title, subtitle) {
+            const t  = document.getElementById('toast');
+            const ti = document.getElementById('toastTitle');
+            const ts = document.getElementById('toastSub');
+            if (ti) ti.textContent = title;
+            if (ts) ts.textContent = subtitle;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        /* ══════════════════════════════════════════════════════════════════ 
+           Medicine List — localStorage helpers
+        ══════════════════════════════════════════════════════════════════  */
+        const ML_KEY = 'mm_medicine_list';
+        const getMedList = () => JSON.parse(localStorage.getItem(ML_KEY) || '[]');
+        const setMedList = list => localStorage.setItem(ML_KEY, JSON.stringify(list));
+
+        function clearImportedMedicines() {
+            if (confirm("Are you sure you want to clear all imported medicines? (Purchase history will remain).")) {
+                localStorage.removeItem(ML_KEY);
+                refreshProductDatalist();
+                showToast('Cleared!', 'Imported medicines removed.');
+            }
+        }
+
+        function getAllMedNames() {
+            const seen = new Set(), out = [];
+            const add = n => { const t=(n||'').trim(); if(t&&!seen.has(t.toLowerCase())){seen.add(t.toLowerCase());out.push(t);} };
+            getMedList().forEach(add);
+            JSON.parse(localStorage.getItem('mm_purchases')||'[]').forEach(p => add(p.productName));
+            return out;
+        }
+
+        function refreshProductDatalist() {
+            const dl = document.getElementById('productNameList');
+            if (dl) dl.innerHTML = getAllMedNames().map(n => `<option value="${n}">`).join('');
+        }
+        window.addEventListener('DOMContentLoaded', refreshProductDatalist); // populate on page load
+
+        /* ── Import Modal State ── */
+        let _iRows=[], _iHdrs=[], _iCol=-1, _iNames=[], _iFileCount=0;
+
+        function openImportModal() {
+            _iRows=[]; _iHdrs=[]; _iCol=-1; _iNames=[]; _iFileCount=0;
+            document.getElementById('importModal').classList.add('open');
+            document.getElementById('importStep1').style.display='block';
+            document.getElementById('importStep2').style.display='none';
+            document.getElementById('importConfirmBtn').disabled=true;
+            const fi=document.getElementById('fileInput'); if(fi) fi.value='';
+        }
+        function closeImportModal() { document.getElementById('importModal').classList.remove('open'); }
+
+        function handleFileInput(e) {
+            const files=[...e.target.files].filter(f=>/\.(csv|xlsx|xls)$/i.test(f.name));
+            if(files.length) processFileList(files);
+        }
+        function handleFileDrop(e) {
+            e.preventDefault();
+            document.getElementById('dropZone').classList.remove('drag-over');
+            const files=[...e.dataTransfer.files].filter(f=>/\.(csv|xlsx|xls)$/i.test(f.name));
+            if(files.length) processFileList(files);
+        }
+
+        function processFileList(files) {
+            _iFileCount=files.length; _iRows=[]; _iHdrs=[];
+            let done=0;
+            const results=new Array(files.length).fill(null);
+            files.forEach((file,fi) => {
+                const rdr=new FileReader();
+                rdr.onload=ev=>{
+                    try {
+                        const isCSV=file.name.toLowerCase().endsWith('.csv');
+                        const wb=XLSX.read(ev.target.result,{type:isCSV?'string':'array'});
+                        const ws=wb.Sheets[wb.SheetNames[0]];
+                        results[fi]=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+                    } catch(err){ console.warn('File read error',err); results[fi]=[]; }
+                    if(++done===files.length){
+                        results.forEach((raw,i)=>{
+                            if(!raw||!raw.length) return;
+                            if(i===0){ _iHdrs=raw[0].map(String); _iRows.push(...raw.slice(1)); }
+                            else {
+                                const isHdr=raw[0].some((c,j)=>_iHdrs[j]&&String(c).toLowerCase()===_iHdrs[j].toLowerCase());
+                                _iRows.push(...(isHdr?raw.slice(1):raw));
+                            }
+                        });
+                        showColumnPicker();
+                    }
+                };
+                file.name.toLowerCase().endsWith('.csv')?rdr.readAsText(file):rdr.readAsArrayBuffer(file);
+            });
+        }
+
+        function showColumnPicker() {
+            document.getElementById('importStep1').style.display='none';
+            document.getElementById('importStep2').style.display='block';
+            const maxC=Math.max(_iHdrs.length,..._iRows.slice(0,10).map(r=>r.length||0),1);
+            const grid=document.getElementById('importColBtns'); grid.innerHTML='';
+            let autoIdx=-1;
+            for(let i=0;i<maxC;i++){
+                const hdr=_iHdrs[i]?String(_iHdrs[i]):`Column ${i+1}`;
+                const smp=_iRows.slice(0,3).map(r=>r[i]?String(r[i]):'').filter(Boolean).join(' · ');
+                const btn=document.createElement('button');
+                btn.type='button'; btn.className='col-pill'; btn.dataset.ci=i;
+                btn.innerHTML=`<b>${hdr}</b>${smp?`<br><small style="opacity:.7">${smp}</small>`:''}` ;
+                btn.onclick=()=>pickCol(i);
+                grid.appendChild(btn);
+                if(autoIdx<0&&/medicine|drug|product|name|item|med|brand|generic/i.test(hdr)) autoIdx=i;
+            }
+            document.getElementById('importStats').textContent=`${_iRows.length} data row(s) from ${_iFileCount} file(s)`;
+            if(autoIdx>=0) setTimeout(()=>pickCol(autoIdx),80);
+        }
+
+        function pickCol(idx) {
+            _iCol=idx;
+            document.querySelectorAll('.col-pill').forEach(b=>b.classList.remove('sel'));
+            const b=document.querySelector(`.col-pill[data-ci="${idx}"]`); if(b) b.classList.add('sel');
+            const seen=new Set(); _iNames=[];
+            _iRows.forEach(row=>{
+                const v=String(row[idx]??'').trim();
+                if(v&&!seen.has(v.toLowerCase())){seen.add(v.toLowerCase());_iNames.push(v);}
+            });
+            const pv=document.getElementById('importPreview');
+            pv.style.display='block';
+            pv.innerHTML=_iNames.slice(0,25).map(n=>`<div class="prev-item">${n}</div>`).join('')
+                +(_iNames.length>25?`<div class="prev-more">+${_iNames.length-25} more…</div>`:'');
+            document.getElementById('importCount').textContent=`✓ ${_iNames.length} unique medicine name(s) found`;
+            document.getElementById('importConfirmBtn').disabled=_iNames.length===0;
+        }
+
+        function doImport() {
+            if(!_iNames.length) return;
+            const existing=getMedList();
+            const seen=new Set(existing.map(n=>n.toLowerCase()));
+            const fresh=_iNames.filter(n=>!seen.has(n.toLowerCase()));
+            setMedList([...existing,...fresh]);
+            refreshProductDatalist();
+            closeImportModal();
+            showToast(`${fresh.length} medicine(s) imported!`, `${getMedList().length} total in medicine list.`);
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           FULL INVOICE IMPORT — reads every column and populates the grid
+        ══════════════════════════════════════════════════════════════════ */
+        const INV_FIELDS = [
+            { key:'productName', label:'Product Name ✱', required:true },
+            { key:'batchNo',     label:'Batch No' },
+            { key:'expireDate',  label:'Expiry (MM/YY or YYYY-MM)' },
+            { key:'quantity',    label:'Quantity' },
+            { key:'mrp',         label:'MRP (₹)' },
+            { key:'rate',        label:'Purchase Rate (₹)' },
+            { key:'gst',         label:'GST (%)' },
+            { key:'pack',        label:'Pack Size' },
+        ];
+
+        let _invRows=[], _invHdrs=[];
+
+        function openInvoiceImportModal() {
+            _invRows=[]; _invHdrs=[];
+            document.getElementById('invImportModal').classList.add('open');
+            document.getElementById('invStep1').style.display='block';
+            document.getElementById('invStep2').style.display='none';
+            document.getElementById('invStep3').style.display='none';
+            document.getElementById('invImportBtn').disabled=true;
+            const fi=document.getElementById('invFileInput'); if(fi) fi.value='';
+        }
+        function closeInvoiceImportModal() { document.getElementById('invImportModal').classList.remove('open'); }
+
+        function handleInvFile(e) {
+            const files=[...e.target.files].filter(f=>/\.(csv|xlsx|xls)$/i.test(f.name));
+            if(files.length) readInvFile(files[0]);
+        }
+        function handleInvDrop(e) {
+            e.preventDefault();
+            document.getElementById('invDropZone').classList.remove('drag-over');
+            const files=[...e.dataTransfer.files].filter(f=>/\.(csv|xlsx|xls)$/i.test(f.name));
+            if(files.length) readInvFile(files[0]);
+        }
+
+        function readInvFile(file) {
+            const rdr=new FileReader();
+            rdr.onload=ev=>{
+                try {
+                    const isCSV=file.name.toLowerCase().endsWith('.csv');
+                    const wb=XLSX.read(ev.target.result,{type:isCSV?'string':'array'});
+                    const ws=wb.Sheets[wb.SheetNames[0]];
+                    const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+                    if(!raw||raw.length<2){ showToast('Empty File','No data rows found.'); return; }
+                    _invHdrs=raw[0].map(String);
+                    _invRows=raw.slice(1).filter(r=>r.some(c=>String(c).trim()));
+                    showInvMapper();
+                } catch(err){ showToast('Read Error','Could not read file.'); }
+            };
+            file.name.toLowerCase().endsWith('.csv')?rdr.readAsText(file):rdr.readAsArrayBuffer(file);
+        }
+
+        function showInvMapper() {
+            document.getElementById('invStep1').style.display='none';
+            document.getElementById('invStep2').style.display='block';
+            document.getElementById('invStep3').style.display='none';
+            document.getElementById('invImportBtn').disabled=true;
+            document.getElementById('invRowCount').textContent=`${_invRows.length} data row(s) detected`;
+            const colOpts='<option value="">— Skip —</option>'+
+                _invHdrs.map((h,i)=>`<option value="${i}">${h||('Col '+(i+1))}</option>`).join('');
+            INV_FIELDS.forEach(f=>{
+                const sel=document.getElementById('invSel_'+f.key);
+                if(!sel) return;
+                sel.innerHTML=colOpts;
+                // Auto-detect by header name
+                const keywords={
+                    productName:/product|medicine|drug|name|item|brand|generic/i,
+                    batchNo:/batch|lot/i,
+                    expireDate:/exp|expiry|expire/i,
+                    quantity:/qty|quant|nos|units/i,
+                    mrp:/mrp|max.*price|selling/i,
+                    rate:/rate|purchase|cost|ptr|pts/i,
+                    gst:/gst|tax|vat/i,
+                    pack:/pack|packing|size/i,
+                };
+                const kw=keywords[f.key];
+                if(kw){
+                    const idx=_invHdrs.findIndex(h=>kw.test(h));
+                    if(idx>=0) sel.value=String(idx);
+                }
+            });
+        }
+
+        function buildInvPreview() {
+            const map={};
+            INV_FIELDS.forEach(f=>{
+                const sel=document.getElementById('invSel_'+f.key);
+                if(sel&&sel.value!=='') map[f.key]=parseInt(sel.value);
+            });
+            if(map.productName===undefined){
+                showToast('Required','Please map the Product Name column.'); return;
+            }
+            document.getElementById('invStep2').style.display='none';
+            document.getElementById('invStep3').style.display='block';
+            document.getElementById('invImportBtn').disabled=false;
+
+            const previewRows=_invRows.slice(0,8);
+            const thead=INV_FIELDS.filter(f=>map[f.key]!==undefined).map(f=>`<th>${f.label.replace(' ✱','')}</th>`).join('');
+            const tbody=previewRows.map(row=>{
+                const cells=INV_FIELDS.filter(f=>map[f.key]!==undefined).map(f=>{
+                    let v=String(row[map[f.key]]??'').trim();
+                    return `<td>${v||'—'}</td>`;
+                }).join('');
+                return `<tr>${cells}</tr>`;
+            }).join('');
+            document.getElementById('invPreviewTable').innerHTML=
+                `<thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody>`;
+            document.getElementById('invPreviewCount').textContent=
+                `${_invRows.length} row(s) will be added to the purchase form.`;
+            window._invMap=map;
+        }
+
+        function _parseExpiry(raw) {
+            const s=String(raw||'').trim();
+            if(!s) return '';
+            // YYYY-MM or YYYY-MM-DD
+            if(/^\d{4}-\d{2}/.test(s)) return s.slice(0,7);
+            // MM/YY or MM/YYYY
+            const m1=s.match(/^(\d{1,2})[\/\-](\d{2,4})$/);
+            if(m1){
+                const mm=m1[1].padStart(2,'0');
+                const yy=m1[2].length===2?'20'+m1[2]:m1[2];
+                return `${yy}-${mm}`;
+            }
+            // Excel serial date
+            if(/^\d{5}$/.test(s)){
+                const d=XLSX.SSF.parse_date_code(parseInt(s));
+                if(d) return `${d.y}-${String(d.m).padStart(2,'0')}`;
+            }
+            return '';
+        }
+
+        function applyInvoiceImport() {
+            const map=window._invMap||{};
+            if(map.productName===undefined){ showToast('Error','Column mapping lost. Please re-map.'); return; }
+
+            // Clear existing rows
+            document.getElementById('lineItemsContainer').innerHTML='';
+            lineItemCounter=0;
+
+            _invRows.forEach(row=>{
+                const pName=String(row[map.productName]??'').trim();
+                if(!pName) return; // skip blank rows
+
+                lineItemCounter++;
+                const container=document.getElementById('lineItemsContainer');
+                container.insertAdjacentHTML('beforeend', createLineItemHTML(lineItemCounter));
+                const el=document.getElementById(`item_${lineItemCounter}`);
+
+                el.querySelector('.li-productName').value = pName;
+                if(map.batchNo!==undefined)   el.querySelector('.li-batchNo').value    = String(row[map.batchNo]??'').trim();
+                if(map.expireDate!==undefined) el.querySelector('.li-expireDate').value = _parseExpiry(row[map.expireDate]);
+                if(map.pack!==undefined)       el.querySelector('.li-pack').value       = String(row[map.pack]??'').trim();
+                if(map.quantity!==undefined)   el.querySelector('.li-quantity').value   = String(row[map.quantity]??'').trim();
+                if(map.mrp!==undefined)        el.querySelector('.li-mrp').value        = String(row[map.mrp]??'').trim();
+                if(map.rate!==undefined)       el.querySelector('.li-rate').value       = String(row[map.rate]??'').trim();
+                if(map.gst!==undefined)        el.querySelector('.li-gst').value        = String(row[map.gst]??'').trim();
+
+                calcItemTotal(`item_${lineItemCounter}`);
+            });
+
+            if(lineItemCounter===0) addLineItem(); // safety: always have 1 row
+            renumberItems();
+            updateGrandTotal();
+            closeInvoiceImportModal();
+            showToast(`✅ ${lineItemCounter} items loaded!`, 'Review, adjust, then click Save All Purchases.');
+        }
+
+        // ── Initialize with one line item ──
+        addLineItem();
+    </script>
+
+    <!-- Shared datalist for all product name inputs -->
+    <datalist id="productNameList"></datalist>
+
+    <!-- ── Import Medicine List Modal ── -->
+    <div class="modal-overlay" id="importModal">
+        <div class="modal-card">
+            <div class="modal-hd">
+                <h3>📋 Import Medicine List</h3>
+                <button class="modal-x" type="button" onclick="closeImportModal()">×</button>
+            </div>
+            <!-- Step 1: File Upload -->
+            <div class="modal-bd" id="importStep1">
+                <div class="drop-zone" id="dropZone"
+                     ondragover="event.preventDefault();this.classList.add('drag-over')"
+                     ondragleave="this.classList.remove('drag-over')"
+                     ondrop="handleFileDrop(event)">
+                    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" multiple onchange="handleFileInput(event)">
+                    <div class="dz-ico">📥</div>
+                    <div class="dz-txt">Drop files here or click to browse</div>
+                    <div class="dz-sub">Supports .xlsx, .xls, .csv &mdash; multiple files allowed</div>
+                </div>
+            </div>
+            <!-- Step 2: Column Picker + Preview -->
+            <div class="modal-bd" id="importStep2" style="display:none">
+                <div class="step-lbl">Which column has the medicine names?</div>
+                <div class="col-grid" id="importColBtns"></div>
+                <div class="stats-txt" id="importStats"></div>
+                <div class="prev-box" id="importPreview" style="display:none"></div>
+                <div class="import-count" id="importCount"></div>
+            </div>
+            <div class="modal-ft">
+                <button class="btn-mcancel" type="button" onclick="closeImportModal()">Cancel</button>
+                <button class="btn-do-import" id="importConfirmBtn" type="button" onclick="doImport()" disabled>
+                    ✓ Import Medicines
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Full Invoice Import Modal ── -->
+    <div class="modal-overlay" id="invImportModal">
+        <div class="modal-card" style="max-width:580px;">
+            <div class="modal-hd">
+                <h3>📥 Import Full Invoice</h3>
+                <button class="modal-x" type="button" onclick="closeInvoiceImportModal()">×</button>
+            </div>
+
+            <!-- Step 1: Upload File -->
+            <div class="modal-bd" id="invStep1">
+                <div style="font-size:0.82rem;color:#64748b;margin-bottom:0.8rem;">
+                    Upload your distributor's Excel or CSV invoice. Billware will read all columns and fill in the purchase form automatically.
+                </div>
+                <div class="drop-zone" id="invDropZone"
+                     ondragover="event.preventDefault();this.classList.add('drag-over')"
+                     ondragleave="this.classList.remove('drag-over')"
+                     ondrop="handleInvDrop(event)">
+                    <input type="file" id="invFileInput" accept=".csv,.xlsx,.xls" onchange="handleInvFile(event)">
+                    <div class="dz-ico">📊</div>
+                    <div class="dz-txt">Drop invoice file here or click to browse</div>
+                    <div class="dz-sub">Supports .xlsx, .xls, .csv — one file at a time</div>
+                </div>
+            </div>
+
+            <!-- Step 2: Map Columns -->
+            <div class="modal-bd" id="invStep2" style="display:none">
+                <div class="step-lbl">Match your file's columns to Billware fields</div>
+                <div class="stats-txt" id="invRowCount"></div>
+                <div class="inv-field-map">
+                    <!-- dynamically generated selects for each INV_FIELD -->
+                    <div class="inv-field-row">
+                        <label class="inv-field-lbl">Product Name ✱</label>
+                        <select class="inv-field-select" id="invSel_productName"></select>
+                    </div>
+                    <div class="inv-field-row">
+                        <label class="inv-field-lbl">Batch No</label>
+                        <select class="inv-field-select" id="invSel_batchNo"></select>
+                    </div>
+                    <div class="inv-field-row">
+                        <label class="inv-field-lbl">Expiry Date</label>
+                        <select class="inv-field-select" id="invSel_expireDate"></select>
+                    </div>
+                    <div class="inv-field-row">
+                        <label class="inv-field-lbl">Quantity</label>
+                        <select class="inv-field-select" id="invSel_quantity"></select>
+                    </div>
+                    <div class="inv-field-row">
+                        <label class="inv-field-lbl">MRP (₹)</label>
+                        <select class="inv-field-select" id="invSel_mrp"></select>
+                    </div>
+                    <div class="inv-field-row">
+                        <label class="inv-field-lbl">Purchase Rate (₹)</label>
+                        <select class="inv-field-select" id="invSel_rate"></select>
+                    </div>
+                    <div class="inv-field-row">
+                        <label class="inv-field-lbl">GST (%)</label>
+                        <select class="inv-field-select" id="invSel_gst"></select>
+                    </div>
+                    <div class="inv-field-row">
+                        <label class="inv-field-lbl">Pack Size</label>
+                        <select class="inv-field-select" id="invSel_pack"></select>
+                    </div>
+                </div>
+                <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.2rem;">✱ Required. All other fields are optional.</div>
+            </div>
+
+            <!-- Step 3: Preview -->
+            <div class="modal-bd" id="invStep3" style="display:none">
+                <div class="step-lbl">Preview (first 8 rows)</div>
+                <div class="inv-prev-wrap">
+                    <table class="inv-preview-table" id="invPreviewTable"></table>
+                </div>
+                <div class="import-count" id="invPreviewCount" style="margin-top:0.6rem;"></div>
+                <div style="font-size:0.78rem;color:#64748b;margin-top:0.4rem;">✅ Looks good? Click <strong>Load into Form</strong> to fill all items instantly.</div>
+            </div>
+
+            <div class="modal-ft">
+                <button class="btn-mcancel" type="button" onclick="closeInvoiceImportModal()">Cancel</button>
+                <!-- Step 2 action -->
+                <button class="btn-do-import inv" id="invPreviewBtn" type="button"
+                        onclick="buildInvPreview()"
+                        style="display:none">
+                    Preview →
+                </button>
+                <!-- Step 3 action -->
+                <button class="btn-do-import inv" id="invImportBtn" type="button"
+                        onclick="applyInvoiceImport()" disabled>
+                    ✓ Load into Form
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Show Preview button on step 2, hide on other steps -->
+    <script>
+        document.getElementById('invStep2') && (() => {
+            // Watch step visibility to toggle Preview button
+            const obs = new MutationObserver(() => {
+                const s2 = document.getElementById('invStep2');
+                const pb = document.getElementById('invPreviewBtn');
+                const ib = document.getElementById('invImportBtn');
+                if (!s2 || !pb || !ib) return;
+                const on2 = s2.style.display !== 'none';
+                pb.style.display = on2 ? '' : 'none';
+                ib.style.display = on2 ? 'none' : '';
+            });
+            obs.observe(document.getElementById('invStep2'), { attributes:true, attributeFilter:['style'] });
+            obs.observe(document.getElementById('invStep3'), { attributes:true, attributeFilter:['style'] });
+        })();
+    </script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => {
+                        console.log('[PWA] SW registered:', reg.scope);
+                        reg.addEventListener('updatefound', () => {
+                            const nw = reg.installing;
+                            if (!nw) return;
+                            nw.addEventListener('statechange', () => {
+                                if (nw.state === 'installed') {
+                                    nw.postMessage({ type: 'SKIP_WAITING' });
+                                }
+                            });
+                        });
+                    })
+                    .catch(e => console.warn('[PWA] SW failed:', e));
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    window.location.reload();
+                });
+            });
+        }
+    </script></body>
+</html>
