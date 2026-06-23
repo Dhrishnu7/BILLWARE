@@ -122,7 +122,7 @@ const MMNotifications = (() => {
     // ─────────────────────────────────────
     // 2. REQUESTS — Approval / Rejection
     // ─────────────────────────────────────
-    function generateRequestAlerts(shopEditReqs, extraUserReqs) {
+    function generateRequestAlerts(shopEditReqs, extraUserReqs, customerIssues) {
         const readIds = getReadIds();
         const results = [];
 
@@ -156,6 +156,17 @@ const MMNotifications = (() => {
                     title: 'Extra Worker Request Rejected ❌', icon: '👤', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5',
                     time: r.reviewed_at ? new Date(r.reviewed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Recently',
                     message: `Your request for an extra worker account was declined.${r.reason ? ` Reason: "${r.reason}"` : ''}`
+                }));
+            }
+        });
+
+        // Customer Support issues resolved by admin
+        (customerIssues || []).forEach(r => {
+            if (r.status === 'resolved') {
+                results.push(notif({ id: `req_support_${r.id}_resolved`, category: 'requests', type: 'request_approved', priority: 1, readIds,
+                    title: 'Customer Support Resolved 🎧', icon: '🎧', color: '#0ea5e9', bg: '#f0f9ff', border: '#bae6fd',
+                    time: r.resolved_at ? new Date(r.resolved_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Recently',
+                    message: `Super Admin has resolved your support issue: "${(r.issue_text||'').substring(0, 50)}..."`
                 }));
             }
         });

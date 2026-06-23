@@ -241,6 +241,7 @@
         <button class="tab" onclick="switchTab('requests',this)">📩 Requests <span class="badge" id="tabPendCount">0</span></button>
         <button class="tab" onclick="switchTab('pwdresets',this)">🔑 Resets <span class="badge" id="tabPwdResetCount" style="background:rgba(234,179,8,.2); border-color:rgba(234,179,8,.4); color:#fde047;">0</span></button>
         <button class="tab" onclick="switchTab('activity',this)">⚡ Activity</button>
+        <button class="tab" onclick="switchTab('support',this)">🎧 Support <span class="badge" id="tabSupportCount" style="background:rgba(14,165,233,.2); border-color:rgba(14,165,233,.4); color:#38bdf8;">0</span></button>
     </div>
 
     <!-- TAB: OVERVIEW -->
@@ -363,6 +364,17 @@
             </div>
         </div>
     </div>
+
+    <!-- TAB: SUPPORT -->
+    <div class="tab-panel" id="tab-support">
+        <div class="sh">
+            <span>🎧</span><h2>Customer Support Issues</h2>
+            <span class="cnt blue" id="supportIssueCnt">0</span>
+        </div>
+        <div class="pending-grid" id="supportGrid">
+            <div class="ld"><div class="sp"></div>Loading...</div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -446,7 +458,7 @@ async function loadAll() {
 
     renderStats(); renderInfoRow(); renderOnline(); renderRevChart(); renderCustChart();
     renderAccounts(); renderRequests(); renderShops(); renderActivity(); renderSignups();
-    renderShopEditRequests(); renderExtraUserRequests(); renderPasswordResets();
+    renderShopEditRequests(); renderExtraUserRequests(); renderPasswordResets(); renderSupportIssues();
 }
 
 // ── STATS ──
@@ -561,12 +573,24 @@ async function togglePayment(id, username, paid) {
 }
 
 // ── REQUESTS ──
+function updateTabPendBadge() {
+    const a = parseInt(document.getElementById('pendCnt')?.textContent) || 0;
+    const b = parseInt(document.getElementById('editReqBadge')?.textContent) || 0;
+    const c = parseInt(document.getElementById('extraUserReqBadge')?.textContent) || 0;
+    const total = a + b + c;
+    const badge = document.getElementById('tabPendCount');
+    if (badge) {
+        badge.textContent = total;
+        badge.style.display = total > 0 ? '' : 'none';
+    }
+}
+
 async function renderRequests() {
     const pending=allUsers.filter(u=>u.approval_status==='pending');
     const rejected=allUsers.filter(u=>u.approval_status==='rejected');
     const approved=allUsers.filter(u=>!u.approval_status||u.approval_status==='approved').filter(u=>u.role==='owner').slice(-6).reverse();
     document.getElementById('pendCnt').textContent=pending.length;
-    document.getElementById('tabPendCount').textContent=pending.length;
+    updateTabPendBadge();
 
     const mkCard=(u,actions)=>`
         <div class="pcard">
@@ -660,12 +684,9 @@ async function renderShopEditRequests() {
     const visible = reqs.filter(r => r.status === 'pending' || new Date(r.created_at).getTime() > oneWeekAgo);
 
     const pendingCount = visible.filter(r => r.status === 'pending').length;
-    if (pendingCount > 0) {
-        badge.textContent = pendingCount;
-        badge.style.display = '';
-    } else {
-        badge.style.display = 'none';
-    }
+    badge.textContent = pendingCount;
+    badge.style.display = pendingCount > 0 ? '' : 'none';
+    updateTabPendBadge();
 
     if (!visible.length) {
         grid.innerHTML = '<div class="no-pending">✨ No shop edit requests</div>';
@@ -735,7 +756,31 @@ async function renderExtraUserRequests() {
         .select('*').order('created_at', { ascending: false });
 
     if (error) {
-        grid.innerHTML = `<div class="no-pending" style="color:#f87171">⚠️ Table not found. Run SQL to create extra_user_requests.<br><small>${error.message}</small></div>`;
+        const sql = `-- Run this SQL in Supabase SQL Editor to create the table:
+CREATE TABLE IF NOT EXISTS extra_user_requests (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  tenant_id text NOT NULL,
+  requested_username text NOT NULL,
+  password_hash text NOT NULL,
+  reason text,
+  status text DEFAULT 'pending',
+  created_at timestamptz DEFAULT now(),
+  reviewed_at timestamptz
+);
+ALTER TABLE extra_user_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all" ON extra_user_requests FOR ALL USING (true) WITH CHECK (true);`;
+        grid.innerHTML = `<div class="no-pending" style="color:#f87171;text-align:left;max-width:600px;margin:0 auto;">
+            ⚠️ <strong>Table "extra_user_requests" not found in Supabase.</strong><br><br>
+            <span style="color:#94a3b8;font-size:.82rem;">Go to your Supabase Dashboard → SQL Editor and run this SQL:</span><br><br>
+            <pre style="background:#0f172a;color:#86efac;padding:12px;border-radius:8px;font-size:.72rem;overflow-x:auto;text-align:left;">${sql}</pre>
+            <button onclick="navigator.clipboard.writeText(\`${sql.replace(/`/g,'\\`')}\`).then(()=>this.textContent='✅ Copied!').catch(()=>this.textContent='Copy failed')"
+                style="margin-top:8px;padding:7px 16px;background:#0d9488;border:none;border-radius:8px;color:white;font-size:.82rem;font-weight:700;cursor:pointer;">
+                📋 Copy SQL
+            </button>
+            <button onclick="renderExtraUserRequests()" style="margin-top:8px;margin-left:8px;padding:7px 16px;background:#6366f1;border:none;border-radius:8px;color:white;font-size:.82rem;font-weight:700;cursor:pointer;">
+                🔄 Retry
+            </button>
+        </div>`;
         return;
     }
     if (!reqs || reqs.length === 0) {
@@ -750,6 +795,7 @@ async function renderExtraUserRequests() {
     const pendingCount = visibleExtra.filter(r => r.status === 'pending').length;
     badge.textContent = pendingCount;
     badge.style.display = pendingCount > 0 ? '' : 'none';
+    updateTabPendBadge();
 
     if (!visibleExtra.length) {
         grid.innerHTML = '<div class="no-pending">✅ No extra worker requests</div>';
@@ -785,14 +831,20 @@ async function renderExtraUserRequests() {
 
 async function approveExtraUser(id, tenantId, username, passwordHash) {
     if (!confirm(`Approve extra worker "${username}" for shop "${tenantId}"?`)) return;
-    const { error: userErr } = await sb.from('mm_users').insert({
+
+    // Build composite id exactly like _saveUser does in auth.js
+    const userId = tenantId + ':' + username;
+
+    const { error: userErr } = await sb.from('mm_users').upsert({
+        id: userId,
         username: username,
         passwordHash: passwordHash,
         role: 'worker',
         tenant_id: tenantId,
         createdAt: Date.now(),
         approval_status: 'approved'
-    });
+    }, { onConflict: 'id' });
+
     if (userErr) { alert('Failed to create user: ' + userErr.message); return; }
     const { error } = await sb.from('extra_user_requests')
         .update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', id);
@@ -982,6 +1034,87 @@ function openShopModal(username) {
 }
 function closeShopModal() {
     document.getElementById('shopModal').style.display = 'none';
+}
+// 🎧 CUSTOMER SUPPORT ISSUES
+async function renderSupportIssues() {
+    const grid = document.getElementById('supportGrid');
+    const badge = document.getElementById('tabSupportCount');
+    const cntBadge = document.getElementById('supportIssueCnt');
+    if (!grid) return;
+    grid.innerHTML = '<div class="ld"><div class="sp"></div>Loading...</div>';
+
+    const { data: issues, error } = await sb.from('customer_issues')
+        .select('*').eq('status', 'open').order('created_at', { ascending: false });
+
+    if (error) {
+        const sql = `-- Run this SQL in Supabase SQL Editor to create the table:
+CREATE TABLE IF NOT EXISTS customer_issues (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  tenant_id text NOT NULL,
+  username text NOT NULL,
+  issue_text text NOT NULL,
+  status text DEFAULT 'open',
+  created_at timestamptz DEFAULT now(),
+  resolved_at timestamptz
+);
+ALTER TABLE customer_issues ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all" ON customer_issues FOR ALL USING (true) WITH CHECK (true);`;
+        grid.innerHTML = `<div class="no-pending" style="color:#f87171;text-align:left;max-width:600px;margin:0 auto;">
+            ⚠️ <strong>Table "customer_issues" not found in Supabase.</strong><br><br>
+            <span style="color:#94a3b8;font-size:.82rem;">Go to your Supabase Dashboard → SQL Editor and run this SQL:</span><br><br>
+            <pre style="background:#0f172a;color:#86efac;padding:12px;border-radius:8px;font-size:.72rem;overflow-x:auto;text-align:left;">${sql}</pre>
+            <button onclick="navigator.clipboard.writeText(\`${sql.replace(/`/g,'\\`')}\`).then(()=>this.textContent='✅ Copied!').catch(()=>this.textContent='Copy failed')"
+                style="margin-top:8px;padding:7px 16px;background:#0d9488;border:none;border-radius:8px;color:white;font-size:.82rem;font-weight:700;cursor:pointer;">
+                📋 Copy SQL
+            </button>
+            <button onclick="renderSupportIssues()" style="margin-top:8px;margin-left:8px;padding:7px 16px;background:#6366f1;border:none;border-radius:8px;color:white;font-size:.82rem;font-weight:700;cursor:pointer;">
+                🔄 Retry
+            </button>
+        </div>`;
+        return;
+    }
+    
+    const count = issues ? issues.length : 0;
+    if (badge) {
+        badge.innerText = count;
+        badge.style.display = count > 0 ? '' : 'none';
+    }
+    if (cntBadge) cntBadge.innerText = count;
+
+    if (!issues || issues.length === 0) {
+        grid.innerHTML = '<div class="no-pending">✅ No open customer support issues.</div>';
+        return;
+    }
+
+    grid.innerHTML = issues.map(iss => {
+        const d = new Date(iss.created_at).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'});
+        return `
+            <div class="pending-card">
+                <div class="meta" style="color:#64748b; font-size:0.8rem; margin-bottom:6px;">
+                    Reported on ${d} &nbsp;•&nbsp; <strong>${iss.tenant_id}</strong>
+                </div>
+                <div class="det">
+                    <span class="lbl">User</span>
+                    <span class="val">${iss.username}</span>
+                </div>
+                <div class="det" style="margin-top:8px;">
+                    <span class="lbl">Issue Description</span>
+                    <span class="val" style="white-space:pre-wrap; background:rgba(255,255,255,0.05); padding:10px; border-radius:6px; border:1px solid rgba(255,255,255,0.1); margin-top:4px; display:block;">${iss.issue_text}</span>
+                </div>
+                <div class="act" style="justify-content:flex-end;">
+                    <button class="approve-btn" style="background:#0ea5e9" onclick="resolveSupportIssue('${iss.id}')">✔️ Mark Resolved</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function resolveSupportIssue(id) {
+    if (!confirm('Mark this issue as resolved?')) return;
+    const { error } = await sb.from('customer_issues')
+        .update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', id);
+    if (error) { alert('Error: ' + error.message); return; }
+    renderSupportIssues();
 }
 </script>
 

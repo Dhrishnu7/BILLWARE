@@ -9,7 +9,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/auth.js"></script>
+    <script src="js/auth.js?v=2"></script>
+    <script src="js/supabase.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -450,7 +451,7 @@
         <div class="brand-top">
             <!-- Logo -->
             <div class="brand-logo-row">
-                <div class="brand-logo-icon">BW</div>
+                <div class="brand-logo-icon"><svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="z-index: 2; position: relative; transform: scale(0.85);"><defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.2" /></filter><mask id="crossMask"><rect width="100" height="100" fill="white" /><rect x="42" y="32" width="16" height="36" rx="4" fill="black" /><rect x="32" y="42" width="36" height="16" rx="4" fill="black" /><line x1="15" y1="15" x2="85" y2="85" stroke="black" stroke-width="2.5" stroke-linecap="round" /><line x1="15" y1="85" x2="85" y2="15" stroke="black" stroke-width="2.5" stroke-linecap="round" /></mask><g id="leaf"><path d="M 50 50 C 35 45, 30 30, 30 20 C 30 10, 45 10, 50 20 C 55 10, 70 10, 70 20 C 70 30, 65 45, 50 50 Z" fill="#ffffff" /></g></defs><g mask="url(#crossMask)" filter="url(#shadow)"><use href="#leaf" /><use href="#leaf" transform="rotate(90 50 50)" /><use href="#leaf" transform="rotate(180 50 50)" /><use href="#leaf" transform="rotate(270 50 50)" /></g></svg></div>
                 <div>
                     <div class="brand-logo-name">Billware</div>
                     <div class="brand-logo-sub">Smart Billing for Every Pharmacy</div>
@@ -707,7 +708,7 @@
                 if (result.success) {
                     setBtnSuccess(result.user.username);
                     if (typeof dbSyncDown === 'function') {
-                        document.getElementById('loginBtnText').textContent = 'Syncing Data...';
+                        document.getElementById('btnText').textContent = 'Syncing Data...';
                         await dbSyncDown();
                     }
                     setTimeout(() => window.location.replace('index.html'), 400);
@@ -720,7 +721,7 @@
                         if (forceResult.success) {
                             setBtnSuccess(forceResult.user.username);
                             if (typeof dbSyncDown === 'function') {
-                                document.getElementById('loginBtnText').textContent = 'Syncing Data...';
+                                document.getElementById('btnText').textContent = 'Syncing Data...';
                                 await dbSyncDown();
                             }
                             setTimeout(() => window.location.replace('index.html'), 400);
@@ -810,6 +811,7 @@
                 banner.style.display = 'none';
             });
         });
+        </script>
         <!-- Forgot Password Modal -->
         <div class="modal-overlay" id="forgotPwdModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); backdrop-filter:blur(4px); z-index:9999; align-items:center; justify-content:center;">
             <div class="modal" style="background:#fff; width:90%; max-width:400px; border-radius:20px; padding:2rem; box-shadow:0 20px 40px rgba(0,0,0,0.2); position:relative; animation: fadeUp 0.3s ease;">
@@ -821,11 +823,11 @@
                     <p style="font-size:0.9rem; color:#475569; margin-bottom:1rem; line-height:1.5;">Enter your username and the reason for your reset. Your super admin will review it.</p>
                     <div class="form-group">
                         <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">Username</label>
-                        <input type="text" id="fpReqUsername" class="form-control" placeholder="Enter your username">
+                        <input type="text" id="fpReqUsername" class="form-control" placeholder="Enter your username" style="color:#0f172a;">
                     </div>
                     <div class="form-group" style="margin-top:1rem;">
                         <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">Reason</label>
-                        <input type="text" id="fpReqReason" class="form-control" placeholder="e.g. Forgot my password">
+                        <input type="text" id="fpReqReason" class="form-control" placeholder="e.g. Forgot my password" style="color:#0f172a;">
                     </div>
                     <button class="btn" style="width:100%; margin-top:1.5rem; background:#0f172a; color:#fff;" onclick="submitFpRequest()">Submit Request</button>
                     <div style="text-align:center; margin-top:1rem;">
@@ -838,15 +840,33 @@
                     <p style="font-size:0.9rem; color:#475569; margin-bottom:1rem; line-height:1.5;">Enter your username, the 6-digit PIN provided by your admin, and your new password.</p>
                     <div class="form-group">
                         <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">Username</label>
-                        <input type="text" id="fpPinUsername" class="form-control" placeholder="Enter your username">
+                        <input type="text" id="fpPinUsername" class="form-control" placeholder="Enter your username" style="color:#0f172a;">
                     </div>
                     <div class="form-group" style="margin-top:1rem;">
                         <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">6-Digit PIN</label>
-                        <input type="text" id="fpPinCode" class="form-control" placeholder="123456" maxlength="6" style="letter-spacing:2px; font-weight:bold;">
+                        <input type="text" id="fpPinCode" class="form-control" placeholder="123456" maxlength="6" style="letter-spacing:2px; font-weight:bold; color:#0f172a;">
                     </div>
                     <div class="form-group" style="margin-top:1rem;">
                         <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">New Password</label>
-                        <input type="password" id="fpPinNewPwd" class="form-control" placeholder="Enter new password">
+                        <div style="position:relative;">
+                            <input type="password" id="fpPinNewPwd" class="form-control" placeholder="Enter new password" style="color:#0f172a; padding-right:44px;">
+                            <button type="button" onclick="
+                                var inp=document.getElementById('fpPinNewPwd');
+                                var ico=document.getElementById('fpPwdEyeIcon');
+                                if(inp.type==='password'){
+                                    inp.type='text';
+                                    ico.innerHTML='<path stroke-linecap=\'round\' stroke-linejoin=\'round\' d=\'M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21\'/>';
+                                } else {
+                                    inp.type='password';
+                                    ico.innerHTML='<path stroke-linecap=\'round\' stroke-linejoin=\'round\' d=\'M15 12a3 3 0 11-6 0 3 3 0 016 0z\'/><path stroke-linecap=\'round\' stroke-linejoin=\'round\' d=\'M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z\'/>';
+                                }"
+                                style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:4px;color:#64748b;display:flex;align-items:center;">
+                                <svg id="fpPwdEyeIcon" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <button class="btn" style="width:100%; margin-top:1.5rem; background:#059669; color:#fff;" onclick="submitFpPin()">Set New Password</button>
                     <div style="text-align:center; margin-top:1rem;">
@@ -873,60 +893,69 @@
             }
 
             async function submitFpRequest() {
+                const btn = event.target;
                 const user = document.getElementById('fpReqUsername').value.trim();
                 const reason = document.getElementById('fpReqReason').value.trim();
                 if(!user || !reason) return alert('Please enter both username and reason.');
                 
-                const origText = event.target.innerText;
-                event.target.innerText = 'Submitting...';
-                event.target.disabled = true;
+                const origText = btn.innerText;
+                btn.innerText = 'Submitting...';
+                btn.disabled = true;
 
-                const res = await dbCreatePasswordResetRequest(user, reason);
-                event.target.innerText = origText;
-                event.target.disabled = false;
-
-                if (res) {
-                    alert('Reset request submitted successfully! Please contact your super admin to get your PIN.');
-                    showFpPinSection();
-                    document.getElementById('fpPinUsername').value = user;
-                } else {
-                    alert('Failed to submit request. Are you online?');
+                try {
+                    const res = await dbCreatePasswordResetRequest(user, reason);
+                    if (res) {
+                        alert('Reset request submitted successfully! Please contact your super admin to get your PIN.');
+                        showFpPinSection();
+                        document.getElementById('fpPinUsername').value = user;
+                    } else {
+                        alert('Failed to submit request. Are you online?');
+                    }
+                } catch(e) {
+                    alert('Error: ' + e.message);
+                } finally {
+                    btn.innerText = origText;
+                    btn.disabled = false;
                 }
             }
 
-            async function submitFpPin() {
+                        async function submitFpPin() {
+                const btn = event.target;
                 const user = document.getElementById('fpPinUsername').value.trim();
                 const pin = document.getElementById('fpPinCode').value.trim();
                 const newPwd = document.getElementById('fpPinNewPwd').value;
                 if(!user || !pin || !newPwd) return alert('Please fill all fields.');
 
-                const origText = event.target.innerText;
-                event.target.innerText = 'Verifying...';
-                event.target.disabled = true;
+                const origText = btn.innerText;
+                btn.innerText = 'Verifying...';
+                btn.disabled = true;
 
-                const isValid = await dbCheckResetPin(user, pin);
-                if (!isValid) {
-                    event.target.innerText = origText;
-                    event.target.disabled = false;
-                    return alert('Invalid or expired PIN for this username.');
-                }
+                try {
+                    const isValid = await dbCheckResetPin(user, pin);
+                    if (!isValid) {
+                        alert('Invalid or expired PIN for this username.');
+                        return;
+                    }
 
-                // PIN is valid! Change password.
-                const changeRes = await mmChangeUserPassword(user, newPwd);
-                if (changeRes.success) {
+                    const changeRes = await mmResetPassword(user, newPwd);
+                    if (!changeRes.success) {
+                        alert('Failed to change password: ' + changeRes.message);
+                        return;
+                    }
+
                     await dbMarkResetCompleted(user, pin);
                     alert('Password successfully changed! You can now log in.');
                     document.getElementById('forgotPwdModal').style.display = 'none';
-                    document.getElementById('username').value = user;
-                    document.getElementById('password').value = '';
-                    document.getElementById('password').focus();
-                } else {
-                    alert('Failed to change password: ' + changeRes.message);
+                    document.getElementById('loginUsername').value = user;
+                    document.getElementById('loginPassword').value = '';
+                } catch(e) {
+                    alert('Error: ' + e.message);
+                } finally {
+                    btn.innerText = origText;
+                    btn.disabled = false;
                 }
-                
-                event.target.innerText = origText;
-                event.target.disabled = false;
             }
         </script>
     </body>
 </html>
+

@@ -679,10 +679,7 @@ function mmInjectUserBar() {
         const style = document.createElement('style');
         style.id = 'mm-auth-styles';
         style.textContent = `
-            header .back-btn { margin-right: auto !important; margin-left: 15px !important; }
-            @media (max-width: 600px) { header .back-btn { margin-left: 8px !important; } }
-            
-            .mm-user-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+            .mm-user-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
             .mm-user-pill {
                 display: inline-flex; align-items: center; gap: 8px;
                 background: rgba(255,255,255,0.7);
@@ -836,7 +833,28 @@ function mmInjectUserBar() {
     if (headerRight) headerRight.appendChild(bar);
     else {
         const header = document.querySelector('header');
-        if (header) header.appendChild(bar);
+        if (header) {
+            // Fix layout clash by grouping logo and back button safely on the left
+            const backBtn = header.querySelector('.back-btn');
+            const logo = header.querySelector('.logo');
+            
+            if (backBtn && logo && !header.querySelector('.mm-header-left')) {
+                const leftGroup = document.createElement('div');
+                leftGroup.className = 'mm-header-left';
+                leftGroup.style.display = 'flex';
+                leftGroup.style.alignItems = 'center';
+                leftGroup.style.gap = '15px';
+                leftGroup.style.flexShrink = '0';
+                
+                header.insertBefore(leftGroup, logo);
+                leftGroup.appendChild(logo);
+                leftGroup.appendChild(backBtn);
+            }
+            
+            header.style.flexWrap = 'wrap'; // Allow wrapping on very small screens
+            header.style.gap = '10px';
+            header.appendChild(bar);
+        }
     }
 
     // Update dashboard welcome message with username

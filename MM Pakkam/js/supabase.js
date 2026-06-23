@@ -544,7 +544,7 @@ async function dbSyncDown() {
 // ==========================================
 
 async function dbCreatePasswordResetRequest(username, reason) {
-    if (!useSupabase) return null;
+    
     try {
         const { data, error } = await _supabase
             .from('password_reset_requests')
@@ -559,7 +559,7 @@ async function dbCreatePasswordResetRequest(username, reason) {
 }
 
 async function dbGetPendingResetRequests() {
-    if (!useSupabase) return [];
+    
     try {
         const { data, error } = await _supabase
             .from('password_reset_requests')
@@ -574,7 +574,7 @@ async function dbGetPendingResetRequests() {
 }
 
 async function dbUpdateResetRequest(id, status, pin) {
-    if (!useSupabase) return false;
+    
     try {
         const { error } = await _supabase
             .from('password_reset_requests')
@@ -589,7 +589,7 @@ async function dbUpdateResetRequest(id, status, pin) {
 }
 
 async function dbCheckResetPin(username, pin) {
-    if (!useSupabase) return false;
+    
     try {
         const { data, error } = await _supabase
             .from('password_reset_requests')
@@ -606,7 +606,7 @@ async function dbCheckResetPin(username, pin) {
 }
 
 async function dbMarkResetCompleted(username, pin) {
-    if (!useSupabase) return false;
+    
     try {
         const { error } = await _supabase
             .from('password_reset_requests')

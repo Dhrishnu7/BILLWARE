@@ -825,7 +825,7 @@
         .chart-card { background: white; padding: 1.5rem; border-radius: 16px; border: 1px solid #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 
     </style>
-    <script src="js/auth.js"></script>
+    <script src="js/auth.js?v=2"></script>
     <script src="js/notifications.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -847,7 +847,7 @@
     <!-- Navbar -->
     <header>
         <a class="logo" href="index.html">
-            <div class="logo-icon">MM</div>
+            <div class="logo-icon"><svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="z-index: 2; position: relative; transform: scale(0.85);"><defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.2" /></filter><mask id="crossMask"><rect width="100" height="100" fill="white" /><rect x="42" y="32" width="16" height="36" rx="4" fill="black" /><rect x="32" y="42" width="36" height="16" rx="4" fill="black" /><line x1="15" y1="15" x2="85" y2="85" stroke="black" stroke-width="2.5" stroke-linecap="round" /><line x1="15" y1="85" x2="85" y2="15" stroke="black" stroke-width="2.5" stroke-linecap="round" /></mask><g id="leaf"><path d="M 50 50 C 35 45, 30 30, 30 20 C 30 10, 45 10, 50 20 C 55 10, 70 10, 70 20 C 70 30, 65 45, 50 50 Z" fill="#ffffff" /></g></defs><g mask="url(#crossMask)" filter="url(#shadow)"><use href="#leaf" /><use href="#leaf" transform="rotate(90 50 50)" /><use href="#leaf" transform="rotate(180 50 50)" /><use href="#leaf" transform="rotate(270 50 50)" /></g></svg></div>
             <span class="logo-text">Billware</span>
         </a>
         <a class="back-btn" href="index.html">&#8592; Back</a>
@@ -1267,9 +1267,9 @@
         }
 
         // ── Set default dates (this month) ──
-        const today = new Date();
-        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-        document.getElementById('toDate').valueAsDate   = today;
+        const reportToday = new Date();
+        const firstDay = new Date(reportToday.getFullYear(), reportToday.getMonth(), 1);
+        document.getElementById('toDate').valueAsDate   = reportToday;
         document.getElementById('fromDate').valueAsDate = firstDay;
 
         // ── Load real data from localStorage ──
@@ -1285,57 +1285,28 @@
             let useSupabase = false;
 
             try {
-                // Try to load from Supabase
-                const session = (typeof mmGetSession === 'function') ? mmGetSession() : null;
-                const data = await dbGetReportData();
-                if (session && data && (Array.isArray(data.bills) || Array.isArray(data.purchases))) {
-                    dbPurchases = data.purchases || [];
-                    dbBills = data.bills || [];
-                    useSupabase = true;
-                    // Cache raw data for bin
-                    _rawPurchasesMap = {};
-                    dbPurchases.forEach(p => { _rawPurchasesMap[p.id] = p; });
-                    _rawBillsMap = {};
-                    dbBills.forEach(b => { _rawBillsMap[b.id] = b; });
+                // Try to load from Supabase — wait up to 3s for session to be ready
+                let session = (typeof mmGetSession === 'function') ? mmGetSession() : null;
+                if (!session) {
+                    // Session may not be ready yet (mmRequireAuth is async). Retry up to 15 times.
+                    for (let retry = 0; retry < 15 && !session; retry++) {
+                        await new Promise(r => setTimeout(r, 200));
+                        session = (typeof mmGetSession === 'function') ? mmGetSession() : null;
+                    }
+                }
 
-                    // Merge offline pending queues so they don't vanish from the UI before sync completes
-                    const pendingPurchases = JSON.parse(localStorage.getItem('mm_pending_purchases') || '[]');
-                    const localPurchases = [...dbPurchases.map(p => ({
-                        billNo: p.bill_no,
-                        firm: p.firm,
-                        date: p.date,
-                        productName: p.product_name,
-                        batchNo: p.batch_no,
-                        expireDate: p.expire_date,
-                        quantity: p.quantity,
-                        mrp: p.mrp,
-                        rate: p.rate,
-                        gst: p.gst,
-                        savedAt: p.saved_at
-                    })), ...pendingPurchases];
-                    localStorage.setItem('mm_purchases', JSON.stringify(localPurchases));
-
-                    const pendingSales = JSON.parse(localStorage.getItem('mm_pending_sales') || '[]');
-                    const localSales = [...dbBills.map(b => ({
-                        billNo: b.bill_no,
-                        date: b.date,
-                        customerName: b.customer_name,
-                        doctorName: b.doctor_name,
-                        grandTotal: b.grand_total,
-                        medicines: (b.bill_items || []).map(m => ({
-                            product: m.product,
-                            batch: m.batch,
-                            exp: m.exp,
-                            qty: m.qty,
-                            mrp: m.mrp,
-                            rate: m.rate,
-                            gst: m.gst,
-                            discount: m.discount,
-                            total: m.total
-                        })),
-                        savedAt: b.saved_at
-                    })), ...pendingSales];
-                    localStorage.setItem('mm_sales', JSON.stringify(localSales));
+                if (session) {
+                    const data = await dbGetReportData();
+                    if (data && (Array.isArray(data.bills) || Array.isArray(data.purchases))) {
+                        dbPurchases = data.purchases || [];
+                        dbBills = data.bills || [];
+                        useSupabase = true;
+                        // Cache raw data for restore/bin features
+                        _rawPurchasesMap = {};
+                        dbPurchases.forEach(p => { _rawPurchasesMap[p.id] = p; });
+                        _rawBillsMap = {};
+                        dbBills.forEach(b => { _rawBillsMap[b.id] = b; });
+                    }
                 }
             } catch (err) {
                 console.warn("Supabase fetch failed, using localStorage fallback:", err);
@@ -1354,34 +1325,14 @@
                         date:   p.date || '',
                         type:   'purchase',
                         product: p.product_name || '-',
-                        qty: qty,
-                        rate: rate,
-                        gst: gst,
-                        total: total
+                        qty, rate, gst, total
                     };
                 });
-                
-                // Also map pending purchases for UI
-                const pendingPurchases = JSON.parse(localStorage.getItem('mm_pending_purchases') || '[]');
-                pendingPurchases.forEach(p => {
-                    const qty = parseFloat(p.quantity) || 0;
-                    const rate = parseFloat(p.rate) || 0;
-                    const gst = parseFloat(p.gst) || 0;
-                    const total = (qty * rate) * (1 + (gst / 100));
-                    mappedPurchases.push({
-                        id:     'pending_' + Math.random(),
-                        billNo: (p.billNo || '-') + ' 🔄', // Indicate pending sync
-                        date:   p.date || '',
-                        type:   'purchase',
-                        product: p.productName || '-',
-                        qty: qty,
-                        rate: rate,
-                        gst: gst,
-                        total: total
-                    });
-                });
             } else {
-                const rawPurchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+                // Fallback to localStorage — use scoped key if mmLsGet is available
+                const rawPurchases = (typeof mmLsGet === 'function')
+                    ? (mmLsGet('purchases') || [])
+                    : JSON.parse(localStorage.getItem('mm_purchases') || '[]');
                 mappedPurchases = rawPurchases.map(p => {
                     const qty = parseFloat(p.quantity) || 0;
                     const rate = parseFloat(p.rate) || 0;
@@ -1392,10 +1343,7 @@
                         date: p.date || '',
                         type: 'purchase',
                         product: p.productName || '-',
-                        qty: qty,
-                        rate: rate,
-                        gst: gst,
-                        total: total
+                        qty, rate, gst, total
                     };
                 });
             }
@@ -1419,28 +1367,11 @@
                         });
                     }
                 });
-                
-                // Also map pending sales for UI
-                const pendingSales = JSON.parse(localStorage.getItem('mm_pending_sales') || '[]');
-                pendingSales.forEach(bill => {
-                    if (Array.isArray(bill.medicines)) {
-                        bill.medicines.forEach(m => {
-                            mappedSales.push({
-                                id:     'pending_' + Math.random(),
-                                billNo: (bill.billNo || '-') + ' 🔄', // Indicate pending sync
-                                date:   bill.date || '',
-                                type:   'sales',
-                                product: m.product || '-',
-                                qty:   parseFloat(m.qty)   || 0,
-                                rate:  parseFloat(m.rate)  || 0,
-                                gst:   parseFloat(m.gst)   || 0,
-                                total: parseFloat(m.total) || 0
-                            });
-                        });
-                    }
-                });
             } else {
-                const rawSales = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+                // Fallback to localStorage — use scoped key if mmLsGet is available
+                const rawSales = (typeof mmLsGet === 'function')
+                    ? (mmLsGet('sales') || [])
+                    : JSON.parse(localStorage.getItem('mm_sales') || '[]');
                 rawSales.forEach(bill => {
                     if (Array.isArray(bill.medicines)) {
                         bill.medicines.forEach(m => {
@@ -1464,6 +1395,11 @@
                 if(a.date < b.date) return 1;
                 return 0;
             });
+
+            // Also pre-load bills for search using Supabase data
+            if (useSupabase && typeof _loadSearchData === 'function') {
+                _loadSearchData(dbBills);
+            }
 
             generateReport();
         }
@@ -2030,7 +1966,12 @@
 
                 // Top Sellers aggregation
                 const pName = s.product || 'Unknown';
-                if (!productSales[pName]) productSales[pName] =             // 2. Prepare Trend Data (Group by Date)
+                if (!productSales[pName]) productSales[pName] = { qty: 0, revenue: 0 };
+                productSales[pName].qty += s.qty;
+                productSales[pName].revenue += saleRevenue;
+            });
+
+            // 2. Prepare Trend Data (Group by Date)
             const dateMap = {};
             data.forEach(r => {
                 if (!r.date) return;
@@ -2299,8 +2240,19 @@
         }
 
         function buildStockData() {
-            const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
-            const sales     = JSON.parse(localStorage.getItem('mm_sales')     || '[]');
+            // Use Supabase-cached data if available, else fall back to scoped localStorage
+            let purchases, sales;
+            if (_allBillsFromDB && _allBillsFromDB.length > 0) {
+                // Use data already loaded from Supabase
+                sales = _allBillsFromDB;
+                purchases = dbPurchases ? dbPurchases.map(p => ({
+                    productName: p.product_name, batchNo: p.batch_no,
+                    expireDate: p.expire_date, quantity: p.quantity
+                })) : [];
+            } else {
+                purchases = (typeof mmLsGet === 'function') ? (mmLsGet('purchases') || []) : JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+                sales     = (typeof mmLsGet === 'function') ? (mmLsGet('sales')     || []) : JSON.parse(localStorage.getItem('mm_sales')     || '[]');
+            }
 
             // Build map: key = "productname|batchno"
             const map = {};
@@ -2439,7 +2391,7 @@
             const customVal = document.getElementById('customMonths').value;
             const months = customVal !== '' ? Math.max(0, parseInt(customVal) || 0) : _expiryMonths;
 
-            const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+            const purchases = (typeof mmLsGet === 'function') ? (mmLsGet('purchases') || []) : JSON.parse(localStorage.getItem('mm_purchases') || '[]');
             const today = new Date();
             const thisYM = today.getFullYear() * 12 + today.getMonth(); // numeric month index
 
@@ -2522,12 +2474,17 @@
             return `${months[parseInt(mo)-1] || mo} ${yr}`;
         }
 
-        // ── Init ──
-        loadData();
+        // ── Init — wait for DOM then load ──
+        // Use DOMContentLoaded to ensure mmRequireAuth() has had a chance to run
+        (async function initReport() {
+            // Small delay to allow mmRequireAuth() async auth check to complete
+            await new Promise(r => setTimeout(r, 100));
+            await loadData();
+        })();
 
         // ── Auto-refresh when saved in another tab ──
         window.addEventListener('storage', function(e) {
-            if (e.key === 'mm_sales' || e.key === 'mm_purchases') {
+            if (e.key && (e.key.includes('sales') || e.key.includes('purchases'))) {
                 loadData();
             }
         });
@@ -2795,6 +2752,26 @@
 
         /* ── Search & Print Bills Logic ── */
         let _allSalesForSearch = [];
+        let _allBillsFromDB = []; // Supabase bills cache for search
+
+        // Called by loadData() after Supabase fetch succeeds
+        function _loadSearchData(dbBills) {
+            if (Array.isArray(dbBills)) {
+                _allBillsFromDB = dbBills.map(b => ({
+                    billNo: b.bill_no,
+                    date: b.date,
+                    customerName: b.customer_name || '',
+                    doctorName: b.doctor_name || '',
+                    grandTotal: b.grand_total || 0,
+                    savedAt: b.saved_at,
+                    medicines: (b.bill_items || []).map(m => ({
+                        product: m.product, batch: m.batch, exp: m.exp,
+                        qty: m.qty, mrp: m.mrp, rate: m.rate,
+                        gst: m.gst, discount: m.discount, total: m.total
+                    }))
+                }));
+            }
+        }
 
         function doBillSearch() {
             const query = String(document.getElementById('billSearchInput').value || "").trim().toLowerCase();
@@ -2809,9 +2786,17 @@
                 return;
             }
 
-            // Always fetch fresh data from localStorage
-            _allSalesForSearch = JSON.parse(localStorage.getItem('mm_sales') || '[]');
-            const customers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+            // Use Supabase-fetched data if available, else fall back to scoped localStorage
+            if (_allBillsFromDB.length > 0) {
+                _allSalesForSearch = _allBillsFromDB;
+            } else {
+                _allSalesForSearch = (typeof mmLsGet === 'function')
+                    ? (mmLsGet('sales') || [])
+                    : JSON.parse(localStorage.getItem('mm_sales') || '[]');
+            }
+            const customers = (typeof mmLsGet === 'function')
+                ? (mmLsGet('customers') || [])
+                : JSON.parse(localStorage.getItem('mm_customers') || '[]');
 
             const queryTerms = query.split(/\\s+/).filter(t => t.length > 0);
 
@@ -2888,7 +2873,7 @@
         function getBillHTML(bill) {
             let deliveryAddress = String(bill.deliveryAddress || "").trim();
             if (!deliveryAddress && bill.customerName) {
-                const customers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+                const customers = (typeof mmLsGet === 'function') ? (mmLsGet('customers') || []) : JSON.parse(localStorage.getItem('mm_customers') || '[]');
                 const cust = customers.find(c => String(c.name || "").trim().toLowerCase() === String(bill.customerName || "").trim().toLowerCase());
                 if (cust) deliveryAddress = cust.address || '';
             }
