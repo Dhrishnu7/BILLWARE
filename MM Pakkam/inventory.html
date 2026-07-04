@@ -1097,7 +1097,8 @@
         // ── Fold in manual stock adjustments (damage / loss / count corrections) ──
         // These shift the computed current-stock figure without touching purchase/sales totals.
         const adjByProduct = {};   // norm -> total delta across all batches
-        const adjByBatch    = {};  // norm -> { batchKeyLower: totalDelta }
+        const adjByBatch    = {};  // norm -> { batchKeyLower: totalDelta }  (batch-specific only)
+        const adjWholeProduct = {}; // norm -> total delta from "whole product" (no batch) adjustments
         const adjOriginalName = {}; // norm -> original-cased name (for adjustment-only rows)
         _stockAdjustments.forEach(a => {
             const name = String(a.product_name || a.productName || '').trim();
@@ -1111,6 +1112,8 @@
                 adjByBatch[norm] = adjByBatch[norm] || {};
                 const bk = batch.toLowerCase();
                 adjByBatch[norm][bk] = (adjByBatch[norm][bk] || 0) + delta;
+            } else {
+                adjWholeProduct[norm] = (adjWholeProduct[norm] || 0) + delta;
             }
         });
 
@@ -1126,6 +1129,17 @@
                     const bk = (b.batch || '_no_batch_').toLowerCase();
                     if (adjByBatch[norm][bk]) b.current += adjByBatch[norm][bk];
                 });
+            }
+            // Attribute "whole product" adjustments to whichever single batch
+            // actually holds stock — if more than one batch holds stock, don't
+            // guess which one; it stays in the row-level total only. Must match
+            // the same rule in js/supabase.js's mmComputeStock() or Sales and
+            // Inventory will disagree on this batch's number again.
+            const wholeDelta = adjWholeProduct[norm] || 0;
+            if (wholeDelta && row.batches.length) {
+                const holders = row.batches.filter(b => b.current > 0);
+                const dominant = holders.length === 1 ? holders[0] : (row.batches.length === 1 ? row.batches[0] : null);
+                if (dominant) dominant.current += wholeDelta;
             }
         });
 

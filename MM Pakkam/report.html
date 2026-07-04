@@ -2642,9 +2642,11 @@
             });
 
             // ── Fold in manual stock adjustments (damage / loss / count corrections) ──
-            // Must match inventory.html's logic exactly, or the two pages disagree again.
+            // Must match inventory.html's (and js/supabase.js's mmComputeStock)
+            // logic exactly, or the pages disagree again.
             const adjByProduct = {};
             const adjByBatch    = {};
+            const adjWholeProduct = {};
             const adjOriginalName = {};
             _stockAdjustments.forEach(a => {
                 const name = String(a.product_name || a.productName || '').trim();
@@ -2658,6 +2660,8 @@
                     adjByBatch[norm] = adjByBatch[norm] || {};
                     const bk = batch.toLowerCase();
                     adjByBatch[norm][bk] = (adjByBatch[norm][bk] || 0) + delta;
+                } else {
+                    adjWholeProduct[norm] = (adjWholeProduct[norm] || 0) + delta;
                 }
             });
 
@@ -2673,6 +2677,12 @@
                         const bk = (b.batch || '_no_batch_').toLowerCase();
                         if (adjByBatch[norm][bk]) b.current += adjByBatch[norm][bk];
                     });
+                }
+                const wholeDelta = adjWholeProduct[norm] || 0;
+                if (wholeDelta && row.batches.length) {
+                    const holders = row.batches.filter(b => b.current > 0);
+                    const dominant = holders.length === 1 ? holders[0] : (row.batches.length === 1 ? row.batches[0] : null);
+                    if (dominant) dominant.current += wholeDelta;
                 }
             });
 

@@ -1058,11 +1058,11 @@
             alert(
                 `Stock breakdown for ${d.productName}\n` +
                 `Batch: ${d.batchNo}\n\n` +
-                `Purchased: ${d.totalPurchased}  (from ${d.purchaseRows} purchase row${d.purchaseRows === 1 ? '' : 's'})\n` +
-                `Sold: ${d.totalSold}  (from ${d.saleRows} sale line${d.saleRows === 1 ? '' : 's'})\n` +
-                `Adjusted: ${d.totalAdjustment >= 0 ? '+' : ''}${d.totalAdjustment}  (from ${d.adjRows} adjustment${d.adjRows === 1 ? '' : 's'})\n` +
+                `This batch (purchased − sold): ${d.batchOnlyTotal}\n` +
+                `Whole-product adjustments: ${d.wholeProductDelta >= 0 ? '+' : ''}${d.wholeProductDelta} (from ${d.wholeProductRows} adjustment${d.wholeProductRows === 1 ? '' : 's'})\n` +
+                `Applied to this batch? ${d.wholeProductApplied ? 'Yes' : 'No — more than one batch holds stock, so it only counts toward the whole-product total, not this specific batch'}\n` +
                 (d.pendingAdjustments > 0 ? `⚠️ ${d.pendingAdjustments} adjustment(s) still stuck, not yet synced to cloud\n` : '') +
-                `\nFinal: ${d.totalPurchased} − ${d.totalSold} + ${d.totalAdjustment} = ${d.result}`
+                `\nFinal: ${d.result}`
             );
         }
 

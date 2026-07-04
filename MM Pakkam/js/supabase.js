@@ -551,49 +551,66 @@ window.dbSyncCoreData = dbSyncCoreData;
 
    batchNo omitted/empty → whole-product total.
 ───────────────────────────────────────────────────── */
-function mmComputeStock(productName, batchNo) {
-    const name = String(productName || '').trim().toLowerCase();
-    if (!name) return 0;
-    const batch = String(batchNo || '').trim().toLowerCase();
-
+// Shared helper: builds per-batch (purchased - sold + batch-specific
+// adjustment) for a product, plus the total from "whole product" (no batch)
+// adjustments. Whole-product adjustments get attributed to whichever single
+// batch actually holds the stock (the "dominant" batch) — if there's more
+// than one batch genuinely holding stock, attributing to just one would be
+// a guess, so it's left aggregate-only in that case (matches how
+// inventory.html's table treats it too — keep both in sync if this changes).
+function _mmBatchBreakdown(name) {
     const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
-    let totalPurchased = 0;
-    purchases.forEach(p => {
-        const pName  = (p.productName || p.product_name || '').trim().toLowerCase();
-        const pBatch = (p.batchNo || p.batch_no || '').trim().toLowerCase();
-        if (pName === name && (!batch || pBatch === batch)) {
-            const qty  = parseFloat(p.quantity) || 0;
-            const pack = parseFloat(p.pack) || 1;
-            totalPurchased += qty * pack;
-        }
-    });
+    const sales      = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+    const adjustments = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
 
-    const sales = JSON.parse(localStorage.getItem('mm_sales') || '[]');
-    let totalSold = 0;
+    const batchTotals = {}; // batchKeyLower -> remaining (purchased - sold + batch-specific adj)
+    purchases.forEach(p => {
+        const pName = (p.productName || p.product_name || '').trim().toLowerCase();
+        if (pName !== name) return;
+        const pBatch = (p.batchNo || p.batch_no || '').trim().toLowerCase();
+        const qty  = parseFloat(p.quantity) || 0;
+        const pack = parseFloat(p.pack) || 1;
+        batchTotals[pBatch] = (batchTotals[pBatch] || 0) + qty * pack;
+    });
     sales.forEach(s => {
         (s.medicines || []).forEach(m => {
             const mName = (m.product || '').trim().toLowerCase();
-            if (mName === name && (!batch || (m.batch || '').trim().toLowerCase() === batch)) {
-                totalSold += parseFloat(m.qty) || 0;
-            }
+            if (mName !== name) return;
+            const mBatch = (m.batch || '').trim().toLowerCase();
+            batchTotals[mBatch] = (batchTotals[mBatch] || 0) - (parseFloat(m.qty) || 0);
         });
     });
-
-    let totalAdjustment = 0;
-    const adjustments = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
+    let wholeProductDelta = 0, wholeProductRows = 0;
     adjustments.forEach(a => {
         const aName = String(a.product_name || a.productName || '').trim().toLowerCase();
         if (aName !== name) return;
         const aBatch = String(a.batch_no || a.batchNo || '').trim().toLowerCase();
         const delta  = parseFloat(a.qty_delta ?? a.qtyDelta) || 0;
-        // Whole-product query: every adjustment for this product counts.
-        // Specific-batch query: only that batch's own adjustments count —
-        // a whole-product adjustment isn't attributed to any single batch.
-        if (!batch) totalAdjustment += delta;
-        else if (aBatch && aBatch === batch) totalAdjustment += delta;
+        if (aBatch) batchTotals[aBatch] = (batchTotals[aBatch] || 0) + delta;
+        else { wholeProductDelta += delta; wholeProductRows++; }
     });
 
-    return totalPurchased - totalSold + totalAdjustment;
+    // Which batch(es) actually hold stock? If exactly one, it's unambiguous
+    // and absorbs the whole-product adjustment; if more than one, don't guess.
+    const holders = Object.keys(batchTotals).filter(bk => batchTotals[bk] > 0);
+    const dominantBatch = holders.length === 1 ? holders[0]
+        : (Object.keys(batchTotals).length === 1 ? Object.keys(batchTotals)[0] : null);
+
+    return { batchTotals, wholeProductDelta, wholeProductRows, dominantBatch };
+}
+
+function mmComputeStock(productName, batchNo) {
+    const name = String(productName || '').trim().toLowerCase();
+    if (!name) return 0;
+    const batch = String(batchNo || '').trim().toLowerCase();
+    const { batchTotals, wholeProductDelta, dominantBatch } = _mmBatchBreakdown(name);
+
+    if (!batch) {
+        return Object.values(batchTotals).reduce((s, v) => s + v, 0) + wholeProductDelta;
+    }
+    let result = batchTotals[batch] || 0;
+    if (batch === dominantBatch) result += wholeProductDelta;
+    return result;
 }
 window.mmComputeStock = mmComputeStock;
 
@@ -603,50 +620,22 @@ window.mmComputeStock = mmComputeStock;
 function mmComputeStockDebug(productName, batchNo) {
     const name = String(productName || '').trim().toLowerCase();
     const batch = String(batchNo || '').trim().toLowerCase();
+    const { batchTotals, wholeProductDelta, wholeProductRows, dominantBatch } = _mmBatchBreakdown(name);
 
-    const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
-    let totalPurchased = 0, purchaseRows = 0;
-    purchases.forEach(p => {
-        const pName  = (p.productName || p.product_name || '').trim().toLowerCase();
-        const pBatch = (p.batchNo || p.batch_no || '').trim().toLowerCase();
-        if (pName === name && (!batch || pBatch === batch)) {
-            const qty  = parseFloat(p.quantity) || 0;
-            const pack = parseFloat(p.pack) || 1;
-            totalPurchased += qty * pack;
-            purchaseRows++;
-        }
-    });
-
-    const sales = JSON.parse(localStorage.getItem('mm_sales') || '[]');
-    let totalSold = 0, saleRows = 0;
-    sales.forEach(s => {
-        (s.medicines || []).forEach(m => {
-            const mName = (m.product || '').trim().toLowerCase();
-            if (mName === name && (!batch || (m.batch || '').trim().toLowerCase() === batch)) {
-                totalSold += parseFloat(m.qty) || 0;
-                saleRows++;
-            }
-        });
-    });
-
-    let totalAdjustment = 0, adjRows = 0;
-    const adjustments = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
-    adjustments.forEach(a => {
-        const aName = String(a.product_name || a.productName || '').trim().toLowerCase();
-        if (aName !== name) return;
-        const aBatch = String(a.batch_no || a.batchNo || '').trim().toLowerCase();
-        const delta  = parseFloat(a.qty_delta ?? a.qtyDelta) || 0;
-        if (!batch) { totalAdjustment += delta; adjRows++; }
-        else if (aBatch && aBatch === batch) { totalAdjustment += delta; adjRows++; }
-    });
+    const batchOnly = batchTotals[batch] || 0;
+    const wholeApplies = !!batch && batch === dominantBatch && wholeProductDelta !== 0;
+    const result = !batch
+        ? Object.values(batchTotals).reduce((s, v) => s + v, 0) + wholeProductDelta
+        : batchOnly + (wholeApplies ? wholeProductDelta : 0);
 
     return {
         productName, batchNo: batchNo || '(whole product)',
-        totalPurchased, purchaseRows,
-        totalSold, saleRows,
-        totalAdjustment, adjRows,
+        batchOnlyTotal: batchOnly,
+        wholeProductDelta, wholeProductRows,
+        wholeProductApplied: !batch || wholeApplies,
+        dominantBatch,
         pendingAdjustments: (typeof mmLsGet === 'function') ? (mmLsGet('pendingStockAdjustments') || []).length : 0,
-        result: totalPurchased - totalSold + totalAdjustment
+        result
     };
 }
 window.mmComputeStockDebug = mmComputeStockDebug;
