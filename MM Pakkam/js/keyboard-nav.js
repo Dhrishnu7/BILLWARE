@@ -83,6 +83,8 @@
         const tag = e.target.tagName.toLowerCase();
         const inField = ['input', 'textarea', 'select'].includes(tag);
 
+        if (inField) return;
+
         // F2 → add a new row (sales page hook)
         if (e.key === 'F2') {
             e.preventDefault();

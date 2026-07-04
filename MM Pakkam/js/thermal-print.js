@@ -227,7 +227,7 @@ const ThermalPrinter = (() => {
 
             // ── Column Headers ──
             add(cmd.BOLD_ON);
-            const hdr = _pad('Item', 24) + _pad('Qty', 5, 'right') + _pad('MRP', 8, 'right') + _pad('Total', 9, 'right');
+            const hdr = _pad('Item', 26) + _pad('Qty', 5, 'right') + _pad('MRP', 8, 'right') + _pad('Total', 9, 'right');
             add(text(hdr)); lf();
             add(cmd.BOLD_OFF);
             add(text(DIV)); lf();
@@ -235,14 +235,14 @@ const ThermalPrinter = (() => {
             // ── Medicine Rows ──
             let grandTotal = 0;
             (bill.medicines || []).forEach((m, i) => {
-                const name  = (m.product || '').substring(0, 24);
+                const name  = (m.product || '').substring(0, 26);
                 const qty   = String(m.qty   || 0);
                 const mrp   = parseFloat(m.mrp   || 0).toFixed(2);
                 const total = parseFloat(m.total || 0).toFixed(2);
                 grandTotal += parseFloat(m.total || 0);
 
                 // First line: name + values
-                const line1 = _pad(name, 24) + _pad(qty, 5, 'right') + _pad(mrp, 8, 'right') + _pad(total, 9, 'right');
+                const line1 = _pad(name, 26) + _pad(qty, 5, 'right') + _pad(mrp, 8, 'right') + _pad(total, 9, 'right');
                 add(text(line1)); lf();
 
                 // Second line: batch + expiry (smaller info)

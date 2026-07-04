@@ -69,14 +69,15 @@
         }
         .back-btn {
             display: inline-flex; align-items: center; gap: 6px;
-            padding: 0.5rem 1.2rem; background: white;
-            border: 1.5px solid rgba(244,63,94,0.3); border-radius: 50px;
-            font-size: 0.85rem; font-weight: 600; color: #e11d48;
-            text-decoration: none; transition: all 0.25s ease;
+            padding: 0.45rem 1rem; background: rgba(255,255,255,0.8);
+            border: 1.5px solid rgba(0,0,0,0.08); border-radius: 10px;
+            font-size: 0.82rem; font-weight: 700; color: #0f172a;
+            text-decoration: none; transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         }
         .back-btn:hover {
-            background: #f43f5e; color: white; border-color: #f43f5e;
-            box-shadow: 0 4px 16px rgba(244,63,94,0.35); transform: translateY(-1px);
+            background: #fff;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
         }
 
         /* ── Page Content ── */
@@ -264,43 +265,139 @@
 
         /* ── View Toggle ── */
         .view-toggle-wrap {
-            display: flex; justify-content: center; margin-bottom: 2rem;
+            display: flex; justify-content: center; margin-bottom: 2.5rem;
             animation: fadeUp 0.5s ease forwards;
         }
         .view-toggle {
-            display: inline-flex; background: rgba(255,255,255,0.85);
-            backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.9);
-            border-radius: 12px; padding: 5px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: inline-flex;
+            background: rgba(255,255,255,0.7);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1.5px solid rgba(255,255,255,0.9);
+            border-radius: 50px; padding: 6px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
         }
         .view-btn {
-            padding: 0.6rem 1.4rem; border-radius: 8px; font-size: 0.9rem;
+            padding: 0.65rem 1.8rem; border-radius: 50px; font-size: 0.9rem;
             font-weight: 700; cursor: pointer; border: none; background: transparent;
-            color: #64748b; transition: all 0.25s ease;
+            color: #94a3b8; transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1); font-family: 'Inter', sans-serif;
+            display: flex; align-items: center; gap: 7px;
         }
-        .view-btn.active { background: white; color: #0ea5e9; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .view-btn:hover:not(.active) { color: #475569; background: rgba(255,255,255,0.5); }
+        .view-btn.active {
+            background: linear-gradient(135deg, #e11d48, #f43f5e);
+            color: white;
+            box-shadow: 0 4px 16px rgba(225,29,72,0.4), 0 1px 0 rgba(255,255,255,0.2) inset;
+            transform: scale(1.02);
+        }
 
         /* ── Analytics Layout ── */
-        .analytics-view { display: none; width: 100%; max-width: 1000px; animation: fadeUp 0.5s ease forwards; }
-        .analytics-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
-        .analytics-card {
-            background: rgba(255,255,255,0.9); backdrop-filter: blur(12px);
-            border: 1px solid rgba(255,255,255,0.95); border-radius: 20px;
-            padding: 1.5rem; box-shadow: 0 6px 24px rgba(0,0,0,0.06);
+        /* ─────────────────────────────────────────
+           VISUAL ANALYTICS — PREMIUM DARK DESIGN
+        ───────────────────────────────────────── */
+        .analytics-view {
+            display: none; width: 100%;
+            animation: fadeUp 0.5s ease forwards;
+            background: linear-gradient(145deg, #0a0f1e 0%, #0f172a 40%, #0d1627 100%);
+            border-radius: 28px;
+            padding: 2rem;
+            margin-top: 1.2rem;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.06);
         }
-        .analytics-card h3 { font-size: 1.05rem; font-weight: 800; color: #0f172a; margin-bottom: 1rem; }
-        
-        .true-profit-box {
-            background: linear-gradient(135deg, #059669, #10b981);
-            color: white; border-radius: 16px; padding: 1.5rem;
-            text-align: center; box-shadow: 0 8px 20px rgba(16,185,129,0.3);
-            margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 5px;
-        }
-        .tp-label { font-size: 0.8rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.9; }
-        .tp-value { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.02em; }
-        .tp-sub { font-size: 0.85rem; opacity: 0.85; font-weight: 500; }
 
-        @media (max-width: 900px) {
-            .analytics-grid { grid-template-columns: 1fr; }
+        /* KPI stat row */
+        .analytics-kpi-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.8rem;
+        }
+        .analytics-kpi-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
+            padding: 1.3rem 1.5rem;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .analytics-kpi-card:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+        .analytics-kpi-card::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        }
+        .kpi-revenue::before  { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
+        .kpi-profit::before   { background: linear-gradient(90deg, #10b981, #34d399); }
+        .kpi-txn::before      { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+        .kpi-label {
+            font-size: 0.68rem; font-weight: 800; letter-spacing: 0.12em;
+            text-transform: uppercase; margin-bottom: 0.5rem;
+        }
+        .kpi-revenue .kpi-label { color: #38bdf8; }
+        .kpi-profit  .kpi-label { color: #34d399; }
+        .kpi-txn     .kpi-label { color: #a78bfa; }
+        .kpi-value {
+            font-size: 1.9rem; font-weight: 900; color: #f1f5f9;
+            letter-spacing: -0.03em; line-height: 1;
+        }
+        .kpi-sub { font-size: 0.72rem; color: #475569; margin-top: 5px; font-weight: 500; }
+        .kpi-icon {
+            position: absolute; bottom: 1rem; right: 1.2rem;
+            font-size: 1.8rem; opacity: 0.15;
+        }
+
+        /* Analytics chart cards */
+        .analytics-grid {
+            display: flex; flex-direction: column; gap: 1.4rem;
+        }
+        .analytics-card {
+            background: rgba(255,255,255,0.04);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            padding: 1.8rem;
+            position: relative; overflow: hidden;
+            transition: box-shadow 0.2s ease;
+        }
+        .analytics-card:hover { box-shadow: 0 16px 48px rgba(0,0,0,0.25); }
+        .analytics-card::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        }
+        .chart-top-sellers::before  { background: linear-gradient(90deg, #8b5cf6, #ec4899, #f97316); }
+        .chart-trend::before        { background: linear-gradient(90deg, #0ea5e9, #10b981); }
+        .analytics-card-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 1.4rem;
+        }
+        .analytics-card-title {
+            font-size: 0.95rem; font-weight: 800; color: #f1f5f9;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .analytics-card-title .chart-icon {
+            width: 30px; height: 30px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.95rem;
+        }
+        .icon-sellers { background: linear-gradient(135deg,#8b5cf6,#ec4899); }
+        .icon-trend   { background: linear-gradient(135deg,#0ea5e9,#10b981); }
+        .analytics-card-badge {
+            font-size: 0.7rem; font-weight: 700; padding: 3px 10px;
+            border-radius: 20px; letter-spacing: 0.06em; text-transform: uppercase;
+        }
+        .badge-sellers { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
+        .badge-trend   { background: rgba(14,165,233,0.12); color: #38bdf8; border: 1px solid rgba(14,165,233,0.25); }
+
+        /* True profit box — now a KPI card, hidden from old position */
+        .true-profit-box { display: none; }
+
+        @media (max-width: 700px) {
+            .analytics-kpi-row { grid-template-columns: 1fr 1fr; }
+            .analytics-view { padding: 1.2rem; }
+            .kpi-value { font-size: 1.5rem; }
+        }
+        @media (max-width: 420px) {
+            .analytics-kpi-row { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 700px) {
@@ -486,6 +583,13 @@
             letter-spacing: 0.07em; text-transform: uppercase; color: #92400e;
         }
         .expiry-month-btns { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+        /* Expiry pill filter button active state */
+        .expiry-pill {
+            cursor: pointer; border: none; font: inherit;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .expiry-pill:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .expiry-pill.pill-active { outline: 3px solid #1e293b; outline-offset: 2px; transform: scale(1.04); font-weight: 800; }
         .month-pill {
             padding: 0.5rem 1rem; border-radius: 20px;
             border: 1.5px solid #fde68a; background: #fef3c7;
@@ -737,6 +841,8 @@
         .badge-in  { background: #d1fae5; color: #065f46; }
         .badge-low { background: #fef3c7; color: #92400e; }
         .badge-out { background: #fee2e2; color: #991b1b; }
+        .badge-no-purchase { background: #fff7ed; color: #c2410c; border: 1.5px solid #fb923c; font-weight: 700; animation: pulse-orange 1.8s ease-in-out infinite; }
+        @keyframes pulse-orange { 0%,100% { box-shadow: 0 0 0 0 rgba(251,146,60,0.4); } 50% { box-shadow: 0 0 0 5px rgba(251,146,60,0); } }
         .stock-qty-number {
             font-size: 1rem; font-weight: 800;
         }
@@ -825,7 +931,7 @@
         .chart-card { background: white; padding: 1.5rem; border-radius: 16px; border: 1px solid #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 
     </style>
-    <script src="js/auth.js?v=2"></script>
+    <script src="js/auth.js?v=3"></script>
     <script src="js/notifications.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -847,10 +953,13 @@
     <!-- Navbar -->
     <header>
         <a class="logo" href="index.html">
-            <div class="logo-icon"><svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="z-index: 2; position: relative; transform: scale(0.85);"><defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.2" /></filter><mask id="crossMask"><rect width="100" height="100" fill="white" /><rect x="42" y="32" width="16" height="36" rx="4" fill="black" /><rect x="32" y="42" width="36" height="16" rx="4" fill="black" /><line x1="15" y1="15" x2="85" y2="85" stroke="black" stroke-width="2.5" stroke-linecap="round" /><line x1="15" y1="85" x2="85" y2="15" stroke="black" stroke-width="2.5" stroke-linecap="round" /></mask><g id="leaf"><path d="M 50 50 C 35 45, 30 30, 30 20 C 30 10, 45 10, 50 20 C 55 10, 70 10, 70 20 C 70 30, 65 45, 50 50 Z" fill="#ffffff" /></g></defs><g mask="url(#crossMask)" filter="url(#shadow)"><use href="#leaf" /><use href="#leaf" transform="rotate(90 50 50)" /><use href="#leaf" transform="rotate(180 50 50)" /><use href="#leaf" transform="rotate(270 50 50)" /></g></svg></div>
+            <div class="logo-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="white" stroke-width="2.2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
             <span class="logo-text">Billware</span>
         </a>
-        <a class="back-btn" href="index.html">&#8592; Back</a>
+        <a class="back-btn" href="index.html">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            Back
+        </a>
     </header>
 
     <!-- Page Content -->
@@ -864,34 +973,77 @@
 
         <div class="view-toggle-wrap">
             <div class="view-toggle">
-                <button class="view-btn active" id="btnViewTabular" onclick="switchViewMode('tabular')">📋 Tabular Report</button>
-                <button class="view-btn" id="btnViewAnalytics" onclick="switchViewMode('analytics')">📈 Visual Analytics</button>
+                <button class="view-btn active" id="btnViewTabular" onclick="switchViewMode('tabular')">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18"/></svg>
+                    Tabular Report
+                </button>
+                <button class="view-btn" id="btnViewAnalytics" onclick="switchViewMode('analytics')">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 20V10m4 10V4m4 16V14m4 6v-8"/></svg>
+                    Visual Analytics
+                </button>
             </div>
         </div>
 
         <!-- 📈 ANALYTICS VIEW -->
         <div class="analytics-view" id="analyticsView">
-            
-            <div class="true-profit-box">
-                <div class="tp-label">True Profit Margin (Selected Period)</div>
-                <div class="tp-value" id="trueProfitValue">₹ 0</div>
-                <div class="tp-sub">Calculated per item: (Sale Price - Purchase Price) * Qty</div>
+
+            <!-- Hidden legacy profit box (value still updated by JS) -->
+            <div class="true-profit-box" id="trueProfitBoxLegacy" style="display:none;">
+                <div class="tp-left">
+                    <div class="tp-label">📊 True Profit Margin</div>
+                    <div class="tp-value" id="trueProfitValue">₹ 0</div>
+                    <div class="tp-sub">Calculated per item: (Sale Price − Purchase Price) × Qty</div>
+                </div>
+            </div>
+
+            <!-- KPI Row -->
+            <div class="analytics-kpi-row">
+                <div class="analytics-kpi-card kpi-revenue">
+                    <div class="kpi-label">Total Revenue</div>
+                    <div class="kpi-value" id="kpiRevenue">₹0</div>
+                    <div class="kpi-sub">From sales in selected period</div>
+                    <div class="kpi-icon">💰</div>
+                </div>
+                <div class="analytics-kpi-card kpi-profit">
+                    <div class="kpi-label">Est. Net Profit</div>
+                    <div class="kpi-value" id="kpiProfit">₹0</div>
+                    <div class="kpi-sub">(Sale − Purchase Price) × Qty</div>
+                    <div class="kpi-icon">📈</div>
+                </div>
+                <div class="analytics-kpi-card kpi-txn">
+                    <div class="kpi-label">Total Transactions</div>
+                    <div class="kpi-value" id="kpiTxn">0</div>
+                    <div class="kpi-sub">Bills generated in period</div>
+                    <div class="kpi-icon">🧾</div>
+                </div>
             </div>
 
             <div class="analytics-grid">
-                <!-- Trend Chart -->
-                <div class="analytics-card" style="grid-column: 1 / -1;">
-                    <h3>Revenue & Profit Trend</h3>
-                    <div style="height: 300px; width: 100%;">
-                        <canvas id="trendChart"></canvas>
+                <!-- Top Sellers FIRST -->
+                <div class="analytics-card chart-top-sellers">
+                    <div class="analytics-card-header">
+                        <div class="analytics-card-title">
+                            <span class="chart-icon icon-sellers">🏆</span>
+                            Top 5 Best Selling Medicines
+                        </div>
+                        <span class="analytics-card-badge badge-sellers">By Qty</span>
+                    </div>
+                    <div style="height: 260px; width: 100%;">
+                        <canvas id="topSellersChart"></canvas>
                     </div>
                 </div>
 
-                <!-- Top Sellers -->
-                <div class="analytics-card" style="grid-column: 1 / -1;">
-                    <h3>Top 5 Best Selling Medicines</h3>
-                    <div style="height: 250px; width: 100%;">
-                        <canvas id="topSellersChart"></canvas>
+                <!-- Trend Chart BELOW -->
+                <div class="analytics-card chart-trend">
+                    <div class="analytics-card-header">
+                        <div class="analytics-card-title">
+                            <span class="chart-icon icon-trend">📉</span>
+                            Revenue &amp; Profit Trend
+                        </div>
+                        <span class="analytics-card-badge badge-trend">Over Time</span>
+                    </div>
+                    <div style="height: 300px; width: 100%;">
+                        <canvas id="trendChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -906,11 +1058,11 @@
             <div class="filters" style="display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap;">
                 <div class="filter-group">
                     <label>From Date</label>
-                    <input type="date" id="fromDate" onchange="generateReport()">
+                    <input type="date" id="fromDate">
                 </div>
                 <div class="filter-group">
                     <label>To Date</label>
-                    <input type="date" id="toDate" onchange="generateReport()">
+                    <input type="date" id="toDate">
                 </div>
                 <div class="filter-group">
                     <label>Type</label>
@@ -929,7 +1081,7 @@
                         Clear Data
                     </button>
                 </div>
-                <button class="btn-filter" onclick="generateReport()">
+                <button class="btn-filter" id="generateBtn" onclick="runGenerate()">
                     <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                         <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35"/>
                     </svg>
@@ -979,22 +1131,34 @@
         <!-- Summary Cards -->
         <div class="summary-grid">
             <div class="summary-card card-sales">
-                <div class="summary-label">Total Sales</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <div class="summary-label">Total Sales</div>
+                    <span data-badge style="font-size:0.65rem;font-weight:800;padding:2px 8px;border-radius:20px;background:#d1fae5;color:#065f46;letter-spacing:0.05em;">ALL TIME</span>
+                </div>
                 <div class="summary-value" id="totalSales">₹ 0</div>
                 <div class="summary-sub" id="salesCount">0 transactions</div>
             </div>
             <div class="summary-card card-purchase">
-                <div class="summary-label">Total Purchase</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <div class="summary-label">Total Purchase</div>
+                    <span data-badge style="font-size:0.65rem;font-weight:800;padding:2px 8px;border-radius:20px;background:#fef3c7;color:#92400e;letter-spacing:0.05em;">ALL TIME</span>
+                </div>
                 <div class="summary-value" id="totalPurchase">₹ 0</div>
                 <div class="summary-sub" id="purchaseCount">0 transactions</div>
             </div>
             <div class="summary-card card-profit">
-                <div class="summary-label">Net Profit</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <div class="summary-label">Net Profit</div>
+                    <span data-badge style="font-size:0.65rem;font-weight:800;padding:2px 8px;border-radius:20px;background:#fee2e2;color:#9f1239;letter-spacing:0.05em;">ALL TIME</span>
+                </div>
                 <div class="summary-value" id="netProfit">₹ 0</div>
                 <div class="summary-sub">Sales − Purchase</div>
             </div>
             <div class="summary-card card-items">
-                <div class="summary-label">Total Items</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <div class="summary-label">Total Items</div>
+                    <span data-badge style="font-size:0.65rem;font-weight:800;padding:2px 8px;border-radius:20px;background:#ede9fe;color:#4c1d95;letter-spacing:0.05em;">ALL TIME</span>
+                </div>
                 <div class="summary-value" id="totalItems">0</div>
                 <div class="summary-sub">Units sold / purchased</div>
             </div>
@@ -1266,11 +1430,10 @@
             } catch(e) { return { ok: false, msg: e.message }; }
         }
 
-        // ── Set default dates (this month) ──
+        // ── Set default dates ──
         const reportToday = new Date();
-        const firstDay = new Date(reportToday.getFullYear(), reportToday.getMonth(), 1);
-        document.getElementById('toDate').valueAsDate   = reportToday;
-        document.getElementById('fromDate').valueAsDate = firstDay;
+        document.getElementById('toDate').valueAsDate = reportToday;
+        // FROM date will be set to earliest record after data loads (see setDefaultFromDate)
 
         // ── Load real data from localStorage ──
         let allData = [];
@@ -1278,6 +1441,10 @@
         let activeTab = 'all';
         let _rawPurchasesMap = {}; // id -> full purchase row
         let _rawBillsMap = {};     // id -> full bill row
+
+        // Module-level Supabase cache — used by stock report & GST export
+        let _dbPurchases = [];
+        let _dbBills = [];
 
         async function loadData() {
             let dbPurchases = [];
@@ -1301,7 +1468,9 @@
                         dbPurchases = data.purchases || [];
                         dbBills = data.bills || [];
                         useSupabase = true;
-                        // Cache raw data for restore/bin features
+                        // Cache raw data for restore/bin features AND stock report
+                        _dbPurchases = dbPurchases;
+                        _dbBills = dbBills;
                         _rawPurchasesMap = {};
                         dbPurchases.forEach(p => { _rawPurchasesMap[p.id] = p; });
                         _rawBillsMap = {};
@@ -1401,19 +1570,46 @@
                 _loadSearchData(dbBills);
             }
 
+            // After loading data, set FROM date to earliest record date
+            if (allData.length > 0) {
+                const dates = allData.map(r => (r.date || '').slice(0, 10)).filter(Boolean).sort();
+                if (dates.length > 0) {
+                    document.getElementById('fromDate').value = dates[0];
+                }
+            }
+
             generateReport();
         }
 
+        // Wrapper for Generate button with visual feedback
+        function runGenerate() {
+            const btn = document.getElementById('generateBtn');
+            if (btn) {
+                btn.textContent = '⏳ Loading...';
+                btn.disabled = true;
+            }
+            setTimeout(() => {
+                generateReport();
+                if (btn) {
+                    btn.innerHTML = '<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35"/></svg> Generate';
+                    btn.disabled = false;
+                }
+            }, 100);
+        }
+
         function generateReport() {
-            const from = document.getElementById('fromDate').value;
-            const to   = document.getElementById('toDate').value;
+            const from = document.getElementById('fromDate').value; // YYYY-MM-DD from input
+            const to   = document.getElementById('toDate').value;   // YYYY-MM-DD from input
             const type = document.getElementById('reportType').value;
 
             const shList = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]').map(d => String(d || "").trim().toLowerCase());
 
             currentData = allData.filter(r => {
-                const inDate = (!from || r.date >= from) && (!to || r.date <= to);
-                
+                // Slice to YYYY-MM-DD to strip any time component (e.g. "2026-06-23T10:30:00Z" → "2026-06-23")
+                // YYYY-MM-DD strings compare correctly as plain strings
+                const rDate = (r.date || '').slice(0, 10);
+                const inDate = (!from || rDate >= from) && (!to || rDate <= to);
+
                 let inType = false;
                 if (type === 'all') {
                     inType = true;
@@ -1422,7 +1618,7 @@
                 } else {
                     inType = r.type === type;
                 }
-                
+
                 return inDate && inType;
             });
 
@@ -1916,6 +2112,13 @@
 
             const profitEl = document.getElementById('netProfit');
             profitEl.style.color = (totalS - totalP) >= 0 ? '#065f46' : '#9f1239';
+
+            // Update the ALL TIME / FILTERED badges
+            const isAllTime = (data === allData || data.length === allData.length);
+            const badgeText = isAllTime ? 'ALL TIME' : 'FILTERED';
+            document.querySelectorAll('.summary-card [data-badge]').forEach(b => {
+                b.textContent = badgeText;
+            });
         }
 
         let currentViewMode = 'tabular';
@@ -1941,33 +2144,53 @@
             const sales = data.filter(r => r.type === 'sales');
             const purchases = Object.values(_rawPurchasesMap);
 
+            // Helper function to find the most accurate cost for a product
+            function getUnitCost(productName, purchasesList) {
+                if (!productName) return null;
+                // Normalize name for fuzzy matching (remove spaces, symbols, lowercase)
+                const normalize = (str) => String(str).toLowerCase().replace(/[^a-z0-9]/g, '');
+                const targetName = normalize(productName);
+                
+                // Find all matches
+                const matches = purchasesList.filter(p => normalize(p.product_name || p.productName || "") === targetName);
+                
+                if (matches.length === 0) return null;
+                
+                // Sort by date descending to get the LATEST purchase price
+                matches.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+                
+                const match = matches[0];
+                const pRate = parseFloat(match.rate) || 0;
+                const pPack = parseFloat(match.pack) || 1;
+                const pGst = parseFloat(match.gst) || 0;
+                
+                // Return cost per unit including GST
+                return (pRate / pPack) * (1 + (pGst / 100));
+            }
+
             // 1. Calculate TRUE Profit
             let trueProfit = 0;
             const productSales = {}; // For Top Sellers
 
             sales.forEach(s => {
-                // Find matching purchase to get actual cost
-                // Match by product name. If multiple, take the average or latest rate.
-                // For simplicity, find the first matching purchase in rawPurchasesMap
-                let costPerUnit = 0;
-                const match = purchases.find(p => String(p.product_name || p.productName || "").toLowerCase() === String(s.product || "").toLowerCase());
+                const saleRevenue = s.total || 0;
+                const qty = s.qty || 1;
                 
-                if (match) {
-                    const pRate = parseFloat(match.rate) || 0;
-                    const pPack = parseFloat(match.pack) || 1;
-                    const pGst = parseFloat(match.gst) || 0;
-                    // Cost per unit including GST
-                    costPerUnit = (pRate / pPack) * (1 + (pGst / 100));
+                let costPerUnit = getUnitCost(s.product, purchases);
+                
+                // Fallback: If no purchase record exists, assume a realistic 15% profit margin (Cost = 85% of Sale)
+                // This prevents the graph from skewing wildly due to missing purchase entries.
+                if (costPerUnit === null) {
+                    costPerUnit = (saleRevenue * 0.85) / qty; 
                 }
 
-                const saleRevenue = s.total;
-                const saleCost = costPerUnit * s.qty;
+                const saleCost = costPerUnit * qty;
                 trueProfit += (saleRevenue - saleCost);
 
                 // Top Sellers aggregation
                 const pName = s.product || 'Unknown';
                 if (!productSales[pName]) productSales[pName] = { qty: 0, revenue: 0 };
-                productSales[pName].qty += s.qty;
+                productSales[pName].qty += qty;
                 productSales[pName].revenue += saleRevenue;
             });
 
@@ -1978,22 +2201,37 @@
                 if (!dateMap[r.date]) dateMap[r.date] = { sales: 0, cogs: 0, purchases: 0 };
                 
                 if (r.type === 'sales') {
-                    dateMap[r.date].sales += r.total;
+                    const saleRevenue = r.total || 0;
+                    const qty = r.qty || 1;
+                    dateMap[r.date].sales += saleRevenue;
                     
-                    // calculate COGS for this sale
-                    let costPerUnit = 0;
-                    const match = purchases.find(p => String(p.product_name || p.productName || "").toLowerCase() === String(r.product || "").toLowerCase());
-                    if (match) {
-                        const pRate = parseFloat(match.rate) || 0;
-                        const pPack = parseFloat(match.pack) || 1;
-                        const pGst = parseFloat(match.gst) || 0;
-                        costPerUnit = (pRate / pPack) * (1 + (pGst / 100));
+                    let costPerUnit = getUnitCost(r.product, purchases);
+                    if (costPerUnit === null) {
+                        costPerUnit = (saleRevenue * 0.85) / qty; // 15% margin fallback
                     }
-                    dateMap[r.date].cogs += (costPerUnit * r.qty);
+                    
+                    dateMap[r.date].cogs += (costPerUnit * qty);
                 }
                 
-                if (r.type === 'purchase') dateMap[r.date].purchases += r.total;
+                if (r.type === 'purchase') dateMap[r.date].purchases += r.total || 0;
             });
+
+            // ── Update KPI Cards ──
+            const totalRevenue = sales.reduce((s, r) => s + (r.total || 0), 0);
+            const totalTxns    = sales.length;
+            const fmt = v => '₹' + Math.round(v).toLocaleString('en-IN');
+            const kpiRev  = document.getElementById('kpiRevenue');
+            const kpiProf = document.getElementById('kpiProfit');
+            const kpiTxn  = document.getElementById('kpiTxn');
+            if (kpiRev)  kpiRev.textContent  = fmt(totalRevenue);
+            if (kpiProf) {
+                kpiProf.textContent = fmt(trueProfit);
+                kpiProf.style.color = trueProfit >= 0 ? '#34d399' : '#f87171';
+            }
+            if (kpiTxn)  kpiTxn.textContent  = totalTxns;
+            // Also update legacy hidden profit value (for compatibility)
+            const legacyEl = document.getElementById('trueProfitValue');
+            if (legacyEl) legacyEl.textContent = fmt(trueProfit);
 
             const sortedDates = Object.keys(dateMap).sort();
             const labels = sortedDates.map(formatDate);
@@ -2006,17 +2244,17 @@
             if (ctxTrend) {
                 if (trendChartInstance) trendChartInstance.destroy();
                 
-                // Create gradients
-                const gradientRev = ctxTrend.getContext('2d').createLinearGradient(0, 0, 0, 300);
-                gradientRev.addColorStop(0, 'rgba(14, 165, 233, 0.4)');
-                gradientRev.addColorStop(1, 'rgba(14, 165, 233, 0.0)');
-                
-                const gradientProf = ctxTrend.getContext('2d').createLinearGradient(0, 0, 0, 300);
-                gradientProf.addColorStop(0, 'rgba(16, 185, 129, 0.4)');
-                gradientProf.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
+                // Vivid gradients for dark background
+                const gradientRev = ctxTrend.getContext('2d').createLinearGradient(0, 0, 0, 350);
+                gradientRev.addColorStop(0, 'rgba(56,189,248,0.4)');
+                gradientRev.addColorStop(1, 'rgba(56,189,248,0.02)');
+
+                const gradientProf = ctxTrend.getContext('2d').createLinearGradient(0, 0, 0, 350);
+                gradientProf.addColorStop(0, 'rgba(52,211,153,0.4)');
+                gradientProf.addColorStop(1, 'rgba(52,211,153,0.02)');
 
                 trendChartInstance = new Chart(ctxTrend, {
-                    type: 'line',
+                    type: 'line', 
                     data: {
                         labels: labels.length ? labels : ['No Data'],
                         datasets: [
@@ -2028,25 +2266,33 @@
                                 borderWidth: 3,
                                 fill: true,
                                 tension: 0.4,
+                                cubicInterpolationMode: 'monotone',
                                 pointBackgroundColor: '#ffffff',
                                 pointBorderColor: '#0ea5e9',
                                 pointBorderWidth: 2,
                                 pointRadius: 4,
-                                pointHoverRadius: 6
+                                pointHoverRadius: 6,
+                                pointHoverBorderWidth: 3,
+                                pointHoverBackgroundColor: '#0ea5e9',
+                                pointHoverBorderColor: '#ffffff'
                             },
                             {
                                 label: 'Est. Net Profit (₹)',
                                 data: profitData.length ? profitData : [0],
-                                borderColor: '#10b981',
+                                borderColor: '#10b981', 
                                 backgroundColor: gradientProf,
                                 borderWidth: 3,
-                                fill: true,
-                                tension: 0.4,
+                                fill: true, 
+                                tension: 0.4, 
+                                cubicInterpolationMode: 'monotone',
                                 pointBackgroundColor: '#ffffff',
                                 pointBorderColor: '#10b981',
                                 pointBorderWidth: 2,
                                 pointRadius: 4,
-                                pointHoverRadius: 6
+                                pointHoverRadius: 6,
+                                pointHoverBorderWidth: 3,
+                                pointHoverBackgroundColor: '#10b981',
+                                pointHoverBorderColor: '#ffffff'
                             }
                         ]
                     },
@@ -2060,33 +2306,44 @@
                         plugins: { 
                             legend: { 
                                 position: 'top',
+                                align: 'end',
                                 labels: {
                                     usePointStyle: true,
+                                    pointStyle: 'circle',
                                     padding: 20,
-                                    font: { family: "'Inter', sans-serif", size: 12, weight: '500' }
+                                    font: { family: "'Inter', sans-serif", size: 13, weight: '600' },
+                                    color: '#475569'
                                 }
                             },
                             tooltip: {
-                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                                titleFont: { family: "'Inter', sans-serif", size: 13 },
-                                bodyFont: { family: "'Inter', sans-serif", size: 13 },
-                                padding: 12,
-                                cornerRadius: 8,
-                                displayColors: true
+                                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                                titleColor: '#f8fafc',
+                                bodyColor: '#cbd5e1',
+                                titleFont: { family: "'Inter', sans-serif", size: 14, weight: '700' },
+                                bodyFont: { family: "'Inter', sans-serif", size: 13, weight: '500' },
+                                padding: 16,
+                                cornerRadius: 12,
+                                displayColors: true,
+                                boxPadding: 6,
+                                borderColor: 'rgba(255,255,255,0.1)',
+                                borderWidth: 1
                             }
                         },
                         scales: { 
                             x: {
                                 grid: { display: false, drawBorder: false },
-                                ticks: { font: { family: "'Inter', sans-serif", size: 11 }, color: '#64748b' }
+                                border: { display: false },
+                                ticks: { font: { family: "'Inter', sans-serif", size: 12, weight: '500' }, color: '#64748b', padding: 10 }
                             },
                             y: { 
                                 beginAtZero: true,
-                                grid: { color: '#f1f5f9', drawBorder: false, borderDash: [5, 5] },
+                                grid: { color: 'rgba(255,255,255,0.06)', drawBorder: false, borderDash: [6, 6] },
+                                border: { display: false },
                                 ticks: {
-                                    font: { family: "'Inter', sans-serif", size: 11 },
+                                    font: { family: "'Inter', sans-serif", size: 12, weight: '500' },
                                     color: '#64748b',
-                                    callback: function(value) { return '₹' + value; }
+                                    padding: 12,
+                                    callback: function(value) { return '₹' + value.toLocaleString(); }
                                 }
                             }
                         }
@@ -2103,6 +2360,23 @@
             const ctxTop = document.getElementById('topSellersChart');
             if (ctxTop) {
                 if (topSellersChartInstance) topSellersChartInstance.destroy();
+                // Create 5 distinct, vibrant gradients for the 5 bars
+                const barGradients = [];
+                const colors = [
+                    ['#8b5cf6', '#d946ef'], // Purple to Pink
+                    ['#3b82f6', '#06b6d4'], // Blue to Cyan
+                    ['#10b981', '#14b8a6'], // Emerald to Teal
+                    ['#f59e0b', '#f97316'], // Amber to Orange
+                    ['#ec4899', '#f43f5e']  // Pink to Rose
+                ];
+                
+                colors.forEach(c => {
+                    const g = ctxTop.getContext('2d').createLinearGradient(0, 0, 400, 0);
+                    g.addColorStop(0, c[0]);
+                    g.addColorStop(1, c[1]);
+                    barGradients.push(g);
+                });
+
                 topSellersChartInstance = new Chart(ctxTop, {
                     type: 'bar',
                     data: {
@@ -2110,16 +2384,39 @@
                         datasets: [{
                             label: 'Quantity Sold',
                             data: topProducts.length ? topProducts.map(p => p.qty) : [0],
-                            backgroundColor: '#8b5cf6',
-                            borderRadius: 6
+                            backgroundColor: barGradients, // Assign the array of gradients
+                            borderRadius: 8,
+                            borderSkipped: false,
+                            barPercentage: 0.6
                         }]
                     },
                     options: {
                         indexAxis: 'y', // Horizontal bar chart
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: { x: { beginAtZero: true } }
+                        plugins: { 
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                                titleFont: { family: "'Inter', sans-serif", size: 14, weight: '700' },
+                                bodyFont: { family: "'Inter', sans-serif", size: 13, weight: '500' },
+                                padding: 12,
+                                cornerRadius: 8
+                            }
+                        },
+                        scales: { 
+                            x: { 
+                                beginAtZero: true,
+                                grid: { color: 'rgba(226, 232, 240, 0.6)', drawBorder: false, borderDash: [6, 6] },
+                                border: { display: false },
+                                ticks: { font: { family: "'Inter', sans-serif", size: 12, weight: '500' }, color: '#94a3b8' }
+                            },
+                            y: {
+                                grid: { display: false, drawBorder: false },
+                                border: { display: false },
+                                ticks: { font: { family: "'Inter', sans-serif", size: 13, weight: '600' }, color: '#475569', padding: 8 }
+                            }
+                        }
                     }
                 });
             }
@@ -2240,91 +2537,126 @@
         }
 
         function buildStockData() {
-            // Use Supabase-cached data if available, else fall back to scoped localStorage
-            let purchases, sales;
-            if (_allBillsFromDB && _allBillsFromDB.length > 0) {
-                // Use data already loaded from Supabase
-                sales = _allBillsFromDB;
-                purchases = dbPurchases ? dbPurchases.map(p => ({
-                    productName: p.product_name, batchNo: p.batch_no,
-                    expireDate: p.expire_date, quantity: p.quantity
-                })) : [];
+            const purchaseMap = {};  // normName -> { name, batchMap: {batchKey->{batch,exp,totalIn}}, totalIn }
+            const salesMap    = {};  // normName -> totalOut
+
+            if (_dbPurchases && _dbPurchases.length > 0) {
+                _dbPurchases.forEach(p => {
+                    const name  = String(p.product_name || '').trim();
+                    const batch = String(p.batch_no     || '').trim();
+                    const exp   = String(p.expire_date  || '');
+                    if (!name) return;
+                    const norm     = name.toLowerCase();
+                    const packSize = parseFloat(p.pack) > 0 ? parseFloat(p.pack) : 1;
+                    const qty      = (parseFloat(p.quantity) || 0) * packSize;
+
+                    if (!purchaseMap[norm]) purchaseMap[norm] = { name, batchMap: {}, totalIn: 0 };
+                    purchaseMap[norm].totalIn += qty;
+
+                    const bk = (batch || '_no_batch_').toLowerCase();
+                    if (!purchaseMap[norm].batchMap[bk]) {
+                        purchaseMap[norm].batchMap[bk] = { batch, exp, totalIn: 0, current: 0 };
+                    }
+                    purchaseMap[norm].batchMap[bk].totalIn += qty;
+                    if (exp && exp > (purchaseMap[norm].batchMap[bk].exp || '')) {
+                        purchaseMap[norm].batchMap[bk].exp = exp;
+                    }
+                });
+
+                (_dbBills || []).forEach(bill => {
+                    (bill.bill_items || []).forEach(m => {
+                        const name = String(m.product || m.product_name || '').trim();
+                        if (!name) return;
+                        salesMap[name.toLowerCase()] = (salesMap[name.toLowerCase()] || 0) + (parseFloat(m.qty) || 0);
+                    });
+                });
+
             } else {
-                purchases = (typeof mmLsGet === 'function') ? (mmLsGet('purchases') || []) : JSON.parse(localStorage.getItem('mm_purchases') || '[]');
-                sales     = (typeof mmLsGet === 'function') ? (mmLsGet('sales')     || []) : JSON.parse(localStorage.getItem('mm_sales')     || '[]');
+                const lsPurchases = (typeof mmLsGet === 'function') ? (mmLsGet('purchases') || []) : JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+                const lsSales     = (typeof mmLsGet === 'function') ? (mmLsGet('sales')     || []) : JSON.parse(localStorage.getItem('mm_sales')     || '[]');
+
+                lsPurchases.forEach(p => {
+                    const name  = String(p.productName || '').trim();
+                    const batch = String(p.batchNo     || '').trim();
+                    const exp   = String(p.expireDate  || '');
+                    if (!name) return;
+                    const norm     = name.toLowerCase();
+                    const packSize = parseFloat(p.pack) > 0 ? parseFloat(p.pack) : 1;
+                    const qty      = (parseFloat(p.quantity) || 0) * packSize;
+
+                    if (!purchaseMap[norm]) purchaseMap[norm] = { name, batchMap: {}, totalIn: 0 };
+                    purchaseMap[norm].totalIn += qty;
+                    const bk = (batch || '_no_batch_').toLowerCase();
+                    if (!purchaseMap[norm].batchMap[bk]) purchaseMap[norm].batchMap[bk] = { batch, exp, totalIn: 0, current: 0 };
+                    purchaseMap[norm].batchMap[bk].totalIn += qty;
+                    if (exp && exp > (purchaseMap[norm].batchMap[bk].exp || '')) purchaseMap[norm].batchMap[bk].exp = exp;
+                });
+
+                lsSales.forEach(bill => {
+                    (bill.medicines || []).forEach(m => {
+                        const name = String(m.product || '').trim();
+                        if (!name) return;
+                        salesMap[name.toLowerCase()] = (salesMap[name.toLowerCase()] || 0) + (parseFloat(m.qty) || 0);
+                    });
+                });
             }
 
-            // Build map: key = "productname|batchno"
-            const map = {};
+            const allNames = new Set([...Object.keys(purchaseMap), ...Object.keys(salesMap)]);
+            const rows = [];
+            allNames.forEach(norm => {
+                const p       = purchaseMap[norm];
+                const out     = salesMap[norm] || 0;
+                const totalIn = p ? p.totalIn : 0;
 
-            // Add purchased quantities
-            purchases.forEach(p => {
-                const name  = (p.productName || '').trim();
-                const batch = (p.batchNo || '').trim();
-                if (!name) return;
-                const key = name.toLowerCase() + '|' + batch.toLowerCase();
-                if (!map[key]) {
-                    map[key] = {
-                        name:    name,
-                        batch:   batch,
-                        exp:     p.expireDate || '',
-                        totalIn: 0,
-                        totalOut: 0
-                    };
-                }
-                map[key].totalIn += parseFloat(p.quantity) || 0;
-                // keep the most recent expiry
-                if (p.expireDate && (!map[key].exp || p.expireDate > map[key].exp)) {
-                    map[key].exp = p.expireDate;
-                }
-            });
+                // FIFO: sort by expiry (oldest first), deduct sold qty from oldest batch first
+                const batches = p
+                    ? Object.values(p.batchMap).sort((a, b) => (a.exp || '9999').localeCompare(b.exp || '9999'))
+                    : [];
 
-            // Subtract sold quantities
-            sales.forEach(bill => {
-                (bill.medicines || []).forEach(m => {
-                    const name  = String(m.product || "").trim();
-                    const batch = String(m.batch || "").trim();
-                    if (!name) return;
-                    const key = name.toLowerCase() + '|' + batch.toLowerCase();
-                    if (!map[key]) {
-                        // sold without a purchase record (manual entry)
-                        map[key] = { name, batch, exp: m.exp || '', totalIn: 0, totalOut: 0 };
-                    }
-                    map[key].totalOut += parseFloat(m.qty) || 0;
+                let remaining = out;
+                batches.forEach(b => {
+                    const deducted = Math.min(b.totalIn, remaining);
+                    b.current  = b.totalIn - deducted;
+                    remaining -= deducted;
+                });
+
+                rows.push({
+                    name:      p ? p.name : norm,
+                    batches,
+                    totalIn,
+                    totalOut:  out,
+                    current:   totalIn - out,
+                    noPurchase: (totalIn - out) < 0   // negative stock = purchase entry needed
                 });
             });
 
-            _stockData = Object.values(map)
-                .map(row => ({
-                    ...row,
-                    current: row.totalIn - row.totalOut
-                }))
-                .sort((a, b) => a.name.localeCompare(b.name));
+            _stockData = rows.sort((a, b) => a.name.localeCompare(b.name));
         }
 
         function renderStockTable(query) {
-            const q = String(query || "").trim().toLowerCase();
+            const q = String(query || '').trim().toLowerCase();
             const filtered = q
                 ? _stockData.filter(r =>
                     r.name.toLowerCase().includes(q) ||
-                    r.batch.toLowerCase().includes(q))
+                    r.batches.some(b => b.batch.toLowerCase().includes(q)))
                 : _stockData;
 
-            // Update summary pills
-            let inCnt = 0, lowCnt = 0, outCnt = 0;
+            let inCnt = 0, lowCnt = 0, outCnt = 0, noPurchaseCnt = 0;
             filtered.forEach(r => {
-                if (r.current <= 0) outCnt++;
+                if (r.noPurchase)         noPurchaseCnt++;
+                else if (r.current <= 0)  outCnt++;
                 else if (r.current <= 10) lowCnt++;
                 else inCnt++;
             });
             document.getElementById('stockSummaryPills').innerHTML = `
-                <div class="stock-pill pill-in-stock">✅ ${inCnt} In Stock</div>
-                <div class="stock-pill pill-low-stock">⚠️ ${lowCnt} Low Stock (≤10)</div>
-                <div class="stock-pill pill-out-stock">❌ ${outCnt} Out of Stock</div>
-                <div class="stock-pill" style="background:#f1f5f9;color:#475569;border:1.5px solid #cbd5e1;">📦 ${filtered.length} Total Items</div>
+                <div class="stock-pill pill-in-stock">&#x2705; ${inCnt} In Stock</div>
+                <div class="stock-pill pill-low-stock">&#x26A0;&#xFE0F; ${lowCnt} Low Stock (&le;10)</div>
+                <div class="stock-pill pill-out-stock">&#x274C; ${outCnt} Out of Stock</div>
+                ${noPurchaseCnt > 0 ? `<div class="stock-pill" style="background:#fff7ed;color:#c2410c;border:1.5px solid #fb923c;font-weight:700;">&#x1F6D2; ${noPurchaseCnt} Purchase Entry Needed</div>` : ''}
+                <div class="stock-pill" style="background:#f1f5f9;color:#475569;border:1.5px solid #cbd5e1;">&#x1F4E6; ${filtered.length} Total Items</div>
             `;
 
-            const tbody = document.getElementById('stockTableBody');
+            const tbody   = document.getElementById('stockTableBody');
             const emptyEl = document.getElementById('stockEmptyState');
 
             if (filtered.length === 0) {
@@ -2334,34 +2666,104 @@
             }
             emptyEl.style.display = 'none';
 
-            tbody.innerHTML = filtered.map((row, idx) => {
-                const cur = row.current;
-                let statusClass, badgeClass, qtyClass, statusText, icon;
-                if (cur <= 0)  { statusClass = 'badge-out'; qtyClass = 'qty-out'; statusText = 'Out of Stock'; icon = '❌'; }
-                else if (cur <= 10) { statusClass = 'badge-low'; qtyClass = 'qty-low'; statusText = 'Low Stock'; icon = '⚠️'; }
-                else           { statusClass = 'badge-in';  qtyClass = 'qty-good'; statusText = 'In Stock';    icon = '✅'; }
+            const fmtExp = exp => {
+                if (!exp) return '<span style="color:#94a3b8;">&#x2014;</span>';
+                try { return new Date(exp + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }); }
+                catch(e) { return exp; }
+            };
 
-                const expDisplay = row.exp
-                    ? new Date(row.exp + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
-                    : '—';
+            let html = '';
+            filtered.forEach((row, idx) => {
+                const cur        = row.current;
+                const noPurchase = row.noPurchase;
+                const multiBatch = row.batches.length > 1;
 
-                return `<tr>
-                    <td style="color:#94a3b8; font-weight:700;">${idx + 1}</td>
-                    <td><strong style="color:#0f172a;">${row.name}</strong></td>
-                    <td><code style="background:#f1f5f9;padding:2px 7px;border-radius:6px;font-size:0.82rem;">${row.batch || '—'}</code></td>
+                let statusClass, qtyClass, statusText, icon;
+                if (noPurchase) {
+                    statusClass = 'badge-no-purchase'; qtyClass = 'qty-out'; statusText = 'Add Purchase Entry'; icon = '&#x1F6D2;';
+                } else if (cur <= 0) {
+                    statusClass = 'badge-out'; qtyClass = 'qty-out'; statusText = 'Out of Stock'; icon = '&#x274C;';
+                } else if (cur <= 10) {
+                    statusClass = 'badge-low'; qtyClass = 'qty-low'; statusText = 'Low Stock'; icon = '&#x26A0;&#xFE0F;';
+                } else {
+                    statusClass = 'badge-in'; qtyClass = 'qty-good'; statusText = 'In Stock'; icon = '&#x2705;';
+                }
+
+                const rowBg = noPurchase
+                    ? 'background:linear-gradient(90deg,#fff7ed,#fff);border-left:3px solid #f97316;'
+                    : multiBatch ? 'background:#f5f3ff;border-left:3px solid #6366f1;' : '';
+
+                const singleBatch = row.batches.length === 1 ? row.batches[0] : null;
+                const batchDisplay = singleBatch
+                    ? `<code style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:6px;font-size:0.82rem;">${singleBatch.batch || '&#x2014;'}</code>`
+                    : multiBatch
+                        ? `<span style="font-size:0.78rem;color:#6366f1;font-weight:700;background:#ede9fe;padding:2px 8px;border-radius:6px;">&#x25A6; ${row.batches.length} Batches</span>`
+                        : '<span style="color:#94a3b8;">&#x2014;</span>';
+
+                const expDisplay = singleBatch ? fmtExp(singleBatch.exp) : (multiBatch ? '<span style="color:#94a3b8;font-size:0.78rem;">Mixed</span>' : '&#x2014;');
+
+                const purchaseNote = noPurchase
+                    ? `<div style="font-size:0.72rem;color:#c2410c;margin-top:2px;font-weight:600;">&#x26A0;&#xFE0F; Sold without purchase entry</div>`
+                    : '';
+
+                // Main product row
+                html += `<tr style="${rowBg}">
+                    <td style="color:#94a3b8;font-weight:700;">${idx + 1}</td>
+                    <td><strong style="color:#0f172a;">${row.name}</strong>${purchaseNote}</td>
+                    <td>${batchDisplay}</td>
                     <td style="color:#64748b;">${expDisplay}</td>
-                    <td style="color:#059669; font-weight:600;">${row.totalIn}</td>
-                    <td style="color:#e11d48; font-weight:600;">${row.totalOut}</td>
+                    <td style="color:#059669;font-weight:700;">${row.totalIn}</td>
+                    <td style="color:#e11d48;font-weight:700;">${row.totalOut}</td>
                     <td><span class="stock-qty-number ${qtyClass}">${cur}</span></td>
-                    <td><span class="stock-status-badge ${statusClass}">${icon} ${statusText}</span></td>
+                    <td>${noPurchase
+                        ? `<button class="stock-status-badge badge-no-purchase" onclick="window.location='purchase.html?prefill='+encodeURIComponent('${row.name}')" style="cursor:pointer;border:none;font:inherit;">${icon} ${statusText}</button>`
+                        : `<span class="stock-status-badge ${statusClass}">${icon} ${statusText}</span>`
+                    }</td>
                 </tr>`;
-            }).join('');
+
+                // Sub-rows per batch (only if multiple batches)
+                if (multiBatch) {
+                    row.batches.forEach((b, bi) => {
+                        const bCur    = b.current;
+                        let bQtyClass = 'qty-good';
+                        let bDot      = 'background:#22c55e;';  // green dot
+                        let bBadge    = '<span style="color:#16a34a;font-weight:600;font-size:0.78rem;">In Stock</span>';
+                        if (bCur <= 0) {
+                            bQtyClass = 'qty-out'; bDot = 'background:#ef4444;';
+                            bBadge = '<span style="color:#dc2626;font-weight:600;font-size:0.78rem;">Empty</span>';
+                        } else if (bCur <= 10) {
+                            bQtyClass = 'qty-low'; bDot = 'background:#f59e0b;';
+                            bBadge = '<span style="color:#d97706;font-weight:600;font-size:0.78rem;">Low</span>';
+                        }
+
+                        html += `<tr style="background:#fafafa;border-left:3px solid #c4b5fd;">
+                            <td style="text-align:center;">
+                                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;${bDot}opacity:0.8;"></span>
+                            </td>
+                            <td style="padding-left:18px;">
+                                <code style="background:#ede9fe;color:#5b21b6;padding:3px 10px;border-radius:6px;font-size:0.82rem;font-weight:600;letter-spacing:0.3px;">${b.batch || '&mdash;'}</code>
+                            </td>
+                            <td colspan="2" style="color:#64748b;font-size:0.84rem;">${fmtExp(b.exp)}</td>
+                            <td style="color:#059669;font-size:0.86rem;font-weight:600;">${b.totalIn}</td>
+                            <td style="color:#94a3b8;font-size:0.8rem;">&mdash;</td>
+                            <td><span class="stock-qty-number ${bQtyClass}" style="font-size:0.88rem;">${bCur}</span></td>
+                            <td>${bBadge}</td>
+                        </tr>`;
+                    });
+                }
+            });
+
+            tbody.innerHTML = html;
         }
+
 
         // ══════════════════════════════════════
         // EXPIRY CHECKER
         // ══════════════════════════════════════
         let _expiryMonths = 0; // 0 = this month only
+        // Stores last expiry check results for filter buttons
+        let _expiryGroups = { expired: [], thisMonth: [], soon: [], ok: [] };
+        let _expiryActiveFilter = 'all'; // current active filter
 
         function toggleExpiryPanel() {
             const panel  = document.getElementById('expiryPanel');
@@ -2391,64 +2793,110 @@
             const customVal = document.getElementById('customMonths').value;
             const months = customVal !== '' ? Math.max(0, parseInt(customVal) || 0) : _expiryMonths;
 
-            const purchases = (typeof mmLsGet === 'function') ? (mmLsGet('purchases') || []) : JSON.parse(localStorage.getItem('mm_purchases') || '[]');
-            const today = new Date();
-            const thisYM = today.getFullYear() * 12 + today.getMonth(); // numeric month index
+            // ── Use Supabase data if available, else localStorage ──
+            let purchases = [];
+            if (_dbPurchases && _dbPurchases.length > 0) {
+                // Supabase field names: product_name, batch_no, expire_date
+                purchases = _dbPurchases.map(p => ({
+                    productName: (p.product_name || '').trim() || '-',
+                    batchNo:     (p.batch_no     || '').trim() || '-',
+                    billNo:      (p.invoice_no   || p.bill_no || '-'),
+                    date:        (p.date         || p.created_at || ''),
+                    expireDate:  (p.expire_date  || '')
+                }));
+            } else {
+                const ls = (typeof mmLsGet === 'function') ? (mmLsGet('purchases') || []) : JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+                purchases = ls.map(p => ({
+                    productName: p.productName || '-',
+                    batchNo:     p.batchNo     || '-',
+                    billNo:      p.billNo      || '-',
+                    date:        p.date        || '',
+                    expireDate:  p.expireDate  || ''
+                }));
+            }
+
+            const today  = new Date();
+            const thisYM = today.getFullYear() * 12 + today.getMonth(); // 0-based month index
 
             let expired = [], thisMonth = [], soon = [], ok = [];
 
             purchases.forEach(p => {
                 if (!p.expireDate) return; // skip if no expiry recorded
                 // expireDate is 'YYYY-MM'
-                const [yr, mo] = p.expireDate.split('-').map(Number);
+                const parts = p.expireDate.split('-').map(Number);
+                const yr = parts[0], mo = parts[1];
                 if (!yr || !mo) return;
                 const expYM = yr * 12 + (mo - 1); // 0-based month
-                const diff  = expYM - thisYM;      // negative = past
+                const diff  = expYM - thisYM;      // negative = already expired
 
                 const row = {
-                    name:        p.productName || '-',
-                    batchNo:     p.batchNo     || '-',
-                    billNo:      p.billNo      || '-',
-                    purchDate:   p.date        || '',
-                    expireDate:  p.expireDate,
+                    name:       p.productName,
+                    batchNo:    p.batchNo,
+                    billNo:     p.billNo,
+                    purchDate:  p.date,
+                    expireDate: p.expireDate,
                     diff
                 };
 
-                if (diff < 0)       expired.push(row);
+                if (diff < 0)        expired.push(row);
                 else if (diff === 0) thisMonth.push(row);
-                else if (diff <= months) soon.push(row);
-                else ok.push(row);
+                else if (diff <= 3)  soon.push(row);   // fixed rule: <3 months = soon
+                else ok.push(row);                     // >3 months = OK
             });
 
-            // Sort each group: most urgent first
-            expired.sort((a,b)   => a.diff - b.diff);
-            thisMonth.sort((a,b) => a.diff - b.diff);
-            soon.sort((a,b)      => a.diff - b.diff);
+            // Sort: most urgent first
+            expired.sort((a, b)   => a.diff - b.diff);
+            thisMonth.sort((a, b) => a.diff - b.diff);
+            soon.sort((a, b)      => a.diff - b.diff);
 
-            // Update summary pills
+            // ── Store results globally for filter buttons ──
+            _expiryGroups = { expired, thisMonth, soon, ok };
+
+            // Update summary pill counts
             document.getElementById('expirySummary').style.display = 'flex';
             document.getElementById('pillExpired').innerHTML   = `🔴 ${expired.length} Already Expired`;
             document.getElementById('pillThisMonth').innerHTML = `🟠 ${thisMonth.length} Expiring This Month`;
             document.getElementById('pillSoon').innerHTML      = `🟡 ${soon.length} Expiring Soon`;
             document.getElementById('pillOk').innerHTML        = `✅ ${ok.length} OK`;
 
-            // Build table
-            const combined = [...expired, ...thisMonth, ...soon];
-            const wrap     = document.getElementById('expiryTableWrap');
-            const empty    = document.getElementById('expiryEmpty');
-            const tbody    = document.getElementById('expiryBody');
+            // Default view: show all urgent medicines
+            filterExpiryCategory('all');
+        }
+
+        function filterExpiryCategory(cat) {
+            _expiryActiveFilter = cat;
+
+            // Highlight active pill button
+            document.querySelectorAll('.expiry-pill').forEach(p => p.classList.remove('pill-active'));
+            const pillMap = { expired: 'pillExpired', thisMonth: 'pillThisMonth', soon: 'pillSoon', ok: 'pillOk' };
+            if (pillMap[cat]) document.getElementById(pillMap[cat])?.classList.add('pill-active');
+
+            // Decide which rows to show
+            let rows;
+            if      (cat === 'expired')    rows = _expiryGroups.expired;
+            else if (cat === 'thisMonth')  rows = _expiryGroups.thisMonth;
+            else if (cat === 'soon')       rows = _expiryGroups.soon;
+            else if (cat === 'ok')         rows = _expiryGroups.ok;
+            else                           rows = [..._expiryGroups.expired, ..._expiryGroups.thisMonth, ..._expiryGroups.soon]; // 'all'
+
+            const wrap  = document.getElementById('expiryTableWrap');
+            const empty = document.getElementById('expiryEmpty');
+            const tbody = document.getElementById('expiryBody');
             wrap.style.display = 'block';
 
-            if (combined.length === 0) {
+            if (rows.length === 0) {
                 tbody.innerHTML = '';
                 empty.style.display = 'block';
                 return;
             }
             empty.style.display = 'none';
 
-            tbody.innerHTML = combined.map(r => {
+            tbody.innerHTML = rows.map(r => {
                 let statusHtml;
-                if (r.diff < 0) {
+                if (cat === 'ok') {
+                    // OK medicines — show green safe badge
+                    statusHtml = `<span class="expiry-status" style="background:#dcfce7;color:#16a34a;border:1.5px solid #86efac;">✅ Safe &mdash; ${r.diff} month(s) left</span>`;
+                } else if (r.diff < 0) {
                     statusHtml = `<span class="expiry-status status-expired">🔴 Expired ${Math.abs(r.diff)} month(s) ago</span>`;
                 } else if (r.diff === 0) {
                     statusHtml = `<span class="expiry-status status-thismonth">🟠 Expiring This Month</span>`;
@@ -2689,65 +3137,321 @@
             printWin.document.close();
         }
 
-        /* ── Export GST Excel Logic ── */
+        /* Export GST - SpreadsheetML (.xls) — Perfect Accountant Format */
         function exportGSTExcel() {
             if (!currentData || currentData.length === 0) {
-                alert("No records to export for the selected period.");
+                alert("No data to export. Please click Generate first.");
                 return;
             }
 
-            let csvContent = "Date,Bill No,Type,Product,Qty,Rate (Rs),GST %,Taxable Value (Rs),CGST (Rs),SGST (Rs),Total (Rs)\n";
+            var fromVal   = document.getElementById('fromDate').value || '';
+            var toVal     = document.getElementById('toDate').value   || '';
+            var sp        = window.mmShopProfile || {};
+            var storeName = sp.shop_name || localStorage.getItem('mm_storeName') || localStorage.getItem('storeName') || 'My Store';
 
-            currentData.forEach(r => {
-                const date = formatDate(r.date);
-                const billNo = r.billNo || '';
-                const type = r.type === 'sales' ? 'Sale' : 'Purchase';
-                const product = `"${(r.product || '').replace(/"/g, '""')}"`; // Escape quotes
-                const qty = r.qty || 0;
-                const rate = r.rate || 0;
-                const gst = r.gst || 0;
-                const total = r.total || 0;
+            /* Full month names so Excel cannot auto-convert to date format */
+            var MF = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-                // Reverse calculation to find exact taxable base if needed,
-                // but rate * qty is usually the base (excluding GST).
-                // Assuming Total = (Qty * Rate) * (1 + GST/100).
-                const baseValue = total / (1 + (gst / 100));
-                const totalTax = total - baseValue;
-                const cgst = totalTax / 2;
-                const sgst = totalTax / 2;
+            function fmtDate(d) {
+                if (!d) return '';
+                var s = String(d).slice(0, 10);
+                var p = s.split('-');
+                if (p.length !== 3) return s;
+                var y, mo, day;
+                if (p[0].length === 4) {                          /* YYYY-MM-DD */
+                    y = p[0]; mo = p[1]; day = p[2];
+                } else if (parseInt(p[0], 10) > 31) {            /* YY-MM-DD */
+                    y = '20' + p[0]; mo = p[1]; day = p[2];
+                } else {                                          /* DD-MM-YYYY */
+                    day = p[0]; mo = p[1]; y = (p[2].length === 2 ? '20' : '') + p[2];
+                }
+                var mi = parseInt(mo, 10) - 1;
+                return day + ' ' + (MF[mi] || mo) + ' ' + y;
+            }
 
-                const row = [
-                    date,
-                    billNo,
-                    type,
-                    product,
-                    qty.toFixed(2),
-                    rate.toFixed(2),
-                    gst.toFixed(2),
-                    baseValue.toFixed(2),
-                    cgst.toFixed(2),
-                    sgst.toFixed(2),
-                    total.toFixed(2)
-                ].join(",");
+            function r2(n) { return (parseFloat(n) || 0).toFixed(2); }
 
-                csvContent += row + "\n";
+            function xe(v) {
+                return String(v === null || v === undefined ? '' : v)
+                    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            }
+
+            /* SpreadsheetML cell builders */
+            function sc(v, sid) { return '<Cell' + (sid ? ' ss:StyleID="' + sid + '"' : '') + '><Data ss:Type="String">' + xe(v) + '</Data></Cell>'; }
+            function nc(v, sid) { return '<Cell' + (sid ? ' ss:StyleID="' + sid + '"' : '') + '><Data ss:Type="Number">' + r2(v) + '</Data></Cell>'; }
+            function ec()       { return '<Cell/>'; }
+            function row(cells) { return '<Row>' + cells.join('') + '</Row>\n'; }
+            function erow()     { return '<Row ss:Height="7"/>\n'; }
+
+            /* ── process data ──────────────────────────────── */
+            var sales     = currentData.filter(function(r){ return r.type === 'sales'; });
+            var purchases = currentData.filter(function(r){ return r.type === 'purchase'; });
+
+            /* Group sales by bill */
+            var billsMap = {};
+            sales.forEach(function(r) {
+                var k = r.billNo || '-';
+                if (!billsMap[k]) {
+                    var raw = (_rawBillsMap && _rawBillsMap[r.id]) || null;
+                    billsMap[k] = {
+                        billNo: k, date: r.date,
+                        customer: (raw && (raw.customer_name || raw.customerName)) || 'Walk-in',
+                        items: []
+                    };
+                }
+                billsMap[k].items.push(r);
             });
 
-            // Create a blob and trigger download
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            
-            const from = document.getElementById('fromDate').value || 'all';
-            const to = document.getElementById('toDate').value || 'all';
-            
-            link.setAttribute("href", url);
-            link.setAttribute("download", `GST_Report_${from}_to_${to}.csv`);
+            /* Group purchases by bill */
+            var purMap = {};
+            purchases.forEach(function(r) {
+                var k = r.billNo || '-';
+                if (!purMap[k]) {
+                    var rawArr = _rawPurchasesMap ? Object.values(_rawPurchasesMap) : [];
+                    var raw = rawArr.find(function(p){ return (p.bill_no || p.billNo) === k; }) || null;
+                    purMap[k] = {
+                        billNo: k, date: r.date,
+                        firm: (raw && (raw.firm || raw.supplierName)) || '-',
+                        items: []
+                    };
+                }
+                purMap[k].items.push(r);
+            });
+
+            function gstBreakdown(recs) {
+                var m = {};
+                recs.forEach(function(r) {
+                    var k   = r2(r.gst) + '%';
+                    var gst = parseFloat(r.gst) || 0;
+                    var tot = parseFloat(r.total) || 0;
+                    var base = (gst > 0) ? tot / (1 + gst / 100) : tot;
+                    var tax  = tot - base;
+                    if (!m[k]) m[k] = { taxable: 0, cgst: 0, sgst: 0, total: 0, count: 0 };
+                    m[k].taxable += base;  m[k].cgst += tax / 2;
+                    m[k].sgst   += tax / 2; m[k].total += tot; m[k].count++;
+                });
+                return m;
+            }
+
+            /* ── Build SpreadsheetML ────────────────────────── */
+            var X = '<?xml version="1.0" encoding="UTF-8"?>\n'
+                  + '<?mso-application progid="Excel.Sheet"?>\n'
+                  + '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"'
+                  + ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n';
+
+            /* ── Styles ─────────────────────────────────────── */
+            X += '<Styles>\n';
+            X += '<Style ss:ID="s0"/>\n';
+            /* Force text (never date-convert) */
+            X += '<Style ss:ID="txt"><NumberFormat ss:Format="@"/><Alignment ss:Horizontal="Left"/></Style>\n';
+            X += '<Style ss:ID="dtxt"><NumberFormat ss:Format="@"/><Alignment ss:Horizontal="Left"/><Font ss:Size="9"/></Style>\n';
+            /* Header / title */
+            X += '<Style ss:ID="title"><Font ss:Bold="1" ss:Size="13" ss:Color="#1E3A5F"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/></Style>\n';
+            X += '<Style ss:ID="info"><Font ss:Italic="1" ss:Size="9" ss:Color="#64748B"/><NumberFormat ss:Format="@"/></Style>\n';
+            /* Section headers */
+            X += '<Style ss:ID="sec"><Font ss:Bold="1" ss:Size="10" ss:Color="#FFFFFF"/><Interior ss:Color="#1E40AF" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left"/></Style>\n';
+            /* Column headers */
+            X += '<Style ss:ID="hL"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#BFDBFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:WrapText="1"/></Style>\n';
+            X += '<Style ss:ID="hR"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#BFDBFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right" ss:WrapText="1"/></Style>\n';
+            /* Data cells */
+            X += '<Style ss:ID="dL"><Font ss:Size="9"/><Alignment ss:Horizontal="Left"/><NumberFormat ss:Format="@"/></Style>\n';
+            X += '<Style ss:ID="dN"><Font ss:Size="9"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>\n';
+            /* Bill total row */
+            X += '<Style ss:ID="btL"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left"/><NumberFormat ss:Format="@"/></Style>\n';
+            X += '<Style ss:ID="btN"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>\n';
+            /* Grand total row */
+            X += '<Style ss:ID="gtL"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#1E40AF" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left"/></Style>\n';
+            X += '<Style ss:ID="gtN"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#1E40AF" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>\n';
+            /* Net payable (red) */
+            X += '<Style ss:ID="npL"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#B91C1C" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left"/></Style>\n';
+            X += '<Style ss:ID="npN"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#B91C1C" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>\n';
+            /* Highlight (yellow) */
+            X += '<Style ss:ID="hlN"><Interior ss:Color="#FEF9C3" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>\n';
+            X += '</Styles>\n';
+
+            /* ── Worksheet ───────────────────────────────────── */
+            X += '<Worksheet ss:Name="GST Report">\n<Table>\n';
+            /* Column widths (11 columns) */
+            X += '<Column ss:Width="100"/>\n';  /* A: Date         */
+            X += '<Column ss:Width="78"/>\n';   /* B: Bill No      */
+            X += '<Column ss:Width="130"/>\n';  /* C: Customer     */
+            X += '<Column ss:Width="175"/>\n';  /* D: Product      */
+            X += '<Column ss:Width="45"/>\n';   /* E: Qty          */
+            X += '<Column ss:Width="70"/>\n';   /* F: Rate         */
+            X += '<Column ss:Width="55"/>\n';   /* G: GST %        */
+            X += '<Column ss:Width="108"/>\n';  /* H: Taxable Val  */
+            X += '<Column ss:Width="88"/>\n';   /* I: CGST         */
+            X += '<Column ss:Width="88"/>\n';   /* J: SGST         */
+            X += '<Column ss:Width="105"/>\n';  /* K: Bill Total   */
+
+            var N = 11;
+            function blankRow(sid) { var a = []; for (var i = 0; i < N; i++) a.push(sc('', sid || 's0')); return a; }
+
+            /* ── REPORT HEADER ─────────────────────────────── */
+            var r1 = blankRow('title'); r1[0] = sc('GST REPORT  —  ' + storeName, 'title'); X += row(r1);
+            var r2b = blankRow('info'); r2b[0] = sc('Period:   ' + (fmtDate(fromVal) || 'All Time') + '   to   ' + (fmtDate(toVal) || 'Today'), 'info'); X += row(r2b);
+            var r3 = blankRow('info'); r3[0] = sc('Generated On:   ' + fmtDate(new Date().toISOString()), 'info'); X += row(r3);
+            X += erow();
+
+            /* ═══════════════════════════════════════════════
+               SECTION 1 – OUTWARD SUPPLIES (SALES)
+            ═══════════════════════════════════════════════ */
+            var sh1 = blankRow('sec'); sh1[0] = sc('SECTION 1  ·  OUTWARD SUPPLIES (SALES)  —  GSTR-1 / B2C', 'sec'); X += row(sh1);
+            X += row([sc('Date','hL'), sc('Bill No','hL'), sc('Customer Name','hL'), sc('Product / Medicine','hL'),
+                      sc('Qty','hR'), sc('Rate (Rs)','hR'), sc('GST %','hR'),
+                      sc('Taxable Value (Rs)','hR'), sc('CGST (Rs)','hR'), sc('SGST (Rs)','hR'), sc('Bill Total (Rs)','hR')]);
+
+            var salBase=0, salCGST=0, salSGST=0, salAmt=0, salBills=0;
+            Object.values(billsMap).sort(function(a,b){ return String(a.date) > String(b.date) ? 1 : -1; }).forEach(function(bill) {
+                var bBase=0, bCGST=0, bSGST=0, bTotal=0;
+                bill.items.forEach(function(it, idx) {
+                    var gst  = parseFloat(it.gst) || 0;
+                    var tot  = parseFloat(it.total) || 0;
+                    var base = (gst > 0) ? tot / (1 + gst / 100) : tot;
+                    var cgst = (tot - base) / 2;
+                    var sgst = (tot - base) / 2;
+                    bBase += base; bCGST += cgst; bSGST += sgst; bTotal += tot;
+                    X += row([
+                        sc(fmtDate(it.date), 'dtxt'),
+                        sc(bill.billNo, 'dL'),
+                        sc(bill.customer, 'dL'),
+                        sc(it.product, 'dL'),
+                        nc(it.qty, 'dN'),
+                        nc(it.rate, 'dN'),
+                        nc(it.gst, 'dN'),
+                        nc(base, 'dN'),
+                        nc(cgst, 'dN'),
+                        nc(sgst, 'dN'),
+                        nc(tot, 'dN')      /* ← Item total in Bill Total column */
+                    ]);
+                });
+                /* Bill subtotal row */
+                X += row([
+                    sc('', 'btL'),
+                    sc('BILL TOTAL', 'btL'),
+                    sc(bill.billNo, 'btL'),
+                    sc('', 'btL'), sc('', 'btL'), sc('', 'btL'), sc('', 'btL'),
+                    nc(bBase, 'btN'), nc(bCGST, 'btN'), nc(bSGST, 'btN'), nc(bTotal, 'btN')
+                ]);
+                salBase += bBase; salCGST += bCGST; salSGST += bSGST; salAmt += bTotal; salBills++;
+                X += erow();
+            });
+
+            /* Sales grand total */
+            X += row([
+                sc('SALES GRAND TOTAL  (' + salBills + ' Bills)', 'gtL'),
+                sc('', 'gtL'), sc('', 'gtL'), sc('', 'gtL'), sc('', 'gtL'), sc('', 'gtL'), sc('', 'gtL'),
+                nc(salBase, 'gtN'), nc(salCGST, 'gtN'), nc(salSGST, 'gtN'), nc(salAmt, 'gtN')
+            ]);
+            X += erow(); X += erow();
+
+            /* ═══════════════════════════════════════════════
+               SECTION 2 – INWARD SUPPLIES (PURCHASES)
+            ═══════════════════════════════════════════════ */
+            var sh2 = blankRow('sec'); sh2[0] = sc('SECTION 2  ·  INWARD SUPPLIES (PURCHASES)  —  GSTR-2 / Input Tax Credit', 'sec'); X += row(sh2);
+            X += row([sc('Date','hL'), sc('Bill No','hL'), sc('Supplier / Firm','hL'), sc('Product / Medicine','hL'),
+                      sc('Qty','hR'), sc('Rate (Rs)','hR'), sc('GST %','hR'),
+                      sc('Taxable Value (Rs)','hR'), sc('CGST ITC (Rs)','hR'), sc('SGST ITC (Rs)','hR'), sc('Total (Rs)','hR')]);
+
+            var purBase=0, purCGST=0, purSGST=0, purAmt=0, purBills=0;
+            Object.values(purMap).sort(function(a,b){ return String(a.date) > String(b.date) ? 1 : -1; }).forEach(function(bill) {
+                var bBase=0, bCGST=0, bSGST=0, bTotal=0;
+                bill.items.forEach(function(it) {
+                    var gst  = parseFloat(it.gst) || 0;
+                    var tot  = parseFloat(it.total) || 0;
+                    var base = (gst > 0) ? tot / (1 + gst / 100) : tot;
+                    var cgst = (tot - base) / 2;
+                    var sgst = (tot - base) / 2;
+                    bBase += base; bCGST += cgst; bSGST += sgst; bTotal += tot;
+                    X += row([
+                        sc(fmtDate(it.date), 'dtxt'),
+                        sc(bill.billNo, 'dL'),
+                        sc(bill.firm, 'dL'),
+                        sc(it.product, 'dL'),
+                        nc(it.qty, 'dN'),
+                        nc(it.rate, 'dN'),
+                        nc(it.gst, 'dN'),
+                        nc(base, 'dN'),
+                        nc(cgst, 'dN'),
+                        nc(sgst, 'dN'),
+                        nc(tot, 'dN')      /* ← Item total in Total column */
+                    ]);
+                });
+                X += row([
+                    sc('', 'btL'),
+                    sc('BILL TOTAL', 'btL'),
+                    sc(bill.billNo, 'btL'),
+                    sc('', 'btL'), sc('', 'btL'), sc('', 'btL'), sc('', 'btL'),
+                    nc(bBase, 'btN'), nc(bCGST, 'btN'), nc(bSGST, 'btN'), nc(bTotal, 'btN')
+                ]);
+                purBase += bBase; purCGST += bCGST; purSGST += bSGST; purAmt += bTotal; purBills++;
+                X += erow();
+            });
+
+            X += row([
+                sc('PURCHASES GRAND TOTAL  (' + purBills + ' Bills)', 'gtL'),
+                sc('', 'gtL'), sc('', 'gtL'), sc('', 'gtL'), sc('', 'gtL'), sc('', 'gtL'), sc('', 'gtL'),
+                nc(purBase, 'gtN'), nc(purCGST, 'gtN'), nc(purSGST, 'gtN'), nc(purAmt, 'gtN')
+            ]);
+            X += erow(); X += erow();
+
+            /* ═══════════════════════════════════════════════
+               SECTION 3 – GST SUMMARY BY RATE
+            ═══════════════════════════════════════════════ */
+            var sh3 = blankRow('sec'); sh3[0] = sc('SECTION 3  ·  GST SUMMARY BY TAX RATE', 'sec'); X += row(sh3);
+            X += erow();
+
+            /* Sales summary */
+            var ss3 = blankRow('hL'); ss3[0] = sc('SALES', 'hL'); X += row(ss3);
+            X += row([sc('GST Rate','hL'), sc('No. of Items','hR'), sc('Taxable Value (Rs)','hR'),
+                      sc('CGST (Rs)','hR'), sc('SGST (Rs)','hR'), sc('Total Tax (Rs)','hR'), sc('Invoice Value (Rs)','hR'),
+                      ec(), ec(), ec(), ec()]);
+            var salGst = gstBreakdown(sales);
+            Object.keys(salGst).sort().forEach(function(k) {
+                var v = salGst[k];
+                X += row([sc(k,'dL'), nc(v.count,'dN'), nc(v.taxable,'dN'), nc(v.cgst,'dN'), nc(v.sgst,'dN'), nc(v.cgst+v.sgst,'dN'), nc(v.total,'dN'), ec(), ec(), ec(), ec()]);
+            });
+            X += row([sc('TOTAL','gtL'), nc(sales.length,'gtN'), nc(salBase,'gtN'), nc(salCGST,'gtN'), nc(salSGST,'gtN'), nc(salCGST+salSGST,'gtN'), nc(salAmt,'gtN'), ec(), ec(), ec(), ec()]);
+            X += erow();
+
+            /* Purchases summary */
+            var ps3 = blankRow('hL'); ps3[0] = sc('PURCHASES', 'hL'); X += row(ps3);
+            X += row([sc('GST Rate','hL'), sc('No. of Items','hR'), sc('Taxable Value (Rs)','hR'),
+                      sc('CGST ITC (Rs)','hR'), sc('SGST ITC (Rs)','hR'), sc('Total ITC (Rs)','hR'), sc('Invoice Value (Rs)','hR'),
+                      ec(), ec(), ec(), ec()]);
+            var purGst = gstBreakdown(purchases);
+            Object.keys(purGst).sort().forEach(function(k) {
+                var v = purGst[k];
+                X += row([sc(k,'dL'), nc(v.count,'dN'), nc(v.taxable,'dN'), nc(v.cgst,'dN'), nc(v.sgst,'dN'), nc(v.cgst+v.sgst,'dN'), nc(v.total,'dN'), ec(), ec(), ec(), ec()]);
+            });
+            X += row([sc('TOTAL','gtL'), nc(purchases.length,'gtN'), nc(purBase,'gtN'), nc(purCGST,'gtN'), nc(purSGST,'gtN'), nc(purCGST+purSGST,'gtN'), nc(purAmt,'gtN'), ec(), ec(), ec(), ec()]);
+            X += erow(); X += erow();
+
+            /* ═══════════════════════════════════════════════
+               SECTION 4 – NET GST PAYABLE
+            ═══════════════════════════════════════════════ */
+            var netC = salCGST - purCGST;
+            var netS = salSGST - purSGST;
+            var sh4 = blankRow('sec'); sh4[0] = sc('SECTION 4  ·  NET GST PAYABLE  (After Input Tax Credit)', 'sec'); X += row(sh4);
+            X += row([sc('', 'hL'), sc('CGST (Rs)', 'hR'), sc('SGST (Rs)', 'hR'), sc('Total GST (Rs)', 'hR'), ec(), ec(), ec(), ec(), ec(), ec(), ec()]);
+            X += row([sc('Output Tax  (Sales)',          'dL'), nc(salCGST, 'dN'), nc(salSGST, 'dN'), nc(salCGST+salSGST, 'hlN'), ec(), ec(), ec(), ec(), ec(), ec(), ec()]);
+            X += row([sc('Input Tax Credit  (Purchases)','dL'), nc(purCGST, 'dN'), nc(purSGST, 'dN'), nc(purCGST+purSGST, 'hlN'), ec(), ec(), ec(), ec(), ec(), ec(), ec()]);
+            X += row([sc('NET GST PAYABLE',              'npL'), nc(netC, 'npN'), nc(netS, 'npN'), nc(netC+netS, 'npN'), ec(), ec(), ec(), ec(), ec(), ec(), ec()]);
+
+            X += '</Table>\n</Worksheet>\n</Workbook>';
+
+            /* ── Download ───────────────────────────────────── */
+            var blob = new Blob([X], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+            var url  = URL.createObjectURL(blob);
+            var link = document.createElement('a');
+            var safe = storeName.replace(/[^a-zA-Z0-9]/g, '_');
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'GST_Report_' + safe + '_' + (fromVal || 'All') + '_to_' + (toVal || 'Today') + '.xls');
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            
-            showToast("✅ GST Excel Exported Successfully!", "success");
+            URL.revokeObjectURL(url);
+            showToast('GST Report Exported! Open in Excel for best view.', 'success');
         }
 
         /* ── Search & Print Bills Logic ── */

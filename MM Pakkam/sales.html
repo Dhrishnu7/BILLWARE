@@ -81,17 +81,17 @@
         }
         .back-btn {
             display: inline-flex; align-items: center; gap: 6px;
-            padding: 0.5rem 1.2rem;
-            background: white;
-            border: 1.5px solid rgba(16,185,129,0.3);
-            border-radius: 50px;
-            font-size: 0.85rem; font-weight: 600; color: #059669;
-            text-decoration: none; transition: all 0.25s ease;
+            padding: 0.45rem 1rem;
+            background: rgba(255,255,255,0.8);
+            border: 1.5px solid rgba(0,0,0,0.08);
+            border-radius: 10px;
+            font-size: 0.82rem; font-weight: 700; color: #0f172a;
+            text-decoration: none; transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         }
         .back-btn:hover {
-            background: #10b981; color: white; border-color: #10b981;
-            box-shadow: 0 4px 16px rgba(16,185,129,0.35);
-            transform: translateY(-1px);
+            background: #fff;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
         }
 
         /* -- Page Content -- */
@@ -606,7 +606,7 @@
         .qa-cancel-btn:hover { background: #f1f5f9; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="js/auth.js?v=2"></script>
+    <script src="js/auth.js?v=3"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
     <script src="js/keyboard-nav.js"></script>
@@ -621,10 +621,13 @@
     <!-- Navbar -->
     <header>
         <a class="logo" href="index.html">
-            <div class="logo-icon"><svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="z-index: 2; position: relative; transform: scale(0.85);"><defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.2" /></filter><mask id="crossMask"><rect width="100" height="100" fill="white" /><rect x="42" y="32" width="16" height="36" rx="4" fill="black" /><rect x="32" y="42" width="36" height="16" rx="4" fill="black" /><line x1="15" y1="15" x2="85" y2="85" stroke="black" stroke-width="2.5" stroke-linecap="round" /><line x1="15" y1="85" x2="85" y2="15" stroke="black" stroke-width="2.5" stroke-linecap="round" /></mask><g id="leaf"><path d="M 50 50 C 35 45, 30 30, 30 20 C 30 10, 45 10, 50 20 C 55 10, 70 10, 70 20 C 70 30, 65 45, 50 50 Z" fill="#ffffff" /></g></defs><g mask="url(#crossMask)" filter="url(#shadow)"><use href="#leaf" /><use href="#leaf" transform="rotate(90 50 50)" /><use href="#leaf" transform="rotate(180 50 50)" /><use href="#leaf" transform="rotate(270 50 50)" /></g></svg></div>
+            <div class="logo-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="white" stroke-width="2.2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path stroke-linecap="round" stroke-linejoin="round" d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></div>
             <span class="logo-text">Billware</span>
         </a>
-        <a class="back-btn" href="index.html">&#8592; Back</a>
+        <a class="back-btn" href="index.html">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            Back
+        </a>
     </header>
 
     <!-- Page Content -->
@@ -633,7 +636,7 @@
         <div class="page-header">
             <div class="breadcrumb"><a href="index.html">Home</a> &rsaquo; Sales</div>
             <h1>New Sale Bill</h1>
-            <p>Add up to 15 medicines at once and save as one bill</p>
+            <p>Add any number of medicines in one bill — no item limit</p>
         </div>
 
         <div class="form-card">
@@ -676,14 +679,10 @@
                 <!-- -- Medicine Table -- -->
                 <div class="section-label">
                     <h2>Medicine Details</h2>
-                    <span class="pill">UP TO 15 ITEMS</span>
-                    <span class="row-count-badge" id="rowCountBadge">1 / 15</span>
+                    <span class="row-count-badge" id="rowCountBadge">1 item</span>
                     <div style="display:flex; gap:0.5rem; margin-left:auto;">
                         <button type="button" class="clear-btn-sm" onclick="clearImportedMedicines()">
-                            🗑️ Clear Imported
-                        </button>
-                        <button type="button" class="import-btn-sm" onclick="openImportModal()" style="margin-left:0;">
-                            📋 Import Medicine List
+                            🗑️ Clear All Rows
                         </button>
                     </div>
                 </div>
@@ -696,7 +695,6 @@
                                 <th>Product Name</th>
                                 <th>Batch No</th>
                                 <th>Exp. Date</th>
-                                <th title="Units per pack/strip">Pack</th>
                                 <th>Stock</th>
                                 <th>Qty</th>
                                 <th title="MRP is auto-filled from Purchase MRP ÷ Pack">MRP (₹)</th>
@@ -745,9 +743,8 @@
                     <div style="display:flex; align-items:center; gap: 0.5rem; background:white; padding: 0.5rem 1rem; border-radius: 12px; border: 1.5px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
                         <label style="font-size:0.85rem; font-weight:700; color:#475569;">Payment Mode:</label>
                         <select id="paymentMode" style="border:none; outline:none; font-size:0.9rem; font-weight:700; color:#0f172a; cursor:pointer; background:transparent;">
-                            <option value="cash">💵 Cash</option>
-                            <option value="upi">📱 UPI</option>
-                            <option value="credit">📒 Credit (Khata)</option>
+                            <option value="cash">💵 Cash / UPI</option>
+                            <option value="credit">📒 Credit (Accounts)</option>
                         </select>
                     </div>
                 </div>
@@ -781,7 +778,6 @@
     </div>
 
     <script>
-        const MAX_ROWS = 15;
         let rowCount = 0;
         let globalRowCounter = 0;
 
@@ -807,13 +803,15 @@
             const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
             const map = {};
             purchases.forEach(p => {
-                if (p.productName) {
-                    const baseName = p.productName.trim();
+                const pName = p.productName || p.product_name;
+                const pBatch = p.batchNo || p.batch_no;
+                if (pName) {
+                    const baseName = pName.trim();
                     // Always map the base name (latest entry wins)
                     map[baseName.toLowerCase()] = p;
                     // Also map the batch-specific name
-                    if (p.batchNo) {
-                        const batchName = `${baseName} (Batch: ${p.batchNo.trim()})`;
+                    if (pBatch) {
+                        const batchName = `${baseName} (Batch: ${pBatch.trim()})`;
                         map[batchName.toLowerCase()] = p;
                     }
                 }
@@ -830,9 +828,14 @@
             const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
             let totalPurchased = 0;
             purchases.forEach(p => {
-                if ((p.productName || '').trim().toLowerCase() === name) {
-                    if (!batch || (p.batchNo || '').trim().toLowerCase() === batch) {
-                        totalPurchased += parseFloat(p.quantity) || 0;
+                const pName = (p.productName || p.product_name || '').trim().toLowerCase();
+                const pBatch = (p.batchNo || p.batch_no || '').trim().toLowerCase();
+                if (pName === name) {
+                    if (!batch || pBatch === batch) {
+                        // Stock is in loose units: quantity × pack (e.g. 2 strips × 15 = 30 tablets)
+                        const qty  = parseFloat(p.quantity) || 0;
+                        const pack = parseFloat(p.pack) || 1;
+                        totalPurchased += qty * pack;
                     }
                 }
             });
@@ -865,8 +868,9 @@
 
             // Only add the BASE name from purchases (not the batch-specific variant)
             purchases.forEach(p => {
-                if (p.productName) {
-                    const base = p.productName.trim();
+                const pName = p.productName || p.product_name;
+                if (pName) {
+                    const base = pName.trim();
                     if (base && !seen.has(base.toLowerCase())) { seen.add(base.toLowerCase()); names.push(base); }
                 }
             });
@@ -881,8 +885,10 @@
             const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
             const seen = new Set(), batches = [];
             purchases.forEach(p => {
-                if ((p.productName || '').trim().toLowerCase() === name && p.batchNo) {
-                    const bk = p.batchNo.trim().toLowerCase();
+                const pName = (p.productName || p.product_name || '').trim().toLowerCase();
+                const pBatch = p.batchNo || p.batch_no;
+                if (pName === name && pBatch) {
+                    const bk = pBatch.trim().toLowerCase();
                     if (!seen.has(bk)) {
                         seen.add(bk);
                         batches.push(p);
@@ -961,17 +967,20 @@
 
             // Populate batch dropdown options
             batches.forEach(p => {
-                const stock = getStock(p.productName, p.batchNo);
+                const pBatch = p.batchNo || p.batch_no;
+                const pName = p.productName || p.product_name;
+                const pExp = p.expireDate || p.expire_date || '-';
+                const stock = getStock(pName, pBatch);
                 const opt = document.createElement('option');
-                opt.value = p.batchNo;
-                opt.textContent = p.batchNo;
-                opt.title = `Exp: ${p.expireDate || '-'}  |  Stock: ${stock}`;
+                opt.value = pBatch;
+                opt.textContent = pBatch;
+                opt.title = `Exp: ${pExp}  |  Stock: ${stock}`;
                 batchSelect.appendChild(opt);
             });
 
             // If only one batch, auto-select it
             if (batches.length === 1) {
-                batchSelect.value = batches[0].batchNo;
+                batchSelect.value = batches[0].batchNo || batches[0].batch_no;
                 selectBatch(id);
             } else {
                 batchSelect.focus();
@@ -1009,33 +1018,45 @@
             // Find the purchase record for this product+batch
             const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
             const match = purchases.find(p =>
-                (p.productName || '').trim().toLowerCase() === productVal.toLowerCase() &&
-                (p.batchNo     || '').trim().toLowerCase() === batchVal.toLowerCase()
+                (p.productName || p.product_name || '').trim().toLowerCase() === productVal.toLowerCase() &&
+                (p.batchNo     || p.batch_no || '').trim().toLowerCase() === batchVal.toLowerCase()
             );
             if (!match) return;
 
             const purchaseMrp  = parseFloat(match.mrp)  || 0;
+            const purchaseRate = parseFloat(match.rate) || 0;
             const purchasePack = parseFloat(match.pack) || 1;
-            const salesMrp     = purchasePack > 0
-                ? parseFloat((purchaseMrp / purchasePack).toFixed(2))
+            // Divide MRP and Rate by pack size to get per-unit price
+            // e.g. Strip MRP ₹30 ÷ 15 tablets = ₹2 per tablet
+            const salesMrp  = purchasePack > 0
+                ? parseFloat((purchaseMrp  / purchasePack).toFixed(2))
                 : purchaseMrp;
+            const salesRate = purchasePack > 0
+                ? parseFloat((purchaseRate / purchasePack).toFixed(2))
+                : purchaseRate;
 
-            const fields = [
-                { el: document.getElementById('exp_'  + id), val: match.expireDate || '' },
-                { el: document.getElementById('pack_' + id), val: match.pack        || '' },
-                { el: document.getElementById('mrp_'  + id), val: salesMrp > 0 ? salesMrp : '' },
-                { el: document.getElementById('rate_' + id), val: match.rate        || '' },
-                { el: document.getElementById('gst_'  + id), val: match.gst         || '' },
-            ];
-            fields.forEach(({ el, val }) => {
-                if (!el) return;
-                el.value = val;
-                if (val !== '') flashCell(el);
-            });
+            // Fill row fields (using snake_case fallbacks for DB synced data)
+            // Supabase stores expire_date as YYYY-MM-DD — month input needs YYYY-MM
+            const pExpRaw = match.expireDate || match.expire_date || '';
+            const pExp = pExpRaw.length >= 7 ? pExpRaw.substring(0, 7) : pExpRaw;
+            const pPack = match.pack || 1;
+            const pGST  = match.gst  || 0;
 
-            const stockEl = document.getElementById('stock_' + id);
+            const expEl      = document.getElementById('exp_' + id);
+            const packEl     = document.getElementById('pack_' + id);
+            const mrpEl      = document.getElementById('mrp_' + id);
+            const rateEl     = document.getElementById('rate_' + id);
+            const gstEl      = document.getElementById('gst_' + id);
+            const stockEl    = document.getElementById('stock_' + id);
+
+            if (expEl) { expEl.value = pExp; flashCell(expEl); }
+            if (packEl) { packEl.value = pPack; }
+            if (mrpEl) { mrpEl.value = salesMrp > 0 ? salesMrp : ''; flashCell(mrpEl); }
+            if (rateEl) { rateEl.value = salesRate > 0 ? salesRate : ''; flashCell(rateEl); }
+            if (gstEl) { gstEl.value = pGST; flashCell(gstEl); }
+
             if (stockEl) {
-                stockEl.value = getStock(match.productName, match.batchNo);
+                stockEl.value = getStock(match.productName || match.product_name, match.batchNo || match.batch_no);
                 flashCell(stockEl);
                 checkStockOnQtyChange(id);
             }
@@ -1045,9 +1066,10 @@
         /* -- Update row count badge and add btn -- */
         function updateUI() {
             const badge = document.getElementById('rowCountBadge');
-            if(badge) badge.textContent = rowCount + ' / ' + MAX_ROWS;
+            if(badge) badge.textContent = rowCount + (rowCount === 1 ? ' item' : ' items');
+            // Add button is always enabled — no row limit
             const addBtn = document.getElementById('addRowBtn');
-            if(addBtn) addBtn.disabled = rowCount >= MAX_ROWS;
+            if(addBtn) addBtn.disabled = false;
             
             // disable remove button if only 1 row
             const removeBtns = document.querySelectorAll('.remove-row-btn');
@@ -1122,7 +1144,6 @@
         }
         /* -- Add Row -- */
         function addRow() {
-            if (rowCount >= MAX_ROWS) return;
             rowCount++;
             globalRowCounter++;
             const id = globalRowCounter;
@@ -1141,11 +1162,12 @@
                 </td>
                 <td><select class="t-input" id="batch_${id}" style="min-width:210px; max-width:210px; text-overflow: ellipsis;" onchange="selectBatch(${id})"><option value="">— Select Batch —</option></select></td>
                 <td><input class="t-input" id="exp_${id}"   type="month" style="min-width:120px;"></td>
-                <td><input class="t-input" id="pack_${id}"  type="number" placeholder="-" min="1" step="1" style="min-width:60px;" title="Units per pack"></td>
+                <input type="hidden" id="pack_${id}">
                 <td><input class="t-input" id="stock_${id}" type="number" readonly placeholder="0" style="min-width:60px; color:#059669; font-weight:bold;" title="Available Stock"></td>
                 <td><input class="t-input" id="qty_${id}"   type="number" placeholder="0" min="0" style="min-width:60px;"
                     oninput="checkStockOnQtyChange(${id}); calcRowTotal(${id})"></td>
-                <td><input class="t-input" id="mrp_${id}"   type="number" placeholder="0.00" min="0" step="0.01" style="min-width:70px;"></td>
+                <td><input class="t-input" id="mrp_${id}"   type="number" placeholder="0.00" min="0" step="0.01" style="min-width:70px;"
+                    oninput="calcRowTotal(${id})"></td>
                 <td><input class="t-input" id="rate_${id}"  type="number" placeholder="0.00" min="0" step="0.01" style="min-width:70px;"
                     oninput="calcRowTotal(${id})"></td>
                 <td><input class="t-input" id="gst_${id}"   type="number" placeholder="0" min="0" max="100" step="0.01" style="min-width:56px;"
@@ -1309,13 +1331,7 @@
                 return;
             }
 
-            for (const med of medicines) {
-                const stock = getStock(med.product, med.batch);
-                if (med.qty > stock) {
-                    alert(`Cannot proceed. Quantity (${med.qty}) for "${med.product}" (Batch: ${med.batch}) is more than available stock (${stock}).`);
-                    return;
-                }
-            }
+            // Removed strict stock validation to allow selling physical stock even if not entered yet
 
             const btn = document.getElementById('saveBtn');
             btn.disabled = true;
@@ -1341,6 +1357,8 @@
             if (paymentMode === 'credit' && !customerName) {
                 alert('A valid Customer Name is required for Credit sales.');
                 document.getElementById('customerName').focus();
+                btn.disabled = false;
+                btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Save Bill`;
                 return;
             }
 
@@ -1363,13 +1381,13 @@
             sales.push(bill);
             localStorage.setItem('mm_sales', JSON.stringify(sales));
 
-            // Update Customer Balance if Credit
+            // Update Customer Balance if Credit (localStorage + Supabase)
             if (paymentMode === 'credit' && customerName) {
                 const customers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
                 let cust = customers.find(c => (c.name || '').toLowerCase() === customerName.toLowerCase());
                 
                 // Get numeric total
-                const numTotal = parseFloat(grandTotal.replace(/[^\d.]/g, '')) || 0;
+                const numTotal = parseFloat(grandTotal.replace(/[^0-9.]/g, '')) || 0;
 
                 if (cust) {
                     cust.balance = (cust.balance || 0) + numTotal;
@@ -1378,6 +1396,13 @@
                     customers.push(cust);
                 }
                 localStorage.setItem('mm_customers', JSON.stringify(customers));
+
+                // ── Sync credit balance to Supabase so Khata page always shows correct data ──
+                try {
+                    if (typeof dbUpdateCustomerBalance === 'function') {
+                        await dbUpdateCustomerBalance(cust.name, cust.phone || '', cust.address || '', numTotal);
+                    }
+                } catch(e) { console.warn('Balance sync failed:', e); }
             }
 
             // Show Success Modal
@@ -1505,13 +1530,15 @@
         const setMedList = list => localStorage.setItem(ML_KEY, JSON.stringify(list));
 
         function clearImportedMedicines() {
-            if (confirm("Are you sure you want to clear all imported medicines? (Purchase history will remain).")) {
-                localStorage.removeItem(ML_KEY);
-                refreshGlobalMedicineList();
-                document.getElementById('toastTitle').textContent=`Cleared!`;
-                document.getElementById('toastSub').textContent=`Imported medicines removed.`;
+            if (confirm('Clear all rows and start a fresh bill?')) {
+                document.getElementById('medicineRows').innerHTML = '';
+                rowCount = 0;
+                addRow(); // reset to one blank row
+                updateGrandTotal();
+                document.getElementById('toastTitle').textContent = 'Cleared!';
+                document.getElementById('toastSub').textContent   = 'All rows removed. Ready for a new bill.';
                 document.getElementById('toast').classList.add('show');
-                setTimeout(()=>document.getElementById('toast').classList.remove('show'),3000);
+                setTimeout(() => document.getElementById('toast').classList.remove('show'), 3000);
             }
         }
 
@@ -1895,7 +1922,7 @@
                                             <td colspan="2" style="padding-top: 12px;">
                                                 <div style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; color: white; padding: 15px 20px; border-radius: 8px; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
                                                     <span style="font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Net Payable</span>
-                                                    <span style="font-size: 22px; font-weight: 800;">₹${parseFloat(bill.total||0).toFixed(2)}</span>
+                                                    <span style="font-size: 22px; font-weight: 800;">₹${parseFloat(String(bill.grandTotal||bill.total||0).replace(/[^0-9.]/g,'')||0).toFixed(2)}</span>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1937,17 +1964,26 @@
         // -- Sync from Supabase on Load --
         (async function syncFromDatabase() {
             try {
-                const [customers, doctors] = await Promise.all([
+                const [customers, doctors, medicines, purchases] = await Promise.all([
                     dbGetCustomers(),
-                    dbGetDoctors()
+                    dbGetDoctors(),
+                    dbGetMedicines(),
+                    dbGetPurchases()          // no date filter — get ALL for autocomplete
                 ]);
-                if (customers && customers.length > 0) {
+
+                if (customers && customers.length > 0)
                     localStorage.setItem('mm_customers', JSON.stringify(customers));
-                }
-                if (doctors && doctors.length > 0) {
+                if (doctors && doctors.length > 0)
                     localStorage.setItem('mm_doctors', JSON.stringify(doctors));
-                }
+                if (medicines && medicines.length > 0)
+                    localStorage.setItem('mm_medicine_list', JSON.stringify(medicines));
+                if (purchases && purchases.length > 0)
+                    localStorage.setItem('mm_purchases', JSON.stringify(purchases));
+
+                // Refresh all datalists now that data is ready
                 refreshNamesLists();
+                refreshGlobalMedicineList();
+
             } catch (err) {
                 console.error("Database sync failed:", err);
             }

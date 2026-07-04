@@ -100,6 +100,47 @@ async function dbDeleteCustomer(id) {
     return !error;
 }
 
+/* Upsert customer balance for Khata tracking */
+async function dbUpdateCustomerBalance(name, phone, address, balance) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbUpdateCustomerBalance: no user, aborting.'); return { success: false }; }
+    const cName  = (name || '').trim();
+    const cPhone = (phone || '').trim();
+    const cAddr  = (address || '').trim();
+    const cBal   = parseFloat(balance) || 0;
+
+    // Try to find existing customer
+    const { data: existing } = await _supabase.from('customers')
+        .select('*').eq('name', cName).eq('user_id', user).maybeSingle();
+
+    if (existing) {
+        // Update balance (add to existing outstanding)
+        const newBal = (parseFloat(existing.balance) || 0) + cBal;
+        const { error } = await _supabase.from('customers')
+            .update({ balance: newBal })
+            .eq('id', existing.id).eq('user_id', user);
+        if (error) { console.error('balance update:', error); return { success: false }; }
+        return { success: true };
+    } else {
+        // Create new customer with balance
+        const { error } = await _supabase.from('customers')
+            .insert({ name: cName, phone: cPhone, address: cAddr, balance: cBal, user_id: user });
+        if (error) { console.error('customer insert with balance:', error); return { success: false }; }
+        return { success: true };
+    }
+}
+
+/* Get all customers who have outstanding balance for Khata page */
+async function dbGetKhataData() {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetKhataData: no user, aborting.'); return []; }
+    const { data, error } = await _supabase.from('customers')
+        .select('*').eq('user_id', user).gt('balance', 0).order('balance', { ascending: false });
+    if (error) { console.error('khata fetch:', error); return []; }
+    return data || [];
+}
+
+
 /* ─────────────────────────────────────────────────────
    DOCTORS
 ───────────────────────────────────────────────────── */
@@ -199,21 +240,26 @@ async function dbGetPurchases(fromDate, toDate) {
 async function dbAddPurchase(row) {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbAddPurchase: no user, aborting.'); return { success: false, message: 'Not logged in.' }; }
-    const { data, error } = await _supabase.from('purchases').insert({
+    // Note: avoid .single() here — it throws PGRST116 if RLS prevents read-back
+    // even when the insert itself succeeded, causing a false "Saved Offline" error.
+    const ed = row.expireDate || row.expire_date || '';
+    const { error } = await _supabase.from('purchases').insert({
         bill_no:      row.billNo     || '',
         firm:         row.firm       || '',
         date:         row.date       || new Date().toISOString().slice(0,10),
         product_name: row.productName || row.product_name || '',
         batch_no:     row.batchNo    || row.batch_no     || '',
-        expire_date:  row.expireDate || row.expire_date  || '',
+        // month input returns 'YYYY-MM' — Supabase date column needs 'YYYY-MM-DD'
+        expire_date:  ed.length === 7 ? ed + '-01' : (ed || null),
+        pack:         Number(row.pack) || 0,
         quantity:     Number(row.quantity) || 0,
         mrp:          Number(row.mrp)      || 0,
         rate:         Number(row.rate)     || 0,
         gst:          Number(row.gst)      || 0,
         user_id:      user,
-    }).select().single();
+    });
     if (error) { console.error('purchase add:', error); return { success: false, message: error.message }; }
-    return { success: true, data };
+    return { success: true };
 }
 async function dbDeletePurchase(id) {
     const user = _currentUser();
@@ -252,16 +298,19 @@ async function dbSaveBill(bill) {
     if (!user) { console.warn('[db] dbSaveBill: no user, aborting.'); return { success: false, message: 'Not logged in.' }; }
     let billNo = bill.billNo || await dbNextBillNo();
 
-    let { data: billRow, error: billErr } = await _supabase.from('bills').insert({
+    // Use .select() array form — NOT .single() — to avoid PGRST116 false errors
+    // when RLS allows insert but restricts read-back.
+    let { data: billRows, error: billErr } = await _supabase.from('bills').insert({
         bill_no:       billNo,
         date:          bill.date,
         customer_name: bill.customerName || '',
         doctor_name:   bill.doctorName   || '',
         grand_total:   parseFloat(String(bill.grandTotal).replace(/[^0-9.]/g,'')) || 0,
         user_id:       user,
-    }).select().single();
+    }).select();
+    let billRow = billRows?.[0] || null;
 
-    if (billErr) {
+    if (billErr || !billRow) {
         // Fallback: If there's a unique constraint violation, auto-generate a fallback ID
         billNo = 'MM-' + Date.now().toString().slice(-6) + '-' + Math.floor(Math.random()*1000);
         let retry = await _supabase.from('bills').insert({
@@ -271,13 +320,13 @@ async function dbSaveBill(bill) {
             doctor_name:   bill.doctorName   || '',
             grand_total:   parseFloat(String(bill.grandTotal).replace(/[^0-9.]/g,'')) || 0,
             user_id:       user,
-        }).select().single();
+        }).select();
 
-        if (retry.error) {
+        if (retry.error || !retry.data?.[0]) {
             console.error('bill save retry failed:', retry.error);
-            return { success: false, message: retry.error.message };
+            return { success: false, message: retry.error?.message || 'Bill insert returned no data' };
         }
-        billRow = retry.data;
+        billRow = retry.data[0];
         billErr = null;
     }
 

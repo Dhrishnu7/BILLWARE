@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="js/auth.js?v=2"></script>
+    <script src="js/auth.js?v=3"></script>
     <script src="js/notifications.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -106,11 +106,17 @@
 
         /* -- Cards Grid -- */
         .dashboard {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            display: flex;
+            flex-wrap: wrap;
             gap: 1.6rem;
             width: 100%;
             max-width: 1280px;
+            justify-content: center;
+        }
+
+        .dashboard > a {
+            flex: 0 0 calc(33.333% - 1.1rem);
+            min-width: 240px;
         }
 
         /* -- Card -- */
@@ -182,6 +188,10 @@
         .card-khata::before { background: linear-gradient(90deg, #d97706, #f59e0b); }
         .card-khata:hover { box-shadow: 0 20px 40px rgba(217,119,6,0.2); }
 
+        .card-inventory { --c: #0d9488; }
+        .card-inventory::before { background: linear-gradient(90deg, #0d9488, #0891b2); }
+        .card-inventory:hover { box-shadow: 0 20px 40px rgba(13,148,136,0.2); }
+
         /* -- Icon -- */
         .icon-wrapper {
             width: 68px; height: 68px;
@@ -245,10 +255,11 @@
 
         /* -- Responsive -- */
         @media (max-width: 1100px) {
-            .dashboard { grid-template-columns: repeat(2, 1fr); }
+            .dashboard > a { flex: 0 0 calc(50% - 0.8rem); }
         }
         @media (max-width: 700px) {
-            .dashboard { grid-template-columns: 1fr 1fr; gap: 1rem; }
+            .dashboard { gap: 1rem; }
+            .dashboard > a { flex: 0 0 calc(50% - 0.5rem); min-width: 140px; }
             .logo-text { font-size: 1rem; }
             .dashboard-header h2 { font-size: 1.6rem; }
         }
@@ -543,29 +554,7 @@
 
         <div class="dashboard">
 
-            <!-- ADD CUSTOMER -->
-            <a class="section-card card-customer" href="customer.html">
-                <div class="icon-wrapper">
-                    <svg viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
-                    </svg>
-                </div>
-                <h3>ADD CUSTOMER</h3>
-                <p>Register a new patient or customer into the system.</p>
-            </a>
 
-            <!-- ADD DOCTOR -->
-            <a class="section-card card-doctor" href="doctor.html">
-                <div class="icon-wrapper">
-                    <svg viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                    </svg>
-                </div>
-                <h3>ADD DOCTOR</h3>
-                <p>Register a new prescribing doctor and clinic details.</p>
-            </a>
-
-            <!-- PURCHASE -->
             <a class="section-card card-purchase" href="purchase.html">
                 <div class="icon-wrapper">
                     <svg viewBox="0 0 24 24" stroke="currentColor">
@@ -583,7 +572,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
                     </svg>
                 </div>
-                <h3>SALES</h3>
+                <h3>SALES / BILLING</h3>
                 <p>Process billing, generate receipts and checkout customers.</p>
             </a>
 
@@ -595,7 +584,7 @@
                     </svg>
                 </div>
                 <h3>REPORT</h3>
-                <p>View sales summaries, stock levels and daily analytics.</p>
+                <p>View daily sales summaries, profit analytics and GST reports.</p>
             </a>
 
             <!-- SCHEDULE H DRUG -->
@@ -609,20 +598,28 @@
                 <p>Manage restricted drugs register and log prescription sales.</p>
             </a>
 
-        </div>
-
-        <!-- NEW ROW: Khata/Ledger -->
-        <div class="sections-grid" style="margin-top:2rem;">
-            <!-- KHATA / LEDGER -->
+            <!-- ACCOUNT / LEDGER -->
             <a class="section-card card-khata" href="khata.html">
                 <div class="icon-wrapper">
                     <svg viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                 </div>
-                <h3>KHATA / LEDGER</h3>
+                <h3>ACCOUNT / LEDGER</h3>
                 <p>Manage customer credit, pending balances and payments.</p>
             </a>
+
+            <!-- INVENTORY -->
+            <a class="section-card card-inventory" href="inventory.html">
+                <div class="icon-wrapper">
+                    <svg viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                    </svg>
+                </div>
+                <h3>INVENTORY</h3>
+                <p>Track stock levels, check expiry dates and spot dead stock.</p>
+            </a>
+
         </div>
     </div>
 
@@ -702,8 +699,8 @@
             function setWelcome() {
                 try {
                     const session = JSON.parse(
-                        localStorage.getItem('mm_session') ||
-                        sessionStorage.getItem('mm_session') ||
+                        localStorage.getItem('mm_auth_session') ||
+                        sessionStorage.getItem('mm_auth_session') ||
                         'null'
                     );
                     const el = document.getElementById('dashWelcome');
@@ -774,7 +771,7 @@
             updateBellBadge();
             updateTabCounts();
             
-            const drawer = document.getElementById('mmInboxDrawer');
+            const drawer = document.getElementById('inboxDrawer');
             if (drawer && drawer.classList.contains('open')) {
                 renderInbox();
             }

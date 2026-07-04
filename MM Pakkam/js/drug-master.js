@@ -354,7 +354,7 @@
             if(!dd) return;
             if(e.key==='ArrowDown'){e.preventDefault();moveFocus(1);}
             if(e.key==='ArrowUp'){e.preventDefault();moveFocus(-1);}
-            if(e.key==='Enter'||e.key==='Tab'){const f=dd?.querySelector('.dm-item.focused');if(f){e.preventDefault();f.dispatchEvent(new MouseEvent('mousedown'));}}
+            if(e.key==='Enter'||e.key==='Tab'){const f=dd?.querySelector('.dm-item.focused')||dd?.querySelector('.dm-item');if(f){e.preventDefault();f.dispatchEvent(new MouseEvent('mousedown'));}}
             if(e.key==='Escape') removeDd();
         });
         inputEl.addEventListener('blur',()=>setTimeout(removeDd,180));

@@ -75,18 +75,18 @@
 
         .back-btn {
             display: inline-flex; align-items: center; gap: 6px;
-            padding: 0.5rem 1.2rem;
-            background: white;
-            border: 1.5px solid rgba(245,158,11,0.3);
-            border-radius: 50px;
-            font-size: 0.85rem; font-weight: 600; color: #d97706;
+            padding: 0.45rem 1rem;
+            background: rgba(255,255,255,0.8);
+            border: 1.5px solid rgba(0,0,0,0.08);
+            border-radius: 10px;
+            font-size: 0.82rem; font-weight: 700; color: #0f172a;
             text-decoration: none;
-            transition: all 0.25s ease;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         }
         .back-btn:hover {
-            background: #f59e0b; color: white; border-color: #f59e0b;
-            box-shadow: 0 4px 16px rgba(245,158,11,0.35);
-            transform: translateY(-1px);
+            background: #fff;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
         }
 
         /* ── Page Content ── */
@@ -480,18 +480,38 @@
         }
 
         /* ── Invoice Import Modal extras ── */
-        .inv-field-map {
-            display:grid; grid-template-columns:1fr 1fr; gap:0.55rem 1rem;
-            margin:0.8rem 0;
+        .inv-chip-grid {
+            display: flex; flex-direction: column; gap: 0.45rem; margin: 0.8rem 0;
         }
-        .inv-field-row { display:flex; flex-direction:column; gap:4px; }
-        .inv-field-lbl { font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:#64748b; }
-        .inv-field-select {
-            padding:6px 10px; border-radius:8px; border:1.5px solid #e2e8f0;
-            font-family:'Inter',sans-serif; font-size:0.82rem; font-weight:600;
-            color:#0f172a; background:white; cursor:pointer;
+        .inv-chip {
+            display: flex; align-items: center; gap: 0.6rem;
+            padding: 0.5rem 0.75rem; border-radius: 10px;
+            background: #f8fafc; border: 1.5px solid #e2e8f0;
+            transition: opacity 0.2s, background 0.2s;
         }
-        .inv-field-select:focus { outline:none; border-color:#f59e0b; }
+        .inv-chip.inv-chip-skip {
+            opacity: 0.45; background: #f1f5f9;
+        }
+        .inv-chip-label {
+            font-size: 0.78rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: .06em; color: #374151; min-width: 130px;
+        }
+        .inv-chip-detected {
+            font-size: 0.82rem; font-weight: 600; color: #0ea5e9; flex: 1;
+        }
+        .inv-chip.inv-chip-skip .inv-chip-detected { color: #94a3b8; }
+        .inv-chip-skip-btn {
+            font-size: 0.72rem; font-weight: 700; padding: 3px 12px;
+            border-radius: 20px; border: 1.5px solid #e2e8f0;
+            background: white; color: #64748b; cursor: pointer;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+        .inv-chip-skip-btn:hover { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
+        .inv-chip.inv-chip-skip .inv-chip-skip-btn {
+            background: #d1fae5; border-color: #6ee7b7; color: #059669;
+        }
+        .inv-chip.inv-chip-skip .inv-chip-skip-btn:hover { background: #a7f3d0; }
         .inv-preview-table { width:100%; border-collapse:collapse; font-size:0.78rem; margin-top:0.5rem; }
         .inv-preview-table th { background:#f1f5f9; padding:5px 8px; text-align:left; font-weight:800; color:#475569; border-bottom:2px solid #e2e8f0; white-space:nowrap; }
         .inv-preview-table td { padding:5px 8px; border-bottom:1px solid #f1f5f9; color:#0f172a; white-space:nowrap; }
@@ -508,7 +528,8 @@
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="js/auth.js?v=2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="js/auth.js?v=3"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
     <script src="js/keyboard-nav.js"></script>
@@ -530,10 +551,13 @@
     <!-- Navbar -->
     <header>
         <a class="logo" href="index.html">
-            <div class="logo-icon"><svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="z-index: 2; position: relative; transform: scale(0.85);"><defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.2" /></filter><mask id="crossMask"><rect width="100" height="100" fill="white" /><rect x="42" y="32" width="16" height="36" rx="4" fill="black" /><rect x="32" y="42" width="36" height="16" rx="4" fill="black" /><line x1="15" y1="15" x2="85" y2="85" stroke="black" stroke-width="2.5" stroke-linecap="round" /><line x1="15" y1="85" x2="85" y2="15" stroke="black" stroke-width="2.5" stroke-linecap="round" /></mask><g id="leaf"><path d="M 50 50 C 35 45, 30 30, 30 20 C 30 10, 45 10, 50 20 C 55 10, 70 10, 70 20 C 70 30, 65 45, 50 50 Z" fill="#ffffff" /></g></defs><g mask="url(#crossMask)" filter="url(#shadow)"><use href="#leaf" /><use href="#leaf" transform="rotate(90 50 50)" /><use href="#leaf" transform="rotate(180 50 50)" /><use href="#leaf" transform="rotate(270 50 50)" /></g></svg></div>
+            <div class="logo-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="white" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 10a4 4 0 0 1-8 0"/></svg></div>
             <span class="logo-text">Billware</span>
         </a>
-        <a class="back-btn" href="index.html">&#8592; Back</a>
+        <a class="back-btn" href="index.html">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            Back
+        </a>
     </header>
 
     <!-- Page Content -->
@@ -649,7 +673,7 @@
                 <div class="form-grid" style="margin-bottom:0.6rem;">
                     <div class="form-group full-width">
                         <label>Product Name</label>
-                        <input type="text" class="li-productName"
+                        <input type="text" class="li-productName" list="productNameList"
                                placeholder="Type or select medicine…" autocomplete="off">
                     </div>
                 </div>
@@ -868,16 +892,18 @@
             }
 
             if (failCount === 0) {
+                // Clear draft immediately so navigating away won't restore old data
+                clearDraft();
                 showToast(
                     `${successCount} Purchase(s) Saved!`,
                     `All ${successCount} item(s) added successfully.`
                 );
                 btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Saved!`;
             } else {
-                // For any failures, we save them to the pending queue to sync later
+                // For any failures, save to pending queue and show which items failed
                 showToast(
-                    `Saved Offline`,
-                    `${failCount} item(s) saved offline and will sync automatically when online.`
+                    `⚠️ ${failCount} item(s) failed`,
+                    `Saved locally. Open F12 Console to see the exact error for each failed item.`
                 );
                 btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01"/></svg> Saved Offline (Pending Sync)`;
             }
@@ -911,15 +937,84 @@
         /* ══════════════════════════════════════════════════════════════════ 
            Medicine List — localStorage helpers
         ══════════════════════════════════════════════════════════════════  */
-        const ML_KEY = 'mm_medicine_list';
+        const ML_KEY   = 'mm_medicine_list';
+        const DRAFT_KEY = 'mm_purchase_draft';
         const getMedList = () => JSON.parse(localStorage.getItem(ML_KEY) || '[]');
         const setMedList = list => localStorage.setItem(ML_KEY, JSON.stringify(list));
 
+        // ── Draft: save entire form to localStorage so refresh doesn't lose data ──
+        function saveDraft() {
+            const container = document.getElementById('lineItemsContainer');
+            const draft = {
+                billNo: document.getElementById('billNo').value,
+                firm:   document.getElementById('firm').value,
+                date:   document.getElementById('purchaseDate').value,
+                items:  []
+            };
+            container.querySelectorAll('.line-item').forEach(item => {
+                draft.items.push({
+                    productName: item.querySelector('.li-productName').value,
+                    batchNo:    item.querySelector('.li-batchNo').value,
+                    expireDate: item.querySelector('.li-expireDate').value,
+                    pack:       item.querySelector('.li-pack').value,
+                    quantity:   item.querySelector('.li-quantity').value,
+                    mrp:        item.querySelector('.li-mrp').value,
+                    rate:       item.querySelector('.li-rate').value,
+                    gst:        item.querySelector('.li-gst').value,
+                });
+            });
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        }
+
+        function clearDraft() { localStorage.removeItem(DRAFT_KEY); }
+
+        function restoreDraft() {
+            try {
+                const saved = localStorage.getItem(DRAFT_KEY);
+                if (!saved) return false;
+                const draft = JSON.parse(saved);
+                if (!draft.items || draft.items.length === 0) return false;
+                // Restore header
+                document.getElementById('billNo').value = draft.billNo || '';
+                document.getElementById('firm').value   = draft.firm   || '';
+                if (draft.date) document.getElementById('purchaseDate').value = draft.date;
+                // Restore items
+                const container = document.getElementById('lineItemsContainer');
+                container.innerHTML = '';
+                lineItemCounter = 0;
+                draft.items.forEach(d => {
+                    lineItemCounter++;
+                    const id = `item_${lineItemCounter}`;
+                    container.insertAdjacentHTML('beforeend', createLineItemHTML(lineItemCounter));
+                    const el = document.getElementById(id);
+                    el.querySelector('.li-productName').value = d.productName || '';
+                    el.querySelector('.li-batchNo').value     = d.batchNo     || '';
+                    el.querySelector('.li-expireDate').value  = d.expireDate  || '';
+                    el.querySelector('.li-pack').value        = d.pack        || '';
+                    el.querySelector('.li-quantity').value    = d.quantity    || '';
+                    el.querySelector('.li-mrp').value         = d.mrp         || '';
+                    el.querySelector('.li-rate').value        = d.rate        || '';
+                    el.querySelector('.li-gst').value         = d.gst         || '';
+                    calcItemTotal(id);
+                    const inputEl = el.querySelector('.li-productName');
+                    if (inputEl && typeof DrugMaster !== 'undefined') DrugMaster.init(inputEl, el);
+                });
+                renumberItems();
+                updateGrandTotal();
+                return true;
+            } catch(e) { console.warn('Draft restore failed:', e); return false; }
+        }
+
+        // ── Clear Imported: wipe all line items and reset to one blank row ──
         function clearImportedMedicines() {
-            if (confirm("Are you sure you want to clear all imported medicines? (Purchase history will remain).")) {
-                localStorage.removeItem(ML_KEY);
-                refreshProductDatalist();
-                showToast('Cleared!', 'Imported medicines removed.');
+            if (confirm('Clear all imported items and start fresh?')) {
+                const container = document.getElementById('lineItemsContainer');
+                container.innerHTML = '';
+                lineItemCounter = 0;
+                addLineItem();
+                updateGrandTotal();
+                clearDraft();
+                showToast('Cleared!', 'All imported items removed. Ready for fresh entry.');
             }
         }
 
@@ -936,6 +1031,39 @@
             if (dl) dl.innerHTML = getAllMedNames().map(n => `<option value="${n}">`).join('');
         }
         window.addEventListener('DOMContentLoaded', refreshProductDatalist); // populate on page load
+
+        // ── Auto-fill from Stock Report "Add Purchase Entry" button ──
+        window.addEventListener('DOMContentLoaded', () => {
+            const params   = new URLSearchParams(window.location.search);
+            const prefill  = params.get('prefill');
+            if (!prefill) return;
+
+            // Give the page a moment to render the first line-item row
+            setTimeout(() => {
+                const firstRow = document.querySelector('.line-item');
+                if (!firstRow) return;
+                const nameInput  = firstRow.querySelector('.li-productName');
+                const batchInput = firstRow.querySelector('.li-batchNo');
+                if (nameInput) {
+                    nameInput.value = prefill;
+                    nameInput.dispatchEvent(new Event('input'));   // trigger any autocomplete
+                    // Show a brief toast so user knows it was pre-filled
+                    const toast = document.createElement('div');
+                    toast.textContent = `\u2713 Pre-filled: "${prefill}" \u2014 please fill in quantity & batch details`;
+                    Object.assign(toast.style, {
+                        position:'fixed', bottom:'24px', left:'50%', transform:'translateX(-50%)',
+                        background:'#1e293b', color:'#f8fafc', padding:'12px 24px',
+                        borderRadius:'10px', fontSize:'0.9rem', zIndex:'9999',
+                        boxShadow:'0 4px 20px rgba(0,0,0,0.3)', fontWeight:'600',
+                        animation:'fadeInUp 0.3s ease'
+                    });
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 4000);
+                }
+                // Focus the batch field next so user can continue fast
+                if (batchInput) batchInput.focus();
+            }, 300);
+        });
 
         /* ── Import Modal State ── */
         let _iRows=[], _iHdrs=[], _iCol=-1, _iNames=[], _iFileCount=0;
@@ -1066,14 +1194,18 @@
         function closeInvoiceImportModal() { document.getElementById('invImportModal').classList.remove('open'); }
 
         function handleInvFile(e) {
-            const files=[...e.target.files].filter(f=>/\.(csv|xlsx|xls)$/i.test(f.name));
-            if(files.length) readInvFile(files[0]);
+            const file = e.target.files[0];
+            if (!file) return;
+            if (/\.(csv|xlsx|xls)$/i.test(file.name)) { readInvFile(file); }
+            else if (/\.(pdf|jpg|jpeg|png|webp|bmp|tiff?)$/i.test(file.name)) { readInvOCR(file); }
         }
         function handleInvDrop(e) {
             e.preventDefault();
             document.getElementById('invDropZone').classList.remove('drag-over');
-            const files=[...e.dataTransfer.files].filter(f=>/\.(csv|xlsx|xls)$/i.test(f.name));
-            if(files.length) readInvFile(files[0]);
+            const file = e.dataTransfer.files[0];
+            if (!file) return;
+            if (/\.(csv|xlsx|xls)$/i.test(file.name)) { readInvFile(file); }
+            else if (/\.(pdf|jpg|jpeg|png|webp|bmp|tiff?)$/i.test(file.name)) { readInvOCR(file); }
         }
 
         function readInvFile(file) {
@@ -1093,45 +1225,647 @@
             file.name.toLowerCase().endsWith('.csv')?rdr.readAsText(file):rdr.readAsArrayBuffer(file);
         }
 
+        /* ── OCR path: PDF / Photo ── */
+        async function readInvOCR(file) {
+            // Show scanning UI
+            const dz = document.getElementById('invDropZone');
+            const origHTML = dz.innerHTML;
+            dz.innerHTML = `
+                <div style="padding:2rem;text-align:center;">
+                    <div style="font-size:2.5rem;margin-bottom:0.8rem;">🔍</div>
+                    <div style="font-weight:700;color:#0ea5e9;font-size:0.95rem;">Scanning invoice with OCR…</div>
+                    <div id="ocrProgress" style="font-size:0.8rem;color:#64748b;margin-top:0.4rem;">Starting…</div>
+                    <div style="margin-top:1rem;background:#e2e8f0;border-radius:999px;height:6px;overflow:hidden;">
+                        <div id="ocrBar" style="height:100%;width:0%;background:linear-gradient(90deg,#0ea5e9,#10b981);transition:width 0.3s;"></div>
+                    </div>
+                </div>`;
+
+            let imageSource = file;
+
+            // If PDF, convert first page to image via canvas
+            if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                try {
+                    imageSource = await _pdfToImageBlob(file);
+                } catch(e) {
+                    dz.innerHTML = origHTML;
+                    showToast('PDF Error', 'Could not read this PDF. Try saving as an image instead.');
+                    return;
+                }
+            }
+
+            try {
+                const result = await Tesseract.recognize(imageSource, 'eng', {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            const pct = Math.round((m.progress || 0) * 100);
+                            const bar = document.getElementById('ocrBar');
+                            const prog = document.getElementById('ocrProgress');
+                            if (bar) bar.style.width = pct + '%';
+                            if (prog) prog.textContent = `Reading text… ${pct}%`;
+                        }
+                    }
+                });
+                const ocrData = result.data;
+                dz.innerHTML = origHTML;
+                _parseOCRWithLayout(ocrData);
+            } catch(err) {
+                dz.innerHTML = origHTML;
+                showToast('OCR Failed', 'Could not scan the file. Please try a clearer image.');
+                console.error('OCR error:', err);
+            }
+        }
+
+        async function _pdfToImageBlob(file) {
+            // Load pdf.js dynamically if not loaded
+            if (!window.pdfjsLib) {
+                await new Promise((res, rej) => {
+                    const s = document.createElement('script');
+                    s.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+                    s.onload = res; s.onerror = rej;
+                    document.head.appendChild(s);
+                });
+                window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+                    'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+            }
+            const arrayBuf = await file.arrayBuffer();
+            const pdf = await window.pdfjsLib.getDocument({ data: arrayBuf }).promise;
+            const page = await pdf.getPage(1);
+            const viewport = page.getViewport({ scale: 2.0 });
+            const canvas = document.createElement('canvas');
+            canvas.width = viewport.width; canvas.height = viewport.height;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            return new Promise(res => canvas.toBlob(res, 'image/png'));
+        }
+
+        /* ── Layout-aware OCR parser using word bounding boxes ── */
+        function _parseOCRWithLayout(data) {
+            // Filter out low-confidence / empty words
+            const words = (data.words || []).filter(w => w.confidence > 25 && w.text.trim().length > 0);
+            if (words.length < 5) {
+                // Fallback to flat text
+                _parseOCRText(data.text || '');
+                return;
+            }
+
+            // ── Step 1: Group words into rows by Y-position ──
+            const ROW_TOL = 12; // pixels — words within 12px vertically = same row
+            const rows = [];
+            for (const word of words) {
+                const midY = (word.bbox.y0 + word.bbox.y1) / 2;
+                let placed = false;
+                for (const row of rows) {
+                    if (Math.abs(row.midY - midY) <= ROW_TOL) {
+                        row.words.push(word);
+                        row.midY = row.words.reduce((s,w)=>s+(w.bbox.y0+w.bbox.y1)/2,0)/row.words.length;
+                        placed = true; break;
+                    }
+                }
+                if (!placed) rows.push({ midY, words: [word] });
+            }
+            rows.sort((a,b) => a.midY - b.midY);
+            rows.forEach(r => r.words.sort((a,b) => a.bbox.x0 - b.bbox.x0));
+
+            // ── Step 2: Find header row ──
+            const HDR_MAP = {
+                'product':'name','medicine':'name','item':'name','description':'name','drug':'name','particular':'name',
+                'old':'skip','free':'skip','mfr':'skip','mfg':'skip','manf':'skip','amount':'skip','amt':'skip','hsn':'skip','dis':'skip','s.dis':'skip',
+                'pack':'pack','pcs':'pack',
+                'batch':'batch','lot':'batch',
+                'exp':'expiry','expiry':'expiry',
+                'mrp':'mrp',
+                'qty':'qty','quantity':'qty',
+                'rate':'rate','ptr':'rate','pts':'rate',
+                'gst':'gst','tax':'gst',
+            };
+            const HDR_KEYS = Object.keys(HDR_MAP);
+
+            let headerRowIdx = -1;
+            const columns = []; // {type, leftBound, rightBound}
+
+            for (let i = 0; i < rows.length; i++) {
+                const rowLower = rows[i].words.map(w => w.text.toLowerCase());
+                const hits = rowLower.filter(t => HDR_KEYS.some(k => t.includes(k))).length;
+                if (hits >= 3) {
+                    headerRowIdx = i;
+                    // Build column boundaries from this header row
+                    const hWords = rows[i].words;
+                    let nameStart = -1, nameEnd = -1;
+                    const colDefs = [];
+                    for (const hw of hWords) {
+                        const t = hw.text.toLowerCase().replace(/[^a-z\.]/g,'');
+                        let type = null;
+                        for (const [key, val] of Object.entries(HDR_MAP)) {
+                            if (t.includes(key)) { type = val; break; }
+                        }
+                        if (type) colDefs.push({ type, x0: hw.bbox.x0, x1: hw.bbox.x1, midX: (hw.bbox.x0+hw.bbox.x1)/2 });
+                    }
+                    // Sort colDefs by X position
+                    colDefs.sort((a,b) => a.x0 - b.x0);
+
+                    // ── Deduplicate column types ──
+                    // e.g. "Old MRP" header produces TWO 'mrp' entries — keep rightmost for
+                    // numeric cols (real data col comes AFTER the "old" prefix col);
+                    // keep leftmost for 'name' (product name starts at leftmost).
+                    const typeMap = new Map();
+                    for (const cd of colDefs) {
+                        if (!typeMap.has(cd.type)) {
+                            typeMap.set(cd.type, cd);
+                        } else {
+                            const ex = typeMap.get(cd.type);
+                            if (cd.type === 'name') {
+                                if (cd.x0 < ex.x0) typeMap.set(cd.type, cd); // keep leftmost
+                            } else {
+                                if (cd.x0 > ex.x0) typeMap.set(cd.type, cd); // keep rightmost
+                            }
+                        }
+                    }
+                    const dedupedDefs = [...typeMap.values()].sort((a,b) => a.x0 - b.x0);
+
+                    // Set column boundaries as midpoints between adjacent deduplicated columns
+                    for (let c = 0; c < dedupedDefs.length; c++) {
+                        const left  = c === 0 ? 0 : (dedupedDefs[c-1].x1 + dedupedDefs[c].x0) / 2;
+                        const right = c === dedupedDefs.length-1 ? 99999 : (dedupedDefs[c].x1 + dedupedDefs[c+1].x0) / 2;
+                        columns.push({ type: dedupedDefs[c].type, left, right });
+                    }
+                    break;
+                }
+            }
+
+            // No header found → fallback to text parser
+            if (headerRowIdx < 0 || columns.length < 3) {
+                _parseOCRText(data.text || '');
+                return;
+            }
+
+            // ── Step 3: Assign data words to columns by X-position ──
+            const SKIP_ROW = [
+                /distributor|wholesaler|pharmacy|chemist|supplier/i,
+                /pvt\.?\s*ltd|limited|llp/i,
+                /\b(road|street|nagar|colony|pin\s*code|dist)\b/i,
+                /\b(gstin|dl\s*no|drug\s*lic|pan\s*no)\b/i,
+                /sub[\s-]?total|grand\s*total|net\s*amount|sgst|cgst|igst/i,
+            ];
+            const VALID_GST = new Set(['0','5','12','18','28']);
+            const dataRows = [];
+
+            for (let i = headerRowIdx + 1; i < rows.length; i++) {
+                const row = rows[i];
+                const rowText = row.words.map(w => w.text).join(' ');
+                if (SKIP_ROW.some(p => p.test(rowText))) continue;
+                if (!/\d/.test(rowText)) continue;
+                if (rowText.replace(/\s/g,'').length < 4) continue;
+
+                // Build cell map
+                const cell = {};
+                for (const col of columns) {
+                    if (col.type === 'skip') continue;
+                    const cellWords = row.words.filter(w => {
+                        const mx = (w.bbox.x0 + w.bbox.x1) / 2;
+                        return mx >= col.left && mx < col.right;
+                    }).map(w => w.text).join(' ').trim();
+                    // Merge into existing cell (handles multi-word columns)
+                    if (cellWords) cell[col.type] = (cell[col.type] ? cell[col.type]+' ' : '') + cellWords;
+                }
+
+                let name   = (cell.name   || '').replace(/^\d+[.)]\s*/,'').trim(); // strip serial
+                let batch  =  cell.batch  || '';
+                let expiry =  cell.expiry || '';
+                let qty    =  cell.qty    || '';
+                let mrp    =  cell.mrp    || '';
+                let rate   =  cell.rate   || '';
+                let pack   =  cell.pack   || '';
+                let gst    = '';
+
+                // Strip old MRP from name (after pipe)
+                name = name.replace(/\s*\|\s*[\d\.]+.*$/, '').trim();
+
+                // ── Fix: Find Expiry Date if it bled into other columns ──
+                const DATE_RE = /\b(\d{2}[\/-]\d{2,4})\b/;
+                if (!expiry) {
+                    // Look in fields from right-to-left or adjacent to where expiry usually is
+                    const candidates = [
+                        { val: batch, set: v => batch = v },
+                        { val: mrp,   set: v => mrp = v },
+                        { val: qty,   set: v => qty = v },
+                        { val: pack,  set: v => pack = v },
+                        { val: name,  set: v => name = v }
+                    ];
+                    for (const c of candidates) {
+                        const dm = c.val.match(DATE_RE);
+                        if (dm) {
+                            expiry = dm[1];
+                            c.set(c.val.replace(dm[0], '').replace(/\s{2,}/g, ' ').trim());
+                            break;
+                        }
+                    }
+                }
+                
+                // Clean any stray date from batch just in case it got duplicated
+                if (expiry && batch) {
+                    batch = batch.replace(DATE_RE, '').replace(/\s{2,}/g, ' ').trim();
+                }
+
+                // Validate GST
+                if (cell.gst) {
+                    const g = String(Math.round(parseFloat(cell.gst)));
+                    const VALID_GST = new Set(['0','5','12','18','28']);
+                    if (VALID_GST.has(g)) gst = g;
+                }
+
+                // ── Fix: extract numbers from qty/mrp/rate if they contain mixed text ──
+                const cleanNum = v => v ? String(v).replace(/[^\d\.]/g,'') : '';
+                mrp  = cleanNum(mrp);
+                rate = cleanNum(rate);
+                qty  = cleanNum(qty).replace(/\.\d+/,''); // qty must be integer
+
+                if (!name || name.length < 2) continue;
+                if (SKIP_ROW.some(p => p.test(name))) continue;
+                if (/^[\d\s\.]+$/.test(name)) continue;
+
+                dataRows.push([name, batch, expiry, qty, mrp, rate, gst, pack]);
+            }
+
+            if (dataRows.length === 0) {
+                // Fallback to text parser
+                _parseOCRText(data.text || '');
+                return;
+            }
+
+            _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack'];
+            _invRows = dataRows;
+            const issues = _checkOCRQuality(dataRows);
+            if (issues.blocked) {
+                _showOCRWarning(issues.messages, true);
+            } else if (issues.messages.length > 0) {
+                _showOCRWarning(issues.messages, false);
+            } else {
+                showToast('OCR Complete', 'Found ' + dataRows.length + ' product(s). Verify mapping below.');
+                showInvMapper();
+            }
+        }
+
+        function _parseOCRText(text) {
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+            if (lines.length < 2) {
+                showToast('No Text Found', 'The image had no readable text. Try a clearer photo.');
+                return;
+            }
+
+            // Lines that are definitely NOT product rows (company/address/footer)
+            const SKIP_LINE = [
+                /distributor|wholesaler|medical store|pharmacy|chemist|drug house|supplier/i,
+                /pvt\.?\s*ltd|limited|llp|& co\b/i,
+                /\b(road|street|nagar|colony|district|dist|pin\s*code|state|city)\b/i,
+                /\b(ph|mob|mobile|phone|tel|fax|email|website|www\.)/i,
+                /\b(gstin|gst\s*no|dl\s*no|drug\s*lic|pan\s*no|cin\b)/i,
+                /invoice\s*(no|number|#|date)|bill\s*(no|number)|order\s*(no|number)/i,
+                /^(date|to\s*:|from\s*:|buyer|seller|ship\s*to|bill\s*to|consignee)/i,
+                /sub[\s-]?total|grand\s*total|net\s*(amount|total)|discount|sgst|cgst|igst|cess/i,
+                /^(thank|terms|e\.?&\.?o\.?e|note:|bank\s*details|upi|ifsc|account)/i,
+                /\b(address|landmark)\b/i,
+            ];
+
+            const HDR_KEYS = ['product','medicine','item','description','drug','particulars',
+                              'batch','expiry','exp','qty','quantity','mrp','rate','gst','hsn','pack'];
+
+            // Find table header line
+            let headerIdx = -1;
+            for (let i = 0; i < lines.length; i++) {
+                if (HDR_KEYS.filter(k => lines[i].toLowerCase().includes(k)).length >= 3) {
+                    headerIdx = i; break;
+                }
+            }
+
+            const startIdx = headerIdx >= 0 ? headerIdx + 1 : 0;
+            const dataRows = [];
+
+            // Pack: "75GM","75 GM","1X10","1 X 10","200ML","1NOS","10GM" etc.
+            const PACK_RE   = /\b(\d+(?:\.\d+)?)\s*[Xx]\s*(\d+[A-Z0-9]*)\b|\b(\d+(?:\.\d+)?)\s*(GM|ML|MG|MCG|IU|NOS|TAB|CAP|VL|AMP|SACHET|SYP|INJ|OINT|CREAM|GEL|DROP|SUPP|LOZENGE)\b/i;
+            const EXPIRY_RE = /\b(\d{2}[\/\-]\d{2,4})\b/;
+            // Batch: letters+digits or digits+letters, 6+ chars; also handles Z-26094 style
+            const BATCH_RE  = /\b([A-Z]{1,5}\d{4,}[A-Z0-9]*|\d{4,}[A-Z]{1,5}[A-Z0-9]*|Z-\d{4,}|[A-Z][A-Z0-9]{5,14})\b/;
+            const VALID_GST = new Set(['0','5','12','18','28']);
+
+            function fmtPack(m) {
+                if (!m) return '';
+                if (m[1] && m[2]) return (m[1]+'X'+m[2]).toUpperCase();
+                if (m[3] && m[4]) return (m[3]+m[4]).toUpperCase();
+                return m[0].replace(/\s+/g,'').toUpperCase();
+            }
+
+            // Characteristics-based numeric picker (not fixed-position)
+            function pickFields(nums) {
+                let mrp='', qty='', rate='', gst='';
+                if (!nums.length) return {mrp,qty,rate,gst};
+                // MRP: first decimal >= 1.0
+                let mrpIdx = -1;
+                for (let i=0;i<nums.length;i++) {
+                    if (nums[i].includes('.') && parseFloat(nums[i]) >= 1) {
+                        mrp = nums[i]; mrpIdx = i; break;
+                    }
+                }
+                if (mrpIdx < 0) { mrp = nums[0]; mrpIdx = 0; }
+                // Qty: first INTEGER 1-9999 after MRP
+                let qtyIdx = mrpIdx;
+                for (let i=mrpIdx+1;i<nums.length;i++) {
+                    const v = parseFloat(nums[i]);
+                    if (!nums[i].includes('.') && v>=1 && v<=9999) {
+                        qty = nums[i]; qtyIdx = i; break;
+                    }
+                }
+                // Rate: next decimal > 0 after Free column (skip 2 from qty, or 1 as fallback)
+                let rateIdx = qtyIdx;
+                for (let skip=2; skip>=1; skip--) {
+                    for (let i=qtyIdx+skip;i<nums.length;i++) {
+                        if (parseFloat(nums[i]) > 0 && nums[i] !== mrp) {
+                            rate = nums[i]; rateIdx = i; break;
+                        }
+                    }
+                    if (rate) break;
+                }
+                // GST: scan after rate for 5/12/18/28
+                for (let i=rateIdx+1;i<nums.length;i++) {
+                    const r = String(Math.round(parseFloat(nums[i])));
+                    if (VALID_GST.has(r)) { gst = r; break; }
+                }
+                // Fallback GST scan from full list
+                if (!gst) {
+                    for (let i=0;i<nums.length;i++) {
+                        const r = String(Math.round(parseFloat(nums[i])));
+                        if (VALID_GST.has(r) && nums[i]!==mrp && nums[i]!==rate && nums[i]!==qty) {
+                            gst = r; break;
+                        }
+                    }
+                }
+                return {mrp,qty,rate,gst};
+            }
+
+            for (let i = startIdx; i < lines.length; i++) {
+                const line = lines[i];
+                if (SKIP_LINE.some(p => p.test(line))) continue;
+                if (!/\d/.test(line)) continue;
+                if (/^[\d\s\.\,\-\/]+$/.test(line)) continue;
+                if (line.replace(/\s/g,'').length < 5) continue;
+
+                // Strip leading serial number
+                let work = line.replace(/^\s*\d{1,3}\s*[\.)\s]\s*/, '');
+
+                // ── Product Name: split on pipe ("Name | Old MRP") ──
+                let name = '';
+                const pipeIdx = work.search(/\s*\|\s*/);
+                if (pipeIdx > 2) {
+                    name = work.substring(0, pipeIdx).trim();
+                    work = work.substring(pipeIdx).replace(/^\s*\|\s*[\d\.]+\s*/, '');
+                } else {
+                    // No pipe: find name boundary before pack/batch/expiry
+                    let cutAt = work.length;
+                    const p2 = work.match(PACK_RE);
+                    const b2 = work.match(BATCH_RE);
+                    const e2 = work.match(EXPIRY_RE);
+                    [p2,b2,e2].filter(Boolean).forEach(m => {
+                        const idx = work.indexOf(m[0]);
+                        if (idx > 2) cutAt = Math.min(cutAt, idx);
+                    });
+                    name = cutAt > 2 ? work.substring(0, cutAt).trim() : '';
+                    if (!name || name.length < 3) {
+                        const am = work.match(/^([A-Za-z][A-Za-z0-9\s\-\.\/\(\)]{2,50}?)(?=\s*\d|\s*[A-Z]{2,5}\d|$)/);
+                        name = am ? am[1].trim() : '';
+                    }
+                }
+
+                name = name.replace(/[^a-zA-Z0-9\s\-\.\/\(\)]/g,' ').replace(/\s{2,}/g,' ').trim();
+                if (!name || name.length < 3) continue;
+                if (SKIP_LINE.some(p => p.test(name))) continue;
+                if (/^[\d\s\.\-\/]+$/.test(name)) continue;
+                if (/^(s\.?\s*no|sl|sr\b|\d{1,3})$/i.test(name)) continue;
+
+                // ── Pack ──
+                const packM = work.match(PACK_RE);
+                const pack  = fmtPack(packM);
+                if (packM) work = work.replace(packM[0], ' ');
+
+                // ── Batch ──
+                const batchM = work.match(BATCH_RE);
+                const batch  = batchM ? batchM[0] : '';
+                if (batchM) work = work.replace(batchM[0], ' ');
+
+                // ── Expiry ──
+                const expiryM = work.match(EXPIRY_RE);
+                const expiry  = expiryM ? expiryM[0] : '';
+
+                // ── Numeric fields after expiry ──
+                let afterExpiry = work;
+                if (expiryM) {
+                    const pos = work.indexOf(expiryM[0]) + expiryM[0].length;
+                    afterExpiry = work.substring(pos);
+                }
+                const nums = [...(afterExpiry.match(/\b\d+(?:\.\d+)?\b/g) || [])];
+                const {mrp, qty, rate, gst} = pickFields(nums);
+
+                dataRows.push([name, batch, expiry, qty, mrp, rate, gst, pack]);
+            }
+
+            if (dataRows.length === 0) {
+                showToast('Could Not Parse',
+                    headerIdx < 0
+                        ? 'No product table detected. Ensure the table is clearly visible.'
+                        : 'Product rows could not be read. Try a clearer, higher-resolution image.');
+                return;
+            }
+
+            _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack'];
+            _invRows = dataRows;
+
+            const issues = _checkOCRQuality(dataRows);
+            if (issues.blocked) {
+                _showOCRWarning(issues.messages, true);
+            } else if (issues.messages.length > 0) {
+                _showOCRWarning(issues.messages, false);
+            } else {
+                showToast('OCR Complete', 'Found ' + dataRows.length + ' product(s). Filling form now...');
+                _autoImportOCR();
+            }
+        }
+
+
+        /* ── OCR Quality Check ── */
+        function _checkOCRQuality(rows) {
+            const issues = [];
+            let blocked = false;
+            const total = rows.length;
+            const emptyName = rows.filter(r => !String(r[0]).trim()).length;
+            const emptyQty  = rows.filter(r => !String(r[3]).trim()).length;
+            const emptyMRP  = rows.filter(r => !String(r[4]).trim()).length;
+            const emptyBatch= rows.filter(r => !String(r[1]).trim()).length;
+            const emptyExp  = rows.filter(r => !String(r[2]).trim()).length;
+
+            // Block process if more than 20% error rate on critical fields
+            if (emptyName / total > 0.2 || emptyQty / total > 0.2 || emptyMRP / total > 0.2) {
+                issues.push('Error rate > 20%: Too many missing product names, quantities, or prices.');
+                blocked = true;
+                return { messages: issues, blocked };
+            }
+
+            if (emptyName > 0) issues.push(emptyName + ' product name(s) missing — check those rows.');
+            if (emptyQty > 0)  issues.push(emptyQty + ' quantity field(s) missing.');
+            if (emptyMRP > 0)  issues.push(emptyMRP + ' MRP field(s) missing.');
+            if (emptyBatch === total) issues.push('Batch numbers not detected (fill manually).');
+            if (emptyExp   === total) issues.push('Expiry dates not detected (fill manually).');
+            
+            return { messages: issues, blocked };
+        }
+
+        /* ── Auto-import OCR results directly into purchase form ── */
+        function _autoImportOCR() {
+            // _invRows = [[name, batch, expiry, qty, mrp, rate, gst, pack], ...]
+            // _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack']
+            document.getElementById('lineItemsContainer').innerHTML = '';
+            lineItemCounter = 0;
+
+            _invRows.forEach(row => {
+                const pName = String(row[0] || '').trim();
+                if (!pName) return;
+
+                lineItemCounter++;
+                const container = document.getElementById('lineItemsContainer');
+                container.insertAdjacentHTML('beforeend', createLineItemHTML(lineItemCounter));
+                const el = document.getElementById(`item_${lineItemCounter}`);
+
+                el.querySelector('.li-productName').value  = pName;
+                el.querySelector('.li-batchNo').value      = String(row[1] || '').trim();
+                el.querySelector('.li-expireDate').value   = _parseExpiry(row[2]);
+                el.querySelector('.li-quantity').value     = String(row[3] || '').trim();
+                el.querySelector('.li-mrp').value          = String(row[4] || '').trim();
+                el.querySelector('.li-rate').value         = String(row[5] || '').trim();
+                el.querySelector('.li-gst').value          = String(row[6] || '').trim();
+                el.querySelector('.li-pack').value         = String(row[7] || '').trim();
+
+                calcItemTotal(`item_${lineItemCounter}`);
+            });
+
+            if (lineItemCounter === 0) addLineItem();
+            renumberItems();
+            updateGrandTotal();
+            closeInvoiceImportModal();
+            showToast('✅ ' + lineItemCounter + ' items loaded!', 'Review each item, adjust if needed, then Save.');
+        }
+
+        function _showOCRWarning(messages, blocked) {
+            const old = document.getElementById('ocrScanWarning');
+            if (old) old.remove();
+
+            const wrap = document.createElement('div');
+            wrap.id = 'ocrScanWarning';
+            
+            if (blocked) {
+                wrap.style.cssText = 'margin-top:1rem;padding:1rem 1.2rem;border-radius:12px;border:2px solid #fca5a5;background:#fef2f2;font-size:0.82rem;';
+                let html = `<div style='font-weight:800;font-size:1rem;color:#991b1b;margin-bottom:0.5rem;'>🚫 File Not Clear</div>`;
+                html += `<div style='margin-bottom:0.8rem;color:#7f1d1d;line-height:1.4;'>File not clear. Please upload a clear file or use Excel/CSV for better results.</div>`;
+                html += `<button onclick="document.getElementById('ocrScanWarning').remove(); document.getElementById('invFileInput').value='';"
+                        style='width:100%;padding:0.6rem;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;'>
+                        🔄 Re-upload Better Image
+                    </button>`;
+                wrap.innerHTML = html;
+            } else {
+                wrap.style.cssText = 'margin-top:1rem;padding:1rem 1.2rem;border-radius:12px;border:2px solid #fde68a;background:#fffbeb;font-size:0.82rem;';
+                let html = `<div style='font-weight:800;font-size:0.9rem;color:#78350f;margin-bottom:0.5rem;'>⚠️ Scan Quality Issues</div>`;
+                html += messages.map(m => `<div style='margin-bottom:0.3rem;color:#92400e;'>${m}</div>`).join('');
+                html += `<div style='margin-top:0.8rem;display:flex;gap:0.6rem;'>
+                    <button onclick="document.getElementById('ocrScanWarning').remove(); _autoImportOCR();"
+                        style='flex:1;padding:0.5rem;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;'>
+                        ✅ Fill Form Anyway (Verify Manually)
+                    </button>
+                    <button onclick="document.getElementById('ocrScanWarning').remove(); document.getElementById('invFileInput').value='';"
+                        style='flex:1;padding:0.5rem;background:#6b7280;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;'>
+                        🔄 Re-upload Better Image
+                    </button>
+                </div>`;
+                wrap.innerHTML = html;
+            }
+
+            const step1 = document.getElementById('invStep1');
+            if (step1) step1.appendChild(wrap);
+        }
+        // Returns true if a column's data values look like physical weight/volume
+        // measurements (e.g. "75 GM", "100 ML", "500 MG") rather than a count
+        function isWeightVolumeCol(colIdx) {
+            const wvPat = /^\s*[\d.]+\s*(ml|mg|gm|g|l|mcg|iu|kg|oz|tab|cap|nos)\s*$/i;
+            const sample = _invRows.slice(0, 12);
+            const nonEmpty = sample.filter(r => String(r[colIdx]??'').trim()).length;
+            if (!nonEmpty) return false;
+            const hits = sample.filter(r => wvPat.test(String(r[colIdx]??'').trim())).length;
+            return (hits / nonEmpty) >= 0.4;
+        }
+
         function showInvMapper() {
             document.getElementById('invStep1').style.display='none';
             document.getElementById('invStep2').style.display='block';
             document.getElementById('invStep3').style.display='none';
             document.getElementById('invImportBtn').disabled=true;
             document.getElementById('invRowCount').textContent=`${_invRows.length} data row(s) detected`;
-            const colOpts='<option value="">— Skip —</option>'+
-                _invHdrs.map((h,i)=>`<option value="${i}">${h||('Col '+(i+1))}</option>`).join('');
+
+            // Auto-detect column indices by keyword matching
+            const keywords={
+                productName:/product|medicine|drug|name|item|brand|generic/i,
+                batchNo:/batch|lot/i,
+                expireDate:/exp|expiry|expire/i,
+                quantity:/qty|quant|nos|units/i,
+                mrp:/mrp|max.*price|selling/i,
+                rate:/rate|purchase|cost|ptr|pts/i,
+                gst:/gst|tax|vat/i,
+                // Pack = strip count (10 TAB, 15 CAP) — NOT weight/volume columns
+                pack:/^pack(\s*size)?$|^packing$/i,
+            };
+            const container = document.getElementById('invFieldChips');
+            container.innerHTML = '';
             INV_FIELDS.forEach(f=>{
-                const sel=document.getElementById('invSel_'+f.key);
-                if(!sel) return;
-                sel.innerHTML=colOpts;
-                // Auto-detect by header name
-                const keywords={
-                    productName:/product|medicine|drug|name|item|brand|generic/i,
-                    batchNo:/batch|lot/i,
-                    expireDate:/exp|expiry|expire/i,
-                    quantity:/qty|quant|nos|units/i,
-                    mrp:/mrp|max.*price|selling/i,
-                    rate:/rate|purchase|cost|ptr|pts/i,
-                    gst:/gst|tax|vat/i,
-                    pack:/pack|packing|size/i,
-                };
-                const kw=keywords[f.key];
-                if(kw){
-                    const idx=_invHdrs.findIndex(h=>kw.test(h));
-                    if(idx>=0) sel.value=String(idx);
+                const kw = keywords[f.key];
+                let idx = kw ? _invHdrs.findIndex(h=>kw.test(h.trim())) : -1;
+
+                // For pack: reject the match if the column's values look like
+                // physical weight/volume (e.g. "75 GM", "100 ML") — those are
+                // not strip counts; default pack to 1 for such products.
+                if (f.key === 'pack' && idx >= 0 && isWeightVolumeCol(idx)) {
+                    idx = -1; // treat as not found → chip pre-skipped → defaults to 1
                 }
+
+                const detectedName = idx >= 0 ? (_invHdrs[idx] || 'Col '+(idx+1)) : null;
+                const chip = document.createElement('div');
+                chip.className = 'inv-chip' + (detectedName ? '' : ' inv-chip-skip');
+                chip.dataset.key = f.key;
+                chip.dataset.idx = idx;
+                chip.dataset.skipped = detectedName ? 'false' : 'true';
+                // Extra hint for pack when auto-rejected
+                const hint = (f.key==='pack' && !detectedName)
+                    ? ' <span style="font-size:0.7rem;color:#f59e0b;">(will default to 1)</span>' : '';
+                chip.innerHTML = `
+                    <span class="inv-chip-label">${f.label.replace(' ✱','')}</span>
+                    <span class="inv-chip-detected">${detectedName ? '→ ' + detectedName : 'Not found'+hint}</span>
+                    <button type="button" class="inv-chip-skip-btn" onclick="toggleChipSkip(this.closest('.inv-chip'))">
+                        ${chip.dataset.skipped==='true' ? 'Include' : 'Skip'}
+                    </button>`;
+                container.appendChild(chip);
             });
+        }
+
+        function toggleChipSkip(chip) {
+            const skipped = chip.dataset.skipped === 'true';
+            chip.dataset.skipped = skipped ? 'false' : 'true';
+            chip.classList.toggle('inv-chip-skip', !skipped);
+            chip.querySelector('.inv-chip-skip-btn').textContent = skipped ? 'Skip' : 'Include';
         }
 
         function buildInvPreview() {
             const map={};
-            INV_FIELDS.forEach(f=>{
-                const sel=document.getElementById('invSel_'+f.key);
-                if(sel&&sel.value!=='') map[f.key]=parseInt(sel.value);
+            const chips = document.querySelectorAll('#invFieldChips .inv-chip');
+            chips.forEach(chip => {
+                if (chip.dataset.skipped === 'false') {
+                    const idx = parseInt(chip.dataset.idx);
+                    if (!isNaN(idx) && idx >= 0) map[chip.dataset.key] = idx;
+                }
             });
             if(map.productName===undefined){
-                showToast('Required','Please map the Product Name column.'); return;
+                showToast('Required','Product Name column was not detected or was skipped. Please check your file headers.'); return;
             }
             document.getElementById('invStep2').style.display='none';
             document.getElementById('invStep3').style.display='block';
@@ -1190,14 +1924,51 @@
                 container.insertAdjacentHTML('beforeend', createLineItemHTML(lineItemCounter));
                 const el=document.getElementById(`item_${lineItemCounter}`);
 
+                // ── Import value parsers ──────────────────────────────────────────
+                // Basic: strip everything except digits and dot
+                const numOnly = v => {
+                    const raw = String(v??'').trim();
+                    // Handle multiplication format: "1X10", "1×10", "2*15" → evaluate
+                    const mul = raw.match(/^(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)$/);
+                    if (mul) return String(Math.round(Number(mul[1]) * Number(mul[2])));
+                    return raw.replace(/[^\d.]/g, '');
+                };
+
+                // Pack: weight/volume (GM, ML…) → 1 unit; multiplication → evaluate; else strip
+                const wvPat    = /^[\d.]+\s*(ml|mg|gm|g|l|mcg|iu|kg|oz)\s*$/i;
+                // "1X10G", "1X10ML" → weight/volume product (cream, syrup) → sell as 1 whole unit
+                const mulWvPat = /^(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)\s*(ml|mg|gm|g|l|mcg|iu|kg|oz)\s*$/i;
+                // "1X10", "2X15" → tablet/capsule strips → evaluate the multiplication
+                const mulPat   = /^(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)$/;
+                const packVal = v => {
+                    const raw = String(v??'').trim();
+                    if (!raw) return '';
+                    if (wvPat.test(raw))    return '1';   // "100 ML", "75 GM" → 1
+                    if (mulWvPat.test(raw)) return '1';   // "1X10G", "1X10ML" → cream/syrup → 1
+                    const mul = raw.match(mulPat);
+                    if (mul) return String(Math.round(Number(mul[1]) * Number(mul[2]))); // "1X10" → 10
+                    return raw.replace(/[^\d.]/g, '');    // "10 TAB" → 10
+                };
+
+                // GST: Excel often stores 12% as the decimal 0.12 — convert back to %
+                const gstVal = v => {
+                    const raw = String(v??'').trim();
+                    const num = parseFloat(raw.replace(/[^\d.]/g, ''));
+                    if (isNaN(num) || raw === '') return '';
+                    // Values like 0.05, 0.12, 0.18, 0.28 are decimal GST → multiply by 100
+                    if (num > 0 && num < 1) return String(parseFloat((num * 100).toFixed(4)).toString());
+                    return String(num);
+                };
+
                 el.querySelector('.li-productName').value = pName;
                 if(map.batchNo!==undefined)   el.querySelector('.li-batchNo').value    = String(row[map.batchNo]??'').trim();
                 if(map.expireDate!==undefined) el.querySelector('.li-expireDate').value = _parseExpiry(row[map.expireDate]);
-                if(map.pack!==undefined)       el.querySelector('.li-pack').value       = String(row[map.pack]??'').trim();
-                if(map.quantity!==undefined)   el.querySelector('.li-quantity').value   = String(row[map.quantity]??'').trim();
-                if(map.mrp!==undefined)        el.querySelector('.li-mrp').value        = String(row[map.mrp]??'').trim();
-                if(map.rate!==undefined)       el.querySelector('.li-rate').value       = String(row[map.rate]??'').trim();
-                if(map.gst!==undefined)        el.querySelector('.li-gst').value        = String(row[map.gst]??'').trim();
+                if(map.pack!==undefined)       el.querySelector('.li-pack').value       = packVal(row[map.pack]);
+                if(map.quantity!==undefined)   el.querySelector('.li-quantity').value   = numOnly(row[map.quantity]);
+                if(map.mrp!==undefined)        el.querySelector('.li-mrp').value        = numOnly(row[map.mrp]);
+                if(map.rate!==undefined)       el.querySelector('.li-rate').value       = numOnly(row[map.rate]);
+                if(map.gst!==undefined)        el.querySelector('.li-gst').value        = gstVal(row[map.gst]);
+
 
                 calcItemTotal(`item_${lineItemCounter}`);
             });
@@ -1206,11 +1977,18 @@
             renumberItems();
             updateGrandTotal();
             closeInvoiceImportModal();
+            saveDraft(); // persist import so a refresh won't lose the data
             showToast(`✅ ${lineItemCounter} items loaded!`, 'Review, adjust, then click Save All Purchases.');
         }
 
-        // ── Initialize with one line item ──
-        addLineItem();
+        // ── Initialize: restore draft if available, else start with one blank item ──
+        if (!restoreDraft()) addLineItem();
+
+        // ── Auto-save draft whenever the user edits any field ──
+        document.getElementById('lineItemsContainer').addEventListener('input', saveDraft);
+        document.getElementById('billNo').addEventListener('input', saveDraft);
+        document.getElementById('firm').addEventListener('input', saveDraft);
+        document.getElementById('purchaseDate').addEventListener('change', saveDraft);
     </script>
 
     <!-- Shared datalist for all product name inputs -->
@@ -1263,59 +2041,33 @@
             <!-- Step 1: Upload File -->
             <div class="modal-bd" id="invStep1">
                 <div style="font-size:0.82rem;color:#64748b;margin-bottom:0.8rem;">
-                    Upload your distributor's Excel or CSV invoice. Billware will read all columns and fill in the purchase form automatically.
+                    Upload your distributor's Excel, CSV, PDF or photo invoice. Billware will read all columns and fill in the purchase form automatically.
                 </div>
                 <div class="drop-zone" id="invDropZone"
                      ondragover="event.preventDefault();this.classList.add('drag-over')"
                      ondragleave="this.classList.remove('drag-over')"
                      ondrop="handleInvDrop(event)">
-                    <input type="file" id="invFileInput" accept=".csv,.xlsx,.xls" onchange="handleInvFile(event)">
+                    <input type="file" id="invFileInput" accept=".csv,.xlsx,.xls,.pdf,.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff" onchange="handleInvFile(event)">
                     <div class="dz-ico">📊</div>
                     <div class="dz-txt">Drop invoice file here or click to browse</div>
-                    <div class="dz-sub">Supports .xlsx, .xls, .csv — one file at a time</div>
+                    <div class="dz-sub">Excel / CSV → auto-mapped &nbsp;|&nbsp; 📷 Photo / PDF → OCR scanned</div>
+                </div>
+                <!-- Tip note -->
+                <div style="margin-top:0.75rem;display:flex;align-items:flex-start;gap:0.55rem;padding:0.65rem 0.9rem;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;">
+                    <span style="font-size:1.1rem;flex-shrink:0;">💡</span>
+                    <div style="font-size:0.78rem;color:#166534;line-height:1.5;">
+                        <strong>Tip:</strong> Always prefer <strong>Excel (.xlsx)</strong> or <strong>CSV</strong> files for 100% accurate data.
+                        Photos and PDFs use OCR scanning which may have errors — always double-check the filled data before saving.
+                    </div>
                 </div>
             </div>
 
             <!-- Step 2: Map Columns -->
             <div class="modal-bd" id="invStep2" style="display:none">
-                <div class="step-lbl">Match your file's columns to Billware fields</div>
+                <div class="step-lbl">Review auto-detected columns</div>
                 <div class="stats-txt" id="invRowCount"></div>
-                <div class="inv-field-map">
-                    <!-- dynamically generated selects for each INV_FIELD -->
-                    <div class="inv-field-row">
-                        <label class="inv-field-lbl">Product Name ✱</label>
-                        <select class="inv-field-select" id="invSel_productName"></select>
-                    </div>
-                    <div class="inv-field-row">
-                        <label class="inv-field-lbl">Batch No</label>
-                        <select class="inv-field-select" id="invSel_batchNo"></select>
-                    </div>
-                    <div class="inv-field-row">
-                        <label class="inv-field-lbl">Expiry Date</label>
-                        <select class="inv-field-select" id="invSel_expireDate"></select>
-                    </div>
-                    <div class="inv-field-row">
-                        <label class="inv-field-lbl">Quantity</label>
-                        <select class="inv-field-select" id="invSel_quantity"></select>
-                    </div>
-                    <div class="inv-field-row">
-                        <label class="inv-field-lbl">MRP (₹)</label>
-                        <select class="inv-field-select" id="invSel_mrp"></select>
-                    </div>
-                    <div class="inv-field-row">
-                        <label class="inv-field-lbl">Purchase Rate (₹)</label>
-                        <select class="inv-field-select" id="invSel_rate"></select>
-                    </div>
-                    <div class="inv-field-row">
-                        <label class="inv-field-lbl">GST (%)</label>
-                        <select class="inv-field-select" id="invSel_gst"></select>
-                    </div>
-                    <div class="inv-field-row">
-                        <label class="inv-field-lbl">Pack Size</label>
-                        <select class="inv-field-select" id="invSel_pack"></select>
-                    </div>
-                </div>
-                <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.2rem;">✱ Required. All other fields are optional.</div>
+                <div id="invFieldChips" class="inv-chip-grid"></div>
+                <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.8rem;">✱ Product Name is required. Click <strong>Skip</strong> on any field you don't want to import.</div>
             </div>
 
             <!-- Step 3: Preview -->

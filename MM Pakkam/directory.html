@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Directory | MM Pakkam</title>
+    <meta name="description" content="Manage all your saved customers and doctors in one place.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/auth.js?v=3"></script>
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="/icon-512.png">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            background: #f0f4ff;
+            background-image:
+                radial-gradient(at 0% 0%,   hsla(230,100%,96%,1) 0px, transparent 55%),
+                radial-gradient(at 100% 0%,  hsla(190,100%,94%,1) 0px, transparent 55%),
+                radial-gradient(at 0% 100%,  hsla(280,80%,96%,1)  0px, transparent 55%),
+                radial-gradient(at 100% 100%,hsla(210,100%,95%,1) 0px, transparent 55%);
+            background-attachment: fixed;
+            display: flex;
+            flex-direction: column;
+            color: #0f172a;
+        }
+
+        /* ── Header ── */
+        header {
+            background: rgba(255,255,255,0.82);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-bottom: 1px solid rgba(99,102,241,0.10);
+            padding: 0.85rem 2rem;
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+            box-shadow: 0 2px 20px rgba(99,102,241,0.06);
+        }
+        .logo { display: flex; align-items: center; gap: 12px; text-decoration: none; transition: transform 0.2s; }
+        .logo:hover { transform: translateY(-1px); }
+        .logo-icon {
+            width: 40px; height: 40px; border-radius: 12px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 14px rgba(99,102,241,0.35); flex-shrink: 0;
+        }
+        .logo-text { font-size: 1.25rem; font-weight: 800; color: #1e1b4b; letter-spacing: -0.02em; }
+        .back-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 0.45rem 1rem;
+            background: rgba(255,255,255,0.8);
+            border: 1.5px solid rgba(0,0,0,0.08);
+            border-radius: 10px;
+            font-size: 0.82rem; font-weight: 700; color: #0f172a;
+            text-decoration: none; transition: all 0.2s; cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .back-btn:hover { background: #fff; box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+
+        /* ── Page Content ── */
+        .page-content {
+            flex: 1;
+            max-width: 820px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 2.5rem 1.5rem 5rem;
+        }
+
+        /* ── Page Header ── */
+        .page-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+            animation: fadeUp 0.4s ease forwards;
+        }
+        .page-header-text { }
+        .page-tag {
+            font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em;
+            color: #8b5cf6; text-transform: uppercase; margin-bottom: 0.4rem;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .page-tag::before { content: ''; display: block; width: 18px; height: 2px; background: #8b5cf6; border-radius: 2px; }
+        .page-header h1 { font-size: 1.9rem; font-weight: 900; color: #1e1b4b; letter-spacing: -0.03em; }
+        .page-header p { color: #64748b; margin-top: 0.3rem; font-size: 0.9rem; }
+
+        /* ── Tabs ── */
+        .tabs {
+            display: flex;
+            gap: 6px;
+            background: rgba(255,255,255,0.7);
+            backdrop-filter: blur(12px);
+            border: 1.5px solid rgba(99,102,241,0.12);
+            border-radius: 16px;
+            padding: 6px;
+            margin-bottom: 1.5rem;
+            animation: fadeUp 0.45s ease 0.05s forwards;
+            opacity: 0;
+        }
+        .tab-btn {
+            flex: 1;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 0.65rem 1rem;
+            border-radius: 10px;
+            border: none; background: transparent;
+            font-family: 'Inter', sans-serif; font-size: 0.9rem; font-weight: 700;
+            color: #64748b; cursor: pointer; transition: all 0.22s;
+        }
+        .tab-btn .tab-count {
+            background: rgba(99,102,241,0.1);
+            color: #6366f1;
+            font-size: 0.72rem; font-weight: 800;
+            padding: 2px 7px; border-radius: 20px;
+            transition: all 0.22s;
+        }
+        .tab-btn.active {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+        }
+        .tab-btn.active .tab-count { background: rgba(255,255,255,0.25); color: white; }
+
+        /* ── Search + Add Bar ── */
+        .action-bar {
+            display: flex; gap: 10px; margin-bottom: 1.5rem;
+            animation: fadeUp 0.5s ease 0.1s forwards; opacity: 0;
+        }
+        .search-wrap {
+            flex: 1;
+            display: flex; align-items: center; gap: 10px;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(12px);
+            border: 1.5px solid rgba(99,102,241,0.12);
+            border-radius: 14px;
+            padding: 0 1rem;
+            box-shadow: 0 2px 12px rgba(99,102,241,0.05);
+            transition: border-color 0.2s;
+        }
+        .search-wrap:focus-within { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.08); }
+        .search-wrap svg { flex-shrink: 0; color: #a5b4fc; }
+        .search-wrap input {
+            flex: 1; border: none; background: transparent; outline: none;
+            font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #0f172a;
+            padding: 0.75rem 0;
+        }
+        .search-wrap input::placeholder { color: #cbd5e1; }
+        .add-btn {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 0.75rem 1.4rem;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white; border: none; border-radius: 14px;
+            font-family: 'Inter', sans-serif; font-size: 0.9rem; font-weight: 700;
+            cursor: pointer; transition: all 0.22s;
+            box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+            white-space: nowrap;
+        }
+        .add-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(99,102,241,0.45); }
+
+        /* ── Cards List ── */
+        .cards-list {
+            display: flex; flex-direction: column; gap: 10px;
+            animation: fadeUp 0.55s ease 0.15s forwards; opacity: 0;
+        }
+        .contact-card {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(12px);
+            border: 1.5px solid rgba(99,102,241,0.08);
+            border-radius: 18px;
+            padding: 1.1rem 1.4rem;
+            display: flex; align-items: center; gap: 1rem;
+            box-shadow: 0 2px 14px rgba(99,102,241,0.05);
+            transition: all 0.22s;
+        }
+        .contact-card:hover {
+            border-color: rgba(99,102,241,0.2);
+            box-shadow: 0 6px 24px rgba(99,102,241,0.1);
+            transform: translateY(-1px);
+        }
+        .c-avatar {
+            width: 46px; height: 46px; border-radius: 14px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 800; font-size: 1rem;
+            flex-shrink: 0; letter-spacing: 0.03em;
+        }
+        .c-avatar.doctor { background: linear-gradient(135deg, #0ea5e9, #06b6d4); }
+        .c-info { flex: 1; min-width: 0; }
+        .c-name { font-weight: 800; font-size: 0.97rem; color: #1e1b4b; }
+        .c-sub {
+            font-size: 0.8rem; color: #94a3b8; font-weight: 500;
+            margin-top: 2px; display: flex; gap: 12px; flex-wrap: wrap;
+        }
+        .c-sub span { display: flex; align-items: center; gap: 3px; }
+        .c-balance {
+            font-size: 0.75rem; font-weight: 800;
+            background: #fef9c3; color: #854d0e;
+            border: 1px solid #fde047;
+            padding: 3px 10px; border-radius: 20px;
+            white-space: nowrap;
+        }
+        .c-del-btn {
+            background: none; border: none; cursor: pointer;
+            color: #cbd5e1; padding: 6px; border-radius: 8px;
+            transition: all 0.2s; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .c-del-btn:hover { background: #fee2e2; color: #ef4444; }
+
+        /* ── Empty State ── */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #94a3b8;
+        }
+        .empty-icon { font-size: 3.5rem; margin-bottom: 1rem; opacity: 0.8; }
+        .empty-state h3 { font-size: 1.1rem; font-weight: 700; color: #64748b; margin-bottom: 0.4rem; }
+        .empty-state p { font-size: 0.85rem; }
+
+        /* ── Modal Overlay ── */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(15,23,42,0.4);
+            backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 999;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.25s;
+        }
+        .modal-overlay.open { opacity: 1; pointer-events: all; }
+        .modal {
+            background: white;
+            border-radius: 24px;
+            padding: 2rem 2rem 1.8rem;
+            width: 100%; max-width: 440px;
+            box-shadow: 0 24px 60px rgba(99,102,241,0.18);
+            transform: translateY(20px) scale(0.97);
+            transition: transform 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+        }
+        .modal-overlay.open .modal { transform: translateY(0) scale(1); }
+        .modal h2 { font-size: 1.3rem; font-weight: 900; color: #1e1b4b; margin-bottom: 0.3rem; }
+        .modal p { font-size: 0.85rem; color: #94a3b8; margin-bottom: 1.5rem; }
+        .form-group { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem; }
+        .form-group label { font-size: 0.8rem; font-weight: 700; color: #334155; text-transform: uppercase; letter-spacing: 0.04em; }
+        .form-group label .req { color: #ef4444; margin-left: 2px; }
+        .form-group input, .form-group textarea {
+            font-family: 'Inter', sans-serif; font-size: 0.93rem; color: #0f172a;
+            background: #f8fafc; border: 1.5px solid #e2e8f0;
+            border-radius: 12px; padding: 0.75rem 1rem; outline: none; width: 100%;
+            transition: all 0.2s;
+        }
+        .form-group input:focus, .form-group textarea:focus {
+            border-color: #6366f1; background: white;
+            box-shadow: 0 0 0 4px rgba(99,102,241,0.1);
+        }
+        .form-group textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+        .modal-actions { display: flex; gap: 0.8rem; margin-top: 1.5rem; }
+        .btn-cancel {
+            flex: 1; padding: 0.8rem;
+            background: #f1f5f9; color: #64748b;
+            border: 1.5px solid #e2e8f0; border-radius: 12px;
+            font-family: 'Inter', sans-serif; font-size: 0.9rem; font-weight: 700;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .btn-cancel:hover { background: #e2e8f0; color: #334155; }
+        .btn-save {
+            flex: 1; padding: 0.8rem;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white; border: none; border-radius: 12px;
+            font-family: 'Inter', sans-serif; font-size: 0.9rem; font-weight: 700;
+            cursor: pointer; transition: all 0.22s;
+            box-shadow: 0 4px 14px rgba(99,102,241,0.3);
+        }
+        .btn-save:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(99,102,241,0.4); }
+        .btn-save:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        /* ── Toast ── */
+        .toast {
+            position: fixed; bottom: 2rem; right: 2rem;
+            background: white;
+            border: 1.5px solid #c7d2fe;
+            border-radius: 16px; padding: 1rem 1.4rem;
+            display: flex; align-items: center; gap: 12px;
+            font-size: 0.88rem; font-weight: 600; color: #3730a3;
+            box-shadow: 0 10px 30px rgba(99,102,241,0.15);
+            transform: translateY(100px); opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175,0.885,0.32,1.275);
+            z-index: 1000;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        /* ── Animations ── */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Responsive ── */
+        @media (max-width: 600px) {
+            header { padding: 0.75rem 1rem; }
+            .page-content { padding: 1.5rem 1rem 4rem; }
+            .page-header h1 { font-size: 1.5rem; }
+            .modal { padding: 1.5rem 1.2rem; }
+            .c-sub { flex-direction: column; gap: 4px; }
+        }
+    </style>
+</head>
+<body>
+    <script>
+        mmRequireAuth();
+        document.addEventListener('DOMContentLoaded', () => mmInjectUserBar());
+    </script>
+
+    <!-- Header -->
+    <header>
+        <a href="index.html" class="logo">
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-5.356-3.712M9 20H4v-2a4 4 0 015.356-3.712M15 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                </svg>
+            </div>
+            <span class="logo-text" id="shopNameHeader">My Shop</span>
+        </a>
+        <a href="javascript:history.back()" class="back-btn">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Back
+        </a>
+    </header>
+
+    <!-- Page Content -->
+    <div class="page-content">
+
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="page-header-text">
+                <div class="page-tag">Contacts Management</div>
+                <h1>Directory</h1>
+                <p>Manage all your saved customers and doctors.</p>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" id="tabCustomers" onclick="switchTab('customers')">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+                Customers
+                <span class="tab-count" id="custCount">0</span>
+            </button>
+            <button class="tab-btn" id="tabDoctors" onclick="switchTab('doctors')">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                Doctors
+                <span class="tab-count" id="docCount">0</span>
+            </button>
+        </div>
+
+        <!-- Search + Add -->
+        <div class="action-bar">
+            <div class="search-wrap">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35"/>
+                </svg>
+                <input type="text" id="searchInput" placeholder="Search name, phone…" oninput="filterList(this.value)">
+            </div>
+            <button class="add-btn" onclick="openAddModal()">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                </svg>
+                <span id="addBtnLabel">Add Customer</span>
+            </button>
+        </div>
+
+        <!-- Cards List -->
+        <div class="cards-list" id="cardsList">
+            <div class="empty-state">
+                <div class="empty-icon">⏳</div>
+                <h3>Loading…</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Modal -->
+    <div class="modal-overlay" id="addModal">
+        <div class="modal">
+            <h2 id="modalTitle">Add Customer</h2>
+            <p id="modalSub">Fill in the details below and save.</p>
+
+            <!-- Customer Fields -->
+            <div id="custFields">
+                <div class="form-group">
+                    <label>Name <span class="req">*</span></label>
+                    <input type="text" id="cName" placeholder="e.g. Ravi Kumar">
+                </div>
+                <div class="form-group">
+                    <label>Phone <span class="req">*</span></label>
+                    <input type="tel" id="cPhone" placeholder="e.g. 9876543210">
+                </div>
+                <div class="form-group">
+                    <label>Address / Place</label>
+                    <textarea id="cAddress" placeholder="Enter area or address…"></textarea>
+                </div>
+            </div>
+
+            <!-- Doctor Fields -->
+            <div id="docFields" style="display:none;">
+                <div class="form-group">
+                    <label>Doctor Name <span class="req">*</span></label>
+                    <input type="text" id="dName" placeholder="e.g. Dr. Arun Kumar">
+                </div>
+                <div class="form-group">
+                    <label>Phone <span class="req">*</span></label>
+                    <input type="tel" id="dPhone" placeholder="e.g. 9876543210">
+                </div>
+                <div class="form-group">
+                    <label>Clinic / Hospital</label>
+                    <input type="text" id="dClinic" placeholder="e.g. Apollo Clinic">
+                </div>
+                <div class="form-group">
+                    <label>Address / Place</label>
+                    <textarea id="dAddress" placeholder="Enter clinic area…"></textarea>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+                <button class="btn-save" id="saveBtn" onclick="saveEntry()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <svg width="16" height="16" fill="none" stroke="#4f46e5" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+        <span id="toastMsg">Saved!</span>
+    </div>
+
+    <script>
+        // ── State ──
+        let _activeTab = 'customers';
+        let _allCustomers = [];
+        let _allDoctors   = [];
+        let _filtered     = [];
+
+        // ── Load shop name ──
+        async function loadShopName() {
+            try {
+                const profile = await dbGetShopProfile();
+                const cached  = mmLsGet ? (mmLsGet('profile') || {}) : {};
+                const name = (profile && profile.shop_name && profile.shop_name.trim())
+                    ? profile.shop_name
+                    : (cached.shopName || cached.shop_name || 'My Shop');
+                document.getElementById('shopNameHeader').textContent = name;
+            } catch(e) {
+                document.getElementById('shopNameHeader').textContent = 'My Shop';
+            }
+        }
+
+        // ── Helpers ──
+        function getInitials(name) {
+            return (name || '?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+        }
+
+        // Escape untrusted text before it's placed into innerHTML
+        function escHtml(str) {
+            const d = document.createElement('div');
+            d.textContent = str || '';
+            return d.innerHTML;
+        }
+
+        // Safe to embed inside a single-quoted JS string literal that itself
+        // sits inside a double-quoted HTML attribute (e.g. onclick="fn('${escAttr(x)}')").
+        function escAttr(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'");
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        // ── Load Data ──
+        async function loadAll() {
+            // Customers
+            try {
+                const rows = (typeof dbGetCustomers === 'function') ? await dbGetCustomers() : [];
+                if (rows && rows.length > 0) {
+                    _allCustomers = rows;
+                } else {
+                    // fallback localStorage
+                    _allCustomers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+                }
+            } catch(e) {
+                _allCustomers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+            }
+
+            // Doctors
+            try {
+                const rows = (typeof dbGetDoctors === 'function') ? await dbGetDoctors() : [];
+                if (rows && rows.length > 0) {
+                    _allDoctors = rows;
+                } else {
+                    _allDoctors = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
+                }
+            } catch(e) {
+                _allDoctors = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
+            }
+
+            updateCounts();
+            renderList();
+        }
+
+        function updateCounts() {
+            document.getElementById('custCount').textContent = _allCustomers.length;
+            document.getElementById('docCount').textContent  = _allDoctors.length;
+        }
+
+        // ── Tabs ──
+        function switchTab(tab) {
+            _activeTab = tab;
+            document.getElementById('searchInput').value = '';
+            document.getElementById('tabCustomers').classList.toggle('active', tab === 'customers');
+            document.getElementById('tabDoctors').classList.toggle('active', tab === 'doctors');
+            document.getElementById('addBtnLabel').textContent = tab === 'customers' ? 'Add Customer' : 'Add Doctor';
+            renderList();
+        }
+
+        // ── Filter ──
+        function filterList(q) {
+            renderList(q);
+        }
+
+        // ── Render ──
+        function renderList(q = '') {
+            const query = q.trim().toLowerCase();
+            const source = _activeTab === 'customers' ? _allCustomers : _allDoctors;
+            _filtered = query
+                ? source.filter(c => {
+                    const name  = (c.name || c.doctorName || '').toLowerCase();
+                    const phone = (c.phone || '').toLowerCase();
+                    return name.includes(query) || phone.includes(query);
+                  })
+                : [...source];
+
+            const grid = document.getElementById('cardsList');
+
+            if (_filtered.length === 0) {
+                const isCustomer = _activeTab === 'customers';
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">${isCustomer ? '👤' : '🩺'}</div>
+                        <h3>${q ? 'No results found' : (isCustomer ? 'No customers saved yet' : 'No doctors saved yet')}</h3>
+                        <p>${q ? 'Try a different search term.' : 'Click "+ Add" to register the first one.'}</p>
+                    </div>`;
+                return;
+            }
+
+            grid.innerHTML = _filtered.map((item, i) => {
+                if (_activeTab === 'customers') {
+                    const initials = getInitials(item.name);
+                    const balShow  = parseFloat(item.balance || 0) > 0
+                        ? `<span class="c-balance">₹${parseFloat(item.balance).toFixed(2)} due</span>` : '';
+                    return `<div class="contact-card" style="animation:fadeUp 0.3s ease ${i*0.04}s both;">
+                        <div class="c-avatar">${escHtml(initials)}</div>
+                        <div class="c-info">
+                            <div class="c-name">${escHtml(item.name)}</div>
+                            <div class="c-sub">
+                                ${item.phone ? `<span>📞 ${escHtml(item.phone)}</span>` : ''}
+                                ${item.address ? `<span>📍 ${escHtml(item.address)}</span>` : ''}
+                            </div>
+                        </div>
+                        ${balShow}
+                        <button class="c-del-btn" title="Delete" onclick="deleteEntry('customer', '${escAttr(item.name||'')}', '${escAttr(item.phone||'')}')" aria-label="Delete ${escAttr(item.name)}">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                        </button>
+                    </div>`;
+                } else {
+                    const name     = item.name || item.doctorName || '';
+                    const initials = getInitials(name);
+                    return `<div class="contact-card" style="animation:fadeUp 0.3s ease ${i*0.04}s both;">
+                        <div class="c-avatar doctor">${escHtml(initials)}</div>
+                        <div class="c-info">
+                            <div class="c-name">${escHtml(name)}</div>
+                            <div class="c-sub">
+                                ${item.phone ? `<span>📞 ${escHtml(item.phone)}</span>` : ''}
+                                ${item.clinic ? `<span>🏥 ${escHtml(item.clinic)}</span>` : ''}
+                                ${item.address ? `<span>📍 ${escHtml(item.address)}</span>` : ''}
+                            </div>
+                        </div>
+                        <button class="c-del-btn" title="Delete" onclick="deleteEntry('doctor', '${escAttr(name)}', '${escAttr(item.phone||'')}')" aria-label="Delete ${escAttr(name)}">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                        </button>
+                    </div>`;
+                }
+            }).join('');
+        }
+
+        // ── Modal ──
+        function openAddModal() {
+            const isCust = _activeTab === 'customers';
+            document.getElementById('modalTitle').textContent = isCust ? 'Add Customer' : 'Add Doctor';
+            document.getElementById('modalSub').textContent   = 'Fill in the details and save.';
+            document.getElementById('custFields').style.display = isCust ? '' : 'none';
+            document.getElementById('docFields').style.display  = isCust ? 'none' : '';
+            // Clear inputs
+            ['cName','cPhone','cAddress','dName','dPhone','dClinic','dAddress'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            const saveBtn = document.getElementById('saveBtn');
+            saveBtn.textContent = 'Save'; saveBtn.disabled = false;
+            document.getElementById('addModal').classList.add('open');
+            setTimeout(() => document.getElementById(isCust ? 'cName' : 'dName').focus(), 150);
+        }
+
+        function closeModal() {
+            document.getElementById('addModal').classList.remove('open');
+        }
+
+        async function saveEntry() {
+            const btn = document.getElementById('saveBtn');
+            btn.textContent = 'Saving…'; btn.disabled = true;
+
+            if (_activeTab === 'customers') {
+                const name    = document.getElementById('cName').value.trim();
+                const phone   = document.getElementById('cPhone').value.trim();
+                const address = document.getElementById('cAddress').value.trim();
+
+                if (!name || !phone) {
+                    alert('Name and Phone are required.'); btn.textContent = 'Save'; btn.disabled = false; return;
+                }
+
+                // Save to Supabase
+                let ok = false;
+                try {
+                    const r = await dbAddCustomer(name, phone, address);
+                    if (r && r.success) ok = true;
+                } catch(e) { console.warn('Supabase customer save failed:', e); }
+
+                // Always save to localStorage too
+                const custs = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+                if (!custs.find(c => c.name.toLowerCase() === name.toLowerCase() && (c.phone||'') === phone)) {
+                    custs.push({ name, phone, address, balance: 0 });
+                    localStorage.setItem('mm_customers', JSON.stringify(custs));
+                    ok = true;
+                }
+
+                if (ok) {
+                    closeModal();
+                    await loadAll();
+                    showToast('Customer saved successfully!');
+                } else {
+                    alert('Failed to save. Please try again.');
+                }
+
+            } else {
+                const name    = document.getElementById('dName').value.trim();
+                const phone   = document.getElementById('dPhone').value.trim();
+                const clinic  = document.getElementById('dClinic').value.trim();
+                const address = document.getElementById('dAddress').value.trim();
+
+                if (!name || !phone) {
+                    alert('Name and Phone are required.'); btn.textContent = 'Save'; btn.disabled = false; return;
+                }
+
+                let ok = false;
+                try {
+                    const r = await dbAddDoctor(name, phone, clinic, address);
+                    if (r && r.success) ok = true;
+                } catch(e) { console.warn('Supabase doctor save failed:', e); }
+
+                const docs = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
+                if (!docs.find(d => (d.name||'').toLowerCase() === name.toLowerCase() && (d.phone||'') === phone)) {
+                    docs.push({ name, phone, clinic, address });
+                    localStorage.setItem('mm_doctors', JSON.stringify(docs));
+                    ok = true;
+                }
+
+                if (ok) {
+                    closeModal();
+                    await loadAll();
+                    showToast('Doctor saved successfully!');
+                } else {
+                    alert('Failed to save. Please try again.');
+                }
+            }
+
+            btn.textContent = 'Save'; btn.disabled = false;
+        }
+
+        // ── Delete ──
+        // Matches on name+phone (not name alone) so two entries sharing a name
+        // aren't both wiped out / the wrong one deleted.
+        async function deleteEntry(type, name, phone) {
+            const confirmed = confirm(`⚠️ Delete "${name}" from ${type === 'customer' ? 'Customers' : 'Doctors'}?\n\nThis cannot be undone.`);
+            if (!confirmed) return;
+            phone = phone || '';
+
+            const matches = (r) => (r.name||'').toLowerCase() === name.toLowerCase() && (r.phone||'') === phone;
+
+            if (type === 'customer') {
+                // Remove from localStorage
+                const custs = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+                const updated = custs.filter(c => !matches(c));
+                localStorage.setItem('mm_customers', JSON.stringify(updated));
+
+                // Remove from Supabase customers table
+                try {
+                    if (typeof _supabase !== 'undefined' && _currentUser) {
+                        const user = _currentUser();
+                        if (user) await _supabase.from('customers').delete().eq('name', name).eq('phone', phone).eq('user_id', user);
+                    }
+                } catch(e) { console.warn('Supabase customer delete failed:', e); }
+
+            } else {
+                const docs = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
+                const updated = docs.filter(d => !matches(d));
+                localStorage.setItem('mm_doctors', JSON.stringify(updated));
+
+                try {
+                    if (typeof _supabase !== 'undefined' && _currentUser) {
+                        const user = _currentUser();
+                        if (user) await _supabase.from('doctors').delete().eq('name', name).eq('phone', phone).eq('user_id', user);
+                    }
+                } catch(e) { console.warn('Supabase doctor delete failed:', e); }
+            }
+
+            showToast(`${type === 'customer' ? 'Customer' : 'Doctor'} removed.`);
+            await loadAll();
+        }
+
+        // ── Close modal on backdrop click ──
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('addModal').addEventListener('click', e => {
+                if (e.target === document.getElementById('addModal')) closeModal();
+            });
+
+            // Load shop name + data
+            await loadShopName();
+            await loadAll();
+        });
+    </script>
+</body>
+</html>

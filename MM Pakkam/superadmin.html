@@ -384,6 +384,25 @@ const SB_URL = 'https://jwyyjdwlbgjijmwillow.supabase.co';
 const SB_KEY = 'sb_publishable_sY9QwFEMckky9KDJoc1O_w_zN7qY0mo';
 const sb = supabase.createClient(SB_URL, SB_KEY);
 
+// Escape untrusted text before it's placed into innerHTML (shop/user data is
+// entered by regular shop owners, so it must never be trusted as raw HTML here).
+function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = (str === null || str === undefined) ? '' : String(str);
+    return d.innerHTML;
+}
+// Safe to embed inside a single-quoted JS string literal that itself sits
+// inside a double-quoted HTML attribute (e.g. onclick="fn('${escAttr(x)}')").
+function escAttr(str) {
+    return String(str === null || str === undefined ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'");
+}
+
 // ── AUTH ──
 function doLogin() {
     const u = document.getElementById('saU').value.trim();
@@ -595,12 +614,12 @@ async function renderRequests() {
     const mkCard=(u,actions)=>`
         <div class="pcard">
             <div class="pcard-top">
-                <div class="pcard-avatar">${u.username.slice(0,2).toUpperCase()}</div>
+                <div class="pcard-avatar">${escHtml((u.username||'?').slice(0,2).toUpperCase())}</div>
                 <div>
-                    <div class="pcard-name">${u.username}</div>
+                    <div class="pcard-name">${escHtml(u.username)}</div>
                     ${window.currentShopProfiles[u.username] ? `
-                        <div style="font-size:0.85rem; color:#10b981; font-weight:700; margin-top:3px;">🏪 ${window.currentShopProfiles[u.username].shop_name || 'No Shop Name'}</div>
-                        <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">📞 ${window.currentShopProfiles[u.username].phone || 'No Phone'}</div>
+                        <div style="font-size:0.85rem; color:#10b981; font-weight:700; margin-top:3px;">🏪 ${escHtml(window.currentShopProfiles[u.username].shop_name) || 'No Shop Name'}</div>
+                        <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">📞 ${escHtml(window.currentShopProfiles[u.username].phone) || 'No Phone'}</div>
                     ` : ''}
                     <div class="pcard-meta">Role: ${u.role} • Joined: ${parseDate(u.createdAt)}</div>
                 </div>
@@ -702,21 +721,21 @@ async function renderShopEditRequests() {
         return `
         <div class="pcard" style="border-left:3px solid ${statusColor[req.status] || '#6b7280'}">
             <div class="pcard-top">
-                <div class="pcard-avatar" style="background:linear-gradient(135deg,#0d9488,#0891b2)">${(req.shop_name||req.user_id||'?').slice(0,2).toUpperCase()}</div>
+                <div class="pcard-avatar" style="background:linear-gradient(135deg,#0d9488,#0891b2)">${escHtml((req.shop_name||req.user_id||'?').slice(0,2).toUpperCase())}</div>
                 <div>
-                    <div class="pcard-name">${req.shop_name || req.user_id}</div>
-                    <div class="pcard-meta">👤 ${req.user_id} · 📅 ${dateStr}</div>
+                    <div class="pcard-name">${escHtml(req.shop_name || req.user_id)}</div>
+                    <div class="pcard-meta">👤 ${escHtml(req.user_id)} · 📅 ${dateStr}</div>
                 </div>
                 <span style="margin-left:auto;font-size:.72rem;font-weight:700;color:${statusColor[req.status]};white-space:nowrap;">${statusLabel[req.status] || req.status}</span>
             </div>
             <div style="background:rgba(255,255,255,0.06);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:.83rem;color:#cbd5e1;">
                 <span style="font-size:.68rem;text-transform:uppercase;font-weight:700;color:#64748b;display:block;margin-bottom:3px;">Reason</span>
-                ${req.reason || '<em style="color:#475569">No reason provided</em>'}
+                ${req.reason ? escHtml(req.reason) : '<em style="color:#475569">No reason provided</em>'}
             </div>
             ${isPending ? `
             <div class="pcard-actions">
-                <button class="approve-btn" onclick="approveShopEdit('${req.id}','${req.user_id}')">✅ Approve Edit</button>
-                <button class="reject-btn" onclick="rejectShopEdit('${req.id}','${req.user_id}')">❌ Reject</button>
+                <button class="approve-btn" onclick="approveShopEdit('${escAttr(req.id)}','${escAttr(req.user_id)}')">✅ Approve Edit</button>
+                <button class="reject-btn" onclick="rejectShopEdit('${escAttr(req.id)}','${escAttr(req.user_id)}')">❌ Reject</button>
             </div>` : ''}
         </div>`;
     }).join('');
@@ -812,18 +831,18 @@ CREATE POLICY "Allow all" ON extra_user_requests FOR ALL USING (true) WITH CHECK
         <div class="pcard" style="border-left:3px solid ${statusColor2[req.status] || '#6b7280'}">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
                 <div>
-                    <div style="font-weight:700;font-size:0.95rem;">👷 ${req.requested_username}</div>
-                    <div style="font-size:0.78rem;color:#94a3b8;margin-top:2px;">Shop: <b>${req.tenant_id}</b> &nbsp;·&nbsp; ${dateStr}</div>
+                    <div style="font-weight:700;font-size:0.95rem;">👷 ${escHtml(req.requested_username)}</div>
+                    <div style="font-size:0.78rem;color:#94a3b8;margin-top:2px;">Shop: <b>${escHtml(req.tenant_id)}</b> &nbsp;·&nbsp; ${dateStr}</div>
                     <div style="font-size:0.82rem;margin-top:8px;color:#e2e8f0;background:rgba(255,255,255,0.05);border-radius:8px;padding:8px 12px;border:1px solid rgba(255,255,255,0.1);">
-                        <span style="color:#94a3b8;font-size:0.75rem;">Reason:</span><br>${req.reason || '—'}
+                        <span style="color:#94a3b8;font-size:0.75rem;">Reason:</span><br>${req.reason ? escHtml(req.reason) : '—'}
                     </div>
                 </div>
                 <span style="font-size:0.75rem;color:${statusColor2[req.status]};white-space:nowrap;font-weight:600;">${statusLabel2[req.status] || req.status}</span>
             </div>
             ${isPending ? `
             <div class="pcard-actions" style="margin-top:12px;">
-                <button class="approve-btn" onclick="approveExtraUser('${req.id}','${req.tenant_id}','${req.requested_username}','${req.password_hash}')">✅ Approve & Create User</button>
-                <button class="reject-btn" onclick="rejectExtraUser('${req.id}')">❌ Reject</button>
+                <button class="approve-btn" onclick="approveExtraUser('${escAttr(req.id)}','${escAttr(req.tenant_id)}','${escAttr(req.requested_username)}','${escAttr(req.password_hash)}')">✅ Approve & Create User</button>
+                <button class="reject-btn" onclick="rejectExtraUser('${escAttr(req.id)}')">❌ Reject</button>
             </div>` : ''}
         </div>`;
     }).join('');
@@ -883,17 +902,17 @@ async function renderPasswordResets() {
         html += `
         <div class="pcard">
             <div class="pcard-top">
-                <div class="pcard-avatar">${r.username.substring(0,1).toUpperCase()}</div>
+                <div class="pcard-avatar">${escHtml((r.username||'?').substring(0,1).toUpperCase())}</div>
                 <div>
-                    <div class="pcard-name">${r.username}</div>
+                    <div class="pcard-name">${escHtml(r.username)}</div>
                     <div class="pcard-meta">${d}</div>
                 </div>
             </div>
             <div style="font-size:0.85rem; color:var(--text2); margin-bottom:12px;">
-                <strong>Reason:</strong> ${r.reason}
+                <strong>Reason:</strong> ${escHtml(r.reason)}
             </div>
             <div class="pcard-actions">
-                <button class="approve-btn" onclick="approvePwdReset('${r.id}', '${r.username}')">Approve & Gen PIN</button>
+                <button class="approve-btn" onclick="approvePwdReset('${escAttr(r.id)}', '${escAttr(r.username)}')">Approve & Gen PIN</button>
                 <button class="reject-btn" onclick="rejectPwdReset('${r.id}')">Reject</button>
             </div>
         </div>
@@ -1022,12 +1041,12 @@ function openShopModal(username) {
         body.innerHTML = '<p>No shop profile found for this user. They might have signed up before the shop info form was added.</p>';
     } else {
         body.innerHTML = `
-            <p><strong>Shop Name:</strong> <span>${p.shop_name || '-'}</span></p>
-            <p><strong>Phone Number:</strong> <span>${p.phone || '-'}</span></p>
-            <p><strong>Address Line 1:</strong> <span>${p.address_line1 || '-'}</span></p>
-            <p><strong>Address Line 2:</strong> <span>${p.address_line2 || '-'}</span></p>
-            <p><strong>DL Number:</strong> <span>${p.dl_no || '-'}</span></p>
-            <p><strong>GSTIN:</strong> <span>${p.gstin || '-'}</span></p>
+            <p><strong>Shop Name:</strong> <span>${escHtml(p.shop_name) || '-'}</span></p>
+            <p><strong>Phone Number:</strong> <span>${escHtml(p.phone) || '-'}</span></p>
+            <p><strong>Address Line 1:</strong> <span>${escHtml(p.address_line1) || '-'}</span></p>
+            <p><strong>Address Line 2:</strong> <span>${escHtml(p.address_line2) || '-'}</span></p>
+            <p><strong>DL Number:</strong> <span>${escHtml(p.dl_no) || '-'}</span></p>
+            <p><strong>GSTIN:</strong> <span>${escHtml(p.gstin) || '-'}</span></p>
         `;
     }
     document.getElementById('shopModal').style.display = 'flex';
@@ -1091,18 +1110,18 @@ CREATE POLICY "Allow all" ON customer_issues FOR ALL USING (true) WITH CHECK (tr
         return `
             <div class="pending-card">
                 <div class="meta" style="color:#64748b; font-size:0.8rem; margin-bottom:6px;">
-                    Reported on ${d} &nbsp;•&nbsp; <strong>${iss.tenant_id}</strong>
+                    Reported on ${d} &nbsp;•&nbsp; <strong>${escHtml(iss.tenant_id)}</strong>
                 </div>
                 <div class="det">
                     <span class="lbl">User</span>
-                    <span class="val">${iss.username}</span>
+                    <span class="val">${escHtml(iss.username)}</span>
                 </div>
                 <div class="det" style="margin-top:8px;">
                     <span class="lbl">Issue Description</span>
-                    <span class="val" style="white-space:pre-wrap; background:rgba(255,255,255,0.05); padding:10px; border-radius:6px; border:1px solid rgba(255,255,255,0.1); margin-top:4px; display:block;">${iss.issue_text}</span>
+                    <span class="val" style="white-space:pre-wrap; background:rgba(255,255,255,0.05); padding:10px; border-radius:6px; border:1px solid rgba(255,255,255,0.1); margin-top:4px; display:block;">${escHtml(iss.issue_text)}</span>
                 </div>
                 <div class="act" style="justify-content:flex-end;">
-                    <button class="approve-btn" style="background:#0ea5e9" onclick="resolveSupportIssue('${iss.id}')">✔️ Mark Resolved</button>
+                    <button class="approve-btn" style="background:#0ea5e9" onclick="resolveSupportIssue('${escAttr(iss.id)}')">✔️ Mark Resolved</button>
                 </div>
             </div>
         `;

@@ -13,8 +13,8 @@ const MMNotifications = (() => {
     const STORAGE_KEY = () => {
         try {
             const s = JSON.parse(
-                localStorage.getItem('mm_session') ||
-                sessionStorage.getItem('mm_session') || 'null'
+                localStorage.getItem('mm_auth_session') ||
+                sessionStorage.getItem('mm_auth_session') || 'null'
             );
             return s ? `mm_notif_read_${s.tenant_id || s.username}` : 'mm_notif_read_anon';
         } catch { return 'mm_notif_read_anon'; }
