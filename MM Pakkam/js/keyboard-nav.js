@@ -8,7 +8,7 @@
  *  - F9        → jumps focus to the first [type=submit] button
  *  - Alt + S   → triggers the first [type=submit] button
  *  - F2        → fires window.__kbAddRow() if defined (sales page only)
- *  - Esc       → closes any open modal overlay
+ *  - Esc       → closes any open modal overlay, otherwise clicks the Back button
  *
  * Works automatically on every page it is loaded into.
  * Mouse + click behaviour is fully preserved.
@@ -67,7 +67,7 @@
     /* ── Global shortcuts (F2, F9, Alt+S, Esc) ──────── */
     document.addEventListener('keydown', function (e) {
 
-        // Esc → close any open modal
+        // Esc → close any open modal, otherwise go back
         if (e.key === 'Escape') {
             const modal =
                 document.querySelector('.modal-overlay.open') ||
@@ -75,6 +75,12 @@
             if (modal) {
                 modal.classList.remove('open');
                 e.preventDefault();
+                return;
+            }
+            const backBtn = document.querySelector('.back-btn');
+            if (backBtn) {
+                e.preventDefault();
+                backBtn.click();
             }
             return;
         }

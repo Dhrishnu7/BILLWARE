@@ -269,6 +269,40 @@ async function dbDeletePurchase(id) {
 }
 
 /* ─────────────────────────────────────────────────────
+   STOCK ADJUSTMENTS
+   Manual corrections for damaged/lost stock or physical
+   count mismatches. Does not touch purchase/sales records —
+   only shifts the computed current-stock figure.
+───────────────────────────────────────────────────── */
+async function dbGetStockAdjustments() {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetStockAdjustments: no user, aborting.'); return []; }
+    const { data, error } = await _supabase
+        .from('stock_adjustments')
+        .select('*')
+        .eq('user_id', user)
+        .order('created_at', { ascending: false });
+    if (error) { console.error('stock adjustments fetch:', error); return []; }
+    return data || [];
+}
+async function dbAddStockAdjustment(row) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbAddStockAdjustment: no user, aborting.'); return { success: false, message: 'Not logged in.' }; }
+    const { data, error } = await _supabase.from('stock_adjustments').insert({
+        product_name: row.productName || '',
+        batch_no:     row.batchNo     || '',
+        qty_before:   Number(row.qtyBefore) || 0,
+        qty_after:    Number(row.qtyAfter)  || 0,
+        qty_delta:    Number(row.qtyDelta)  || 0,
+        reason:       row.reason || 'other',
+        note:         row.note   || '',
+        user_id:      user,
+    }).select();
+    if (error) { console.error('stock adjustment add:', error); return { success: false, message: error.message }; }
+    return { success: true, data: data?.[0] || null };
+}
+
+/* ─────────────────────────────────────────────────────
    BILLS  (sales)
 ───────────────────────────────────────────────────── */
 async function dbNextBillNo() {

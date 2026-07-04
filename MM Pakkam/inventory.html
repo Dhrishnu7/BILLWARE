@@ -352,6 +352,47 @@
         }
         .btn-check-expiry:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(245,158,11,0.4); }
 
+        /* "?"? ADJUST STOCK "?"? */
+        .adjust-intro h3 { font-size: 1.15rem; font-weight: 800; color: #0f172a; margin-bottom: 0.3rem; }
+        .adjust-intro p  { font-size: 0.88rem; color: #64748b; margin-bottom: 1.4rem; line-height: 1.5; max-width: 640px; }
+        .adjust-form { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem; }
+        .form-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+        .form-group { display: flex; flex-direction: column; gap: 0.35rem; flex: 1; min-width: 180px; }
+        .form-group-wide { flex: 2; min-width: 260px; }
+        .form-group label {
+            font-size: 0.72rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.06em; color: #0f766e;
+        }
+        .form-group input, .form-group select {
+            font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #0f172a;
+            background: #f0fdfa; border: 1.5px solid #99f6e4;
+            border-radius: 10px; padding: 0.6rem 0.9rem; outline: none; transition: all 0.2s;
+        }
+        .form-group input:focus, .form-group select:focus {
+            border-color: #0d9488; background: white; box-shadow: 0 0 0 3px rgba(13,148,136,0.15);
+        }
+        .form-group input[readonly] { background: #f1f5f9; color: #475569; border-color: #e2e8f0; cursor: not-allowed; }
+        .adjust-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+        .btn-save-adjust {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 0.65rem 1.5rem; border-radius: 10px;
+            font-size: 0.9rem; font-weight: 700; font-family: 'Inter', sans-serif;
+            cursor: pointer; border: none;
+            background: linear-gradient(135deg, #0d9488, #0891b2);
+            color: white; box-shadow: 0 4px 14px rgba(13,148,136,0.3);
+            transition: all 0.25s ease; white-space: nowrap;
+        }
+        .btn-save-adjust:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(13,148,136,0.4); }
+        .btn-save-adjust:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        #adjStatusMsg { font-size: 0.85rem; font-weight: 600; }
+        .adjust-log-title { font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0 0 0.8rem; padding-top: 1rem; border-top: 1px solid #f1f5f9; }
+        .adjusted-tag {
+            display: inline-flex; align-items: center; gap: 3px;
+            font-size: 0.68rem; font-weight: 700; color: #0f766e;
+            background: #ccfbf1; padding: 2px 7px; border-radius: 20px;
+            margin-left: 6px;
+        }
+
         .expiry-summary { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
         .expiry-pill {
             display: inline-flex; align-items: center; gap: 8px;
@@ -555,6 +596,7 @@
         }
     </style>
     <script src="js/substitutes.js"></script>
+    <script src="js/keyboard-nav.js"></script>
 </head>
 
 <body>
@@ -574,7 +616,7 @@
                 </div>
                 <span class="logo-text">Billware</span>
             </a>
-            <a href="index.html" style="display:inline-flex;align-items:center;gap:6px;padding:0.45rem 1rem;background:rgba(255,255,255,0.8);border:1.5px solid rgba(0,0,0,0.08);border-radius:10px;font-size:0.82rem;font-weight:700;color:#0f172a;text-decoration:none;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.06);" onmouseover="this.style.background='white';this.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.8)';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'">
+            <a class="back-btn" href="index.html" style="display:inline-flex;align-items:center;gap:6px;padding:0.45rem 1rem;background:rgba(255,255,255,0.8);border:1.5px solid rgba(0,0,0,0.08);border-radius:10px;font-size:0.82rem;font-weight:700;color:#0f172a;text-decoration:none;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.06);" onmouseover="this.style.background='white';this.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.8)';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'">
                 <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
                 Back
             </a>
@@ -628,6 +670,7 @@
             <button class="tab-btn" id="tabBtnExpiry" onclick="switchTab('expiry')">&#x23F3; Expiry Checker</button>
             <button class="tab-btn" id="tabBtnDead" onclick="switchTab('dead')">&#x1F480; Dead Stock</button>
             <button class="tab-btn" id="tabBtnSubFinder" onclick="switchTab('subfinder')">&#x1F504; Substitute Finder</button>
+            <button class="tab-btn" id="tabBtnAdjust" onclick="switchTab('adjust')">&#x2696;&#xFE0F; Adjust Stock</button>
         </div>
     </div>
 
@@ -786,6 +829,85 @@
             </div>
         </div>
 
+        <!-- ADJUST STOCK TAB -->
+        <div class="tab-panel" id="tab-adjust">
+            <div class="panel-card">
+                <div class="adjust-intro">
+                    <h3>&#x2696;&#xFE0F; Manual Stock Adjustment</h3>
+                    <p>Use this when a medicine is damaged, lost, expired-and-discarded, or the physical count on your shelf doesn't match what the system shows. This never touches your purchase or sales records &mdash; it just corrects the stock count going forward.</p>
+                </div>
+
+                <div class="adjust-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Medicine</label>
+                            <input type="text" id="adjMedName" list="adjMedList" placeholder="Type or select a medicine…" oninput="onAdjustMedicineChange(this.value)" autocomplete="off">
+                            <datalist id="adjMedList"></datalist>
+                        </div>
+                        <div class="form-group">
+                            <label>Batch (optional)</label>
+                            <select id="adjBatchSelect" onchange="onAdjustBatchChange()">
+                                <option value="">Whole product (no specific batch)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>System Stock</label>
+                            <input type="text" id="adjSystemStock" readonly placeholder="Select a medicine first">
+                        </div>
+                        <div class="form-group">
+                            <label>Actual Counted Stock</label>
+                            <input type="number" id="adjActualStock" min="0" placeholder="Enter physical count" oninput="onAdjustDeltaChange()">
+                        </div>
+                        <div class="form-group">
+                            <label>Adjustment</label>
+                            <input type="text" id="adjDeltaDisplay" readonly placeholder="—">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Reason</label>
+                            <select id="adjReason">
+                                <option value="damaged">🧨 Damaged</option>
+                                <option value="lost">🕳️ Lost / Theft</option>
+                                <option value="expired_discarded">🗑️ Expired &amp; Discarded</option>
+                                <option value="count_correction">🔢 Physical Count Correction</option>
+                                <option value="other">📝 Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group form-group-wide">
+                            <label>Note (optional)</label>
+                            <input type="text" id="adjNote" placeholder="Any extra detail…" maxlength="200">
+                        </div>
+                    </div>
+
+                    <div class="adjust-actions">
+                        <button class="btn-save-adjust" onclick="saveStockAdjustment()">💾 Save Adjustment</button>
+                        <span id="adjStatusMsg"></span>
+                    </div>
+                </div>
+
+                <h3 class="adjust-log-title">📜 Recent Adjustments</h3>
+                <div style="overflow-x:auto;">
+                    <table class="stock-table" id="adjustLogTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th><th>Medicine</th><th>Batch</th><th>Before → After</th><th>Change</th><th>Reason</th><th>Note</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adjustLogBody"></tbody>
+                    </table>
+                    <div id="adjustLogEmpty" class="empty-state" style="display:none;">
+                        <span class="empty-state-icon">📭</span>
+                        No adjustments logged yet.
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div><!-- /tab-content -->
 
     <footer style="text-align:center;padding:1.2rem;font-size:0.82rem;color:#94a3b8;border-top:1px solid rgba(0,0,0,0.05);">
@@ -798,6 +920,7 @@
     // ═══════════════════════════════════════════════════════
     let _dbPurchases  = [];
     let _dbBills      = [];
+    let _stockAdjustments = [];
     let _stockData    = [];
     let _dataLoaded   = false;
     let _stockStatusFilter = null; // null=all, 'in'|'low'|'out'|'purchase'
@@ -826,6 +949,7 @@
         if (name === 'expiry'    && _dataLoaded) checkExpiry();
         if (name === 'dead'      && _dataLoaded) renderDeadStock();
         if (name === 'subfinder' && _dataLoaded) runSubstituteFinder('');
+        if (name === 'adjust'    && _dataLoaded) { populateAdjustMedicineList(); renderAdjustLog(); }
     }
 
     // ═══════════════════════════════════════════════════════
@@ -848,6 +972,10 @@
                     _dbBills     = data.bills     || [];
                 }
             }
+            if (session && typeof dbGetStockAdjustments === 'function') {
+                const adj = await dbGetStockAdjustments();
+                if (Array.isArray(adj) && adj.length) _stockAdjustments = adj;
+            }
         } catch(e) { console.warn('Supabase load failed, using localStorage:', e); }
 
         // localStorage fallback
@@ -861,10 +989,17 @@
                 ? (mmLsGet('sales') || [])
                 : JSON.parse(localStorage.getItem('mm_sales') || '[]');
         }
+        if (_stockAdjustments.length === 0) {
+            _stockAdjustments = (typeof mmLsGet === 'function')
+                ? (mmLsGet('stockAdjustments') || [])
+                : JSON.parse(localStorage.getItem('mm_stockAdjustments') || '[]');
+        }
 
         buildStockData();
         renderStockTable('');
         updateMetrics();
+        populateAdjustMedicineList();
+        renderAdjustLog();
         _dataLoaded = true;
 
         document.getElementById('heroStatus').innerHTML = '&#x2705; Stock data loaded';
@@ -953,6 +1088,52 @@
             });
         });
 
+        // ── Fold in manual stock adjustments (damage / loss / count corrections) ──
+        // These shift the computed current-stock figure without touching purchase/sales totals.
+        const adjByProduct = {};   // norm -> total delta across all batches
+        const adjByBatch    = {};  // norm -> { batchKeyLower: totalDelta }
+        const adjOriginalName = {}; // norm -> original-cased name (for adjustment-only rows)
+        _stockAdjustments.forEach(a => {
+            const name = String(a.product_name || a.productName || '').trim();
+            if (!name) return;
+            const norm  = name.toLowerCase();
+            const delta = parseFloat(a.qty_delta ?? a.qtyDelta) || 0;
+            adjByProduct[norm] = (adjByProduct[norm] || 0) + delta;
+            adjOriginalName[norm] = adjOriginalName[norm] || name;
+            const batch = String(a.batch_no || a.batchNo || '').trim();
+            if (batch) {
+                adjByBatch[norm] = adjByBatch[norm] || {};
+                const bk = batch.toLowerCase();
+                adjByBatch[norm][bk] = (adjByBatch[norm][bk] || 0) + delta;
+            }
+        });
+
+        rows.forEach(row => {
+            const norm = row.name.toLowerCase();
+            const totalAdj = adjByProduct[norm] || 0;
+            if (totalAdj) {
+                row.current += totalAdj;
+                row.adjusted = true;
+            }
+            if (adjByBatch[norm]) {
+                row.batches.forEach(b => {
+                    const bk = (b.batch || '_no_batch_').toLowerCase();
+                    if (adjByBatch[norm][bk]) b.current += adjByBatch[norm][bk];
+                });
+            }
+        });
+
+        // Surface adjustment-only products that have no purchase/sale history at all
+        Object.keys(adjByProduct).forEach(norm => {
+            if (rows.some(r => r.name.toLowerCase() === norm)) return;
+            rows.push({
+                name: adjOriginalName[norm] || norm,
+                batches: [], totalIn: 0, totalOut: 0,
+                current: adjByProduct[norm], noPurchase: false,
+                lastSold: null, bestMargin: 0, adjusted: true
+            });
+        });
+
         _stockData = rows.sort((a, b) => a.name.localeCompare(b.name));
     }
 
@@ -988,6 +1169,204 @@
         document.getElementById('metricIn').textContent     = inCnt;
         document.getElementById('metricLow').textContent    = lowOrOutCnt;
         document.getElementById('metricExpiry').textContent = expiringSoon;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // MANUAL STOCK ADJUSTMENT (damage / loss / physical count)
+    // ═══════════════════════════════════════════════════════
+    const ADJUST_REASON_LABELS = {
+        damaged:            '🧨 Damaged',
+        lost:                '🕳️ Lost / Theft',
+        expired_discarded:  '🗑️ Expired & Discarded',
+        count_correction:    '🔢 Physical Count Correction',
+        other:                '📝 Other'
+    };
+
+    function escAdjHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str || '';
+        return d.innerHTML;
+    }
+
+    function findStockRow(name) {
+        const norm = String(name || '').trim().toLowerCase();
+        if (!norm) return null;
+        return _stockData.find(r => r.name.toLowerCase() === norm) || null;
+    }
+
+    function populateAdjustMedicineList() {
+        const list = document.getElementById('adjMedList');
+        if (!list) return;
+        list.innerHTML = _stockData.map(r => `<option value="${escAdjHtml(r.name)}"></option>`).join('');
+    }
+
+    function onAdjustMedicineChange(name) {
+        const row = findStockRow(name);
+        const batchSelect = document.getElementById('adjBatchSelect');
+        batchSelect.innerHTML = '<option value="">Whole product (no specific batch)</option>';
+        if (row && row.batches && row.batches.length) {
+            row.batches.forEach(b => {
+                const label = b.batch ? b.batch : '(no batch no.)';
+                batchSelect.innerHTML += `<option value="${escAdjHtml(b.batch || '')}">${escAdjHtml(label)} — current: ${b.current}</option>`;
+            });
+        }
+        onAdjustBatchChange();
+    }
+
+    function onAdjustBatchChange() {
+        const name  = document.getElementById('adjMedName').value;
+        const row   = findStockRow(name);
+        const batch = document.getElementById('adjBatchSelect').value;
+        const sysStockInput = document.getElementById('adjSystemStock');
+
+        let sysStock = null;
+        if (row) {
+            if (batch) {
+                const b = row.batches.find(x => (x.batch || '') === batch);
+                sysStock = b ? b.current : 0;
+            } else {
+                sysStock = row.current;
+            }
+        }
+        sysStockInput.value = sysStock === null ? '' : String(sysStock);
+        sysStockInput.dataset.value = sysStock === null ? '' : String(sysStock);
+        sysStockInput.placeholder = sysStock === null ? 'Medicine not found in stock ledger' : '';
+        onAdjustDeltaChange();
+    }
+
+    function onAdjustDeltaChange() {
+        const sysVal       = document.getElementById('adjSystemStock').dataset.value;
+        const actualInput  = document.getElementById('adjActualStock');
+        const deltaDisplay = document.getElementById('adjDeltaDisplay');
+        if (sysVal === '' || sysVal === undefined || actualInput.value === '') {
+            deltaDisplay.value = '';
+            deltaDisplay.style.color = '';
+            return;
+        }
+        const sys    = parseFloat(sysVal) || 0;
+        const actual = parseFloat(actualInput.value) || 0;
+        const delta  = actual - sys;
+        deltaDisplay.value = (delta > 0 ? '+' : '') + delta;
+        deltaDisplay.style.color = delta === 0 ? '#64748b' : (delta > 0 ? '#059669' : '#dc2626');
+    }
+
+    async function saveStockAdjustment() {
+        const nameInput   = document.getElementById('adjMedName');
+        const name        = nameInput.value.trim();
+        const batch       = document.getElementById('adjBatchSelect').value.trim();
+        const sysVal      = document.getElementById('adjSystemStock').dataset.value;
+        const actualInput = document.getElementById('adjActualStock');
+        const reason      = document.getElementById('adjReason').value;
+        const note        = document.getElementById('adjNote').value.trim();
+        const statusEl    = document.getElementById('adjStatusMsg');
+
+        if (!name) {
+            statusEl.style.color = '#dc2626';
+            statusEl.textContent = '⚠️ Enter a medicine name first.';
+            return;
+        }
+        if (sysVal === '' || sysVal === undefined) {
+            statusEl.style.color = '#dc2626';
+            statusEl.textContent = "⚠️ That medicine isn't in your stock ledger yet — add a purchase entry first.";
+            return;
+        }
+        if (actualInput.value === '') {
+            statusEl.style.color = '#dc2626';
+            statusEl.textContent = '⚠️ Enter the actual counted stock.';
+            return;
+        }
+
+        const qtyBefore = parseFloat(sysVal) || 0;
+        const qtyAfter  = parseFloat(actualInput.value) || 0;
+        const qtyDelta  = qtyAfter - qtyBefore;
+
+        if (qtyDelta === 0) {
+            statusEl.style.color = '#64748b';
+            statusEl.textContent = 'ℹ️ No change — actual count matches system stock.';
+            return;
+        }
+
+        const btn = document.querySelector('.btn-save-adjust');
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+        const record = { productName: name, batchNo: batch, qtyBefore, qtyAfter, qtyDelta, reason, note };
+
+        let savedToCloud = false;
+        try {
+            if (typeof dbAddStockAdjustment === 'function') {
+                const res = await dbAddStockAdjustment(record);
+                if (res && res.success) savedToCloud = true;
+            }
+        } catch(e) { console.warn('Stock adjustment cloud save failed:', e); }
+
+        const localEntry = {
+            product_name: name, batch_no: batch,
+            qty_before: qtyBefore, qty_after: qtyAfter, qty_delta: qtyDelta,
+            reason, note, created_at: new Date().toISOString()
+        };
+
+        // Always mirror to scoped localStorage — works offline, and before the
+        // Supabase 'stock_adjustments' table exists.
+        try {
+            const local = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
+            local.unshift(localEntry);
+            if (typeof mmLsSet === 'function') mmLsSet('stockAdjustments', local);
+        } catch(e) { console.warn('Stock adjustment local save failed:', e); }
+
+        _stockAdjustments.unshift(localEntry);
+
+        buildStockData();
+        renderStockTable(document.getElementById('stockSearchInput').value);
+        updateMetrics();
+        renderAdjustLog();
+        populateAdjustMedicineList();
+
+        if (btn) { btn.disabled = false; btn.textContent = '💾 Save Adjustment'; }
+        statusEl.style.color = '#059669';
+        statusEl.textContent = savedToCloud ? '✅ Adjustment saved.' : '✅ Adjustment saved (offline — will sync later).';
+        setTimeout(() => { if (statusEl.textContent.startsWith('✅')) statusEl.textContent = ''; }, 4000);
+
+        // Reset form for the next entry
+        nameInput.value = '';
+        document.getElementById('adjBatchSelect').innerHTML = '<option value="">Whole product (no specific batch)</option>';
+        document.getElementById('adjSystemStock').value = '';
+        document.getElementById('adjSystemStock').dataset.value = '';
+        document.getElementById('adjSystemStock').placeholder = 'Select a medicine first';
+        actualInput.value = '';
+        document.getElementById('adjDeltaDisplay').value = '';
+        document.getElementById('adjNote').value = '';
+    }
+
+    function renderAdjustLog() {
+        const tbody = document.getElementById('adjustLogBody');
+        const empty = document.getElementById('adjustLogEmpty');
+        if (!tbody) return;
+        if (!_stockAdjustments.length) {
+            tbody.innerHTML = '';
+            if (empty) empty.style.display = 'block';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+        tbody.innerHTML = _stockAdjustments.slice(0, 50).map(a => {
+            const name   = escAdjHtml(a.product_name || a.productName || '');
+            const batch  = escAdjHtml(a.batch_no || a.batchNo || '') || '<span style="color:#94a3b8;">—</span>';
+            const before = a.qty_before ?? a.qtyBefore ?? 0;
+            const after  = a.qty_after  ?? a.qtyAfter  ?? 0;
+            const delta  = a.qty_delta  ?? a.qtyDelta  ?? (after - before);
+            const deltaColor  = delta > 0 ? '#059669' : (delta < 0 ? '#dc2626' : '#64748b');
+            const date = a.created_at ? new Date(a.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+            const reasonLabel = ADJUST_REASON_LABELS[a.reason] || escAdjHtml(a.reason || 'other');
+            const note = escAdjHtml(a.note || '') || '<span style="color:#94a3b8;">—</span>';
+            return `<tr>
+                <td style="color:#64748b;font-size:0.82rem;white-space:nowrap;">${date}</td>
+                <td><strong>${name}</strong></td>
+                <td>${batch}</td>
+                <td>${before} &rarr; ${after}</td>
+                <td style="color:${deltaColor};font-weight:700;">${delta > 0 ? '+' : ''}${delta}</td>
+                <td>${reasonLabel}</td>
+                <td style="font-size:0.82rem;color:#475569;">${note}</td>
+            </tr>`;
+        }).join('');
     }
 
     // ═══════════════════════════════════════════════════════
@@ -1335,6 +1714,8 @@
                 marginTag = `<span class="high-margin-tag">&#x1F4B0; ${Math.round(row.bestMargin)}% Margin</span>`;
             }
 
+            const adjustedTag = row.adjusted ? `<span class="adjusted-tag" title="Stock has a manual adjustment applied">&#x2696;&#xFE0F; Adjusted</span>` : '';
+
             let subBtn = '';
             if (cur <= 0 && !noPurchase) {
                 const subs = findSmartSubstitutes(row.name);
@@ -1346,7 +1727,7 @@
 
             html += `<tr style="${rowBg}">
                 <td style="color:#94a3b8;font-weight:700;">${idx + 1}</td>
-                <td><strong style="color:#0f172a;">${row.name}</strong>${marginTag}${purchaseNote}${subBtn}</td>
+                <td><strong style="color:#0f172a;">${row.name}</strong>${marginTag}${adjustedTag}${purchaseNote}${subBtn}</td>
                 <td>${batchDisplay}</td>
                 <td style="color:#64748b;">${expDisplay}</td>
                 <td style="color:#059669;font-weight:700;">${row.totalIn}</td>
