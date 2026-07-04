@@ -819,40 +819,13 @@
             return map;
         }
 
-        /* -- Calculate Stock -- */
+        /* -- Calculate Stock --
+           Delegates to the shared mmComputeStock() (js/supabase.js) so this
+           page's stock number can never again silently disagree with
+           Inventory's — see that function's doc comment for why that matters. */
         function getStock(productName, batchNo) {
             if (!productName) return 0;
-            const name = productName.trim().toLowerCase();
-            const batch = (batchNo || '').trim().toLowerCase();
-            
-            const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
-            let totalPurchased = 0;
-            purchases.forEach(p => {
-                const pName = (p.productName || p.product_name || '').trim().toLowerCase();
-                const pBatch = (p.batchNo || p.batch_no || '').trim().toLowerCase();
-                if (pName === name) {
-                    if (!batch || pBatch === batch) {
-                        // Stock is in loose units: quantity × pack (e.g. 2 strips × 15 = 30 tablets)
-                        const qty  = parseFloat(p.quantity) || 0;
-                        const pack = parseFloat(p.pack) || 1;
-                        totalPurchased += qty * pack;
-                    }
-                }
-            });
-            
-            const sales = JSON.parse(localStorage.getItem('mm_sales') || '[]');
-            let totalSold = 0;
-            sales.forEach(s => {
-                (s.medicines || []).forEach(m => {
-                    if ((m.product || '').trim().toLowerCase() === name) {
-                        if (!batch || (m.batch || '').trim().toLowerCase() === batch) {
-                            totalSold += parseFloat(m.qty) || 0;
-                        }
-                    }
-                });
-            });
-            
-            return totalPurchased - totalSold;
+            return (typeof mmComputeStock === 'function') ? mmComputeStock(productName, batchNo) : 0;
         }
 
         /* -- Build datalist options: ONLY unique base medicine names (no batch suffixes) -- */

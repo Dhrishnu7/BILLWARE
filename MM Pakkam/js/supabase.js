@@ -423,18 +423,20 @@ async function dbSyncCoreData() {
     const user = _currentUser();
     if (!user) return false;
     try {
-        const [customers, doctors, medicines, purchases, bills] = await Promise.all([
+        const [customers, doctors, medicines, purchases, bills, adjustments] = await Promise.all([
             dbGetCustomers(),
             dbGetDoctors(),
             dbGetMedicines(),
             dbGetPurchases(),
             dbGetBills(),
+            dbGetStockAdjustments(),
         ]);
 
         if (customers && customers.length) localStorage.setItem('mm_customers', JSON.stringify(customers));
         if (doctors && doctors.length)     localStorage.setItem('mm_doctors', JSON.stringify(doctors));
         if (medicines && medicines.length) localStorage.setItem('mm_medicine_list', JSON.stringify(medicines));
         if (purchases && purchases.length) localStorage.setItem('mm_purchases', JSON.stringify(purchases));
+        if (adjustments && adjustments.length) mmLsSet('stockAdjustments', adjustments);
 
         if (bills && bills.length) {
             // Normalize Supabase's { bill_items: [...] } shape into the
@@ -473,6 +475,68 @@ async function dbSyncCoreData() {
     }
 }
 window.dbSyncCoreData = dbSyncCoreData;
+
+/* ─────────────────────────────────────────────────────
+   STOCK CALCULATION — single source of truth
+   current stock = purchased − sold + manual adjustments
+
+   Every page that needs "how much of X (optionally batch Y)
+   do we have" MUST call this instead of writing its own
+   purchased-minus-sold formula. That duplication is exactly
+   how sales.html and inventory.html disagreed: inventory's
+   "Adjust Stock" feature corrected the number there, but
+   sales.html had its own separate copy of the math that had
+   never heard of adjustments and kept showing the raw
+   purchased-minus-sold figure. One formula, used everywhere,
+   means a correction made anywhere is seen everywhere.
+
+   batchNo omitted/empty → whole-product total.
+───────────────────────────────────────────────────── */
+function mmComputeStock(productName, batchNo) {
+    const name = String(productName || '').trim().toLowerCase();
+    if (!name) return 0;
+    const batch = String(batchNo || '').trim().toLowerCase();
+
+    const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+    let totalPurchased = 0;
+    purchases.forEach(p => {
+        const pName  = (p.productName || p.product_name || '').trim().toLowerCase();
+        const pBatch = (p.batchNo || p.batch_no || '').trim().toLowerCase();
+        if (pName === name && (!batch || pBatch === batch)) {
+            const qty  = parseFloat(p.quantity) || 0;
+            const pack = parseFloat(p.pack) || 1;
+            totalPurchased += qty * pack;
+        }
+    });
+
+    const sales = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+    let totalSold = 0;
+    sales.forEach(s => {
+        (s.medicines || []).forEach(m => {
+            const mName = (m.product || '').trim().toLowerCase();
+            if (mName === name && (!batch || (m.batch || '').trim().toLowerCase() === batch)) {
+                totalSold += parseFloat(m.qty) || 0;
+            }
+        });
+    });
+
+    let totalAdjustment = 0;
+    const adjustments = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
+    adjustments.forEach(a => {
+        const aName = String(a.product_name || a.productName || '').trim().toLowerCase();
+        if (aName !== name) return;
+        const aBatch = String(a.batch_no || a.batchNo || '').trim().toLowerCase();
+        const delta  = parseFloat(a.qty_delta ?? a.qtyDelta) || 0;
+        // Whole-product query: every adjustment for this product counts.
+        // Specific-batch query: only that batch's own adjustments count —
+        // a whole-product adjustment isn't attributed to any single batch.
+        if (!batch) totalAdjustment += delta;
+        else if (aBatch && aBatch === batch) totalAdjustment += delta;
+    });
+
+    return totalPurchased - totalSold + totalAdjustment;
+}
+window.mmComputeStock = mmComputeStock;
 
 async function dbDeleteAllBills() {
     try {

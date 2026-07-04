@@ -1446,6 +1446,7 @@
         // Module-level Supabase cache — used by stock report & GST export
         let _dbPurchases = [];
         let _dbBills = [];
+        let _stockAdjustments = [];
 
         async function loadData() {
             let dbPurchases = [];
@@ -1477,9 +1478,18 @@
                         _rawBillsMap = {};
                         dbBills.forEach(b => { _rawBillsMap[b.id] = b; });
                     }
+                    if (typeof dbGetStockAdjustments === 'function') {
+                        const adj = await dbGetStockAdjustments();
+                        if (Array.isArray(adj) && adj.length) _stockAdjustments = adj;
+                    }
                 }
             } catch (err) {
                 console.warn("Supabase fetch failed, using localStorage fallback:", err);
+            }
+            if (_stockAdjustments.length === 0) {
+                _stockAdjustments = (typeof mmLsGet === 'function')
+                    ? (mmLsGet('stockAdjustments') || [])
+                    : JSON.parse(localStorage.getItem('mm_stockAdjustments') || '[]');
             }
 
             let mappedPurchases = [];
@@ -2628,6 +2638,50 @@
                     totalOut:  out,
                     current:   totalIn - out,
                     noPurchase: (totalIn - out) < 0   // negative stock = purchase entry needed
+                });
+            });
+
+            // ── Fold in manual stock adjustments (damage / loss / count corrections) ──
+            // Must match inventory.html's logic exactly, or the two pages disagree again.
+            const adjByProduct = {};
+            const adjByBatch    = {};
+            const adjOriginalName = {};
+            _stockAdjustments.forEach(a => {
+                const name = String(a.product_name || a.productName || '').trim();
+                if (!name) return;
+                const norm  = name.toLowerCase();
+                const delta = parseFloat(a.qty_delta ?? a.qtyDelta) || 0;
+                adjByProduct[norm] = (adjByProduct[norm] || 0) + delta;
+                adjOriginalName[norm] = adjOriginalName[norm] || name;
+                const batch = String(a.batch_no || a.batchNo || '').trim();
+                if (batch) {
+                    adjByBatch[norm] = adjByBatch[norm] || {};
+                    const bk = batch.toLowerCase();
+                    adjByBatch[norm][bk] = (adjByBatch[norm][bk] || 0) + delta;
+                }
+            });
+
+            rows.forEach(row => {
+                const norm = row.name.toLowerCase();
+                const totalAdj = adjByProduct[norm] || 0;
+                if (totalAdj) {
+                    row.current += totalAdj;
+                    row.adjusted = true;
+                }
+                if (adjByBatch[norm]) {
+                    row.batches.forEach(b => {
+                        const bk = (b.batch || '_no_batch_').toLowerCase();
+                        if (adjByBatch[norm][bk]) b.current += adjByBatch[norm][bk];
+                    });
+                }
+            });
+
+            Object.keys(adjByProduct).forEach(norm => {
+                if (rows.some(r => r.name.toLowerCase() === norm)) return;
+                rows.push({
+                    name: adjOriginalName[norm] || norm,
+                    batches: [], totalIn: 0, totalOut: 0,
+                    current: adjByProduct[norm], noPurchase: false, adjusted: true
                 });
             });
 
