@@ -1051,6 +1051,7 @@
 
         // "?"? Process sales "?"?
         const isSBills = _dbBills.length > 0 && _dbBills[0].bill_items !== undefined;
+        const salesByBatchMap = {}; // norm -> { batchKeyLower: taggedQty } — sales tagged to a specific batch
         _dbBills.forEach(bill => {
             const billDate = bill.date || bill.created_at || '';
             const items = isSBills ? (bill.bill_items || []) : (bill.medicines || []);
@@ -1058,8 +1059,16 @@
                 const name = String(isSBills ? (m.product || m.product_name || '') : (m.product || '')).trim();
                 if (!name) return;
                 const norm = name.toLowerCase();
-                salesMap[norm] = (salesMap[norm] || 0) + (parseFloat(m.qty) || 0);
+                const qty  = parseFloat(m.qty) || 0;
+                salesMap[norm] = (salesMap[norm] || 0) + qty;
                 if (!lastSoldMap[norm] || billDate > lastSoldMap[norm]) lastSoldMap[norm] = billDate;
+
+                const batch = String(m.batch || m.batch_no || '').trim();
+                if (batch) {
+                    salesByBatchMap[norm] = salesByBatchMap[norm] || {};
+                    const bk = batch.toLowerCase();
+                    salesByBatchMap[norm][bk] = (salesByBatchMap[norm][bk] || 0) + qty;
+                }
             });
         });
 
@@ -1074,10 +1083,27 @@
                 ? Object.values(p.batchMap).sort((a, b) => (a.exp || '9999').localeCompare(b.exp || '9999'))
                 : [];
 
-            let remaining = out;
+            // Deduct sales actually tagged to a specific batch first — this is
+            // what a cashier really picked, and matches sales.html's own
+            // per-batch stock check exactly. Only sales with no batch tag (or a
+            // tag that doesn't match any known batch — e.g. old, pre-batch-
+            // tagging sales) fall back to a FIFO assumption (oldest-expiry
+            // batch depletes first). Mixing "assume FIFO for everything" with
+            // "match sales to their actual tagged batch" is what caused
+            // Inventory and Sales to disagree on a specific batch's stock.
+            const taggedForProduct = salesByBatchMap[norm] || {};
+            let taggedAccounted = 0;
             batches.forEach(b => {
-                const deducted = Math.min(b.totalIn, remaining);
-                b.current  = b.totalIn - deducted;
+                const bk = (b.batch || '_no_batch_').toLowerCase();
+                const tagged = Math.min(b.totalIn, taggedForProduct[bk] || 0);
+                b.current = b.totalIn - tagged;
+                taggedAccounted += tagged;
+            });
+            let remaining = Math.max(0, out - taggedAccounted);
+            batches.forEach(b => {
+                if (remaining <= 0) return;
+                const deducted = Math.min(b.current, remaining);
+                b.current -= deducted;
                 remaining -= deducted;
             });
 

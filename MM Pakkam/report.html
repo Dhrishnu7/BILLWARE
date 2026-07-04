@@ -2550,6 +2550,7 @@
         function buildStockData() {
             const purchaseMap = {};  // normName -> { name, batchMap: {batchKey->{batch,exp,totalIn}}, totalIn }
             const salesMap    = {};  // normName -> totalOut
+            const salesByBatchMap = {}; // normName -> { batchKeyLower: taggedQty } — sales tagged to a specific batch
 
             if (_dbPurchases && _dbPurchases.length > 0) {
                 _dbPurchases.forEach(p => {
@@ -2578,7 +2579,15 @@
                     (bill.bill_items || []).forEach(m => {
                         const name = String(m.product || m.product_name || '').trim();
                         if (!name) return;
-                        salesMap[name.toLowerCase()] = (salesMap[name.toLowerCase()] || 0) + (parseFloat(m.qty) || 0);
+                        const norm = name.toLowerCase();
+                        const qty  = parseFloat(m.qty) || 0;
+                        salesMap[norm] = (salesMap[norm] || 0) + qty;
+                        const batch = String(m.batch || m.batch_no || '').trim();
+                        if (batch) {
+                            salesByBatchMap[norm] = salesByBatchMap[norm] || {};
+                            const bk = batch.toLowerCase();
+                            salesByBatchMap[norm][bk] = (salesByBatchMap[norm][bk] || 0) + qty;
+                        }
                     });
                 });
 
@@ -2607,7 +2616,15 @@
                     (bill.medicines || []).forEach(m => {
                         const name = String(m.product || '').trim();
                         if (!name) return;
-                        salesMap[name.toLowerCase()] = (salesMap[name.toLowerCase()] || 0) + (parseFloat(m.qty) || 0);
+                        const norm = name.toLowerCase();
+                        const qty  = parseFloat(m.qty) || 0;
+                        salesMap[norm] = (salesMap[norm] || 0) + qty;
+                        const batch = String(m.batch || '').trim();
+                        if (batch) {
+                            salesByBatchMap[norm] = salesByBatchMap[norm] || {};
+                            const bk = batch.toLowerCase();
+                            salesByBatchMap[norm][bk] = (salesByBatchMap[norm][bk] || 0) + qty;
+                        }
                     });
                 });
             }
@@ -2624,10 +2641,24 @@
                     ? Object.values(p.batchMap).sort((a, b) => (a.exp || '9999').localeCompare(b.exp || '9999'))
                     : [];
 
-                let remaining = out;
+                // Deduct sales actually tagged to a specific batch first — matches
+                // what a cashier really picked, same as sales.html's own stock
+                // check. Only untagged sales (or a tag matching no known batch)
+                // fall back to FIFO (oldest-expiry batch depletes first). Must
+                // match inventory.html's identical logic or the two disagree.
+                const taggedForProduct = salesByBatchMap[norm] || {};
+                let taggedAccounted = 0;
                 batches.forEach(b => {
-                    const deducted = Math.min(b.totalIn, remaining);
-                    b.current  = b.totalIn - deducted;
+                    const bk = (b.batch || '_no_batch_').toLowerCase();
+                    const tagged = Math.min(b.totalIn, taggedForProduct[bk] || 0);
+                    b.current = b.totalIn - tagged;
+                    taggedAccounted += tagged;
+                });
+                let remaining = Math.max(0, out - taggedAccounted);
+                batches.forEach(b => {
+                    if (remaining <= 0) return;
+                    const deducted = Math.min(b.current, remaining);
+                    b.current -= deducted;
                     remaining -= deducted;
                 });
 
