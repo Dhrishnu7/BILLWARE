@@ -597,6 +597,60 @@ function mmComputeStock(productName, batchNo) {
 }
 window.mmComputeStock = mmComputeStock;
 
+// Same math as mmComputeStock(), but returns the full breakdown instead of
+// just the final number — for on-screen debugging when a stock number looks
+// wrong and we need to see exactly what it's made of.
+function mmComputeStockDebug(productName, batchNo) {
+    const name = String(productName || '').trim().toLowerCase();
+    const batch = String(batchNo || '').trim().toLowerCase();
+
+    const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+    let totalPurchased = 0, purchaseRows = 0;
+    purchases.forEach(p => {
+        const pName  = (p.productName || p.product_name || '').trim().toLowerCase();
+        const pBatch = (p.batchNo || p.batch_no || '').trim().toLowerCase();
+        if (pName === name && (!batch || pBatch === batch)) {
+            const qty  = parseFloat(p.quantity) || 0;
+            const pack = parseFloat(p.pack) || 1;
+            totalPurchased += qty * pack;
+            purchaseRows++;
+        }
+    });
+
+    const sales = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+    let totalSold = 0, saleRows = 0;
+    sales.forEach(s => {
+        (s.medicines || []).forEach(m => {
+            const mName = (m.product || '').trim().toLowerCase();
+            if (mName === name && (!batch || (m.batch || '').trim().toLowerCase() === batch)) {
+                totalSold += parseFloat(m.qty) || 0;
+                saleRows++;
+            }
+        });
+    });
+
+    let totalAdjustment = 0, adjRows = 0;
+    const adjustments = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
+    adjustments.forEach(a => {
+        const aName = String(a.product_name || a.productName || '').trim().toLowerCase();
+        if (aName !== name) return;
+        const aBatch = String(a.batch_no || a.batchNo || '').trim().toLowerCase();
+        const delta  = parseFloat(a.qty_delta ?? a.qtyDelta) || 0;
+        if (!batch) { totalAdjustment += delta; adjRows++; }
+        else if (aBatch && aBatch === batch) { totalAdjustment += delta; adjRows++; }
+    });
+
+    return {
+        productName, batchNo: batchNo || '(whole product)',
+        totalPurchased, purchaseRows,
+        totalSold, saleRows,
+        totalAdjustment, adjRows,
+        pendingAdjustments: (typeof mmLsGet === 'function') ? (mmLsGet('pendingStockAdjustments') || []).length : 0,
+        result: totalPurchased - totalSold + totalAdjustment
+    };
+}
+window.mmComputeStockDebug = mmComputeStockDebug;
+
 async function dbDeleteAllBills() {
     try {
         const user = _currentUser();

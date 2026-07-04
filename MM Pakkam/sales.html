@@ -1045,6 +1045,27 @@
             calcRowTotal(id);
         }
 
+        /* -- Show exactly how a row's stock number was calculated (tap the
+           stock field). Use this to diagnose a number that looks wrong
+           instead of guessing — it shows purchased/sold/adjusted separately. -- */
+        function showStockBreakdown(id) {
+            const productInput = document.getElementById('product_' + id);
+            const batchSelect  = document.getElementById('batch_' + id);
+            if (!productInput || !productInput.value.trim()) { alert('Pick a medicine first.'); return; }
+            if (typeof mmComputeStockDebug !== 'function') { alert('Debug tool not available.'); return; }
+
+            const d = mmComputeStockDebug(productInput.value.trim(), batchSelect ? batchSelect.value.trim() : '');
+            alert(
+                `Stock breakdown for ${d.productName}\n` +
+                `Batch: ${d.batchNo}\n\n` +
+                `Purchased: ${d.totalPurchased}  (from ${d.purchaseRows} purchase row${d.purchaseRows === 1 ? '' : 's'})\n` +
+                `Sold: ${d.totalSold}  (from ${d.saleRows} sale line${d.saleRows === 1 ? '' : 's'})\n` +
+                `Adjusted: ${d.totalAdjustment >= 0 ? '+' : ''}${d.totalAdjustment}  (from ${d.adjRows} adjustment${d.adjRows === 1 ? '' : 's'})\n` +
+                (d.pendingAdjustments > 0 ? `⚠️ ${d.pendingAdjustments} adjustment(s) still stuck, not yet synced to cloud\n` : '') +
+                `\nFinal: ${d.totalPurchased} − ${d.totalSold} + ${d.totalAdjustment} = ${d.result}`
+            );
+        }
+
         /* -- Re-check stock for every row that already has a batch picked.
            Called once the initial Supabase sync finishes, in case a row's
            stock number was shown before that sync landed (see selectBatch). -- */
@@ -1161,7 +1182,7 @@
                 <td><select class="t-input" id="batch_${id}" style="min-width:210px; max-width:210px; text-overflow: ellipsis;" onchange="selectBatch(${id})"><option value="">— Select Batch —</option></select></td>
                 <td><input class="t-input" id="exp_${id}"   type="month" style="min-width:120px;"></td>
                 <input type="hidden" id="pack_${id}">
-                <td><input class="t-input" id="stock_${id}" type="number" readonly placeholder="0" style="min-width:60px; color:#059669; font-weight:bold;" title="Available Stock"></td>
+                <td><input class="t-input" id="stock_${id}" type="number" readonly placeholder="0" style="min-width:60px; color:#059669; font-weight:bold; cursor:pointer;" title="Tap to see how this number was calculated" onclick="showStockBreakdown(${id})"></td>
                 <td><input class="t-input" id="qty_${id}"   type="number" placeholder="0" min="0" style="min-width:60px;"
                     oninput="checkStockOnQtyChange(${id}); calcRowTotal(${id})"></td>
                 <td><input class="t-input" id="mrp_${id}"   type="number" placeholder="0.00" min="0" step="0.01" style="min-width:70px;"
