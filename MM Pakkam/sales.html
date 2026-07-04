@@ -1962,59 +1962,15 @@
         refreshNamesLists();
 
         // -- Sync from Supabase on Load --
+        // Uses the shared dbSyncCoreData() (js/supabase.js) so this page can
+        // never again silently drift out of sync on one data type while
+        // refreshing another — see its doc comment for why that matters.
         (async function syncFromDatabase() {
             try {
-                const [customers, doctors, medicines, purchases, bills] = await Promise.all([
-                    dbGetCustomers(),
-                    dbGetDoctors(),
-                    dbGetMedicines(),
-                    dbGetPurchases(),         // no date filter — get ALL for autocomplete
-                    dbGetBills()              // no date filter — get ALL so stock-per-batch checks are accurate
-                ]);
-
-                if (customers && customers.length > 0)
-                    localStorage.setItem('mm_customers', JSON.stringify(customers));
-                if (doctors && doctors.length > 0)
-                    localStorage.setItem('mm_doctors', JSON.stringify(doctors));
-                if (medicines && medicines.length > 0)
-                    localStorage.setItem('mm_medicine_list', JSON.stringify(medicines));
-                if (purchases && purchases.length > 0)
-                    localStorage.setItem('mm_purchases', JSON.stringify(purchases));
-
-                // Refresh mm_sales with the cloud's bills so batch-level stock checks
-                // (getStock) see sales made from OTHER devices too, not just this one.
-                // Any bill not yet synced to the cloud (offline/pending) is preserved.
-                if (bills && bills.length > 0) {
-                    const normalized = bills.map(b => ({
-                        billNo:       b.bill_no,
-                        date:         b.date,
-                        customerName: b.customer_name || '',
-                        doctorName:   b.doctor_name   || '',
-                        grandTotal:   b.grand_total,
-                        paymentMode:  b.payment_mode  || 'cash',
-                        medicines:    (b.bill_items || []).map(m => ({
-                            product:  m.product  || '',
-                            batch:    m.batch    || '',
-                            exp:      m.exp      || '',
-                            qty:      m.qty      || 0,
-                            mrp:      m.mrp      || 0,
-                            rate:     m.rate     || 0,
-                            gst:      m.gst      || 0,
-                            discount: m.discount || 0,
-                            total:    m.total    || 0,
-                        })),
-                        savedAt: b.date
-                    }));
-                    const cloudBillNos = new Set(normalized.map(b => b.billNo));
-                    const existingLocal = JSON.parse(localStorage.getItem('mm_sales') || '[]');
-                    const localOnly = existingLocal.filter(b => !cloudBillNos.has(b.billNo));
-                    localStorage.setItem('mm_sales', JSON.stringify([...normalized, ...localOnly]));
-                }
-
+                await dbSyncCoreData();
                 // Refresh all datalists now that data is ready
                 refreshNamesLists();
                 refreshGlobalMedicineList();
-
             } catch (err) {
                 console.error("Database sync failed:", err);
             }

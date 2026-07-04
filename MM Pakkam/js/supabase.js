@@ -403,6 +403,77 @@ async function dbGetReportData(fromDate, toDate) {
     return { bills, purchases };
 }
 
+/* ─────────────────────────────────────────────────────
+   CORE DATA SYNC — single source of truth
+   Refreshes customers, doctors, medicines, purchases AND
+   bills from Supabase into localStorage in one call.
+
+   Use this on every page instead of hand-rolling your own
+   Promise.all list of what to fetch — that's exactly how the
+   "sales page shows stale batch stock" bug happened: sales.html
+   synced purchases but forgot bills, so its stock-per-batch math
+   (purchased − sold) never saw sales made elsewhere and quietly
+   showed full stock on emptied batches. One shared, tested function
+   means no page can silently omit a data type again.
+
+   Returns true if the sync completed, false if it failed (caller
+   should treat existing localStorage as an acceptable fallback).
+───────────────────────────────────────────────────── */
+async function dbSyncCoreData() {
+    const user = _currentUser();
+    if (!user) return false;
+    try {
+        const [customers, doctors, medicines, purchases, bills] = await Promise.all([
+            dbGetCustomers(),
+            dbGetDoctors(),
+            dbGetMedicines(),
+            dbGetPurchases(),
+            dbGetBills(),
+        ]);
+
+        if (customers && customers.length) localStorage.setItem('mm_customers', JSON.stringify(customers));
+        if (doctors && doctors.length)     localStorage.setItem('mm_doctors', JSON.stringify(doctors));
+        if (medicines && medicines.length) localStorage.setItem('mm_medicine_list', JSON.stringify(medicines));
+        if (purchases && purchases.length) localStorage.setItem('mm_purchases', JSON.stringify(purchases));
+
+        if (bills && bills.length) {
+            // Normalize Supabase's { bill_items: [...] } shape into the
+            // flat { medicines: [...] } shape every page's stock/name logic expects.
+            const normalized = bills.map(b => ({
+                billNo:       b.bill_no,
+                date:         b.date,
+                customerName: b.customer_name || '',
+                doctorName:   b.doctor_name   || '',
+                grandTotal:   b.grand_total,
+                medicines:    (b.bill_items || []).map(m => ({
+                    product:  m.product  || '',
+                    batch:    m.batch    || '',
+                    exp:      m.exp      || '',
+                    qty:      m.qty      || 0,
+                    mrp:      m.mrp      || 0,
+                    rate:     m.rate     || 0,
+                    gst:      m.gst      || 0,
+                    discount: m.discount || 0,
+                    total:    m.total    || 0,
+                })),
+                savedAt: b.date
+            }));
+            // Preserve any bill saved locally that hasn't reached the cloud yet
+            // (offline/pending sync) — the cloud copy wins once it exists.
+            const cloudBillNos  = new Set(normalized.map(b => b.billNo));
+            const existingLocal = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+            const localOnly     = existingLocal.filter(b => !cloudBillNos.has(b.billNo));
+            localStorage.setItem('mm_sales', JSON.stringify([...normalized, ...localOnly]));
+        }
+
+        return true;
+    } catch (e) {
+        console.warn('[db] dbSyncCoreData failed, keeping existing localStorage:', e);
+        return false;
+    }
+}
+window.dbSyncCoreData = dbSyncCoreData;
+
 async function dbDeleteAllBills() {
     try {
         const user = _currentUser();

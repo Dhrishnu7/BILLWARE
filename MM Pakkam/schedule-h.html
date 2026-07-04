@@ -1364,6 +1364,12 @@
             refreshDrugDatalist();
             renderRegisterLog();
             renderDrugList();
+
+            // Refresh customers/doctors/sales from Supabase so the patient/doctor
+            // name lists reflect activity from other devices, not just this one.
+            if (typeof dbSyncCoreData === 'function') {
+                dbSyncCoreData().then(() => { refreshPatientList(); refreshDoctorList(); });
+            }
         });
     </script>
 

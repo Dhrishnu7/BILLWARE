@@ -1032,6 +1032,14 @@
         }
         window.addEventListener('DOMContentLoaded', refreshProductDatalist); // populate on page load
 
+        // Refresh purchases/sales/etc. from Supabase so name-autocomplete and any
+        // stock-aware checks on this page use current data, not a stale local cache.
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof dbSyncCoreData === 'function') {
+                dbSyncCoreData().then(() => refreshProductDatalist());
+            }
+        });
+
         // ── Auto-fill from Stock Report "Add Purchase Entry" button ──
         window.addEventListener('DOMContentLoaded', () => {
             const params   = new URLSearchParams(window.location.search);
