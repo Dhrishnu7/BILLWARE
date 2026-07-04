@@ -919,8 +919,11 @@
             setTimeout(() => el.classList.remove('autofilled'), 1100);
         }
 
-        /* -- Autofill a row: populate batch dropdown when medicine name is chosen -- */
-        function autoFillRow(id) {
+        /* -- Autofill a row: populate batch dropdown when medicine name is chosen --
+           Waits for the initial Supabase sync first (see selectBatch) so the
+           per-batch stock shown in each dropdown option's tooltip isn't stale. */
+        async function autoFillRow(id) {
+            if (window.mmCoreSyncPromise) { try { await window.mmCoreSyncPromise; } catch(e) {} }
             const productInput = document.getElementById('product_' + id);
             const batchSelect  = document.getElementById('batch_' + id);
             if (!productInput || !batchSelect) return;
@@ -960,8 +963,14 @@
             }
         }
 
-        /* -- Called when user picks a batch from the dropdown -- */
-        function selectBatch(id) {
+        /* -- Called when user picks a batch from the dropdown --
+           Waits for the initial Supabase sync first — otherwise a fast cashier
+           picking a batch before that sync finishes would read pre-sync (stale)
+           localStorage and see a stock number that disagrees with Inventory,
+           the exact same class of bug as before, just via a timing gap instead
+           of a missing data type. */
+        async function selectBatch(id) {
+            if (window.mmCoreSyncPromise) { try { await window.mmCoreSyncPromise; } catch(e) {} }
             const productInput = document.getElementById('product_' + id);
             const batchSelect  = document.getElementById('batch_' + id);
             if (!productInput || !batchSelect) return;
@@ -1034,6 +1043,22 @@
                 checkStockOnQtyChange(id);
             }
             calcRowTotal(id);
+        }
+
+        /* -- Re-check stock for every row that already has a batch picked.
+           Called once the initial Supabase sync finishes, in case a row's
+           stock number was shown before that sync landed (see selectBatch). -- */
+        function refreshAllRowStocks() {
+            document.querySelectorAll('#medicineRows tr').forEach(row => {
+                const productEl = row.querySelector('[id^="product_"]');
+                if (!productEl) return;
+                const rid     = productEl.id.replace('product_', '');
+                const batchEl = document.getElementById('batch_' + rid);
+                const stockEl = document.getElementById('stock_' + rid);
+                if (stockEl && productEl.value.trim() && batchEl && batchEl.value.trim()) {
+                    stockEl.value = getStock(productEl.value.trim(), batchEl.value.trim());
+                }
+            });
         }
 
         /* -- Update row count badge and add btn -- */
@@ -1938,12 +1963,19 @@
         // Uses the shared dbSyncCoreData() (js/supabase.js) so this page can
         // never again silently drift out of sync on one data type while
         // refreshing another — see its doc comment for why that matters.
-        (async function syncFromDatabase() {
+        //
+        // Exposed as window.mmCoreSyncPromise so selectBatch() can wait for it
+        // before computing stock — otherwise a batch picked in the few hundred
+        // ms before this resolves would read pre-sync (stale) localStorage.
+        window.mmCoreSyncPromise = (async function syncFromDatabase() {
             try {
                 await dbSyncCoreData();
                 // Refresh all datalists now that data is ready
                 refreshNamesLists();
                 refreshGlobalMedicineList();
+                // Any row whose batch was already picked before this sync
+                // finished may be showing a stale stock number — fix those up.
+                refreshAllRowStocks();
             } catch (err) {
                 console.error("Database sync failed:", err);
             }
