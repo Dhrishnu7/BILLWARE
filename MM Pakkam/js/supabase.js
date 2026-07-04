@@ -302,6 +302,60 @@ async function dbAddStockAdjustment(row) {
     return { success: true, data: data?.[0] || null };
 }
 
+// Retries any stock adjustment that was saved locally but failed to reach
+// Supabase (e.g. made before the 'stock_adjustments' table existed yet, or
+// while offline). Safe to call repeatedly.
+//
+// Two sources are retried:
+//  1. The explicit pending queue (new saves that failed after this retry
+//     mechanism existed).
+//  2. "Legacy" entries already sitting in the main stockAdjustments display
+//     cache from before this mechanism existed — identifiable because a
+//     cloud-confirmed row always has an `id`; a purely local one never got
+//     one. Once pushed, the next full dbGetStockAdjustments() fetch replaces
+//     the id-less local copy with the real cloud row, so nothing lingers.
+async function dbSyncPendingStockAdjustments() {
+    const user = _currentUser();
+    if (!user) return 0;
+
+    const pending  = (typeof mmLsGet === 'function') ? (mmLsGet('pendingStockAdjustments') || []) : [];
+    const mainCache = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
+    const legacyUnsynced = mainCache.filter(a => !a.id);
+
+    if (!pending.length && !legacyUnsynced.length) return 0;
+
+    let syncedCount = 0;
+    const stillPending = [];
+    for (const record of pending) {
+        try {
+            const res = await dbAddStockAdjustment(record);
+            if (res && res.success) syncedCount++;
+            else stillPending.push(record);
+        } catch (e) {
+            stillPending.push(record);
+        }
+    }
+    if (typeof mmLsSet === 'function') mmLsSet('pendingStockAdjustments', stillPending);
+
+    for (const legacy of legacyUnsynced) {
+        try {
+            const res = await dbAddStockAdjustment({
+                productName: legacy.product_name || legacy.productName,
+                batchNo:     legacy.batch_no     || legacy.batchNo,
+                qtyBefore:   legacy.qty_before    ?? legacy.qtyBefore,
+                qtyAfter:    legacy.qty_after     ?? legacy.qtyAfter,
+                qtyDelta:    legacy.qty_delta     ?? legacy.qtyDelta,
+                reason:      legacy.reason,
+                note:        legacy.note,
+            });
+            if (res && res.success) syncedCount++;
+        } catch (e) { /* will retry again next load */ }
+    }
+
+    return syncedCount;
+}
+window.dbSyncPendingStockAdjustments = dbSyncPendingStockAdjustments;
+
 /* ─────────────────────────────────────────────────────
    BILLS  (sales)
 ───────────────────────────────────────────────────── */
@@ -423,6 +477,11 @@ async function dbSyncCoreData() {
     const user = _currentUser();
     if (!user) return false;
     try {
+        // Push any stock adjustment that got stuck locally (e.g. saved before
+        // the 'stock_adjustments' table existed, or while offline) BEFORE
+        // fetching, so this same sync picks it up for every device right away.
+        try { await dbSyncPendingStockAdjustments(); } catch (e) { console.warn('[db] pending stock adjustment retry failed:', e); }
+
         const [customers, doctors, medicines, purchases, bills, adjustments] = await Promise.all([
             dbGetCustomers(),
             dbGetDoctors(),

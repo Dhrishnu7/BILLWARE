@@ -972,6 +972,12 @@
                     _dbBills     = data.bills     || [];
                 }
             }
+            if (session && typeof dbSyncPendingStockAdjustments === 'function') {
+                // Push any adjustment stuck locally (e.g. made before the
+                // 'stock_adjustments' table existed, or made offline) to the
+                // cloud now, so every device sees it — not just this one.
+                try { await dbSyncPendingStockAdjustments(); } catch(e) { console.warn('Pending adjustment retry failed:', e); }
+            }
             if (session && typeof dbGetStockAdjustments === 'function') {
                 const adj = await dbGetStockAdjustments();
                 if (Array.isArray(adj) && adj.length) _stockAdjustments = adj;
@@ -1312,6 +1318,18 @@
             local.unshift(localEntry);
             if (typeof mmLsSet === 'function') mmLsSet('stockAdjustments', local);
         } catch(e) { console.warn('Stock adjustment local save failed:', e); }
+
+        // If the cloud save failed (offline, or the table didn't exist yet),
+        // queue it so dbSyncCoreData()/loadData() automatically retries it on
+        // the next load — on this device or any other — instead of it being
+        // stuck local-only until someone notices and redoes it by hand.
+        if (!savedToCloud) {
+            try {
+                const pending = (typeof mmLsGet === 'function') ? (mmLsGet('pendingStockAdjustments') || []) : [];
+                pending.push(record);
+                if (typeof mmLsSet === 'function') mmLsSet('pendingStockAdjustments', pending);
+            } catch(e) { console.warn('Stock adjustment pending-queue save failed:', e); }
+        }
 
         _stockAdjustments.unshift(localEntry);
 
