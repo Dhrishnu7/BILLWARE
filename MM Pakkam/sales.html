@@ -944,10 +944,9 @@
 
             if (!productVal) return;
 
-            const batches = getBatchesForProduct(productVal);
-            if (batches.length === 0) {
-                // Medicine not in stock (0 results) → offer a customer Promise Order (backorder)
-                if (stockEl0) { stockEl0.value = 0; stockEl0.style.color = '#dc2626'; }
+            // Helper: show the purple "Create Promise Order" backorder button in this row.
+            const showPromiseBtn = () => {
+                if (document.getElementById('promiseBtn_' + id)) return;
                 const poBtn = document.createElement('button');
                 poBtn.type = 'button';
                 poBtn.id = 'promiseBtn_' + id;
@@ -956,6 +955,13 @@
                 poBtn.style.cssText = 'margin-top:6px;display:block;width:100%;background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:0.72rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;';
                 poBtn.onclick = () => openPromiseOrderModal(productVal);
                 batchSelect.parentElement.appendChild(poBtn);
+            };
+
+            const batches = getBatchesForProduct(productVal);
+            if (batches.length === 0) {
+                // Medicine never purchased (0 results) → offer a customer Promise Order (backorder)
+                if (stockEl0) { stockEl0.value = 0; stockEl0.style.color = '#dc2626'; }
+                showPromiseBtn();
                 return;
             }
 
@@ -971,6 +977,17 @@
                 opt.title = `Exp: ${pExp}  |  Stock: ${stock}`;
                 batchSelect.appendChild(opt);
             });
+
+            // Medicine exists but may be fully SOLD OUT — total current stock
+            // (purchased − sold + adjustments) across all batches. If it's 0 or
+            // less, it's effectively out of stock, so offer a backorder too.
+            let totalStock = 0;
+            try { totalStock = (typeof mmComputeStock === 'function') ? (Number(mmComputeStock(productVal)) || 0) : 0; }
+            catch (e) {}
+            if (totalStock <= 0) {
+                if (stockEl0) stockEl0.style.color = '#dc2626';
+                showPromiseBtn();
+            }
 
             // If only one batch, auto-select it
             if (batches.length === 1) {
