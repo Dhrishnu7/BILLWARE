@@ -507,12 +507,15 @@ async function dbGetReportData(fromDate, toDate) {
 ───────────────────────────────────────────────────── */
 // Merge cloud customer rows over the existing local mm_customers WITHOUT losing
 // a customer's credit balance. Overwriting mm_customers blindly with the cloud
-// list was wiping balances — and dropping whole customers off the Khata page —
-// whenever the cloud row's `balance` was null/undefined (e.g. a balance write
-// that never reached Supabase, or a customer added before balances were tracked).
-// Rule: the cloud value wins WHEN IT EXISTS (including an explicit 0 from a
-// settlement); only when the cloud row has no balance at all do we keep the
-// local balance so it isn't silently lost. Match by name+phone, then name-only.
+// list was resetting balances — and dropping whole customers off the Khata page —
+// whenever the cloud `balance` was null, 0, or stale (a balance write that never
+// persisted to Supabase). That made a customer's dues collapse to just the
+// latest bill on the next page load.
+// Rule: keep the HIGHER of the cloud and local balance. A sync should never
+// REDUCE an amount that's owed; the cloud value only wins when it's actually
+// ahead (e.g. a newer credit sale made on another device). Same-device
+// settlements lower both stores together, so they still take effect.
+// Match by name+phone, then name-only.
 function _mmMergeCustomerBalances(cloudCustomers) {
     let localList = [];
     try { localList = JSON.parse(localStorage.getItem('mm_customers') || '[]'); } catch (e) {}
@@ -523,11 +526,11 @@ function _mmMergeCustomerBalances(cloudCustomers) {
             || localList.find(l => (l.name || '').trim().toLowerCase() === nm);
     };
     return cloudCustomers.map(c => {
-        const hasCloudBal = c.balance !== null && c.balance !== undefined && c.balance !== '';
-        if (hasCloudBal) return c;
+        const cloudBal = (c.balance !== null && c.balance !== undefined && c.balance !== '')
+            ? (parseFloat(c.balance) || 0) : 0;
         const local = findLocal(c);
-        const localBal = local ? parseFloat(local.balance) : NaN;
-        return (!isNaN(localBal) && localBal > 0) ? { ...c, balance: localBal } : c;
+        const localBal = local ? (parseFloat(local.balance) || 0) : 0;
+        return { ...c, balance: Math.max(cloudBal, localBal) };
     });
 }
 

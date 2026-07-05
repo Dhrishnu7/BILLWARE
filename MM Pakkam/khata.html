@@ -483,11 +483,18 @@
                     });
             } catch(e) {}
 
-            // ─── MERGE: Supabase wins on balance; add localStorage-only entries ─
+            // ─── MERGE: take the HIGHER of cloud vs local for each customer ───
+            // Previously Supabase always won, so a stale/failed cloud balance
+            // (one that never persisted the latest credit sale) would hide the
+            // correct, higher local balance — making a customer's dues look
+            // "reset to the latest bill only". We never want a merge to LOSE an
+            // amount that's owed, so we keep whichever store shows more. (Same-
+            // device settlements lower both stores together, so this stays correct.)
             const merged = [...supabaseDebtors];
             localDebtors.forEach(lc => {
                 const inSupabase = merged.find(sc => sc.name.toLowerCase() === lc.name.toLowerCase());
-                if (!inSupabase) merged.push(lc); // only add if Supabase doesn't already have them
+                if (!inSupabase) merged.push(lc); // only in local — add it
+                else inSupabase.balance = Math.max(inSupabase.balance, lc.balance);
             });
 
             _allKhataCustomers = merged.filter(c => c.balance > 0).sort((a, b) => b.balance - a.balance);
