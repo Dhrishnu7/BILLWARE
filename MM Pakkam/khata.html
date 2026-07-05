@@ -363,6 +363,7 @@
             </svg>
             <input type="text" id="searchInput" placeholder="Search customer name…" oninput="filterKhata(this.value)">
             <button onclick="openAddBalanceModal()" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:10px;padding:0.4rem 0.9rem;font-weight:700;font-size:0.8rem;font-family:Inter,sans-serif;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(99,102,241,0.3);transition:all 0.2s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">+ Add Balance</button>
+            <button onclick="khataDebug()" title="Diagnose missing accounts" style="background:#e2e8f0;color:#475569;border:none;border-radius:10px;padding:0.4rem 0.7rem;font-weight:700;font-size:0.8rem;font-family:Inter,sans-serif;cursor:pointer;white-space:nowrap;">🔍</button>
         </div>
 
         <div class="khata-grid" id="khataGrid">
@@ -703,6 +704,43 @@
             }
         }
 
+
+        // ── Diagnostic: dump the raw balance data from all three stores so a
+        //    "customer/history disappeared" report can be pinned to a store. ──
+        async function khataDebug() {
+            let lines = ['=== ACCOUNTS DEBUG ==='];
+            // Supabase (authoritative)
+            try {
+                const user = (typeof _currentUser === 'function') ? _currentUser() : null;
+                if (user && typeof _supabase !== 'undefined') {
+                    const { data, error } = await _supabase.from('customers')
+                        .select('name,phone,balance').eq('user_id', user);
+                    if (error) lines.push('SUPABASE ERROR: ' + error.message);
+                    else {
+                        lines.push(`SUPABASE rows: ${data.length}`);
+                        data.forEach(r => lines.push(`  • ${r.name} [${r.phone||'no ph'}] bal=${r.balance}`));
+                    }
+                } else {
+                    lines.push('SUPABASE: no user/session');
+                }
+            } catch(e) { lines.push('SUPABASE threw: ' + e.message); }
+            // Unscoped localStorage
+            try {
+                const c = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+                lines.push(`\nLOCAL mm_customers: ${c.length}`);
+                c.forEach(r => lines.push(`  • ${r.name} [${r.phone||'no ph'}] bal=${r.balance}`));
+            } catch(e) { lines.push('LOCAL threw: ' + e.message); }
+            // Scoped localStorage
+            try {
+                const s = (typeof mmLsGet === 'function') ? (mmLsGet('customers') || []) : [];
+                lines.push(`\nSCOPED customers: ${s.length}`);
+                s.forEach(r => lines.push(`  • ${r.name} [${r.phone||'no ph'}] bal=${r.balance}`));
+            } catch(e) { lines.push('SCOPED threw: ' + e.message); }
+            const text = lines.join('\n');
+            console.log(text);
+            alert(text);
+        }
+        window.khataDebug = khataDebug;
 
         // DOMContentLoaded fires before Supabase restores the session,
         // so _currentUser() would return null. We wait for getSession() first.

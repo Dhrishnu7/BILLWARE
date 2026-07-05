@@ -505,6 +505,32 @@ async function dbGetReportData(fromDate, toDate) {
    Returns true if the sync completed, false if it failed (caller
    should treat existing localStorage as an acceptable fallback).
 ───────────────────────────────────────────────────── */
+// Merge cloud customer rows over the existing local mm_customers WITHOUT losing
+// a customer's credit balance. Overwriting mm_customers blindly with the cloud
+// list was wiping balances — and dropping whole customers off the Khata page —
+// whenever the cloud row's `balance` was null/undefined (e.g. a balance write
+// that never reached Supabase, or a customer added before balances were tracked).
+// Rule: the cloud value wins WHEN IT EXISTS (including an explicit 0 from a
+// settlement); only when the cloud row has no balance at all do we keep the
+// local balance so it isn't silently lost. Match by name+phone, then name-only.
+function _mmMergeCustomerBalances(cloudCustomers) {
+    let localList = [];
+    try { localList = JSON.parse(localStorage.getItem('mm_customers') || '[]'); } catch (e) {}
+    const findLocal = (c) => {
+        const nm = (c.name || '').trim().toLowerCase();
+        const ph = (c.phone || '').trim();
+        return localList.find(l => (l.name || '').trim().toLowerCase() === nm && (l.phone || '').trim() === ph)
+            || localList.find(l => (l.name || '').trim().toLowerCase() === nm);
+    };
+    return cloudCustomers.map(c => {
+        const hasCloudBal = c.balance !== null && c.balance !== undefined && c.balance !== '';
+        if (hasCloudBal) return c;
+        const local = findLocal(c);
+        const localBal = local ? parseFloat(local.balance) : NaN;
+        return (!isNaN(localBal) && localBal > 0) ? { ...c, balance: localBal } : c;
+    });
+}
+
 async function dbSyncCoreData() {
     const user = _currentUser();
     if (!user) return false;
@@ -524,7 +550,7 @@ async function dbSyncCoreData() {
             dbGetStockAdjustments(),
         ]);
 
-        if (customers && customers.length) localStorage.setItem('mm_customers', JSON.stringify(customers));
+        if (customers && customers.length) localStorage.setItem('mm_customers', JSON.stringify(_mmMergeCustomerBalances(customers)));
         if (doctors && doctors.length)     localStorage.setItem('mm_doctors', JSON.stringify(doctors));
         if (medicines && medicines.length) localStorage.setItem('mm_medicine_list', JSON.stringify(medicines));
         if (purchases && purchases.length) localStorage.setItem('mm_purchases', JSON.stringify(purchases));
@@ -919,7 +945,7 @@ async function dbSyncDown() {
         
         if (purchases && purchases.length) localStorage.setItem('mm_purchases', JSON.stringify(purchases));
         if (bills && bills.length) localStorage.setItem('mm_sales', JSON.stringify(bills));
-        if (customers && customers.length) localStorage.setItem('mm_customers', JSON.stringify(customers));
+        if (customers && customers.length) localStorage.setItem('mm_customers', JSON.stringify(_mmMergeCustomerBalances(customers)));
         if (doctors && doctors.length) localStorage.setItem('mm_doctors', JSON.stringify(doctors));
         
         console.log('[Sync] Cloud data restored successfully.');
