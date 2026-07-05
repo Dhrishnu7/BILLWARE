@@ -941,6 +941,10 @@
         setTimeout(loadNotifications, 800);
         setInterval(loadNotifications, 60000); // 🚀 Refresh inbox live every 60s
     });
+    // Also refresh the instant the dashboard regains focus (e.g. coming back from
+    // Sales/Purchase/Inventory) so stock & promise alerts are always up to date.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) loadNotifications(); });
+    window.addEventListener('focus', loadNotifications);
     </script></body>
 </html>
 

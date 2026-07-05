@@ -123,11 +123,13 @@ const MMNotifications = (() => {
                 }
             });
 
-            // Stock alerts — REAL current stock. Gate to products that still have
-            // a non-expired batch so we don't nag to reorder discontinued/expired lines.
+            // Stock alerts — REAL current stock (purchased − sold + adjustments),
+            // shown for EVERY product regardless of expiry data. (A previous
+            // "only if it has a non-expired batch" gate silently hid low/out-of-
+            // stock alerts for any medicine entered without an expiry date — the
+            // "notifications sometimes miss low/out of stock" bug.)
             const current = stockOf(name);
             const qty = (current !== null) ? current : info.fallbackQty;
-            if (!hasFreshBatch) return; // nothing sellable left to reorder — skip stock alert
             if (qty <= 0) {
                 results.push(notif({ id: `stock_${name}_out`, category: 'medicines', type: 'out_of_stock', priority: 1, readIds,
                     title: `${name} — Out of Stock`, icon: '🚫', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', time: 'Stock update',
