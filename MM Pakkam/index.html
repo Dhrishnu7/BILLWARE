@@ -860,7 +860,10 @@
         const body = document.getElementById('inboxBody');
         const pill = document.getElementById('inboxUnreadPill');
 
-        const filtered = _allNotifs.filter(n => _activeFilter === 'all' || n.category === _activeFilter);
+        // Only show UNREAD notifications — once marked read, a message is dismissed
+        // and never pops back into the center (read state is saved per-user and
+        // persists across reloads).
+        const filtered = _allNotifs.filter(n => !n.isRead && (_activeFilter === 'all' || n.category === _activeFilter));
 
         const unread = _allNotifs.filter(n => !n.isRead).length;
         pill.textContent = `${unread} new`;
@@ -911,20 +914,9 @@
         MMNotifications.markRead([id]);
         const notif = _allNotifs.find(n => n.id === id);
         if (notif) notif.isRead = true;
-        if (cardEl) {
-            cardEl.classList.remove('unread');
-            cardEl.classList.add('read');
-            cardEl.style.background = 'white';
-            cardEl.querySelector('.notif-unread-dot')?.remove();
-            const title = cardEl.querySelector('.notif-title');
-            if (title) title.style.color = '#334155';
-        }
         updateBellBadge();
         updateTabCounts();
-        const pill = document.getElementById('inboxUnreadPill');
-        const unread = _allNotifs.filter(n => !n.isRead).length;
-        pill.textContent = `${unread} new`;
-        if (!unread) pill.style.display = 'none';
+        renderInbox(); // drop it from view — read messages no longer appear
     }
 
     function markAllRead() {
