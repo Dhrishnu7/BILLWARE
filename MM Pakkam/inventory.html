@@ -1574,7 +1574,7 @@
         // Direct matches
         const directMatches = _stockData.filter(r =>
             r.name.toLowerCase().includes(q) ||
-            r.batches.some(b => b.batch.toLowerCase().includes(q))
+            r.batches.some(b => (b.batch || '').toLowerCase().includes(q))
         );
 
         // Smart keyword substitutes (from same-salt / same keyword)
@@ -1600,7 +1600,7 @@
             return `<span class="sd-item-badge sdb-in">In Stock: ${row.current}</span>`;
         }
         function marginStr(row) {
-            return row.bestMargin > 40 ? `<span style="color:#059669;font-weight:700;font-size:0.68rem;"> &bull; &#x1F480; ${Math.round(row.bestMargin)}% margin</span>` : '';
+            return row.bestMargin > 40 ? `<span style="color:#059669;font-weight:700;font-size:0.68rem;"> &bull; &#x1F4B0; ${Math.round(row.bestMargin)}% margin</span>` : '';
         }
 
         let html = '';
@@ -1676,7 +1676,7 @@
         const filtered = q
             ? _stockData.filter(r => {
                 const name = r.name.toLowerCase();
-                if (name.includes(q) || r.batches.some(b => b.batch.toLowerCase().includes(q))) return true;
+                if (name.includes(q) || r.batches.some(b => (b.batch || '').toLowerCase().includes(q))) return true;
                 for(let sub of substituteQ) {
                     if(name.includes(sub)) return true;
                 }
@@ -1885,7 +1885,7 @@
 
         document.getElementById('expirySummary').style.display = 'flex';
         document.getElementById('expiryInitialMsg').style.display = 'none';
-        document.getElementById('pillExpired').innerHTML   = `&#x1F4E6; ${expired.length} Already Expired`;
+        document.getElementById('pillExpired').innerHTML   = `&#x1F534; ${expired.length} Already Expired`;
         document.getElementById('pillThisMonth').innerHTML = `&#x1F536; ${thisMonth.length} Expiring This Month`;
         document.getElementById('pillSoon').innerHTML      = `&#x1F536; ${soon.length} Expiring Soon`;
         document.getElementById('pillOk').innerHTML        = `&#x2705; ${ok.length} OK`;
@@ -1922,7 +1922,7 @@
             if (cat === 'ok') {
                 statusHtml = `<span class="expiry-status" style="background:#dcfce7;color:#16a34a;border:1.5px solid #86efac;">&#x2705; Safe &mdash; ${r.diff} month(s) left</span>`;
             } else if (r.diff < 0) {
-                statusHtml = `<span class="expiry-status status-expired">&#x1F4E6; Expired ${Math.abs(r.diff)} month(s) ago</span>`;
+                statusHtml = `<span class="expiry-status status-expired">&#x1F534; Expired ${Math.abs(r.diff)} month(s) ago</span>`;
             } else if (r.diff === 0) {
                 statusHtml = `<span class="expiry-status status-thismonth">&#x1F536; Expiring This Month</span>`;
             } else {

@@ -805,8 +805,11 @@
         }
 
         // ── Submit all items ──
+        let _isSaving = false;
         async function handleSubmit(e) {
             e.preventDefault();
+            if (_isSaving) return;
+            _isSaving = true;
 
             const btn = document.getElementById('saveBtn');
             const container = document.getElementById('lineItemsContainer');
@@ -814,6 +817,7 @@
 
             if (items.length === 0) {
                 showToast('No Items', 'Please add at least one item.');
+                _isSaving = false;
                 return;
             }
 
@@ -861,10 +865,16 @@
             });
 
             if (hasEmptyName) {
-                if (!confirm('Some items have empty product names. Save anyway?')) return;
+                if (!confirm('Some items have empty product names. Save anyway?')) {
+                    _isSaving = false;
+                    return;
+                }
             }
             if (hasMissingDetails) {
-                if (!confirm('You have entered a Product Name but left some details (Batch, Expiry, Qty, MRP, or Rate) empty or zero. Are you sure you want to save this incomplete record?')) return;
+                if (!confirm('You have entered a Product Name but left some details (Batch, Expiry, Qty, MRP, or Rate) empty or zero. Are you sure you want to save this incomplete record?')) {
+                    _isSaving = false;
+                    return;
+                }
             }
 
             btn.disabled = true;
@@ -912,6 +922,7 @@
                 document.getElementById('toast').classList.remove('show');
                 btn.disabled = false;
                 btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Save All Purchases`;
+                _isSaving = false;
                 if (failCount === 0) {
                     // Reset form: clear header + rebuild single line item
                     document.getElementById('purchaseForm').reset();

@@ -1341,14 +1341,31 @@
         }
 
         /* -- Submit -- */
+        let _isSaving = false;
         async function handleSubmit(e) {
             e.preventDefault();
+            if (_isSaving) return;
 
             const medicines = collectMedicines();
             if (medicines.length === 0) {
                 alert('Please add at least one medicine before saving.');
+                _isSaving = false;
                 return;
             }
+
+            const customerName = document.getElementById('customerName').value.trim();
+            const paymentMode = document.getElementById('paymentMode').value;
+
+            if (paymentMode === 'credit' && !customerName) {
+                alert('A valid Customer Name is required for Credit sales.');
+                document.getElementById('customerName').focus();
+                _isSaving = false;
+                return;
+            }
+
+            _isSaving = true;
+
+
 
             // Removed strict stock validation to allow selling physical stock even if not entered yet
 
@@ -1370,17 +1387,6 @@
                 }
             } catch(e) {}
 
-            const customerName = document.getElementById('customerName').value.trim();
-            const paymentMode = document.getElementById('paymentMode').value;
-
-            if (paymentMode === 'credit' && !customerName) {
-                alert('A valid Customer Name is required for Credit sales.');
-                document.getElementById('customerName').focus();
-                btn.disabled = false;
-                btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Save Bill`;
-                return;
-            }
-
             const bill = {
                 billNo:       finalBillNo,
                 date:         document.getElementById('saleDate').value,
@@ -1394,6 +1400,9 @@
 
             // -- Save to Supabase --
             const result = await dbSaveBill(bill);
+            if (result.success && result.data && result.data.bill_no) {
+                bill.billNo = result.data.bill_no;
+            }
 
             // Also keep localStorage as offline fallback
             const sales = JSON.parse(localStorage.getItem('mm_sales') || '[]');
@@ -1458,6 +1467,8 @@
             setTimeout(() => {
                 btn.disabled = false;
                 btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Save Bill`;
+                _isSaving = false;
+            }, 3000);
 
                 // Reset form in background
                 document.getElementById('customerName').value = '';
@@ -2052,7 +2063,7 @@
     <div class="modal-overlay" id="importModal">
         <div class="modal-card">
             <div class="modal-hd">
-                <h3>├░┼╕ΓÇ£ΓÇ╣ Import Medicine List</h3>
+                <h3>&#x1F4CB; Import Medicine List</h3>
                 <button class="modal-x" type="button" onclick="closeImportModal()">×</button>
             </div>
             <!-- Step 1: File Upload -->
@@ -2078,7 +2089,7 @@
             <div class="modal-ft">
                 <button class="btn-mcancel" type="button" onclick="closeImportModal()">Cancel</button>
                 <button class="btn-do-import" id="importConfirmBtn" type="button" onclick="doImport()" disabled>
-                    ✓ Import Medicines
+                    &#x2B07;&#xFE0F; Import Medicines
                 </button>
             </div>
         </div>
