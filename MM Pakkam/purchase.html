@@ -806,8 +806,9 @@
 
         // ── Promise Order automation ──
         // After stock is logged, check active (pending/ordered) customer backorders.
-        // If a purchased medicine loosely matches one, alert the shopkeeper to call
-        // the customer and auto-advance that promise order to "arrived".
+        // If a purchased medicine loosely matches one, silently auto-advance that
+        // promise order to "arrived" — the dashboard notification center then
+        // reminds the shopkeeper it's ready to sell (no pop-up during purchase).
         async function checkPromiseOrdersForArrivals(purchasedNames) {
             if (!purchasedNames || !purchasedNames.length) return;
             if (typeof dbGetPromiseOrders !== 'function') return;
@@ -824,12 +825,8 @@
                 // Loose match: either name contains the other (handles "Dolo" vs "Dolo 650")
                 const matched = purchasedNorm.some(pn => pn.includes(oNorm) || oNorm.includes(pn));
                 if (!matched) continue;
-                alert(
-                    '📦 Stock arrived for a Promise Order!\n\n' +
-                    'Customer: ' + o.customer_name + '\n' +
-                    'Medicine: ' + o.medicine_name + '  (Qty: ' + o.quantity + ')\n\n' +
-                    '📞 Please call them: ' + (o.customer_phone || 'No phone on file')
-                );
+                // No pop-up here — just advance to "arrived". The dashboard
+                // notification center surfaces a "ready to sell" reminder for it.
                 try { await dbUpdatePromiseOrderStatus(o.id, 'arrived'); } catch (e) { console.warn('promise status update failed:', e); }
             }
         }
