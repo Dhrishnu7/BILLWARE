@@ -155,6 +155,15 @@
             box-shadow: 0 4px 14px rgba(13,148,136,0.3);
         }
 
+        /* Promise Orders sub-filter buttons */
+        .pf-btn {
+            padding: 0.4rem 0.9rem; border: 1.5px solid #e2e8f0; background: #fff;
+            border-radius: 9px; font-size: 0.78rem; font-weight: 700; color: #475569;
+            cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s ease;
+        }
+        .pf-btn:hover { border-color: #0d9488; color: #0d9488; }
+        .pf-btn.pf-active { background: linear-gradient(135deg, #0d9488, #0891b2); color: #fff; border-color: transparent; }
+
         /* "?"? TAB PANELS "?"? */
         .tab-content {
             max-width: 1300px;
@@ -671,6 +680,7 @@
             <button class="tab-btn" id="tabBtnDead" onclick="switchTab('dead')">&#x1F480; Dead Stock</button>
             <button class="tab-btn" id="tabBtnSubFinder" onclick="switchTab('subfinder')">&#x1F504; Substitute Finder</button>
             <button class="tab-btn" id="tabBtnAdjust" onclick="switchTab('adjust')">&#x2696;&#xFE0F; Adjust Stock</button>
+            <button class="tab-btn" id="tabBtnPromise" onclick="switchTab('promise')">&#x1F4E6; Promise Orders</button>
         </div>
     </div>
 
@@ -908,6 +918,31 @@
             </div>
         </div>
 
+        <!-- --- TAB: PROMISE ORDERS --- -->
+        <div class="tab-panel" id="tab-promise">
+            <div class="panel-card">
+                <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.1rem;" id="promiseTabs">
+                    <button class="pf-btn pf-active" onclick="promiseSetFilter('all', this)">All</button>
+                    <button class="pf-btn" onclick="promiseSetFilter('pending', this)">Pending</button>
+                    <button class="pf-btn" onclick="promiseSetFilter('ordered', this)">Ordered</button>
+                    <button class="pf-btn" onclick="promiseSetFilter('arrived', this)">Arrived</button>
+                    <button class="pf-btn" onclick="promiseSetFilter('fulfilled', this)">Fulfilled</button>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="stock-table" id="promiseTable">
+                        <thead>
+                            <tr>
+                                <th>Customer</th><th>Medicine</th><th>Qty</th><th>Promise Date</th><th>Status</th><th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="promiseBody">
+                            <tr><td colspan="6" style="text-align:center;padding:2rem;color:#94a3b8;">Loading&hellip;</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div><!-- /tab-content -->
 
     <footer style="text-align:center;padding:1.2rem;font-size:0.82rem;color:#94a3b8;border-top:1px solid rgba(0,0,0,0.05);">
@@ -950,6 +985,93 @@
         if (name === 'dead'      && _dataLoaded) renderDeadStock();
         if (name === 'subfinder' && _dataLoaded) runSubstituteFinder('');
         if (name === 'adjust'    && _dataLoaded) { populateAdjustMedicineList(); renderAdjustLog(); }
+        if (name === 'promise')  loadPromiseOrders(); // independent of stock data
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // PROMISE ORDERS (customer backorders) — lives here as an
+    // inventory tab. Uses the shared db* wrappers in supabase.js.
+    // ═══════════════════════════════════════════════════════
+    let _promiseOrders = [];
+    let _promiseFilter = 'all';
+
+    function _poEsc(s) { const d = document.createElement('div'); d.textContent = (s == null ? '' : s); return d.innerHTML; }
+    function _poDate(d) {
+        if (!d) return '—';
+        try { return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); }
+        catch (e) { return d; }
+    }
+
+    async function loadPromiseOrders() {
+        const body = document.getElementById('promiseBody');
+        if (typeof dbGetPromiseOrders !== 'function') {
+            if (body) body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:#94a3b8;">Promise Orders unavailable.</td></tr>';
+            return;
+        }
+        try { _promiseOrders = await dbGetPromiseOrders(); }
+        catch (e) { _promiseOrders = []; console.warn('promise orders load failed:', e); }
+        renderPromiseOrders();
+    }
+
+    function promiseSetFilter(f, btn) {
+        _promiseFilter = f;
+        document.querySelectorAll('#promiseTabs .pf-btn').forEach(b => b.classList.remove('pf-active'));
+        if (btn) btn.classList.add('pf-active');
+        renderPromiseOrders();
+    }
+
+    function renderPromiseOrders() {
+        const body = document.getElementById('promiseBody');
+        if (!body) return;
+        const rows = _promiseFilter === 'all' ? _promiseOrders : _promiseOrders.filter(o => o.status === _promiseFilter);
+        if (!rows.length) {
+            body.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2.5rem;color:#94a3b8;">📭 No ${_promiseFilter === 'all' ? '' : _promiseFilter + ' '}promise orders.</td></tr>`;
+            return;
+        }
+        const badgeStyle = {
+            pending:   'background:#fef9c3;color:#a16207;',
+            ordered:   'background:#dbeafe;color:#1d4ed8;',
+            arrived:   'background:#dcfce7;color:#15803d;',
+            fulfilled: 'background:#e2e8f0;color:#475569;'
+        };
+        const actBtn = (label, bg, handler, enabled) =>
+            `<button onclick="${handler}" ${enabled ? '' : 'disabled'} style="border:none;border-radius:7px;padding:5px 9px;font-size:0.7rem;font-weight:700;cursor:${enabled ? 'pointer' : 'not-allowed'};color:#fff;background:${bg};${enabled ? '' : 'opacity:0.4;'}margin:2px;font-family:'Inter',sans-serif;">${label}</button>`;
+
+        body.innerHTML = rows.map(o => {
+            const st = o.status || 'pending';
+            const badge = `<span style="${badgeStyle[st] || ''}font-size:0.66rem;font-weight:800;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:0.04em;">${st}</span>`;
+            const actions =
+                actBtn('Ordered',        'linear-gradient(135deg,#2563eb,#3b82f6)', `promiseMarkStatus('${o.id}','ordered')`, st === 'pending') +
+                actBtn('Arrived',        'linear-gradient(135deg,#059669,#10b981)', `promiseMarkStatus('${o.id}','arrived')`, st === 'pending' || st === 'ordered') +
+                actBtn('Convert to Sale','linear-gradient(135deg,#7c3aed,#a78bfa)', `promiseConvertToSale('${o.id}')`, st !== 'fulfilled');
+            return `<tr>
+                <td><b>${_poEsc(o.customer_name)}</b><br><small style="color:#94a3b8;">${_poEsc(o.customer_phone) || 'No phone'}</small></td>
+                <td>${_poEsc(o.medicine_name)}</td>
+                <td>${_poEsc(o.quantity)}</td>
+                <td>${_poDate(o.promise_date)}</td>
+                <td>${badge}</td>
+                <td><div style="display:flex;flex-wrap:wrap;">${actions}</div></td>
+            </tr>`;
+        }).join('');
+    }
+
+    async function promiseMarkStatus(id, status) {
+        if (typeof dbUpdatePromiseOrderStatus !== 'function') return;
+        const o = _promiseOrders.find(x => x.id === id);
+        const r = await dbUpdatePromiseOrderStatus(id, status);
+        if (r && r.success) { if (o) o.status = status; renderPromiseOrders(); }
+        else alert('Could not update. Please check your connection and try again.');
+    }
+
+    async function promiseConvertToSale(id) {
+        const o = _promiseOrders.find(x => x.id === id);
+        if (!o) return;
+        if (!confirm(`Convert this promise order for ${o.customer_name} into a sale?\n\nThis marks it Fulfilled and opens Sales with the customer & medicine pre-filled.`)) return;
+        if (typeof dbUpdatePromiseOrderStatus === 'function') {
+            try { await dbUpdatePromiseOrderStatus(id, 'fulfilled'); } catch (e) { console.warn(e); }
+        }
+        window.location.href = 'sales.html?customer=' + encodeURIComponent(o.customer_name || '') +
+                               '&medicine=' + encodeURIComponent(o.medicine_name || '');
     }
 
     // ═══════════════════════════════════════════════════════
