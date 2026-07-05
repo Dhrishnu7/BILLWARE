@@ -283,6 +283,25 @@ const MMNotifications = (() => {
     }
 
     // ─────────────────────────────────────
+    // 5. PROMISE ORDERS — arrived & ready to sell
+    // ─────────────────────────────────────
+    function generatePromiseAlerts(orders) {
+        const readIds = getReadIds();
+        const results = [];
+        const esc = v => String(v == null ? '' : v).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+        (orders || []).forEach(o => {
+            if (o.status !== 'arrived') return; // only nag about backorders whose stock has landed
+            results.push(notif({
+                id: `promise_ready_${o.id}`, category: 'medicines', type: 'promise_ready', priority: 1, readIds,
+                title: `Promise Order Ready — ${esc(o.medicine_name)}`,
+                icon: '📦', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', time: 'Ready to sell',
+                message: `Stock arrived for <b>${esc(o.customer_name)}</b>'s order of <b>${esc(o.medicine_name)}</b> (Qty ${esc(o.quantity)}). Ready to sell — 📞 call ${esc(o.customer_phone) || 'them (no phone on file)'}.`
+            }));
+        });
+        return results;
+    }
+
+    // ─────────────────────────────────────
     // MASTER SORT — unread first, then priority
     // ─────────────────────────────────────
     function sort(arr) {
@@ -297,6 +316,7 @@ const MMNotifications = (() => {
         generateRequestAlerts,
         generateBusinessAlerts,
         generateSystemAlerts,
+        generatePromiseAlerts,
         sort,
         markRead,
         markAllRead,

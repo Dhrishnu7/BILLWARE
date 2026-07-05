@@ -764,13 +764,22 @@
                 customerIssues = ci?.data || [];
             }
 
+            // Promise Orders whose stock has arrived — so the shopkeeper doesn't
+            // forget to sell a backorder they've already received.
+            let arrivedPromiseOrders = [];
+            try {
+                if (typeof dbGetPromiseOrders === 'function') arrivedPromiseOrders = await dbGetPromiseOrders('arrived');
+            } catch (e) { console.warn('[Inbox] promise orders load failed:', e); }
+
             // Generate all categories and merge
             const medicineAlerts = MMNotifications.generateMedicineAlerts(purchases);
             const requestAlerts  = MMNotifications.generateRequestAlerts(shopEditReqs, extraUserReqs, customerIssues);
             const businessAlerts = MMNotifications.generateBusinessAlerts(bills);
             const systemAlerts   = MMNotifications.generateSystemAlerts(announcements);
+            const promiseAlerts  = MMNotifications.generatePromiseAlerts(arrivedPromiseOrders);
 
             _allNotifs = MMNotifications.sort([
+                ...promiseAlerts,
                 ...medicineAlerts,
                 ...requestAlerts,
                 ...businessAlerts,
