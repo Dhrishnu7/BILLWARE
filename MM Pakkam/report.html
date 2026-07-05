@@ -292,17 +292,19 @@
 
         /* ── Analytics Layout ── */
         /* ─────────────────────────────────────────
-           VISUAL ANALYTICS — PREMIUM DARK DESIGN
+           VISUAL ANALYTICS — LIGHT DESIGN
+           (matches inventory.html's clean cards, using
+            the report page's sky/emerald palette)
         ───────────────────────────────────────── */
         .analytics-view {
             display: none; width: 100%;
             animation: fadeUp 0.5s ease forwards;
-            background: linear-gradient(145deg, #0a0f1e 0%, #0f172a 40%, #0d1627 100%);
+            background: linear-gradient(135deg, #f0fdfa 0%, #e0f2fe 55%, #f0fdf4 100%);
             border-radius: 28px;
             padding: 2rem;
             margin-top: 1.2rem;
-            box-shadow: 0 24px 80px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 16px 48px rgba(2,132,199,0.10);
+            border: 1px solid rgba(255,255,255,0.7);
         }
 
         /* KPI stat row */
@@ -313,37 +315,38 @@
             margin-bottom: 1.8rem;
         }
         .analytics-kpi-card {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.9);
+            border: 1px solid #e2e8f0;
             border-radius: 18px;
             padding: 1.3rem 1.5rem;
             position: relative;
             overflow: hidden;
+            box-shadow: 0 4px 14px rgba(15,23,42,0.05);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
-        .analytics-kpi-card:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+        .analytics-kpi-card:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(15,23,42,0.12); }
         .analytics-kpi-card::before {
             content: '';
-            position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            position: absolute; top: 0; left: 0; right: 0; height: 3px;
         }
-        .kpi-revenue::before  { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
-        .kpi-profit::before   { background: linear-gradient(90deg, #10b981, #34d399); }
-        .kpi-txn::before      { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+        .kpi-revenue::before  { background: linear-gradient(90deg, #0284c7, #38bdf8); }
+        .kpi-profit::before   { background: linear-gradient(90deg, #059669, #34d399); }
+        .kpi-txn::before      { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
         .kpi-label {
             font-size: 0.68rem; font-weight: 800; letter-spacing: 0.12em;
             text-transform: uppercase; margin-bottom: 0.5rem;
         }
-        .kpi-revenue .kpi-label { color: #38bdf8; }
-        .kpi-profit  .kpi-label { color: #34d399; }
-        .kpi-txn     .kpi-label { color: #a78bfa; }
+        .kpi-revenue .kpi-label { color: #0284c7; }
+        .kpi-profit  .kpi-label { color: #059669; }
+        .kpi-txn     .kpi-label { color: #7c3aed; }
         .kpi-value {
-            font-size: 1.9rem; font-weight: 900; color: #f1f5f9;
+            font-size: 1.9rem; font-weight: 900; color: #0f172a;
             letter-spacing: -0.03em; line-height: 1;
         }
-        .kpi-sub { font-size: 0.72rem; color: #475569; margin-top: 5px; font-weight: 500; }
+        .kpi-sub { font-size: 0.72rem; color: #94a3b8; margin-top: 5px; font-weight: 500; }
         .kpi-icon {
             position: absolute; bottom: 1rem; right: 1.2rem;
-            font-size: 1.8rem; opacity: 0.15;
+            font-size: 1.8rem; opacity: 0.12;
         }
 
         /* Analytics chart cards */
@@ -351,27 +354,28 @@
             display: flex; flex-direction: column; gap: 1.4rem;
         }
         .analytics-card {
-            background: rgba(255,255,255,0.04);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: #ffffff;
+            border: 1px solid #e8eef5;
             border-radius: 20px;
             padding: 1.8rem;
             position: relative; overflow: hidden;
-            transition: box-shadow 0.2s ease;
+            box-shadow: 0 4px 16px rgba(15,23,42,0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
-        .analytics-card:hover { box-shadow: 0 16px 48px rgba(0,0,0,0.25); }
+        .analytics-card:hover { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(15,23,42,0.10); }
         .analytics-card::before {
             content: '';
-            position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            position: absolute; top: 0; left: 0; right: 0; height: 3px;
         }
-        .chart-top-sellers::before  { background: linear-gradient(90deg, #8b5cf6, #ec4899, #f97316); }
-        .chart-trend::before        { background: linear-gradient(90deg, #0ea5e9, #10b981); }
+        .chart-top-sellers::before   { background: linear-gradient(90deg, #8b5cf6, #ec4899, #f97316); }
+        .chart-top-customers::before { background: linear-gradient(90deg, #0284c7, #06b6d4, #10b981); }
+        .chart-trend::before         { background: linear-gradient(90deg, #0ea5e9, #10b981); }
         .analytics-card-header {
             display: flex; align-items: center; justify-content: space-between;
             margin-bottom: 1.4rem;
         }
         .analytics-card-title {
-            font-size: 0.95rem; font-weight: 800; color: #f1f5f9;
+            font-size: 0.95rem; font-weight: 800; color: #0f172a;
             display: flex; align-items: center; gap: 8px;
         }
         .analytics-card-title .chart-icon {
@@ -379,14 +383,16 @@
             display: flex; align-items: center; justify-content: center;
             font-size: 0.95rem;
         }
-        .icon-sellers { background: linear-gradient(135deg,#8b5cf6,#ec4899); }
-        .icon-trend   { background: linear-gradient(135deg,#0ea5e9,#10b981); }
+        .icon-sellers   { background: linear-gradient(135deg,#8b5cf6,#ec4899); }
+        .icon-customers { background: linear-gradient(135deg,#0284c7,#06b6d4); }
+        .icon-trend     { background: linear-gradient(135deg,#0ea5e9,#10b981); }
         .analytics-card-badge {
             font-size: 0.7rem; font-weight: 700; padding: 3px 10px;
             border-radius: 20px; letter-spacing: 0.06em; text-transform: uppercase;
         }
-        .badge-sellers { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
-        .badge-trend   { background: rgba(14,165,233,0.12); color: #38bdf8; border: 1px solid rgba(14,165,233,0.25); }
+        .badge-sellers   { background: rgba(139,92,246,0.12); color: #7c3aed; border: 1px solid rgba(139,92,246,0.25); }
+        .badge-customers { background: rgba(2,132,199,0.10);  color: #0284c7; border: 1px solid rgba(2,132,199,0.22); }
+        .badge-trend     { background: rgba(14,165,233,0.10); color: #0284c7; border: 1px solid rgba(14,165,233,0.22); }
 
         /* True profit box — now a KPI card, hidden from old position */
         .true-profit-box { display: none; }
@@ -1034,6 +1040,20 @@
                     </div>
                 </div>
 
+                <!-- Top Customers -->
+                <div class="analytics-card chart-top-customers">
+                    <div class="analytics-card-header">
+                        <div class="analytics-card-title">
+                            <span class="chart-icon icon-customers">🧑‍🤝‍🧑</span>
+                            Top 5 Customers
+                        </div>
+                        <span class="analytics-card-badge badge-customers">By Spend</span>
+                    </div>
+                    <div style="height: 260px; width: 100%;">
+                        <canvas id="topCustomersChart"></canvas>
+                    </div>
+                </div>
+
                 <!-- Trend Chart BELOW -->
                 <div class="analytics-card chart-trend">
                     <div class="analytics-card-header">
@@ -1538,6 +1558,7 @@
                                 billNo: bill.bill_no || '-',
                                 date:   bill.date || '',
                                 type:   'sales',
+                                customer: bill.customer_name || bill.customerName || 'Walk-in',
                                 product: m.product || '-',
                                 qty:   parseFloat(m.qty)   || 0,
                                 rate:  parseFloat(m.rate)  || 0,
@@ -1559,6 +1580,7 @@
                                 billNo: bill.billNo || '-',
                                 date: bill.date || '',
                                 type: 'sales',
+                                customer: bill.customerName || bill.customer_name || 'Walk-in',
                                 product: m.product || '-',
                                 qty: parseFloat(m.qty) || 0,
                                 rate: parseFloat(m.rate) || 0,
@@ -2135,6 +2157,7 @@
         let currentViewMode = 'tabular';
         let trendChartInstance = null;
         let topSellersChartInstance = null;
+        let topCustomersChartInstance = null;
 
         function switchViewMode(mode) {
             currentViewMode = mode;
@@ -2181,18 +2204,19 @@
 
             // 1. Calculate TRUE Profit
             let trueProfit = 0;
-            const productSales = {}; // For Top Sellers
+            const productSales = {};  // For Top Sellers
+            const customerSales = {}; // For Top Customers
 
             sales.forEach(s => {
                 const saleRevenue = s.total || 0;
                 const qty = s.qty || 1;
-                
+
                 let costPerUnit = getUnitCost(s.product, purchases);
-                
+
                 // Fallback: If no purchase record exists, assume a realistic 15% profit margin (Cost = 85% of Sale)
                 // This prevents the graph from skewing wildly due to missing purchase entries.
                 if (costPerUnit === null) {
-                    costPerUnit = (saleRevenue * 0.85) / qty; 
+                    costPerUnit = (saleRevenue * 0.85) / qty;
                 }
 
                 const saleCost = costPerUnit * qty;
@@ -2203,6 +2227,14 @@
                 if (!productSales[pName]) productSales[pName] = { qty: 0, revenue: 0 };
                 productSales[pName].qty += qty;
                 productSales[pName].revenue += saleRevenue;
+
+                // Top Customers aggregation (by total spend) — skip anonymous walk-ins
+                const cName = (s.customer || '').trim();
+                if (cName && cName.toLowerCase() !== 'walk-in') {
+                    if (!customerSales[cName]) customerSales[cName] = { revenue: 0, bills: new Set() };
+                    customerSales[cName].revenue += saleRevenue;
+                    customerSales[cName].bills.add(s.billNo);
+                }
             });
 
             // 2. Prepare Trend Data (Group by Date)
@@ -2237,7 +2269,7 @@
             if (kpiRev)  kpiRev.textContent  = fmt(totalRevenue);
             if (kpiProf) {
                 kpiProf.textContent = fmt(trueProfit);
-                kpiProf.style.color = trueProfit >= 0 ? '#34d399' : '#f87171';
+                kpiProf.style.color = trueProfit >= 0 ? '#059669' : '#dc2626';
             }
             if (kpiTxn)  kpiTxn.textContent  = totalTxns;
             // Also update legacy hidden profit value (for compatibility)
@@ -2348,7 +2380,7 @@
                             },
                             y: { 
                                 beginAtZero: true,
-                                grid: { color: 'rgba(255,255,255,0.06)', drawBorder: false, borderDash: [6, 6] },
+                                grid: { color: 'rgba(226,232,240,0.7)', drawBorder: false, borderDash: [6, 6] },
                                 border: { display: false },
                                 ticks: {
                                     font: { family: "'Inter', sans-serif", size: 12, weight: '500' },
@@ -2421,6 +2453,83 @@
                                 grid: { color: 'rgba(226, 232, 240, 0.6)', drawBorder: false, borderDash: [6, 6] },
                                 border: { display: false },
                                 ticks: { font: { family: "'Inter', sans-serif", size: 12, weight: '500' }, color: '#94a3b8' }
+                            },
+                            y: {
+                                grid: { display: false, drawBorder: false },
+                                border: { display: false },
+                                ticks: { font: { family: "'Inter', sans-serif", size: 13, weight: '600' }, color: '#475569', padding: 8 }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 4. Prepare Top Customers Data (by total spend)
+            const topCustomers = Object.keys(customerSales)
+                .map(c => ({ name: c, revenue: customerSales[c].revenue, bills: customerSales[c].bills.size }))
+                .sort((a, b) => b.revenue - a.revenue)
+                .slice(0, 5);
+
+            const ctxCust = document.getElementById('topCustomersChart');
+            if (ctxCust) {
+                if (topCustomersChartInstance) topCustomersChartInstance.destroy();
+                // Cool sky→teal→emerald family to match the report palette
+                const custColors = [
+                    ['#0284c7', '#0ea5e9'], // Sky
+                    ['#0891b2', '#06b6d4'], // Cyan
+                    ['#0d9488', '#14b8a6'], // Teal
+                    ['#059669', '#10b981'], // Emerald
+                    ['#6366f1', '#818cf8']  // Indigo
+                ];
+                const custGradients = custColors.map(c => {
+                    const g = ctxCust.getContext('2d').createLinearGradient(0, 0, 400, 0);
+                    g.addColorStop(0, c[0]); g.addColorStop(1, c[1]);
+                    return g;
+                });
+
+                topCustomersChartInstance = new Chart(ctxCust, {
+                    type: 'bar',
+                    data: {
+                        labels: topCustomers.length ? topCustomers.map(c => c.name) : ['No Data'],
+                        datasets: [{
+                            label: 'Total Spend',
+                            data: topCustomers.length ? topCustomers.map(c => Math.round(c.revenue)) : [0],
+                            backgroundColor: custGradients,
+                            borderRadius: 8,
+                            borderSkipped: false,
+                            barPercentage: 0.6
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                                titleFont: { family: "'Inter', sans-serif", size: 14, weight: '700' },
+                                bodyFont: { family: "'Inter', sans-serif", size: 13, weight: '500' },
+                                padding: 12,
+                                cornerRadius: 8,
+                                callbacks: {
+                                    label: function(ctx) {
+                                        const c = topCustomers[ctx.dataIndex];
+                                        const spend = '₹' + Number(ctx.parsed.x).toLocaleString('en-IN');
+                                        return c ? `${spend}  •  ${c.bills} bill${c.bills !== 1 ? 's' : ''}` : spend;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(226, 232, 240, 0.6)', drawBorder: false, borderDash: [6, 6] },
+                                border: { display: false },
+                                ticks: {
+                                    font: { family: "'Inter', sans-serif", size: 12, weight: '500' }, color: '#94a3b8',
+                                    callback: function(v) { return '₹' + Number(v).toLocaleString('en-IN'); }
+                                }
                             },
                             y: {
                                 grid: { display: false, drawBorder: false },
