@@ -563,23 +563,59 @@ function _mmBatchBreakdown(name) {
     const sales      = JSON.parse(localStorage.getItem('mm_sales') || '[]');
     const adjustments = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
 
-    const batchTotals = {}; // batchKeyLower -> remaining (purchased - sold + batch-specific adj)
+    // Per-batch purchase totals + expiry, so untagged sales can fall back to
+    // FIFO (oldest-expiry batch depletes first) — same algorithm as
+    // inventory.html/report.html's buildStockData(). Must stay in sync with
+    // those or Sales and Inventory will disagree on a batch's stock again.
+    const batchMap = {}; // batchKeyLower -> { batch, exp, totalIn, current }
     purchases.forEach(p => {
         const pName = (p.productName || p.product_name || '').trim().toLowerCase();
         if (pName !== name) return;
-        const pBatch = (p.batchNo || p.batch_no || '').trim().toLowerCase();
+        const pBatch = (p.batchNo || p.batch_no || '').trim();
+        const exp  = String(p.expireDate || p.expire_date || '');
         const qty  = parseFloat(p.quantity) || 0;
         const pack = parseFloat(p.pack) || 1;
-        batchTotals[pBatch] = (batchTotals[pBatch] || 0) + qty * pack;
+        const bk = (pBatch || '_no_batch_').toLowerCase();
+        if (!batchMap[bk]) batchMap[bk] = { batch: pBatch, exp, totalIn: 0, current: 0 };
+        batchMap[bk].totalIn += qty * pack;
+        if (exp && exp > (batchMap[bk].exp || '')) batchMap[bk].exp = exp;
     });
+
+    // Sales: total qty sold (out) plus qty tagged to a specific batch.
+    let out = 0;
+    const taggedForProduct = {}; // batchKeyLower -> tagged qty
     sales.forEach(s => {
         (s.medicines || []).forEach(m => {
             const mName = (m.product || '').trim().toLowerCase();
             if (mName !== name) return;
+            const qty = parseFloat(m.qty) || 0;
+            out += qty;
             const mBatch = (m.batch || '').trim().toLowerCase();
-            batchTotals[mBatch] = (batchTotals[mBatch] || 0) - (parseFloat(m.qty) || 0);
+            if (mBatch) taggedForProduct[mBatch] = (taggedForProduct[mBatch] || 0) + qty;
         });
     });
+
+    // Deduct sales tagged to a specific batch first (what the cashier actually
+    // picked); untagged sales fall back to FIFO across the remaining batches.
+    const batches = Object.values(batchMap).sort((a, b) => (a.exp || '9999').localeCompare(b.exp || '9999'));
+    let taggedAccounted = 0;
+    batches.forEach(b => {
+        const bk = (b.batch || '_no_batch_').toLowerCase();
+        const tagged = Math.min(b.totalIn, taggedForProduct[bk] || 0);
+        b.current = b.totalIn - tagged;
+        taggedAccounted += tagged;
+    });
+    let remaining = Math.max(0, out - taggedAccounted);
+    batches.forEach(b => {
+        if (remaining <= 0) return;
+        const deducted = Math.min(b.current, remaining);
+        b.current -= deducted;
+        remaining -= deducted;
+    });
+
+    const batchTotals = {}; // batchKeyLower -> remaining (purchased - sold + batch-specific adj)
+    batches.forEach(b => { batchTotals[(b.batch || '').toLowerCase()] = b.current; });
+
     let wholeProductDelta = 0, wholeProductRows = 0;
     adjustments.forEach(a => {
         const aName = String(a.product_name || a.productName || '').trim().toLowerCase();
