@@ -745,7 +745,11 @@
             } catch(e) { lines.push('SCOPED threw: ' + e.message); }
             const text = lines.join('\n');
             console.log(text);
-            alert(text);
+            const grid = document.getElementById('khataGrid');
+            if (grid) {
+                grid.innerHTML = '<pre style="grid-column:1/-1;white-space:pre-wrap;word-break:break-word;background:#0f172a;color:#e2e8f0;padding:1rem;border-radius:10px;font-size:0.75rem;line-height:1.5;overflow:auto;">' + escHtml(text) + '</pre>';
+            }
+            alert('Debug info is now shown on the page — please screenshot the whole screen and send it. Reload the page to get your normal accounts view back.');
         }
         window.khataDebug = khataDebug;
 
