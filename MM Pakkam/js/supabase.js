@@ -525,13 +525,22 @@ function _mmMergeCustomerBalances(cloudCustomers) {
         return localList.find(l => (l.name || '').trim().toLowerCase() === nm && (l.phone || '').trim() === ph)
             || localList.find(l => (l.name || '').trim().toLowerCase() === nm);
     };
-    return cloudCustomers.map(c => {
+    const merged = cloudCustomers.map(c => {
         const cloudBal = (c.balance !== null && c.balance !== undefined && c.balance !== '')
             ? (parseFloat(c.balance) || 0) : 0;
         const local = findLocal(c);
         const localBal = local ? (parseFloat(local.balance) || 0) : 0;
         return { ...c, balance: Math.max(cloudBal, localBal) };
     });
+    // CRITICAL: keep customers that exist ONLY locally (their cloud write hasn't
+    // landed — failed/offline). Returning just the cloud list here DELETED those
+    // customers from mm_customers on every sync, which is why an older customer
+    // vanished from the Khata page as soon as a newer one synced. Union, never prune.
+    const cloudNames = new Set(cloudCustomers.map(c => (c.name || '').trim().toLowerCase()));
+    localList.forEach(l => {
+        if (!cloudNames.has((l.name || '').trim().toLowerCase())) merged.push(l);
+    });
+    return merged;
 }
 
 async function dbSyncCoreData() {
