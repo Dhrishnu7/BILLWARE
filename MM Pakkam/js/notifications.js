@@ -55,36 +55,57 @@ const MMNotifications = (() => {
         const readIds = getReadIds();
         const results = [];
 
-        // Group by product name to sum quantities & collect batches
+        // Use the ONE shared stock formula (js/supabase.js) so alerts reflect
+        // REAL current stock = purchased − sold + adjustments. Summing raw
+        // purchase quantities here (the old way) meant low/out-of-stock alerts
+        // never fired for medicines that had actually been sold down, and expiry
+        // alerts kept nagging about batches that were already sold out — the
+        // "important notifications get missed / buried" bug. Falls back to the
+        // raw purchased total only if the shared formula isn't loaded.
+        const hasStockFn = (typeof window !== 'undefined' && typeof window.mmComputeStock === 'function');
+        const stockOf = (name, batch) => {
+            if (hasStockFn) { try { return Number(window.mmComputeStock(name, batch)) || 0; } catch (e) {} }
+            return null; // signal "unknown"
+        };
+
+        // Group by product name → collect batches (with expiry) + raw fallback qty
         const stockMap = {};
         purchases.forEach(p => {
             const name = (p.product_name || p.productName || '').trim();
             if (!name) return;
-            if (!stockMap[name]) stockMap[name] = { qty: 0, batches: [] };
-            const qty = Number(p.quantity || p.qty || 0);
-            stockMap[name].qty += qty;
+            if (!stockMap[name]) stockMap[name] = { fallbackQty: 0, batches: [], seenBatch: new Set() };
+            const qty  = Number(p.quantity || p.qty || 0);
+            const pack = Number(p.pack) > 0 ? Number(p.pack) : 1;
+            stockMap[name].fallbackQty += qty * pack;
             const expiry = p.expire_date || p.expireDate || p.exp;
+            const batch  = p.batch_no || p.batchNo || p.batch || '—';
             if (expiry) {
-                stockMap[name].batches.push({
-                    expiry, qty,
-                    batch: p.batch_no || p.batchNo || p.batch || '—'
-                });
+                const key = String(batch).toLowerCase();
+                if (!stockMap[name].seenBatch.has(key)) {   // de-dupe repeat purchases of same batch
+                    stockMap[name].seenBatch.add(key);
+                    stockMap[name].batches.push({ expiry, batch });
+                }
             }
         });
 
         Object.entries(stockMap).forEach(([name, info]) => {
-            // Expiry alerts
+            let hasFreshBatch = false;
+
+            // Expiry alerts — only for batches that STILL hold stock
             info.batches.forEach(b => {
                 const expDate = new Date(b.expiry);
                 if (isNaN(expDate)) return;
                 expDate.setHours(0, 0, 0, 0);
                 const daysLeft = Math.round((expDate - today) / 86400000);
-                const expStr = expDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+                if (daysLeft >= 0) hasFreshBatch = true;
+                if (daysLeft < -30 || daysLeft > 90) return; // outside alert window — skip (also avoids needless stock calls)
 
-                if (daysLeft < -30) {
-                    // Auto-hide expired alerts if they expired more than 30 days ago to prevent inbox clutter
-                    return;
-                } else if (daysLeft < 0) {
+                // Skip batches already sold out — not actionable, and they bury the real alerts.
+                const batchStock = stockOf(name, b.batch);
+                if (batchStock !== null && batchStock <= 0) return;
+
+                const expStr = expDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+                if (daysLeft < 0) {
                     results.push(notif({ id: `exp_${name}_${b.batch}_expired`, category: 'medicines', type: 'expired', priority: 1, readIds,
                         title: `${name} — EXPIRED`, icon: '💀', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', time: expStr,
                         message: `Batch <b>${b.batch}</b> expired ${Math.abs(daysLeft)} day${Math.abs(daysLeft)!==1?'s':''} ago. Remove from stock immediately.`
@@ -94,7 +115,7 @@ const MMNotifications = (() => {
                         title: `${name} — Expiring in ${daysLeft} days`, icon: '🔴', color: '#ea580c', bg: '#fff7ed', border: '#fed7aa', time: expStr,
                         message: `Batch <b>${b.batch}</b> expires on ${expStr}. Consider selling or returning to supplier.`
                     }));
-                } else if (daysLeft <= 90) {
+                } else {
                     results.push(notif({ id: `exp_${name}_${b.batch}_90`, category: 'medicines', type: 'expiring_notice', priority: 3, readIds,
                         title: `${name} — Expiry Notice`, icon: '🟡', color: '#ca8a04', bg: '#fefce8', border: '#fde68a', time: expStr,
                         message: `Batch <b>${b.batch}</b> expires on ${expStr} (${daysLeft} days). Plan accordingly.`
@@ -102,16 +123,20 @@ const MMNotifications = (() => {
                 }
             });
 
-            // Stock alerts
-            if (info.qty <= 0) {
+            // Stock alerts — REAL current stock. Gate to products that still have
+            // a non-expired batch so we don't nag to reorder discontinued/expired lines.
+            const current = stockOf(name);
+            const qty = (current !== null) ? current : info.fallbackQty;
+            if (!hasFreshBatch) return; // nothing sellable left to reorder — skip stock alert
+            if (qty <= 0) {
                 results.push(notif({ id: `stock_${name}_out`, category: 'medicines', type: 'out_of_stock', priority: 1, readIds,
                     title: `${name} — Out of Stock`, icon: '🚫', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', time: 'Stock update',
                     message: `Zero units remaining. Purchase more stock to avoid losing sales.`
                 }));
-            } else if (info.qty <= 10) {
+            } else if (qty <= 10) {
                 results.push(notif({ id: `stock_${name}_low`, category: 'medicines', type: 'low_stock', priority: 2, readIds,
                     title: `${name} — Low Stock`, icon: '⚠️', color: '#d97706', bg: '#fffbeb', border: '#fde68a', time: 'Stock update',
-                    message: `Only <b>${info.qty} unit${info.qty!==1?'s':''}</b> left. Consider reordering soon.`
+                    message: `Only <b>${qty} unit${qty!==1?'s':''}</b> left. Consider reordering soon.`
                 }));
             }
         });

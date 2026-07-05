@@ -732,11 +732,20 @@
 
     async function loadNotifications() {
         try {
-            // Fetch all data sources independently — one failure won't break others
-            const [purchases, bills] = await Promise.all([
-                dbGetPurchases().catch(() => []),
-                dbGetBills().catch(() => [])
-            ]);
+            // Freshen local caches (purchases, sales, stock adjustments) FIRST so
+            // the shared mmComputeStock() the medicine alerts rely on sees real
+            // current stock — otherwise low/out-of-stock alerts are computed off
+            // stale/purchase-only data and important alerts get missed.
+            if (typeof dbSyncCoreData === 'function') {
+                try { await dbSyncCoreData(); } catch (e) { console.warn('[Inbox] sync before alerts failed:', e); }
+            }
+
+            // Purchases come from the freshly-synced local cache (same source
+            // mmComputeStock reads); bills come from Supabase for the grand_total shape.
+            let purchases = [];
+            try { purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]'); } catch (e) {}
+            if (!purchases.length) purchases = await dbGetPurchases().catch(() => []);
+            const bills = await dbGetBills().catch(() => []);
 
             // Fetch request statuses (filtered by current user via RLS / user_id)
             const session = mmGetSession ? mmGetSession() : null;
