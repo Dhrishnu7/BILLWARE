@@ -804,6 +804,36 @@
             document.getElementById('grandTotalValue').textContent = '₹ ' + grand.toFixed(2);
         }
 
+        // ── Promise Order automation ──
+        // After stock is logged, check active (pending/ordered) customer backorders.
+        // If a purchased medicine loosely matches one, alert the shopkeeper to call
+        // the customer and auto-advance that promise order to "arrived".
+        async function checkPromiseOrdersForArrivals(purchasedNames) {
+            if (!purchasedNames || !purchasedNames.length) return;
+            if (typeof dbGetPromiseOrders !== 'function') return;
+            let orders = [];
+            try { orders = await dbGetPromiseOrders(['pending', 'ordered']); } catch (e) { return; }
+            if (!orders || !orders.length) return;
+
+            const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const purchasedNorm = purchasedNames.map(norm).filter(Boolean);
+
+            for (const o of orders) {
+                const oNorm = norm(o.medicine_name);
+                if (!oNorm) continue;
+                // Loose match: either name contains the other (handles "Dolo" vs "Dolo 650")
+                const matched = purchasedNorm.some(pn => pn.includes(oNorm) || oNorm.includes(pn));
+                if (!matched) continue;
+                alert(
+                    '📦 Stock arrived for a Promise Order!\n\n' +
+                    'Customer: ' + o.customer_name + '\n' +
+                    'Medicine: ' + o.medicine_name + '  (Qty: ' + o.quantity + ')\n\n' +
+                    '📞 Please call them: ' + (o.customer_phone || 'No phone on file')
+                );
+                try { await dbUpdatePromiseOrderStatus(o.id, 'arrived'); } catch (e) { console.warn('promise status update failed:', e); }
+            }
+        }
+
         // ── Submit all items ──
         let _isSaving = false;
         async function handleSubmit(e) {
@@ -900,6 +930,11 @@
                 purchases.push(record);
                 localStorage.setItem('mm_purchases', JSON.stringify(purchases));
             }
+
+            // ── Promise Order automation: did any medicine we just purchased fulfill a customer backorder? ──
+            try {
+                await checkPromiseOrdersForArrivals(records.map(r => r.productName || r.product_name || '').filter(Boolean));
+            } catch (e) { console.warn('Promise order arrival check failed:', e); }
 
             if (failCount === 0) {
                 // Clear draft immediately so navigating away won't restore old data

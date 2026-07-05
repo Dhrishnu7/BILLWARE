@@ -174,6 +174,52 @@ async function dbGetKhataData() {
 
 
 /* ─────────────────────────────────────────────────────
+   PROMISE ORDERS (customer backorders)
+   Lifecycle: pending → ordered → arrived → fulfilled.
+   Scoped by user_id = _currentUser() like every other table.
+───────────────────────────────────────────────────── */
+async function dbAddPromiseOrder(order) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbAddPromiseOrder: no user, aborting.'); return { success: false, message: 'Not logged in.' }; }
+    const { data, error } = await _supabase.from('promise_orders').insert({
+        user_id:        user,
+        customer_name:  (order.customerName  || '').trim(),
+        customer_phone: (order.customerPhone || '').trim(),
+        medicine_name:  (order.medicineName  || '').trim(),
+        quantity:       Number(order.quantity) || 1,
+        promise_date:   order.promiseDate || null,
+        status:         order.status || 'pending',
+    }).select();
+    if (error) { console.error('promise order add:', error); return { success: false, message: error.message }; }
+    return { success: true, data: data?.[0] || null };
+}
+window.dbAddPromiseOrder = dbAddPromiseOrder;
+
+// status can be a single string ('pending'), an array (['pending','ordered']),
+// or omitted/falsy to return ALL of this user's promise orders.
+async function dbGetPromiseOrders(status) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetPromiseOrders: no user, aborting.'); return []; }
+    let q = _supabase.from('promise_orders').select('*').eq('user_id', user);
+    if (Array.isArray(status) && status.length) q = q.in('status', status);
+    else if (typeof status === 'string' && status) q = q.eq('status', status);
+    const { data, error } = await q.order('created_at', { ascending: false });
+    if (error) { console.error('promise orders fetch:', error); return []; }
+    return data || [];
+}
+window.dbGetPromiseOrders = dbGetPromiseOrders;
+
+async function dbUpdatePromiseOrderStatus(id, status) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbUpdatePromiseOrderStatus: no user, aborting.'); return { success: false, message: 'Not logged in.' }; }
+    const { error } = await _supabase.from('promise_orders')
+        .update({ status }).eq('id', id).eq('user_id', user);
+    if (error) { console.error('promise order status update:', error); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbUpdatePromiseOrderStatus = dbUpdatePromiseOrderStatus;
+
+/* ─────────────────────────────────────────────────────
    DOCTORS
 ───────────────────────────────────────────────────── */
 async function dbGetDoctors() {

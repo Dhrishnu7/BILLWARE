@@ -936,10 +936,28 @@
                 if (el) el.value = '';
             });
 
+            // Clear any stale "Promise Order" button + stock colour from a previous lookup
+            const stalePO = document.getElementById('promiseBtn_' + id);
+            if (stalePO) stalePO.remove();
+            const stockEl0 = document.getElementById('stock_' + id);
+            if (stockEl0) stockEl0.style.color = '#059669';
+
             if (!productVal) return;
 
             const batches = getBatchesForProduct(productVal);
-            if (batches.length === 0) return;
+            if (batches.length === 0) {
+                // Medicine not in stock (0 results) → offer a customer Promise Order (backorder)
+                if (stockEl0) { stockEl0.value = 0; stockEl0.style.color = '#dc2626'; }
+                const poBtn = document.createElement('button');
+                poBtn.type = 'button';
+                poBtn.id = 'promiseBtn_' + id;
+                poBtn.textContent = '➕ Create Promise Order';
+                poBtn.title = 'Out of stock — save a backorder for this customer';
+                poBtn.style.cssText = 'margin-top:6px;display:block;width:100%;background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:0.72rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;';
+                poBtn.onclick = () => openPromiseOrderModal(productVal);
+                batchSelect.parentElement.appendChild(poBtn);
+                return;
+            }
 
             // Populate batch dropdown options
             batches.forEach(p => {
@@ -2008,6 +2026,14 @@
         refreshGlobalMedicineList();
         refreshNamesLists();
 
+        // Prefill customer from a Promise Order "Convert to Sale" redirect (?customer=&medicine=)
+        (function prefillCustomerFromPromise(){
+            try {
+                const c = new URLSearchParams(location.search).get('customer');
+                if (c) { const el = document.getElementById('customerName'); if (el) el.value = c; }
+            } catch (e) {}
+        })();
+
         // -- Sync from Supabase on Load --
         // Uses the shared dbSyncCoreData() (js/supabase.js) so this page can
         // never again silently drift out of sync on one data type while
@@ -2025,10 +2051,98 @@
                 // Any row whose batch was already picked before this sync
                 // finished may be showing a stale stock number — fix those up.
                 refreshAllRowStocks();
+
+                // Prefill medicine from a Promise Order redirect once data is ready
+                try {
+                    const med = new URLSearchParams(location.search).get('medicine');
+                    if (med) {
+                        const firstProduct = document.querySelector('[id^="product_"]');
+                        if (firstProduct) {
+                            firstProduct.value = med;
+                            const rid = firstProduct.id.split('_')[1];
+                            if (typeof autoFillRow === 'function') autoFillRow(rid);
+                        }
+                    }
+                } catch (e) {}
             } catch (err) {
                 console.error("Database sync failed:", err);
             }
         })();
+    </script>
+
+    <!-- Promise Order (backorder) Modal -->
+    <div id="promiseOrderModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:1000; align-items:center; justify-content:center; padding:1rem;">
+        <div style="background:#fff; border-radius:18px; width:100%; max-width:420px; padding:1.6rem; box-shadow:0 24px 60px rgba(0,0,0,0.3); font-family:Inter,sans-serif;">
+            <h3 style="margin:0 0 4px; font-size:1.1rem; font-weight:800; color:#0f172a;">➕ Create Promise Order</h3>
+            <p style="margin:0 0 1rem; font-size:0.8rem; color:#64748b;">Backorder for <b id="poMedicineLabel">—</b></p>
+            <input type="hidden" id="poMedicine">
+            <label style="display:block; font-size:0.72rem; font-weight:700; color:#475569; margin-bottom:4px;">Customer Name *</label>
+            <input id="poCustomer" type="text" placeholder="Customer name" style="width:100%; padding:0.6rem 0.7rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:0.9rem; margin-bottom:0.8rem; font-family:Inter,sans-serif;">
+            <label style="display:block; font-size:0.72rem; font-weight:700; color:#475569; margin-bottom:4px;">Phone Number</label>
+            <input id="poPhone" type="tel" placeholder="Phone (to call when it arrives)" style="width:100%; padding:0.6rem 0.7rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:0.9rem; margin-bottom:0.8rem; font-family:Inter,sans-serif;">
+            <div style="display:flex; gap:0.8rem;">
+                <div style="flex:1;">
+                    <label style="display:block; font-size:0.72rem; font-weight:700; color:#475569; margin-bottom:4px;">Quantity</label>
+                    <input id="poQty" type="number" min="1" value="1" style="width:100%; padding:0.6rem 0.7rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:0.9rem; margin-bottom:1rem; font-family:Inter,sans-serif;">
+                </div>
+                <div style="flex:1;">
+                    <label style="display:block; font-size:0.72rem; font-weight:700; color:#475569; margin-bottom:4px;">Promise Date</label>
+                    <input id="poDate" type="date" style="width:100%; padding:0.6rem 0.7rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:0.9rem; margin-bottom:1rem; font-family:Inter,sans-serif;">
+                </div>
+            </div>
+            <div style="display:flex; gap:0.7rem; justify-content:flex-end;">
+                <button type="button" onclick="closePromiseOrderModal()" style="padding:0.6rem 1.1rem; border:1.5px solid #e2e8f0; background:#fff; border-radius:10px; font-weight:700; font-size:0.85rem; cursor:pointer; color:#475569; font-family:Inter,sans-serif;">Cancel</button>
+                <button type="button" id="poSaveBtn" onclick="savePromiseOrder()" style="padding:0.6rem 1.2rem; border:none; background:linear-gradient(135deg,#7c3aed,#a78bfa); color:#fff; border-radius:10px; font-weight:700; font-size:0.85rem; cursor:pointer; font-family:Inter,sans-serif;">Save Promise Order</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        function openPromiseOrderModal(medicineName) {
+            document.getElementById('poMedicine').value = medicineName || '';
+            document.getElementById('poMedicineLabel').textContent = medicineName || '—';
+            const billCust = (document.getElementById('customerName') && document.getElementById('customerName').value || '').trim();
+            document.getElementById('poCustomer').value = billCust;
+            document.getElementById('poPhone').value = '';
+            document.getElementById('poQty').value = 1;
+            const t = new Date(); t.setDate(t.getDate() + 1);
+            document.getElementById('poDate').value = t.toISOString().split('T')[0];
+            document.getElementById('promiseOrderModal').style.display = 'flex';
+            setTimeout(() => document.getElementById('poCustomer').focus(), 100);
+        }
+        function closePromiseOrderModal() {
+            document.getElementById('promiseOrderModal').style.display = 'none';
+        }
+        async function savePromiseOrder() {
+            const customerName = document.getElementById('poCustomer').value.trim();
+            const medicineName = document.getElementById('poMedicine').value.trim();
+            const quantity     = parseFloat(document.getElementById('poQty').value) || 1;
+            if (!customerName) { alert('Please enter the customer name.'); return; }
+            if (!medicineName) { alert('Medicine name is missing.'); return; }
+            const btn = document.getElementById('poSaveBtn');
+            btn.disabled = true; btn.textContent = 'Saving…';
+            const order = {
+                customerName,
+                customerPhone: document.getElementById('poPhone').value.trim(),
+                medicineName,
+                quantity,
+                promiseDate: document.getElementById('poDate').value || null,
+                status: 'pending'
+            };
+            let ok = false;
+            try {
+                if (typeof dbAddPromiseOrder === 'function') {
+                    const r = await dbAddPromiseOrder(order);
+                    ok = !!(r && r.success);
+                }
+            } catch (e) { console.warn('promise order save failed:', e); }
+            btn.disabled = false; btn.textContent = 'Save Promise Order';
+            if (ok) {
+                closePromiseOrderModal();
+                alert('✅ Promise order saved for ' + customerName + '.\nYou will be alerted when ' + medicineName + ' arrives in a purchase.');
+            } else {
+                alert('Could not save the promise order. Please check your connection and try again.');
+            }
+        }
     </script>
 
     <!-- -- Quick-Add Customer / Doctor Modal -- -->
