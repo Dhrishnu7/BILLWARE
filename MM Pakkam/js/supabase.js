@@ -161,7 +161,6 @@ async function dbSyncPendingCustomerBalances() {
     return syncedCount;
 }
 window.dbSyncPendingCustomerBalances = dbSyncPendingCustomerBalances;
-}
 
 /* Get all customers who have outstanding balance for Khata page */
 async function dbGetKhataData() {
