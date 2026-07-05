@@ -192,6 +192,10 @@
         .card-inventory::before { background: linear-gradient(90deg, #0d9488, #0891b2); }
         .card-inventory:hover { box-shadow: 0 20px 40px rgba(13,148,136,0.2); }
 
+        .card-promise { --c: #7c3aed; }
+        .card-promise::before { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+        .card-promise:hover { box-shadow: 0 20px 40px rgba(124,58,237,0.2); }
+
         /* -- Icon -- */
         .icon-wrapper {
             width: 68px; height: 68px;
@@ -618,6 +622,17 @@
                 </div>
                 <h3>INVENTORY</h3>
                 <p>Track stock levels, check expiry dates and spot dead stock.</p>
+            </a>
+
+            <!-- PROMISE ORDERS -->
+            <a class="section-card card-promise" href="promise.html">
+                <div class="icon-wrapper">
+                    <svg viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                </div>
+                <h3>PROMISE ORDERS</h3>
+                <p>Track customer backorders for out-of-stock medicines end to end.</p>
             </a>
 
         </div>
