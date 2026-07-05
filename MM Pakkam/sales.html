@@ -1426,11 +1426,29 @@
                 localStorage.setItem('mm_customers', JSON.stringify(customers));
 
                 // ── Sync credit balance to Supabase so Khata page always shows correct data ──
+                // If this fails (offline, transient error, etc.), queue it for retry —
+                // Khata trusts Supabase's balance over localStorage's once a customer
+                // already exists there, so a silently-dropped sync here made a second
+                // credit sale to the same customer look like it never happened.
                 try {
+                    let balanceSynced = false;
                     if (typeof dbUpdateCustomerBalance === 'function') {
-                        await dbUpdateCustomerBalance(cust.name, cust.phone || '', cust.address || '', numTotal);
+                        const balRes = await dbUpdateCustomerBalance(cust.name, cust.phone || '', cust.address || '', numTotal);
+                        balanceSynced = !!(balRes && balRes.success);
                     }
-                } catch(e) { console.warn('Balance sync failed:', e); }
+                    if (!balanceSynced && typeof mmLsGet === 'function' && typeof mmLsSet === 'function') {
+                        const pendingBal = mmLsGet('pendingBalanceUpdates') || [];
+                        pendingBal.push({ name: cust.name, phone: cust.phone || '', address: cust.address || '', balance: numTotal });
+                        mmLsSet('pendingBalanceUpdates', pendingBal);
+                    }
+                } catch(e) {
+                    console.warn('Balance sync failed:', e);
+                    if (typeof mmLsGet === 'function' && typeof mmLsSet === 'function') {
+                        const pendingBal = mmLsGet('pendingBalanceUpdates') || [];
+                        pendingBal.push({ name: cust.name, phone: cust.phone || '', address: cust.address || '', balance: numTotal });
+                        mmLsSet('pendingBalanceUpdates', pendingBal);
+                    }
+                }
             }
 
             // Show Success Modal

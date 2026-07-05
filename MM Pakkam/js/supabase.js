@@ -109,9 +109,16 @@ async function dbUpdateCustomerBalance(name, phone, address, balance) {
     const cAddr  = (address || '').trim();
     const cBal   = parseFloat(balance) || 0;
 
-    // Try to find existing customer
-    const { data: existing } = await _supabase.from('customers')
-        .select('*').eq('name', cName).eq('user_id', user).maybeSingle();
+    // Try to find existing customer. Uses .limit(1) instead of .maybeSingle()
+    // because .maybeSingle() errors out (returning null data) if more than one
+    // row matches the name — which silently fell through to the "create new"
+    // branch below and inserted a duplicate customer instead of adding to the
+    // existing balance, making a second credit sale to the same customer look
+    // like it never reached the Khata page.
+    const { data: existingRows, error: findErr } = await _supabase.from('customers')
+        .select('*').eq('name', cName).eq('user_id', user).order('id', { ascending: true }).limit(1);
+    if (findErr) { console.error('customer lookup:', findErr); return { success: false }; }
+    const existing = existingRows?.[0] || null;
 
     if (existing) {
         // Update balance (add to existing outstanding)
@@ -128,6 +135,32 @@ async function dbUpdateCustomerBalance(name, phone, address, balance) {
         if (error) { console.error('customer insert with balance:', error); return { success: false }; }
         return { success: true };
     }
+}
+
+// Retries any credit-sale balance update that failed to reach Supabase (offline,
+// transient error, etc.) so the Khata page — which trusts Supabase's balance
+// over localStorage's whenever a customer already exists there — doesn't keep
+// showing a stale total forever. Same self-heal pattern as
+// dbSyncPendingStockAdjustments(). Safe to call repeatedly.
+async function dbSyncPendingCustomerBalances() {
+    const pending = (typeof mmLsGet === 'function') ? (mmLsGet('pendingBalanceUpdates') || []) : [];
+    if (!pending.length) return 0;
+
+    let syncedCount = 0;
+    const stillPending = [];
+    for (const record of pending) {
+        try {
+            const res = await dbUpdateCustomerBalance(record.name, record.phone, record.address, record.balance);
+            if (res && res.success) syncedCount++;
+            else stillPending.push(record);
+        } catch (e) {
+            stillPending.push(record);
+        }
+    }
+    if (typeof mmLsSet === 'function') mmLsSet('pendingBalanceUpdates', stillPending);
+    return syncedCount;
+}
+window.dbSyncPendingCustomerBalances = dbSyncPendingCustomerBalances;
 }
 
 /* Get all customers who have outstanding balance for Khata page */
@@ -481,6 +514,7 @@ async function dbSyncCoreData() {
         // the 'stock_adjustments' table existed, or while offline) BEFORE
         // fetching, so this same sync picks it up for every device right away.
         try { await dbSyncPendingStockAdjustments(); } catch (e) { console.warn('[db] pending stock adjustment retry failed:', e); }
+        try { await dbSyncPendingCustomerBalances(); } catch (e) { console.warn('[db] pending customer balance retry failed:', e); }
 
         const [customers, doctors, medicines, purchases, bills, adjustments] = await Promise.all([
             dbGetCustomers(),
