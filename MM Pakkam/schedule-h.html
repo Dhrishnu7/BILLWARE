@@ -600,6 +600,97 @@
             to   { opacity: 1; transform: translateX(0); }
         }
 
+        /* ── Entry Type Badges ── */
+        .type-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px; border-radius: 20px;
+            font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.05em; white-space: nowrap;
+        }
+        .type-out { background: #fee2e2; color: #991b1b; }
+        .type-in  { background: #dcfce7; color: #166534; }
+        .type-manual { background: #e0e7ff; color: #3730a3; }
+
+        /* ── Compliance Warning ── */
+        .warn-cell { display: flex; align-items: center; gap: 6px; }
+        .warn-icon {
+            width: 20px; height: 20px; border-radius: 50%;
+            background: #fef9c3; border: 1.5px solid #fbbf24;
+            color: #92400e; font-size: 0.7rem; font-weight: 900;
+            display: inline-flex; align-items: center; justify-content: center;
+            flex-shrink: 0; cursor: help;
+        }
+
+        /* ── Advanced Filter Bar ── */
+        .filter-bar {
+            display: flex; flex-wrap: wrap;
+            align-items: center; gap: 8px;
+            margin-bottom: 1.2rem;
+        }
+        .filter-bar input[type="text"] {
+            flex: 1; min-width: 160px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.88rem; color: #0f172a;
+            background: #fffbfb;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 0.6rem 1rem 0.6rem 2.4rem;
+            outline: none; transition: all 0.22s ease;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: 0.8rem center;
+        }
+        .filter-bar input[type="text"]:focus {
+            border-color: #dc2626; background-color: white;
+            box-shadow: 0 0 0 3px rgba(220,38,38,0.1);
+        }
+        .filter-bar input[type="date"] {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.82rem; color: #0f172a;
+            background: #fffbfb;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 0.58rem 0.8rem;
+            outline: none; transition: all 0.22s ease;
+        }
+        .filter-bar input[type="date"]:focus {
+            border-color: #dc2626;
+            box-shadow: 0 0 0 3px rgba(220,38,38,0.1);
+        }
+        .filter-date-sep {
+            font-size: 0.78rem; font-weight: 700; color: #94a3b8;
+        }
+        .btn-export {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 0.6rem 1.1rem; border-radius: 10px;
+            font-size: 0.82rem; font-weight: 700;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer; border: 1.5px solid #fca5a5;
+            background: #fef2f2; color: #dc2626;
+            transition: all 0.2s ease; white-space: nowrap;
+        }
+        .btn-export:hover { background: #dc2626; color: white; border-color: #dc2626; }
+        .filter-count {
+            font-size: 0.75rem; font-weight: 700; color: #94a3b8;
+            white-space: nowrap; margin-left: 2px;
+        }
+
+        /* ── Stats Bar ── */
+        .stats-bar {
+            display: flex; gap: 0.8rem; flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+        .stat-chip {
+            display: flex; flex-direction: column;
+            background: rgba(255,255,255,0.8);
+            border: 1.5px solid #fecaca;
+            border-radius: 12px; padding: 0.6rem 1rem;
+            min-width: 120px; flex: 1;
+        }
+        .stat-chip .sc-label { font-size: 0.68rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; }
+        .stat-chip .sc-value { font-size: 1.3rem; font-weight: 800; color: #dc2626; margin-top: 2px; }
+        .stat-chip.green .sc-value { color: #16a34a; }
+        .stat-chip.blue  .sc-value { color: #0284c7; }
+
         /* ── Responsive ── */
         @media (max-width: 700px) {
             header { padding: 0.8rem 1rem; }
@@ -612,6 +703,29 @@
             .form-actions { flex-direction: column; }
             .btn { flex: unset; width: 100%; }
             .add-drug-row { flex-direction: column; }
+            .filter-bar { flex-direction: column; align-items: stretch; }
+            .stats-bar { flex-direction: column; }
+        }
+        @media print {
+            header, .tab-bar, .section-label:first-child, .form-grid, .form-actions, .filter-bar, .drug-list-actions {
+                display: none !important;
+            }
+            body { background: white; color: black; }
+            .page-content { padding: 0 !important; }
+            .form-card { box-shadow: none !important; border: none !important; padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+            .table-wrap { box-shadow: none !important; border: none !important; max-height: none !important; overflow: visible !important; }
+            table { width: 100% !important; }
+            .tab-panel:not(.active) { display: none !important; }
+            
+            /* Print Header */
+            .tab-panel::before {
+                content: "Schedule H / H1 Register";
+                display: block;
+                font-size: 1.5rem;
+                font-weight: 800;
+                text-align: center;
+                margin-bottom: 20px;
+            }
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -648,9 +762,14 @@
         </div>
 
         <!-- Tab Pills -->
-        <div class="tab-bar">
+        <div class="tab-bar" style="justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 5px;">
             <button class="tab-pill active" onclick="switchTab('register')" id="tabRegister">📋 Drug Register</button>
-            <button class="tab-pill" onclick="switchTab('manage')" id="tabManage">💊 Manage Drug List</button>
+            <button class="tab-pill" onclick="switchTab('ledger')" id="tabLedger">📦 Master Ledger</button>
+            <button class="tab-pill" onclick="switchTab('expiry')" id="tabExpiry">⏳ Expiry</button>
+            <button class="tab-pill" onclick="switchTab('dead')" id="tabDead">💀 Dead Stock</button>
+            <button class="tab-pill" onclick="switchTab('adjust')" id="tabAdjust">⚖️ Adjust</button>
+            <button class="tab-pill" onclick="switchTab('promise')" id="tabPromise">📦 Promise Orders</button>
+            <button class="tab-pill" onclick="switchTab('manage')" id="tabManage">⚙️ Add Drugs</button>
         </div>
 
         <div class="form-card">
@@ -659,21 +778,28 @@
             <div class="tab-panel active" id="panelRegister">
                 <form id="registerForm" onsubmit="handleRegisterSubmit(event)" novalidate>
 
-                    <div class="section-label">📝 Sale Details</div>
+                    <div class="section-label">📝 Entry Details</div>
                     <div class="form-grid" style="margin-bottom: 1.5rem;">
                         <div class="form-group">
                             <label>Date</label>
                             <input type="date" id="entryDate">
                         </div>
                         <div class="form-group">
+                            <label>Entry Type</label>
+                            <select id="entryType">
+                                <option value="out">📤 Dispensed (Out) — Sale to Patient</option>
+                                <option value="in">📥 Received (In) — Stock from Supplier</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
                             <label>Bill No</label>
                             <input type="text" id="billNo" placeholder="e.g. SH-001">
                         </div>
                         <div class="form-group">
-                            <label>Firm</label>
+                            <label>Firm / Supplier</label>
                             <input type="text" id="firmName" placeholder="Supplier / Firm name…">
                         </div>
-                    </div><!-- end sale-details form-grid -->
+                    </div><!-- end entry-details form-grid -->
 
                     <div class="section-label">🧑 Patient Details</div>
                     <div class="form-grid" style="margin-bottom: 1.5rem;">
@@ -696,7 +822,11 @@
                             <datalist id="doctorList"></datalist>
                         </div>
                         <div class="form-group">
-                            <label>Doctor Address</label>
+                            <label>Doctor Reg. No (MCI/SMC)</label>
+                            <input type="text" id="doctorRegNo" placeholder="e.g. MCI-12345">
+                        </div>
+                        <div class="form-group">
+                            <label>Doctor Address / Clinic</label>
                             <input type="text" id="doctorAddress" placeholder="Clinic / Address…">
                         </div>
                     </div>
@@ -760,19 +890,51 @@
                 <div style="margin-top: 2.5rem;">
                     <div class="section-label">📄 Register Log</div>
 
-                    <div class="search-bar">
+                    <!-- Stats Bar -->
+                    <div class="stats-bar" id="statsBar">
+                        <div class="stat-chip">
+                            <span class="sc-label">Total Entries</span>
+                            <span class="sc-value" id="statTotal">0</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="sc-label">📤 Dispensed (Out)</span>
+                            <span class="sc-value" id="statOut">0</span>
+                        </div>
+                        <div class="stat-chip green">
+                            <span class="sc-label">📥 Received (In)</span>
+                            <span class="sc-value" id="statIn">0</span>
+                        </div>
+                        <div class="stat-chip blue">
+                            <span class="sc-label">⚠️ Missing Rx</span>
+                            <span class="sc-value" id="statWarn">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Filter Bar -->
+                    <div class="filter-bar">
                         <input type="text" id="logSearch" placeholder="Search by patient, doctor, drug, batch…" oninput="renderRegisterLog()">
-                        <span class="search-count" id="logCount"></span>
+                        <input type="date" id="filterFrom" title="From date" oninput="renderRegisterLog()">
+                        <span class="filter-date-sep">→</span>
+                        <input type="date" id="filterTo" title="To date" oninput="renderRegisterLog()">
+                        <button class="btn-export" onclick="window.print()" title="Print Register">
+                            &#x1F5A8;&#xFE0F; Print Report
+                        </button>
+                        <button class="btn-export" onclick="exportRegisterCSV()" title="Export to Excel/CSV">
+                            &#x1F4DD; Export CSV
+                        </button>
+                        <span class="filter-count" id="logCount"></span>
                     </div>
 
                     <div class="table-wrap">
                         <table>
                             <thead>
                                 <tr>
+                                    <th>Type</th>
                                     <th>Date</th>
                                     <th>Bill No</th>
-                                    <th>Patient</th>
+                                    <th>Patient / Source</th>
                                     <th>Doctor</th>
+                                    <th>Reg. No</th>
                                     <th>Drug</th>
                                     <th>Batch</th>
                                     <th>Exp</th>
@@ -783,7 +945,6 @@
                                     <th>GST</th>
                                     <th>Total</th>
                                     <th>Firm</th>
-
                                     <th></th>
                                 </tr>
                             </thead>
@@ -795,9 +956,116 @@
                 </div>
             </div>
 
-            <!-- ═══ TAB 2: Manage Drug List ═══ -->
-            <div class="tab-panel" id="panelManage">
+            <!-- ═══ TAB 2: Master Ledger ═══ -->
+            <div class="tab-panel" id="panelLedger">
+                <div class="section-label">📦 Master Ledger</div>
+                <div class="table-wrap">
+                    <table class="sh-table">
+                        <thead>
+                            <tr>
+                                <th>Medicine</th>
+                                <th>Total Stock</th>
+                                <th>Value (MRP)</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ledgerBody">
+                            <!-- Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
+            <!-- ═══ TAB 3: Expiry Checker ═══ -->
+            <div class="tab-panel" id="panelExpiry">
+                <div class="section-label">⏳ Expiry Checker</div>
+                <div class="table-wrap">
+                    <table class="sh-table">
+                        <thead>
+                            <tr>
+                                <th>Medicine</th>
+                                <th>Batch No</th>
+                                <th>Stock</th>
+                                <th>Expiry Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expiryBody">
+                            <!-- Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ═══ TAB 4: Dead Stock ═══ -->
+            <div class="tab-panel" id="panelDead">
+                <div class="section-label">💀 Dead Stock (No sales in 6 months)</div>
+                <div class="table-wrap">
+                    <table class="sh-table">
+                        <thead>
+                            <tr>
+                                <th>Medicine</th>
+                                <th>Total Stock</th>
+                                <th>Earliest Expiry</th>
+                                <th>Last Sold</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deadBody">
+                            <!-- Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ═══ TAB 5: Adjust Stock ═══ -->
+            <div class="tab-panel" id="panelAdjust">
+                <div class="section-label">⚖️ Manual Stock Adjustment</div>
+                <div class="form-grid" style="margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label>Medicine</label>
+                        <select id="adjMedicine" onchange="onAdjMedicineChange()">
+                            <option value="">Select Medicine...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Batch No</label>
+                        <select id="adjBatch">
+                            <option value="">Select Batch...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Adjust Quantity</label>
+                        <input type="number" id="adjQty" placeholder="-5 or +10">
+                    </div>
+                    <div class="form-group" style="justify-content: flex-end;">
+                        <button type="button" class="btn-submit" onclick="saveAdjustment()">Save Adjustment</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ TAB 6: Promise Orders ═══ -->
+            <div class="tab-panel" id="panelPromise">
+                <div class="section-label">📦 Promise Orders</div>
+                <div class="table-wrap">
+                    <table class="sh-table">
+                        <thead>
+                            <tr>
+                                <th>Patient Name</th>
+                                <th>Medicine</th>
+                                <th>Qty</th>
+                                <th>Promise Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="promiseBody">
+                            <!-- Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ═══ TAB 7: Manage Drug List ═══ -->
+            <div class="tab-panel" id="panelManage">
                 <div class="section-label">➕ Add Schedule H Drug</div>
                 <div class="add-drug-row">
                     <input type="text" id="newDrugName" placeholder="Enter Schedule H drug name…" onkeydown="if(event.key==='Enter'){event.preventDefault();addDrug();}">
@@ -824,11 +1092,15 @@
                 </div>
 
                 <div class="search-bar">
-                    <input type="text" id="drugSearch" placeholder="Search drugs…" oninput="renderDrugList()">
+                    <input type="text" id="drugSearch" placeholder="Type to search and view drugs…" oninput="renderDrugList()">
                 </div>
 
-                <div class="drug-grid" id="drugGrid">
+                <div class="drug-grid" id="drugGrid" style="display:none;">
                     <!-- Drug chips rendered by JS -->
+                </div>
+                
+                <div id="drugSearchPrompt" style="text-align:center; padding: 2rem; color: #64748b; font-weight:600;">
+                    🔍 Search above to manage specific drugs, or add a new one.
                 </div>
 
                 <div id="drugEmptyState" class="empty-state" style="display:none;">
@@ -920,10 +1192,20 @@
            Tab Switching
         ══════════════════════════════════════════════════════════════════ */
         function switchTab(tab) {
-            document.getElementById('panelRegister').classList.toggle('active', tab === 'register');
-            document.getElementById('panelManage').classList.toggle('active', tab === 'manage');
-            document.getElementById('tabRegister').classList.toggle('active', tab === 'register');
-            document.getElementById('tabManage').classList.toggle('active', tab === 'manage');
+            const tabs = ['register', 'ledger', 'expiry', 'dead', 'adjust', 'promise', 'manage'];
+            tabs.forEach(t => {
+                const panel = document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1));
+                const pill = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
+                if (panel) panel.classList.toggle('active', t === tab);
+                if (pill) pill.classList.toggle('active', t === tab);
+            });
+            if (tab === 'ledger' || tab === 'expiry' || tab === 'dead') {
+                renderScheduleHInventory();
+            } else if (tab === 'promise') {
+                renderPromiseOrders();
+            } else if (tab === 'adjust') {
+                populateAdjDropdowns();
+            }
         }
 
         /* ══════════════════════════════════════════════════════════════════
@@ -990,6 +1272,7 @@
 
             const doctorNameEl = document.getElementById('doctorName');
             const doctorAddrEl = document.getElementById('doctorAddress');
+            const doctorRegEl  = document.getElementById('doctorRegNo');
 
             if (doctorNameEl) {
                 doctorNameEl.addEventListener('change', () => {
@@ -997,8 +1280,9 @@
                     if (!name) return;
                     const doctors = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
                     const match = doctors.find(d => (d.name || '').trim().toLowerCase() === name);
-                    if (match && match.address && doctorAddrEl) {
-                        doctorAddrEl.value = match.address;
+                    if (match) {
+                        if (match.address && doctorAddrEl) doctorAddrEl.value = match.address;
+                        if (match.regNo   && doctorRegEl)  doctorRegEl.value  = match.regNo;
                     }
                 });
             }
@@ -1030,13 +1314,14 @@
 
             const drugName = document.getElementById('drugName').value.trim();
             const patientName = document.getElementById('patientName').value.trim();
+            const entryType = document.getElementById('entryType').value || 'manual';
 
             if (!drugName) {
                 showToast('Missing Drug', 'Please select or enter a drug name.');
                 return;
             }
-            if (!patientName) {
-                showToast('Missing Patient', 'Please enter the patient name.');
+            if (entryType === 'out' && !patientName) {
+                showToast('Missing Patient', 'Please enter the patient name for a Dispensed entry.');
                 return;
             }
 
@@ -1048,12 +1333,14 @@
 
             const entry = {
                 id:               genId(),
+                entryType:        entryType,
                 date:             document.getElementById('entryDate').value,
                 billNo:           document.getElementById('billNo').value.trim(),
                 firmName:         document.getElementById('firmName').value.trim(),
                 patientName:      patientName,
                 patientAddress:   document.getElementById('patientAddress').value.trim(),
                 doctorName:       document.getElementById('doctorName').value.trim(),
+                doctorRegNo:      document.getElementById('doctorRegNo').value.trim(),
                 doctorAddress:    document.getElementById('doctorAddress').value.trim(),
                 drugName:         drugName,
                 batchNo:          document.getElementById('batchNo').value.trim(),
@@ -1064,7 +1351,6 @@
                 rate:             rate,
                 gst:              gst,
                 total:            total,
-
                 savedAt:          new Date().toISOString()
             };
 
@@ -1072,10 +1358,14 @@
             register.push(entry);
             setRegister(register);
 
-            showToast('Entry Saved!', `${drugName} — ${patientName}`);
+            // Compliance warning if dispensed without doctor
+            if (entryType === 'out' && !entry.doctorName) {
+                showToast('⚠️ Entry Saved', `${drugName} saved but is missing a Doctor — compliance risk!`);
+            } else {
+                showToast('Entry Saved!', `${drugName} — ${patientName || entry.firmName || 'Received'}`);
+            }
             resetRegisterForm();
             renderRegisterLog();
-            // Back up this register entry to the cloud so it survives a storage clear.
             if (typeof dbAddScheduleHEntry === 'function') {
                 dbAddScheduleHEntry(entry).catch(e => console.warn('cloud register save failed:', e));
             }
@@ -1085,32 +1375,47 @@
         function renderRegisterLog() {
             const register = getRegister();
             const searchTerm = (document.getElementById('logSearch').value || '').trim().toLowerCase();
+            const filterFrom = document.getElementById('filterFrom').value;  // YYYY-MM-DD
+            const filterTo   = document.getElementById('filterTo').value;
             const tbody = document.getElementById('registerLogBody');
 
             // Sort newest first
-            const sorted = [...register].reverse();
+            const sorted = [...register].sort((a,b) => (b.date||'').localeCompare(a.date||''));
 
             // Filter
             const filtered = sorted.filter(entry => {
+                if (filterFrom && entry.date && entry.date < filterFrom) return false;
+                if (filterTo   && entry.date && entry.date > filterTo)   return false;
                 if (!searchTerm) return true;
                 return (entry.patientName || '').toLowerCase().includes(searchTerm)
-                    || (entry.doctorName || '').toLowerCase().includes(searchTerm)
-                    || (entry.drugName || '').toLowerCase().includes(searchTerm)
-                    || (entry.batchNo || '').toLowerCase().includes(searchTerm)
-
-                    || (entry.date || '').includes(searchTerm);
+                    || (entry.doctorName  || '').toLowerCase().includes(searchTerm)
+                    || (entry.drugName    || '').toLowerCase().includes(searchTerm)
+                    || (entry.batchNo     || '').toLowerCase().includes(searchTerm)
+                    || (entry.billNo      || '').toLowerCase().includes(searchTerm)
+                    || (entry.firmName    || '').toLowerCase().includes(searchTerm)
+                    || (entry.date        || '').includes(searchTerm);
             });
+
+            // Update stats bar
+            const totalAll  = register.length;
+            const totalOut  = register.filter(e => (e.entryType||'out') === 'out').length;
+            const totalIn   = register.filter(e => e.entryType === 'in').length;
+            const totalWarn = register.filter(e => (e.entryType||'out') === 'out' && !e.doctorName).length;
+            document.getElementById('statTotal').textContent = totalAll;
+            document.getElementById('statOut').textContent   = totalOut;
+            document.getElementById('statIn').textContent    = totalIn;
+            document.getElementById('statWarn').textContent  = totalWarn;
 
             document.getElementById('logCount').textContent = `${filtered.length} of ${register.length}`;
 
             if (filtered.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="15">
+                        <td colspan="17">
                             <div class="empty-state">
                                 <div class="es-icon">📋</div>
                                 <div class="es-title">${register.length === 0 ? 'No Entries Yet' : 'No Matches Found'}</div>
-                                <div class="es-sub">${register.length === 0 ? 'Log a Schedule H drug sale above to get started' : 'Try a different search term'}</div>
+                                <div class="es-sub">${register.length === 0 ? 'Log a Schedule H drug entry above to get started' : 'Try a different search or date range'}</div>
                             </div>
                         </td>
                     </tr>`;
@@ -1119,18 +1424,30 @@
 
             tbody.innerHTML = filtered.map(entry => {
                 const dateStr = entry.date ? new Date(entry.date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+                const type = entry.entryType || 'out';
+                const typeBadge = type === 'in'
+                    ? `<span class="type-badge type-in">📥 In</span>`
+                    : type === 'manual'
+                    ? `<span class="type-badge type-manual">✍ Manual</span>`
+                    : `<span class="type-badge type-out">📤 Out</span>`;
+
+                // Compliance check: Out entry missing doctor
+                const isMissingRx = (type === 'out' || type === 'manual') && !entry.doctorName;
+                const docCell = isMissingRx
+                    ? `<div class="warn-cell"><span class="warn-icon" title="Missing Doctor / Prescription!">!</span><span style="color:#b45309; font-size:0.82rem;">Missing Rx</span></div>`
+                    : `<div style="font-weight:600;">${esc(entry.doctorName)}</div>${entry.doctorAddress ? `<div style="font-size:0.73rem;color:#94a3b8;">${esc(entry.doctorAddress)}</div>` : ''}`;
+
                 return `
-                <tr style="animation: rowSlideIn 0.3s ease forwards;">
+                <tr style="animation: rowSlideIn 0.3s ease forwards;${isMissingRx ? 'background:rgba(254,249,195,0.4);' : ''}">
+                    <td>${typeBadge}</td>
                     <td style="white-space:nowrap; font-weight:600; font-size:0.82rem;">${dateStr}</td>
                     <td style="font-size:0.84rem; font-weight:600;">${esc(entry.billNo || '—')}</td>
                     <td>
-                        <div style="font-weight:600;">${esc(entry.patientName)}</div>
+                        <div style="font-weight:600;">${esc(entry.patientName || entry.firmName || '—')}</div>
                         ${entry.patientAddress ? `<div style="font-size:0.73rem; color:#94a3b8;">${esc(entry.patientAddress)}</div>` : ''}
                     </td>
-                    <td>
-                        <div style="font-weight:600;">${esc(entry.doctorName || '—')}</div>
-                        ${entry.doctorAddress ? `<div style="font-size:0.73rem; color:#94a3b8;">${esc(entry.doctorAddress)}</div>` : ''}
-                    </td>
+                    <td>${docCell}</td>
+                    <td style="font-size:0.82rem; color:#64748b;">${esc(entry.doctorRegNo || '—')}</td>
                     <td style="font-weight:700; color:#991b1b;">${esc(entry.drugName)}</td>
                     <td style="font-size:0.84rem;">${esc(entry.batchNo || '—')}</td>
                     <td style="font-size:0.84rem;">${esc(entry.expireDate || '—')}</td>
@@ -1141,12 +1458,75 @@
                     <td style="font-size:0.84rem;">${entry.gst || 0}%</td>
                     <td style="font-weight:700; color:#dc2626;">₹${(entry.total || 0).toFixed(2)}</td>
                     <td style="font-size:0.84rem;">${esc(entry.firmName || '—')}</td>
-
                     <td>
                         <button class="remove-row-btn" onclick="deleteEntry('${entry.id}')" title="Delete entry">✕</button>
                     </td>
                 </tr>`;
             }).join('');
+        }
+
+        /* ── Export Register to CSV ── */
+        function exportRegisterCSV() {
+            const register = getRegister();
+            const filterFrom = document.getElementById('filterFrom').value;
+            const filterTo   = document.getElementById('filterTo').value;
+            const searchTerm = (document.getElementById('logSearch').value || '').trim().toLowerCase();
+
+            let data = register.filter(entry => {
+                if (filterFrom && entry.date && entry.date < filterFrom) return false;
+                if (filterTo   && entry.date && entry.date > filterTo)   return false;
+                if (searchTerm) {
+                    return (entry.patientName||'').toLowerCase().includes(searchTerm)
+                        || (entry.drugName   ||'').toLowerCase().includes(searchTerm)
+                        || (entry.doctorName ||'').toLowerCase().includes(searchTerm);
+                }
+                return true;
+            });
+
+            if (data.length === 0) {
+                showToast('Nothing to export', 'No entries match the current filter.');
+                return;
+            }
+
+            const headers = ['Type','Date','Bill No','Patient Name','Patient Address','Doctor Name','Doctor Reg No','Doctor Address','Drug Name','Batch No','Expire Date','Pack','Qty','MRP','Rate','GST%','Total','Firm/Supplier'];
+            const rows = data.map(e => [
+                e.entryType === 'in' ? 'Received (In)' : 'Dispensed (Out)',
+                e.date || '',
+                e.billNo || '',
+                e.patientName || '',
+                e.patientAddress || '',
+                e.doctorName || '',
+                e.doctorRegNo || '',
+                e.doctorAddress || '',
+                e.drugName || '',
+                e.batchNo || '',
+                e.expireDate || '',
+                e.pack || '',
+                e.qty || 0,
+                e.mrp || 0,
+                e.rate || 0,
+                e.gst || 0,
+                e.total || 0,
+                e.firmName || ''
+            ]);
+
+            // Use XLSX library if available, else fallback to plain CSV
+            try {
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+                XLSX.utils.book_append_sheet(wb, ws, 'Schedule H Register');
+                const dateTag = filterFrom && filterTo ? `${filterFrom}_to_${filterTo}` : new Date().toISOString().split('T')[0];
+                XLSX.writeFile(wb, `ScheduleH_Register_${dateTag}.xlsx`);
+                showToast('Exported!', `${data.length} entries exported to Excel.`);
+            } catch(err) {
+                // Fallback: plain CSV
+                const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+                const a = document.createElement('a');
+                a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+                a.download = `ScheduleH_Register_${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+                showToast('Exported!', `${data.length} entries exported to CSV.`);
+            }
         }
 
         function esc(str) {
@@ -1237,14 +1617,25 @@
             document.getElementById('drugCountBadge').textContent = `${drugs.length} drug${drugs.length !== 1 ? 's' : ''}`;
             const grid = document.getElementById('drugGrid');
             const empty = document.getElementById('drugEmptyState');
+            const prompt = document.getElementById('drugSearchPrompt');
 
             if (drugs.length === 0) {
-                grid.innerHTML = '';
+                grid.style.display = 'none';
+                if (prompt) prompt.style.display = 'none';
                 empty.style.display = 'block';
                 return;
             }
 
             empty.style.display = 'none';
+
+            if (!searchTerm) {
+                grid.style.display = 'none';
+                if (prompt) prompt.style.display = 'block';
+                return;
+            }
+
+            if (prompt) prompt.style.display = 'none';
+            grid.style.display = 'flex';
 
             if (filtered.length === 0) {
                 grid.innerHTML = '<div style="padding:1rem; color:#94a3b8; font-size:0.9rem;">No matching drugs found.</div>';
@@ -1252,7 +1643,7 @@
             }
 
             grid.innerHTML = filtered.map(name => `
-                <div class="drug-chip">
+                <div class="drug-chip" style="animation: fadeUp 0.2s ease forwards;">
                     <span>${esc(name)}</span>
                     <button class="del-chip" onclick="removeDrug('${escAttr(name)}')" title="Remove">✕</button>
                 </div>
@@ -1456,6 +1847,250 @@
     </script>
 
     <script>
+        /* ══════════════════════════════════════════════════════════════════
+           SCHEDULE H INVENTORY LOGIC (Ledger, Expiry, Dead Stock, Adjust)
+        ══════════════════════════════════════════════════════════════════ */
+        
+        let shStockMap = {};
+
+        function buildSHStockMap() {
+            const shDrugs = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
+            const shDrugSet = new Set(shDrugs.map(d => d.trim().toLowerCase()));
+
+            const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+            const sales = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+            const adjustLogs = JSON.parse(localStorage.getItem('mm_inventory_adjust_log') || '[]');
+
+            const map = {};
+
+            function getOrCreate(name) {
+                const k = name.trim().toLowerCase();
+                if (!map[k]) {
+                    map[k] = {
+                        name: name.trim(),
+                        totalQty: 0,
+                        batches: {},
+                        lastSold: null,
+                        metrics: { totalMrp: 0 }
+                    };
+                }
+                return map[k];
+            }
+
+            // Purchases
+            purchases.forEach(p => {
+                const pName = p.productName || p.product_name;
+                if (!pName || !shDrugSet.has(pName.trim().toLowerCase())) return;
+                const entry = getOrCreate(pName);
+                const bNo = (p.batchNo || '').trim().toUpperCase();
+                if (!entry.batches[bNo]) {
+                    entry.batches[bNo] = { batchNo: bNo, qty: 0, exp: p.expireDate || '', mrp: parseFloat(p.mrp) || 0 };
+                }
+                const q = parseFloat(p.quantity) || 0;
+                entry.batches[bNo].qty += q;
+                entry.totalQty += q;
+                entry.metrics.totalMrp += (q * (parseFloat(p.mrp) || 0));
+            });
+
+            // Adjustments
+            adjustLogs.forEach(adj => {
+                if (!adj.medicineName || !shDrugSet.has(adj.medicineName.trim().toLowerCase())) return;
+                const entry = getOrCreate(adj.medicineName);
+                const bNo = (adj.batchNo || '').trim().toUpperCase();
+                if (!entry.batches[bNo]) {
+                    entry.batches[bNo] = { batchNo: bNo, qty: 0, exp: '', mrp: 0 };
+                }
+                const d = parseFloat(adj.deltaQty) || 0;
+                entry.batches[bNo].qty += d;
+                entry.totalQty += d;
+            });
+
+            // Sales
+            sales.forEach(bill => {
+                (bill.medicines || []).forEach(med => {
+                    const mName = med.product;
+                    if (!mName || !shDrugSet.has(mName.trim().toLowerCase())) return;
+                    const entry = getOrCreate(mName);
+                    const bNo = (med.batch || '').trim().toUpperCase();
+                    
+                    const saleDate = new Date(bill.date);
+                    if (!entry.lastSold || saleDate > new Date(entry.lastSold)) {
+                        entry.lastSold = bill.date;
+                    }
+
+                    if (!entry.batches[bNo]) {
+                        entry.batches[bNo] = { batchNo: bNo, qty: 0, exp: med.exp || '', mrp: med.mrp || 0 };
+                    }
+                    const q = parseFloat(med.qty) || 0;
+                    entry.batches[bNo].qty -= q;
+                    entry.totalQty -= q;
+                });
+            });
+
+            shStockMap = map;
+            return map;
+        }
+
+        function renderScheduleHInventory() {
+            const map = buildSHStockMap();
+            
+            // 1. Master Ledger
+            const ledgerBody = document.getElementById('ledgerBody');
+            let lHtml = '';
+            const items = Object.values(map).sort((a,b) => a.name.localeCompare(b.name));
+            items.forEach(item => {
+                let status = '<span class="status-badge" style="background:#dcfce7;color:#15803d">In Stock</span>';
+                if (item.totalQty <= 0) status = '<span class="status-badge" style="background:#fee2e2;color:#b91c1c">Out of Stock</span>';
+                lHtml += `<tr>
+                    <td style="font-weight:600;">${item.name}</td>
+                    <td style="font-weight:700;color:#0f172a;">${item.totalQty}</td>
+                    <td>₹${item.metrics.totalMrp.toFixed(2)}</td>
+                    <td>${status}</td>
+                </tr>`;
+            });
+            ledgerBody.innerHTML = lHtml || '<tr><td colspan="4" style="text-align:center;">No Schedule H inventory found.</td></tr>';
+
+            // 2. Expiry Checker
+            const expiryBody = document.getElementById('expiryBody');
+            let eHtml = '';
+            const today = new Date();
+            let soonCount = 0;
+            items.forEach(item => {
+                Object.values(item.batches).forEach(b => {
+                    if (b.qty <= 0 || !b.exp) return;
+                    let expDate = new Date(b.exp);
+                    // if exp is just YYYY-MM, make it end of month
+                    if (b.exp.length === 7) {
+                        const parts = b.exp.split('-');
+                        expDate = new Date(parts[0], parts[1], 0);
+                    }
+                    const diffDays = (expDate - today) / (1000 * 60 * 60 * 24);
+                    let statusHtml = '<span class="status-badge" style="background:#dcfce7;color:#15803d">OK</span>';
+                    if (diffDays < 0) {
+                        statusHtml = '<span class="status-badge" style="background:#fee2e2;color:#b91c1c">Expired</span>';
+                    } else if (diffDays <= 90) {
+                        statusHtml = '<span class="status-badge" style="background:#fef3c7;color:#b45309">Expiring Soon</span>';
+                    }
+                    
+                    eHtml += `<tr>
+                        <td style="font-weight:600;">${item.name}</td>
+                        <td>${b.batchNo}</td>
+                        <td style="font-weight:700;">${b.qty}</td>
+                        <td>${b.exp}</td>
+                        <td>${statusHtml}</td>
+                    </tr>`;
+                });
+            });
+            expiryBody.innerHTML = eHtml || '<tr><td colspan="5" style="text-align:center;">No batches with expiry dates found.</td></tr>';
+
+            // 3. Dead Stock (No sales in 6 months, >0 qty)
+            const deadBody = document.getElementById('deadBody');
+            let dHtml = '';
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            
+            items.forEach(item => {
+                if (item.totalQty <= 0) return;
+                const lastSoldDate = item.lastSold ? new Date(item.lastSold) : null;
+                // If never sold, or last sold > 6 months ago
+                if (!lastSoldDate || lastSoldDate < sixMonthsAgo) {
+                    let earliestExp = 'N/A';
+                    let minDate = Infinity;
+                    Object.values(item.batches).forEach(b => {
+                        if (b.qty > 0 && b.exp) {
+                            let ed = new Date(b.exp);
+                            if (ed < minDate) { minDate = ed; earliestExp = b.exp; }
+                        }
+                    });
+                    
+                    dHtml += `<tr>
+                        <td style="font-weight:600;">${item.name}</td>
+                        <td style="font-weight:700;color:#b91c1c;">${item.totalQty}</td>
+                        <td>${earliestExp}</td>
+                        <td>${item.lastSold || 'Never Sold'}</td>
+                    </tr>`;
+                }
+            });
+            deadBody.innerHTML = dHtml || '<tr><td colspan="4" style="text-align:center;">No dead stock found! Everything is moving.</td></tr>';
+        }
+
+        /* Adjust Stock Form Logic */
+        function populateAdjDropdowns() {
+            buildSHStockMap();
+            const adjMed = document.getElementById('adjMedicine');
+            adjMed.innerHTML = '<option value="">Select Medicine...</option>';
+            Object.values(shStockMap).sort((a,b)=>a.name.localeCompare(b.name)).forEach(item => {
+                adjMed.innerHTML += `<option value="${item.name}">${item.name} (Total: ${item.totalQty})</option>`;
+            });
+        }
+        
+        function onAdjMedicineChange() {
+            const medName = document.getElementById('adjMedicine').value;
+            const batchSel = document.getElementById('adjBatch');
+            batchSel.innerHTML = '<option value="">Select Batch...</option>';
+            if (!medName || !shStockMap[medName.toLowerCase()]) return;
+            const item = shStockMap[medName.toLowerCase()];
+            Object.values(item.batches).forEach(b => {
+                batchSel.innerHTML += `<option value="${b.batchNo}">${b.batchNo} (Qty: ${b.qty})</option>`;
+            });
+        }
+
+        function saveAdjustment() {
+            const med = document.getElementById('adjMedicine').value;
+            const batch = document.getElementById('adjBatch').value;
+            const qty = parseFloat(document.getElementById('adjQty').value);
+            
+            if (!med || !batch || isNaN(qty)) {
+                showToast('Please fill all fields for adjustment', 'error');
+                return;
+            }
+            
+            const log = JSON.parse(localStorage.getItem('mm_inventory_adjust_log') || '[]');
+            const entry = {
+                id: 'adj_' + Date.now(),
+                date: new Date().toISOString().split('T')[0],
+                medicineName: med,
+                batchNo: batch,
+                deltaQty: qty,
+                reason: 'Schedule H Manual Adjustment'
+            };
+            log.push(entry);
+            localStorage.setItem('mm_inventory_adjust_log', JSON.stringify(log));
+            showToast('Stock Adjusted Successfully', 'success');
+            
+            document.getElementById('adjQty').value = '';
+            populateAdjDropdowns(); // refresh dropdowns
+            buildSHStockMap(); // rebuild global map
+        }
+
+        /* Promise Orders Logic */
+        function renderPromiseOrders() {
+            const poBody = document.getElementById('promiseBody');
+            const shDrugs = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
+            const shDrugSet = new Set(shDrugs.map(d => d.trim().toLowerCase()));
+            const orders = JSON.parse(localStorage.getItem('mm_promise_orders') || '[]');
+            
+            let pHtml = '';
+            orders.forEach(o => {
+                if (!o.medicineName || !shDrugSet.has(o.medicineName.trim().toLowerCase())) return;
+                
+                let sHtml = '';
+                if (o.status === 'pending') sHtml = '<span class="status-badge" style="background:#fef3c7;color:#b45309">Pending</span>';
+                else if (o.status === 'arrived') sHtml = '<span class="status-badge" style="background:#dcfce7;color:#15803d">Arrived</span>';
+                else if (o.status === 'completed') sHtml = '<span class="status-badge" style="background:#e0f2fe;color:#0369a1">Completed</span>';
+                
+                pHtml += `<tr>
+                    <td style="font-weight:600;">${o.customerName || 'Walk-in'}</td>
+                    <td>${o.medicineName}</td>
+                    <td style="font-weight:700;">${o.qty}</td>
+                    <td>${o.promiseDate || 'N/A'}</td>
+                    <td>${sHtml}</td>
+                </tr>`;
+            });
+            poBody.innerHTML = pHtml || '<tr><td colspan="5" style="text-align:center;">No promise orders for Schedule H drugs.</td></tr>';
+        }
+
+        // SW Registration
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
@@ -1480,3 +2115,5 @@
     </script>
 </body>
 </html>
+
+<!-- Trigger GitHub Pages build -->

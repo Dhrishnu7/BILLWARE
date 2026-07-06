@@ -933,6 +933,56 @@
                 await checkPromiseOrdersForArrivals(records.map(r => r.productName || r.product_name || '').filter(Boolean));
             } catch (e) { console.warn('Promise order arrival check failed:', e); }
 
+            // ── Auto-log Schedule H drugs into the Schedule H Register ──
+            // If any purchased item is in the Schedule H drug list, silently
+            // create a "Received (In)" register entry.
+            try {
+                const shDrugs = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
+                const shDrugSet = new Set(shDrugs.map(d => d.trim().toLowerCase()));
+                const shRegister = JSON.parse(localStorage.getItem('mm_schedule_h_register') || '[]');
+                let addedSHCount = 0;
+                records.forEach(rec => {
+                    if (!rec.productName || !shDrugSet.has(rec.productName.trim().toLowerCase())) return;
+                    const qty = parseFloat(rec.quantity) || 0;
+                    const rate = parseFloat(rec.rate) || 0;
+                    const gst  = parseFloat(rec.gst) || 0;
+                    const base = qty * rate;
+                    const total = base + (base * gst / 100);
+                    const shEntry = {
+                        id:            'pur_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+                        entryType:     'in',
+                        date:          rec.date || new Date().toISOString().split('T')[0],
+                        billNo:        rec.billNo || '',
+                        firmName:      rec.firm || '',
+                        patientName:   '',
+                        patientAddress:'',
+                        doctorName:    '',
+                        doctorRegNo:   '',
+                        doctorAddress: '',
+                        drugName:      rec.productName,
+                        batchNo:       rec.batchNo || '',
+                        expireDate:    rec.expireDate || '',
+                        pack:          rec.pack || '',
+                        qty:           qty,
+                        mrp:           parseFloat(rec.mrp) || 0,
+                        rate:          rate,
+                        gst:           gst,
+                        total:         total,
+                        savedAt:       new Date().toISOString(),
+                        autoLogged:    true
+                    };
+                    shRegister.push(shEntry);
+                    addedSHCount++;
+                    if (typeof dbAddScheduleHEntry === 'function') {
+                        dbAddScheduleHEntry(shEntry).catch(e => console.warn('[SH] cloud auto-log failed:', e));
+                    }
+                });
+                if (addedSHCount > 0) {
+                    localStorage.setItem('mm_schedule_h_register', JSON.stringify(shRegister));
+                    console.log(`[SH] Auto-logged ${addedSHCount} Schedule H drug(s) from Purchase ${records[0]?.billNo || ''}`);
+                }
+            } catch(shErr) { console.warn('[SH] Purchase auto-log error:', shErr); }
+
             if (failCount === 0) {
                 // Clear draft immediately so navigating away won't restore old data
                 clearDraft();
