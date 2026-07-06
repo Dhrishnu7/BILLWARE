@@ -220,6 +220,137 @@ async function dbUpdatePromiseOrderStatus(id, status) {
 window.dbUpdatePromiseOrderStatus = dbUpdatePromiseOrderStatus;
 
 /* ─────────────────────────────────────────────────────
+   SCHEDULE H  (drug list + sales register)
+   Both were previously localStorage-only, so they vanished
+   whenever the browser cleared its storage (iOS ~7-day
+   eviction, cache clear, new device/login). These give them
+   a cloud backup, scoped by user_id like every other table.
+───────────────────────────────────────────────────── */
+// Drug list — returns an array of drug-name strings.
+async function dbGetScheduleHDrugs() {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetScheduleHDrugs: no user, aborting.'); return []; }
+    const { data, error } = await _supabase.from('schedule_h_drugs')
+        .select('name').eq('user_id', user).order('name');
+    if (error) { console.error('schedule_h drugs fetch:', error); return []; }
+    return (data || []).map(r => r.name).filter(Boolean);
+}
+window.dbGetScheduleHDrugs = dbGetScheduleHDrugs;
+
+// Add one or many drug names. Ignores duplicates (unique on user_id+name).
+async function dbAddScheduleHDrugs(names) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbAddScheduleHDrugs: no user, aborting.'); return { success: false }; }
+    const list = (Array.isArray(names) ? names : [names])
+        .map(n => (n || '').trim()).filter(Boolean);
+    if (!list.length) return { success: true };
+    const rows = list.map(name => ({ user_id: user, name }));
+    const { error } = await _supabase.from('schedule_h_drugs')
+        .upsert(rows, { onConflict: 'user_id,name', ignoreDuplicates: true });
+    if (error) { console.error('schedule_h drugs add:', error); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbAddScheduleHDrugs = dbAddScheduleHDrugs;
+
+async function dbDeleteScheduleHDrug(name) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbDeleteScheduleHDrug: no user, aborting.'); return false; }
+    const { error } = await _supabase.from('schedule_h_drugs')
+        .delete().eq('user_id', user).eq('name', (name || '').trim());
+    if (error) { console.error('schedule_h drug delete:', error); return false; }
+    return true;
+}
+window.dbDeleteScheduleHDrug = dbDeleteScheduleHDrug;
+
+async function dbClearScheduleHDrugs() {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbClearScheduleHDrugs: no user, aborting.'); return false; }
+    const { error } = await _supabase.from('schedule_h_drugs').delete().eq('user_id', user);
+    if (error) { console.error('schedule_h drugs clear:', error); return false; }
+    return true;
+}
+window.dbClearScheduleHDrugs = dbClearScheduleHDrugs;
+
+// Register entries. Maps the app's camelCase entry <-> the table's snake_case
+// columns. entry.id (the app-generated string) is the primary key so re-syncs
+// dedupe cleanly and never create doubles.
+function _shEntryToRow(e, user) {
+    return {
+        entry_id:        e.id,
+        user_id:         user,
+        date:            e.date || '',
+        bill_no:         e.billNo || '',
+        firm_name:       e.firmName || '',
+        patient_name:    e.patientName || '',
+        patient_address: e.patientAddress || '',
+        doctor_name:     e.doctorName || '',
+        doctor_address:  e.doctorAddress || '',
+        drug_name:       e.drugName || '',
+        batch_no:        e.batchNo || '',
+        expire_date:     e.expireDate || '',
+        pack:            e.pack || '',
+        qty:             Number(e.qty) || 0,
+        mrp:             Number(e.mrp) || 0,
+        rate:            Number(e.rate) || 0,
+        gst:             Number(e.gst) || 0,
+        total:           Number(e.total) || 0,
+        saved_at:        e.savedAt || new Date().toISOString(),
+    };
+}
+function _shRowToEntry(r) {
+    return {
+        id:             r.entry_id,
+        date:           r.date || '',
+        billNo:         r.bill_no || '',
+        firmName:       r.firm_name || '',
+        patientName:    r.patient_name || '',
+        patientAddress: r.patient_address || '',
+        doctorName:     r.doctor_name || '',
+        doctorAddress:  r.doctor_address || '',
+        drugName:       r.drug_name || '',
+        batchNo:        r.batch_no || '',
+        expireDate:     r.expire_date || '',
+        pack:           r.pack || '',
+        qty:            Number(r.qty) || 0,
+        mrp:            Number(r.mrp) || 0,
+        rate:           Number(r.rate) || 0,
+        gst:            Number(r.gst) || 0,
+        total:          Number(r.total) || 0,
+        savedAt:        r.saved_at || '',
+    };
+}
+
+async function dbGetScheduleHRegister() {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetScheduleHRegister: no user, aborting.'); return []; }
+    const { data, error } = await _supabase.from('schedule_h_register')
+        .select('*').eq('user_id', user).order('saved_at', { ascending: true });
+    if (error) { console.error('schedule_h register fetch:', error); return []; }
+    return (data || []).map(_shRowToEntry);
+}
+window.dbGetScheduleHRegister = dbGetScheduleHRegister;
+
+async function dbAddScheduleHEntry(entry) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbAddScheduleHEntry: no user, aborting.'); return { success: false }; }
+    const { error } = await _supabase.from('schedule_h_register')
+        .upsert(_shEntryToRow(entry, user), { onConflict: 'entry_id' });
+    if (error) { console.error('schedule_h entry add:', error); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbAddScheduleHEntry = dbAddScheduleHEntry;
+
+async function dbDeleteScheduleHEntry(id) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbDeleteScheduleHEntry: no user, aborting.'); return false; }
+    const { error } = await _supabase.from('schedule_h_register')
+        .delete().eq('user_id', user).eq('entry_id', id);
+    if (error) { console.error('schedule_h entry delete:', error); return false; }
+    return true;
+}
+window.dbDeleteScheduleHEntry = dbDeleteScheduleHEntry;
+
+/* ─────────────────────────────────────────────────────
    DOCTORS
 ───────────────────────────────────────────────────── */
 async function dbGetDoctors() {

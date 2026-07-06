@@ -1075,6 +1075,10 @@
             showToast('Entry Saved!', `${drugName} — ${patientName}`);
             resetRegisterForm();
             renderRegisterLog();
+            // Back up this register entry to the cloud so it survives a storage clear.
+            if (typeof dbAddScheduleHEntry === 'function') {
+                dbAddScheduleHEntry(entry).catch(e => console.warn('cloud register save failed:', e));
+            }
         }
 
         /* ── Render Register Log ── */
@@ -1169,6 +1173,9 @@
             setRegister(register);
             renderRegisterLog();
             showToast('Deleted', 'Entry removed from register.');
+            if (typeof dbDeleteScheduleHEntry === 'function') {
+                dbDeleteScheduleHEntry(id).catch(e => console.warn('cloud register delete failed:', e));
+            }
         }
 
         /* ══════════════════════════════════════════════════════════════════
@@ -1195,6 +1202,9 @@
             renderDrugList();
             refreshDrugDatalist();
             showToast('Drug Added!', `"${name}" added to Schedule H list.`);
+            if (typeof dbAddScheduleHDrugs === 'function') {
+                dbAddScheduleHDrugs([name]).catch(e => console.warn('cloud drug add failed:', e));
+            }
         }
 
         function removeDrug(name) {
@@ -1203,6 +1213,9 @@
             renderDrugList();
             refreshDrugDatalist();
             showToast('Removed', `"${name}" removed from list.`);
+            if (typeof dbDeleteScheduleHDrug === 'function') {
+                dbDeleteScheduleHDrug(name).catch(e => console.warn('cloud drug delete failed:', e));
+            }
         }
 
         function clearAllDrugs() {
@@ -1211,6 +1224,9 @@
             renderDrugList();
             refreshDrugDatalist();
             showToast('Cleared!', 'All Schedule H drugs removed.');
+            if (typeof dbClearScheduleHDrugs === 'function') {
+                dbClearScheduleHDrugs().catch(e => console.warn('cloud drug clear failed:', e));
+            }
         }
 
         function renderDrugList() {
@@ -1353,6 +1369,10 @@
             refreshDrugDatalist();
             closeImportModal();
             showToast(`${fresh.length} drug(s) imported!`, `${merged.length} total in Schedule H list.`);
+            // Back up the imported names to the cloud so they survive a storage clear.
+            if (fresh.length && typeof dbAddScheduleHDrugs === 'function') {
+                dbAddScheduleHDrugs(fresh).catch(e => console.warn('cloud drug import backup failed:', e));
+            }
         }
 
         /* ══════════════════════════════════════════════════════════════════
@@ -1370,7 +1390,69 @@
             if (typeof dbSyncCoreData === 'function') {
                 dbSyncCoreData().then(() => { refreshPatientList(); refreshDoctorList(); });
             }
+
+            // Pull the Schedule H drug list + register from the cloud and MERGE with
+            // whatever is on this device — cloud is the backup that survives a storage
+            // clear. We UNION (never drop a local-only item) and push any local-only
+            // items up, so existing data backs itself up on the first load after this
+            // fix. This is what stops the "saved data vanishes after re-login" problem.
+            syncScheduleHFromCloud();
         });
+
+        async function syncScheduleHFromCloud() {
+            // ── Drug list ──
+            try {
+                if (typeof dbGetScheduleHDrugs === 'function') {
+                    const cloudDrugs = await dbGetScheduleHDrugs();
+                    const localDrugs = getDrugList();
+                    const seen = new Set();
+                    const union = [];
+                    [...localDrugs, ...cloudDrugs].forEach(n => {
+                        const k = (n || '').trim().toLowerCase();
+                        if (k && !seen.has(k)) { seen.add(k); union.push(n.trim()); }
+                    });
+                    union.sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+                    // Only write if it actually changed (avoid needless churn).
+                    if (union.length !== localDrugs.length || union.some((n, i) => n !== localDrugs[i])) {
+                        setDrugList(union);
+                        renderDrugList();
+                        refreshDrugDatalist();
+                    }
+                    // Push local-only drugs up so pre-existing lists get backed up.
+                    const cloudSet = new Set(cloudDrugs.map(n => (n || '').trim().toLowerCase()));
+                    const localOnly = localDrugs.filter(n => !cloudSet.has((n || '').trim().toLowerCase()));
+                    if (localOnly.length && typeof dbAddScheduleHDrugs === 'function') {
+                        dbAddScheduleHDrugs(localOnly).catch(e => console.warn('drug backfill failed:', e));
+                    }
+                }
+            } catch (e) { console.warn('Schedule H drug cloud sync failed:', e); }
+
+            // ── Register entries ──
+            try {
+                if (typeof dbGetScheduleHRegister === 'function') {
+                    const cloudReg = await dbGetScheduleHRegister();
+                    const localReg = getRegister();
+                    const byId = new Map();
+                    // Local first, then cloud fills in anything missing. Matched by id.
+                    [...localReg, ...cloudReg].forEach(e => {
+                        if (e && e.id && !byId.has(e.id)) byId.set(e.id, e);
+                    });
+                    const union = [...byId.values()];
+                    if (union.length !== localReg.length) {
+                        setRegister(union);
+                        renderRegisterLog();
+                    }
+                    // Push local-only entries up so pre-existing registers get backed up.
+                    const cloudIds = new Set(cloudReg.map(e => e.id));
+                    const localOnly = localReg.filter(e => e && e.id && !cloudIds.has(e.id));
+                    if (localOnly.length && typeof dbAddScheduleHEntry === 'function') {
+                        for (const e of localOnly) {
+                            dbAddScheduleHEntry(e).catch(err => console.warn('register backfill failed:', err));
+                        }
+                    }
+                }
+            } catch (e) { console.warn('Schedule H register cloud sync failed:', e); }
+        }
     </script>
 
     <script>
