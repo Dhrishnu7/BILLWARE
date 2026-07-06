@@ -9,31 +9,81 @@
 
 const MMNotifications = (() => {
 
-    // ── Storage key per logged-in user ──
-    const STORAGE_KEY = () => {
+    // ── Storage keys per logged-in user ──
+    const _tenant = () => {
         try {
             const s = JSON.parse(
                 localStorage.getItem('mm_auth_session') ||
                 sessionStorage.getItem('mm_auth_session') || 'null'
             );
-            return s ? `mm_notif_read_${s.tenant_id || s.username}` : 'mm_notif_read_anon';
-        } catch { return 'mm_notif_read_anon'; }
+            return s ? (s.tenant_id || s.username) : 'anon';
+        } catch { return 'anon'; }
     };
+    const STORAGE_KEY  = () => `mm_notif_read_${_tenant()}`;
+    const CLEARED_KEY  = () => `mm_notif_cleared_${_tenant()}`;
+
+    // Read messages auto-clear only after this long (≈6 months). The clock
+    // starts when a message is marked read; unread messages never auto-clear.
+    const SIX_MONTHS_MS = 182 * 24 * 60 * 60 * 1000;
+
+    // Read state is stored as { id: readAtISO } so we know WHEN each message was
+    // read (needed for the 6-month auto-clear). Older builds stored a plain array
+    // of ids with no timestamp — migrate that to the timestamped map, stamped
+    // "now", so those messages stay visible and start a fresh 6-month clock
+    // instead of vanishing. (Marking a message read no longer deletes it.)
+    function getReadMap() {
+        let raw = null;
+        try { raw = JSON.parse(localStorage.getItem(STORAGE_KEY())); } catch { raw = null; }
+        if (!raw) return {};
+        if (Array.isArray(raw)) {
+            const now = new Date().toISOString();
+            const map = {};
+            raw.forEach(id => { map[id] = now; });
+            try { localStorage.setItem(STORAGE_KEY(), JSON.stringify(map)); } catch {}
+            return map;
+        }
+        return raw;
+    }
 
     function getReadIds() {
-        try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY())) || []); }
-        catch { return new Set(); }
+        return new Set(Object.keys(getReadMap()));
     }
 
     function markRead(ids) {
-        const existing = getReadIds();
-        ids.forEach(id => existing.add(id));
-        const arr = [...existing].slice(-1000);
-        localStorage.setItem(STORAGE_KEY(), JSON.stringify(arr));
+        const map = getReadMap();
+        const now = new Date().toISOString();
+        ids.forEach(id => { if (!map[id]) map[id] = now; }); // keep original read time
+        let entries = Object.entries(map);
+        if (entries.length > 1000) {                          // cap: keep 1000 most-recent
+            entries.sort((a, b) => (a[1] < b[1] ? 1 : -1));
+            entries = entries.slice(0, 1000);
+        }
+        const trimmed = {};
+        entries.forEach(([k, v]) => { trimmed[k] = v; });
+        localStorage.setItem(STORAGE_KEY(), JSON.stringify(trimmed));
     }
 
     function markAllRead(notifications) {
         markRead(notifications.map(n => n.id));
+    }
+
+    // ── Cleared (manually dismissed) messages — hidden from the inbox for good ──
+    function getClearedIds() {
+        try { return new Set(JSON.parse(localStorage.getItem(CLEARED_KEY())) || []); }
+        catch { return new Set(); }
+    }
+
+    function addCleared(ids) {
+        const set = getClearedIds();
+        ids.forEach(id => set.add(id));
+        const arr = [...set].slice(-2000);
+        localStorage.setItem(CLEARED_KEY(), JSON.stringify(arr));
+    }
+
+    // True when a read message is old enough (>6 months) to auto-clear.
+    function isReadExpired(id) {
+        const t = getReadMap()[id];
+        return t ? (Date.now() - new Date(t).getTime()) > SIX_MONTHS_MS : false;
     }
 
     // ─────────────────────────────────────
@@ -322,6 +372,11 @@ const MMNotifications = (() => {
         sort,
         markRead,
         markAllRead,
-        getReadIds
+        getReadIds,
+        getReadMap,
+        getClearedIds,
+        addCleared,
+        isReadExpired,
+        SIX_MONTHS_MS
     };
 })();

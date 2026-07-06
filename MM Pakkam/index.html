@@ -370,9 +370,11 @@
             padding: 10px 16px 8px;
         }
         .inbox-toolbar-actions {
-            display: flex; justify-content: flex-end;
+            display: flex; justify-content: flex-end; gap: 6px;
             padding: 0 16px 8px;
         }
+        .clear-read-btn { color: #dc2626; }
+        .clear-read-btn:hover { background: #fef2f2; }
         .inbox-tab {
             padding: 4px 11px;
             border-radius: 20px;
@@ -533,6 +535,7 @@
                 <button class="inbox-tab" id="tabUpdates" onclick="filterNotif('updates')">📢 Updates</button>
             </div>
             <div class="inbox-toolbar-actions">
+                <button class="mark-all-btn clear-read-btn" onclick="clearReadNotifs()">🗑 Clear read</button>
                 <button class="mark-all-btn" onclick="markAllRead()">✓ Mark all read</button>
             </div>
         </div>
@@ -860,12 +863,26 @@
         const body = document.getElementById('inboxBody');
         const pill = document.getElementById('inboxUnreadPill');
 
-        // Only show UNREAD notifications — once marked read, a message is dismissed
-        // and never pops back into the center (read state is saved per-user and
-        // persists across reloads).
-        const filtered = _allNotifs.filter(n => !n.isRead && (_activeFilter === 'all' || n.category === _activeFilter));
+        // Show BOTH read and unread messages. A read message stays in the inbox
+        // (greyed out) — it is NOT dismissed on read. It only disappears when:
+        //   • the user manually clears it (🗑 Clear read), or
+        //   • it has been READ for more than 6 months (auto-clear).
+        // Unread messages never auto-clear.
+        const cleared = MMNotifications.getClearedIds();
+        const readMap = MMNotifications.getReadMap();
+        const now = Date.now();
+        const SIX = MMNotifications.SIX_MONTHS_MS;
+        const visible = _allNotifs.filter(n => {
+            if (cleared.has(n.id)) return false;                       // manually cleared
+            if (n.isRead) {
+                const t = readMap[n.id];
+                if (t && (now - new Date(t).getTime()) > SIX) return false; // read >6 months ago
+            }
+            return true;
+        });
+        const filtered = visible.filter(n => _activeFilter === 'all' || n.category === _activeFilter);
 
-        const unread = _allNotifs.filter(n => !n.isRead).length;
+        const unread = visible.filter(n => !n.isRead).length;
         pill.textContent = `${unread} new`;
         pill.style.display = unread > 0 ? '' : 'none';
 
@@ -916,12 +933,28 @@
         if (notif) notif.isRead = true;
         updateBellBadge();
         updateTabCounts();
-        renderInbox(); // drop it from view — read messages no longer appear
+        renderInbox(); // stays in the inbox, now shown as read (greyed)
     }
 
     function markAllRead() {
         MMNotifications.markAllRead(_allNotifs);
         _allNotifs.forEach(n => n.isRead = true);
+        updateBellBadge();
+        updateTabCounts();
+        renderInbox();
+    }
+
+    // Manual clear — removes only messages that are already READ. Unread messages
+    // are kept so nothing unseen is lost. This is the "option to clear" for when
+    // the user doesn't want to wait for the 6-month auto-clear.
+    function clearReadNotifs() {
+        const readOnes = _allNotifs.filter(n => n.isRead && !MMNotifications.getClearedIds().has(n.id));
+        if (!readOnes.length) {
+            alert('No read messages to clear. Unread messages are kept until you read them.');
+            return;
+        }
+        if (!confirm(`Clear ${readOnes.length} read message(s)?\n\nUnread messages will stay in your inbox.`)) return;
+        MMNotifications.addCleared(readOnes.map(n => n.id));
         updateBellBadge();
         updateTabCounts();
         renderInbox();
