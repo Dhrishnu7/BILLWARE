@@ -1592,40 +1592,12 @@
                 });
             }
 
-            // ── Schedule H "IN" (stock received) entries → show as Purchase records ──
-            // Schedule H stock-in is entered on the schedule-h page (not the purchase
-            // page), so it lives only in the Schedule H register. Pull the 'in' entries
-            // in as purchase-type records so they appear in the report. The 'out'
-            // entries are auto-logged from the Sales page and are ALREADY represented
-            // by mm_sales/bills above, so we exclude them here to avoid double-counting.
-            let mappedSHPurchases = [];
-            try {
-                let shRegister = [];
-                if (useSupabase && typeof dbGetScheduleHRegister === 'function') {
-                    try { shRegister = await dbGetScheduleHRegister(); } catch(e) { console.warn('SH register cloud load failed:', e); }
-                }
-                if (!Array.isArray(shRegister) || shRegister.length === 0) {
-                    shRegister = JSON.parse(localStorage.getItem('mm_schedule_h_register') || '[]');
-                }
-                mappedSHPurchases = (shRegister || [])
-                    .filter(e => (e.entryType || '') === 'in')
-                    .map(e => {
-                        const qty   = parseFloat(e.qty)  || 0;
-                        const rate  = parseFloat(e.rate) || 0;
-                        const gst   = parseFloat(e.gst)  || 0;
-                        const total = parseFloat(e.total) || (qty * rate) * (1 + gst / 100);
-                        return {
-                            billNo:  e.billNo || '-',
-                            date:    e.date || '',
-                            type:    'purchase',
-                            product: e.drugName || '-',
-                            qty, rate, gst, total,
-                            scheduleH: true   // managed on schedule-h page; no id → no delete button here
-                        };
-                    });
-            } catch (e) { console.warn('Schedule H register → report mapping failed:', e); }
-
-            allData = [...mappedSales, ...mappedPurchases, ...mappedSHPurchases].sort((a,b) => {
+            // Note: Schedule H "IN" stock received is mirrored into mm_purchases at
+            // save time (see schedule-h.html mirrorInEntryToPurchase), so it already
+            // flows in via mappedPurchases below — no separate register read needed
+            // here (doing so would double-count). Schedule H sales come in via
+            // mm_sales, and the "Schedule H Drugs" report filter matches on product.
+            allData = [...mappedSales, ...mappedPurchases].sort((a,b) => {
                 if(a.date > b.date) return -1;
                 if(a.date < b.date) return 1;
                 return 0;

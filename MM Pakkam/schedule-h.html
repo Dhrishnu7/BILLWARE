@@ -1339,6 +1339,71 @@
             document.getElementById('totalDisplay').textContent = '₹ 0.00';
         }
 
+        /* ══════════════════════════════════════════════════════════════════
+           Mirror Schedule H "IN" (stock received) → mm_purchases
+           ------------------------------------------------------------------
+           Schedule H stock received on THIS page must be sellable on the
+           Sales page and counted in Inventory / Report / stock math. Those
+           systems read `mm_purchases` only, so every IN entry is mirrored
+           into a normal purchase record. The Schedule H register stays as
+           the compliance ledger. Dedup is CONTENT-BASED (product+batch+date+
+           qty) so it survives cloud round-trips where our shEntryId marker,
+           which is not a purchases-table column, gets stripped.
+        ══════════════════════════════════════════════════════════════════ */
+        function _shPurchaseKey(product, batch, date, qty) {
+            return [
+                (product || '').trim().toLowerCase(),
+                (batch   || '').trim().toLowerCase(),
+                (date    || '').slice(0, 10),
+                String(parseFloat(qty) || 0)
+            ].join('|');
+        }
+        function _shPurchaseExists(purchases, entry) {
+            const key = _shPurchaseKey(entry.drugName, entry.batchNo, entry.date, entry.qty);
+            return purchases.some(p =>
+                _shPurchaseKey(p.productName || p.product_name, p.batchNo || p.batch_no, p.date, p.quantity) === key
+            );
+        }
+        function mirrorInEntryToPurchase(entry) {
+            if (!entry || (entry.entryType || '') !== 'in' || !entry.drugName) return;
+            try {
+                const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+                if (_shPurchaseExists(purchases, entry)) return; // already there — don't duplicate
+                const record = {
+                    billNo:      entry.billNo   || '',
+                    firm:        entry.firmName || '',
+                    date:        entry.date     || new Date().toISOString().slice(0, 10),
+                    productName: entry.drugName,
+                    batchNo:     entry.batchNo    || '',
+                    expireDate:  entry.expireDate || '',
+                    pack:        entry.pack       || '',
+                    quantity:    String(entry.qty  || 0),
+                    mrp:         String(entry.mrp  || 0),
+                    rate:        String(entry.rate || 0),
+                    gst:         String(entry.gst  || 0),
+                    savedAt:     new Date().toISOString(),
+                    source:      'schedule_h',
+                    shEntryId:   entry.id
+                };
+                purchases.push(record);
+                localStorage.setItem('mm_purchases', JSON.stringify(purchases));
+                if (typeof dbAddPurchase === 'function') {
+                    dbAddPurchase(record).catch(err => console.warn('[SH] mirror purchase cloud save failed:', err));
+                }
+            } catch (err) { console.warn('[SH] mirrorInEntryToPurchase failed:', err); }
+        }
+        /* Ensure pre-existing manual IN entries (saved before mirroring existed)
+           also become purchases. Auto-logged IN entries (from the Purchase page)
+           already have their own real purchase, so skip those. Idempotent via
+           the content-based dedup inside mirrorInEntryToPurchase(). */
+        function backfillScheduleHInToPurchases() {
+            try {
+                getRegister().forEach(e => {
+                    if ((e.entryType || '') === 'in' && !e.autoLogged) mirrorInEntryToPurchase(e);
+                });
+            } catch (err) { console.warn('[SH] backfill to purchases failed:', err); }
+        }
+
         function handleRegisterSubmit(e) {
             e.preventDefault();
 
@@ -1399,6 +1464,8 @@
             if (typeof dbAddScheduleHEntry === 'function') {
                 dbAddScheduleHEntry(entry).catch(e => console.warn('cloud register save failed:', e));
             }
+            // Received stock → mirror into purchases so it's sellable on the Sales page.
+            mirrorInEntryToPurchase(entry);
         }
 
         /* ── Type Filter State ── */
@@ -1593,12 +1660,32 @@
 
         function deleteEntry(id) {
             if (!confirm('Delete this register entry?')) return;
-            const register = getRegister().filter(e => e.id !== id);
+            const all   = getRegister();
+            const entry = all.find(e => e.id === id);
+            const register = all.filter(e => e.id !== id);
             setRegister(register);
             renderRegisterLog();
             showToast('Deleted', 'Entry removed from register.');
             if (typeof dbDeleteScheduleHEntry === 'function') {
                 dbDeleteScheduleHEntry(id).catch(e => console.warn('cloud register delete failed:', e));
+            }
+            // If this IN entry was mirrored into stock, remove the matching purchase
+            // so the deleted stock no longer counts (best-effort: local copy; a
+            // cloud-synced purchase can also be removed from Inventory/Report).
+            if (entry && (entry.entryType || '') === 'in') {
+                try {
+                    const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+                    let removed = false;
+                    const targetKey = _shPurchaseKey(entry.drugName, entry.batchNo, entry.date, entry.qty);
+                    const kept = purchases.filter(p => {
+                        if (removed) return true;
+                        const isMatch = p.shEntryId === id ||
+                            _shPurchaseKey(p.productName || p.product_name, p.batchNo || p.batch_no, p.date, p.quantity) === targetKey;
+                        if (isMatch) { removed = true; return false; }
+                        return true;
+                    });
+                    if (removed) localStorage.setItem('mm_purchases', JSON.stringify(kept));
+                } catch (e) { console.warn('[SH] mirror purchase cleanup failed:', e); }
             }
         }
 
@@ -1831,7 +1918,11 @@
             // clear. We UNION (never drop a local-only item) and push any local-only
             // items up, so existing data backs itself up on the first load after this
             // fix. This is what stops the "saved data vanishes after re-login" problem.
-            syncScheduleHFromCloud();
+            syncScheduleHFromCloud().then(() => {
+                // After the register is merged from cloud, make sure every manual
+                // IN entry has a matching purchase so received stock is sellable.
+                backfillScheduleHInToPurchases();
+            });
         });
 
         async function syncScheduleHFromCloud() {
