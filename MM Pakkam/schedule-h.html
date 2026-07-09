@@ -810,10 +810,10 @@
                         </div>
                         <div class="form-group">
                             <label>Entry Type</label>
-                            <select id="entryType">
-                                <option value="out">📤 Dispensed (Out) — Sale to Patient</option>
-                                <option value="in">📥 Received (In) — Stock from Supplier</option>
+                            <select id="entryType" disabled title="Stock-out (sales) is recorded automatically from the Sales page">
+                                <option value="in" selected>📥 Received (In) — Stock from Supplier</option>
                             </select>
+                            <small style="display:block; margin-top:4px; color:#059669; font-weight:600; font-size:0.72rem;">Stock-out is auto-logged from the Sales page — enter only received stock here.</small>
                         </div>
                         <div class="form-group">
                             <label>Bill No</label>
@@ -825,8 +825,8 @@
                         </div>
                     </div><!-- end entry-details form-grid -->
 
-                    <div class="section-label">🧑 Patient Details</div>
-                    <div class="form-grid" style="margin-bottom: 1.5rem;">
+                    <div class="section-label" style="display:none;">🧑 Patient Details</div>
+                    <div class="form-grid" style="margin-bottom: 1.5rem; display:none;">
                         <div class="form-group">
                             <label>Patient Name <span style="color:#dc2626;">*</span></label>
                             <input type="text" id="patientName" list="patientList" placeholder="Patient name…" autocomplete="off">
@@ -838,8 +838,8 @@
                         </div>
                     </div>
 
-                    <div class="section-label">👨‍⚕️ Doctor Details</div>
-                    <div class="form-grid" style="margin-bottom: 1.5rem;">
+                    <div class="section-label" style="display:none;">👨‍⚕️ Doctor Details</div>
+                    <div class="form-grid" style="margin-bottom: 1.5rem; display:none;">
                         <div class="form-group">
                             <label>Doctor Name</label>
                             <input type="text" id="doctorName" list="doctorList" placeholder="Doctor name…" autocomplete="off">
