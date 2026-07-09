@@ -674,6 +674,30 @@
             white-space: nowrap; margin-left: 2px;
         }
 
+        /* ── IN / OUT Type Filter Pills ── */
+        .type-filter-group {
+            display: inline-flex; gap: 4px; align-items: center;
+            background: rgba(255,255,255,0.7);
+            border: 1.5px solid #fca5a5;
+            border-radius: 10px;
+            padding: 3px;
+        }
+        .type-pill {
+            padding: 0.35rem 0.85rem;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem; font-weight: 700;
+            cursor: pointer; border: none;
+            background: transparent; color: #64748b;
+            transition: all 0.18s ease; white-space: nowrap;
+        }
+        .type-pill:hover { background: #fef2f2; color: #dc2626; }
+        .type-pill.active {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            box-shadow: 0 2px 8px rgba(220,38,38,0.3);
+        }
+
         /* ── Stats Bar ── */
         .stats-bar {
             display: flex; gap: 0.8rem; flex-wrap: wrap;
@@ -916,7 +940,13 @@
                         <input type="date" id="filterFrom" title="From date" oninput="renderRegisterLog()">
                         <span class="filter-date-sep">→</span>
                         <input type="date" id="filterTo" title="To date" oninput="renderRegisterLog()">
-                        <button class="btn-export" onclick="window.print()" title="Print Register">
+                        <!-- IN / OUT type filter pills -->
+                        <div class="type-filter-group" id="typeFilterGroup">
+                            <button class="type-pill active" id="typePillAll"  onclick="setTypeFilter('all')" title="Show All">&#x1F4CB; All</button>
+                            <button class="type-pill" id="typePillIn"   onclick="setTypeFilter('in')"  title="Show Stock IN only">&#x1F7E2; IN</button>
+                            <button class="type-pill" id="typePillOut"  onclick="setTypeFilter('out')" title="Show Sales OUT only">&#x1F534; OUT</button>
+                        </div>
+                        <button class="btn-export" onclick="window.print()" title="Print filtered Register">
                             &#x1F5A8;&#xFE0F; Print Report
                         </button>
                         <button class="btn-export" onclick="exportRegisterCSV()" title="Export to Excel/CSV">
@@ -1371,6 +1401,17 @@
             }
         }
 
+        /* ── Type Filter State ── */
+        let _activeTypeFilter = 'all'; // 'all' | 'in' | 'out'
+
+        function setTypeFilter(type) {
+            _activeTypeFilter = type;
+            document.querySelectorAll('.type-pill').forEach(btn => btn.classList.remove('active'));
+            const map = { all: 'typePillAll', in: 'typePillIn', out: 'typePillOut' };
+            document.getElementById(map[type]).classList.add('active');
+            renderRegisterLog();
+        }
+
         /* ── Render Register Log ── */
         function renderRegisterLog() {
             const register = getRegister();
@@ -1386,6 +1427,9 @@
             const filtered = sorted.filter(entry => {
                 if (filterFrom && entry.date && entry.date < filterFrom) return false;
                 if (filterTo   && entry.date && entry.date > filterTo)   return false;
+                // IN / OUT type filter
+                if (_activeTypeFilter === 'in'  && entry.entryType !== 'in')  return false;
+                if (_activeTypeFilter === 'out' && (entry.entryType || 'out') !== 'out') return false;
                 if (!searchTerm) return true;
                 return (entry.patientName || '').toLowerCase().includes(searchTerm)
                     || (entry.doctorName  || '').toLowerCase().includes(searchTerm)
