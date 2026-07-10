@@ -753,7 +753,7 @@ function mmInjectUserBar() {
             Shop
         </a>` : ''}
         <div class="mm-user-pill">
-            <div class="mm-avatar">${shopInitials}</div>
+            <div class="mm-avatar">${(session.username || '').trim().charAt(0).toUpperCase() || 'U'}</div>
             <span class="mm-user-name">${session.username}</span>
             <span class="mm-role-badge ${isOwner ? 'mm-role-owner' : 'mm-role-worker'}">${session.role}</span>
         </div>
