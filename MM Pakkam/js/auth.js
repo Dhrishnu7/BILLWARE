@@ -380,6 +380,41 @@ function mmCurrentUser() {
 }
 
 /** Login. Returns { success, message, forceRequired } */
+// Establishes a real Supabase Auth session via the mm-login Edge Function so
+// database requests carry a verified identity (required for tenant-isolation RLS).
+// Best-effort & additive: any failure is swallowed and the legacy login still works.
+async function _mmEstablishAuthSession(username, password) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+        const res = await fetch(`${_AUTH_SUPABASE_URL}/functions/v1/mm-login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': _AUTH_SUPABASE_KEY,
+                'Authorization': `Bearer ${_AUTH_SUPABASE_KEY}`,
+            },
+            body: JSON.stringify({ username, password }),
+            signal: controller.signal,
+        });
+        if (!res.ok) return false;
+        const data = await res.json();
+        if (data && data.access_token && data.refresh_token) {
+            const client = _authDB();
+            if (client && client.auth && client.auth.setSession) {
+                await client.auth.setSession({
+                    access_token: data.access_token,
+                    refresh_token: data.refresh_token,
+                });
+            }
+            return true;
+        }
+        return false;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 async function mmLogin(username, password, remember, force = false) {
     try {
         const hash = await mmHashPassword(password);
@@ -451,7 +486,11 @@ async function mmLogin(username, password, remember, force = false) {
 
         user.token = newToken; // attach token to session
         mmSaveSession(user, remember);
-        
+
+        // ── Secure tenant session (Supabase Auth). Additive; never blocks login. ──
+        try { await _mmEstablishAuthSession(username, password); }
+        catch (e) { console.warn('[auth] secure session not established (using legacy):', e); }
+
         // Auto-migrate legacy data in background without blocking login
         _autoMigrateLocalDataToSupabase(user);
         
@@ -474,6 +513,8 @@ async function mmLogout() {
             await _saveUser(user);
         }
     }
+    // Also end the Supabase Auth session (best-effort).
+    try { const c = _authDB(); if (c && c.auth && c.auth.signOut) await c.auth.signOut(); } catch (e) {}
     mmClearSession();
     window.location.replace('login.html');
 }
