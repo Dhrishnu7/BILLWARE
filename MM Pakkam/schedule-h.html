@@ -2699,6 +2699,22 @@
                 });
             });
 
+            // Enrich batch expiry/MRP from the Schedule H register itself — it is the
+            // authoritative source for received (IN) stock. The mirrored purchase can
+            // lose the expiry date (e.g. deduped against an older date-less copy), so we
+            // backfill missing exp/mrp here. Quantities are NOT touched (they already
+            // come from the mirrored purchases) to avoid double-counting.
+            getRegister().forEach(r => {
+                if ((r.entryType || '') !== 'in') return;
+                const nm = (r.drugName || '').trim();
+                if (!nm || !shDrugSet.has(nm.toLowerCase())) return;
+                const entry = getOrCreate(nm);
+                const bNo = (r.batchNo || '').trim().toUpperCase();
+                if (!entry.batches[bNo]) entry.batches[bNo] = { batchNo: bNo, qty: 0, exp: '', mrp: 0 };
+                if (!entry.batches[bNo].exp && r.expireDate) entry.batches[bNo].exp = r.expireDate;
+                if (!entry.batches[bNo].mrp && r.mrp) entry.batches[bNo].mrp = parseFloat(r.mrp) || 0;
+            });
+
             shStockMap = map;
             return map;
         }
