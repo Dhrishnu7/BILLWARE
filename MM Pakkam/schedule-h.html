@@ -583,6 +583,8 @@
         .status-expired { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
         .status-soon    { background: #fefce8; color: #713f12; border-color: #fde047; }
         .status-ok      { background: #f0fdf4; color: #14532d; border-color: #86efac; }
+        .pill-none      { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+        .status-none    { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
 
         /* Dead stock */
         .dead-info-banner { background: linear-gradient(90deg,#fffbeb,#fef3c7); border: 1.5px solid #fde68a; border-radius: 12px; padding: 0.9rem 1.2rem; margin-bottom: 1.4rem; font-size: 0.85rem; color: #92400e; font-weight: 600; display: flex; align-items: center; gap: 10px; }
@@ -2718,15 +2720,20 @@
             const rows = [];
             items.forEach(item => {
                 Object.values(item.batches).forEach(b => {
-                    if (b.qty <= 0 || !b.exp) return;
-                    let expDate = new Date(b.exp);
-                    if ((b.exp || '').length === 7) {
-                        const parts = b.exp.split('-');
-                        expDate = new Date(parts[0], parts[1], 0);
+                    if (b.qty <= 0) return;   // only stock on hand
+                    let cat;
+                    if (!b.exp) {
+                        cat = 'none';         // in stock but no expiry date recorded
+                    } else {
+                        let expDate = new Date(b.exp);
+                        if ((b.exp || '').length === 7) {
+                            const parts = b.exp.split('-');
+                            expDate = new Date(parts[0], parts[1], 0);
+                        }
+                        const diffDays = (expDate - today) / (1000 * 60 * 60 * 24);
+                        cat = diffDays < 0 ? 'expired' : diffDays <= 90 ? 'soon' : 'ok';
                     }
-                    const diffDays = (expDate - today) / (1000 * 60 * 60 * 24);
-                    const cat = diffDays < 0 ? 'expired' : diffDays <= 90 ? 'soon' : 'ok';
-                    rows.push({ name: item.name, batchNo: b.batchNo || '—', qty: b.qty, exp: b.exp, cat });
+                    rows.push({ name: item.name, batchNo: b.batchNo || '—', qty: b.qty, exp: b.exp || '—', cat });
                 });
             });
             _shExpiryRows = rows;
@@ -2789,12 +2796,14 @@
             const expired = rows.filter(r => r.cat === 'expired').length;
             const soon    = rows.filter(r => r.cat === 'soon').length;
             const ok      = rows.filter(r => r.cat === 'ok').length;
+            const none    = rows.filter(r => r.cat === 'none').length;
 
             const pills = document.getElementById('shExpiryPills');
             if (pills) pills.innerHTML =
                 `<button class="expiry-pill pill-expired ${_shExpiryFilter === 'expired' ? 'pill-active' : ''}" onclick="shSetExpiryFilter('expired')">⛔ ${expired} Expired</button>
                  <button class="expiry-pill pill-soon ${_shExpiryFilter === 'soon' ? 'pill-active' : ''}" onclick="shSetExpiryFilter('soon')">⏳ ${soon} Expiring Soon</button>
-                 <button class="expiry-pill pill-ok ${_shExpiryFilter === 'ok' ? 'pill-active' : ''}" onclick="shSetExpiryFilter('ok')">✅ ${ok} OK</button>`;
+                 <button class="expiry-pill pill-ok ${_shExpiryFilter === 'ok' ? 'pill-active' : ''}" onclick="shSetExpiryFilter('ok')">✅ ${ok} OK</button>
+                 ${none ? `<button class="expiry-pill pill-none ${_shExpiryFilter === 'none' ? 'pill-active' : ''}" onclick="shSetExpiryFilter('none')">❓ ${none} No Date</button>` : ''}`;
 
             let view = rows;
             if (_shExpiryFilter !== 'all') view = rows.filter(r => r.cat === _shExpiryFilter);
@@ -2802,12 +2811,16 @@
             const body = document.getElementById('expiryBody');
             if (!body) return;
             if (!view.length) {
-                body.innerHTML = '<tr><td colspan="5"><div class="empty-state"><span class="empty-state-icon">✅</span>No batches in this view.</div></td></tr>';
+                const msg = rows.length
+                    ? 'No batches in this view.'
+                    : 'No Schedule H stock on hand yet. Received stock with an <b>Expire Date</b> shows up here.';
+                body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><span class="empty-state-icon">✅</span>${msg}</div></td></tr>`;
                 return;
             }
             body.innerHTML = view.map(r => {
                 const badge = r.cat === 'expired' ? '<span class="expiry-status status-expired">⛔ Expired</span>'
                             : r.cat === 'soon'    ? '<span class="expiry-status status-soon">⏳ Expiring Soon</span>'
+                            : r.cat === 'none'    ? '<span class="expiry-status status-none">❓ No Expiry Date</span>'
                             :                       '<span class="expiry-status status-ok">✅ OK</span>';
                 return `<tr>
                     <td style="font-weight:700;">${esc(r.name)}</td>
