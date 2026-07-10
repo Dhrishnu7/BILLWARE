@@ -758,8 +758,9 @@ function mmInjectUserBar() {
             <span class="mm-role-badge ${isOwner ? 'mm-role-owner' : 'mm-role-worker'}">${session.role}</span>
         </div>
         <button class="mm-logout-btn" onclick="mmShowSupportModal()" title="Customer Support" style="border-color:rgba(14,165,233,0.3);background:rgba(224,242,254,0.8);color:#0ea5e9;">
-            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243-2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a2 2 0 112.828 2.828m-2.828-2.828l-4.664-4.664M9.46 14.54A5 5 0 017 12m0 0a5 5 0 012.46-2.54M7 12l-4.664-4.664M5.636 18.364a9 9 0 010-12.728m0 12.728l-2.829 2.829m2.829-2.829L3 21"/>
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <path d="M3 11h2a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H4a1 1 0 0 1-1-1v-4a9 9 0 0 1 18 0v4a1 1 0 0 1-1 1h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h2"/>
+                <path d="M21 16v2a4 4 0 0 1-4 4h-5"/>
             </svg>
             Support
         </button>
@@ -788,7 +789,7 @@ function mmInjectUserBar() {
                     </button>
                     <div style="position:relative; z-index:1; display:flex; align-items:center; gap:14px;">
                         <div style="width:54px; height:54px; border-radius:16px; background:rgba(255,255,255,0.22); display:flex; align-items:center; justify-content:center; box-shadow:inset 0 1px 4px rgba(255,255,255,0.5); flex-shrink:0;">
-                            <svg width="28" height="28" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243-2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a2 2 0 112.828 2.828m-2.828-2.828l-4.664-4.664M9.46 14.54A5 5 0 017 12m0 0a5 5 0 012.46-2.54M7 12l-4.664-4.664M5.636 18.364a9 9 0 010-12.728m0 12.728l-2.829 2.829m2.829-2.829L3 21"/></svg>
+                            <svg width="28" height="28" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 11h2a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H4a1 1 0 0 1-1-1v-4a9 9 0 0 1 18 0v4a1 1 0 0 1-1 1h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h2"/><path d="M21 16v2a4 4 0 0 1-4 4h-5"/></svg>
                         </div>
                         <div>
                             <h2 style="margin:0; font-weight:800; font-size:1.3rem; letter-spacing:-0.02em;">Customer Support</h2>
