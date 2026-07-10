@@ -517,6 +517,93 @@
         .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(220,38,38,0.4); }
         .btn-submit:active { transform: translateY(0); }
 
+        /* ══════ Inventory-style tab components (Ledger / Expiry / Dead / Promise) ══════ */
+        /* Search */
+        .inv-search-wrap { margin-bottom: 1.1rem; position: relative; max-width: 460px; }
+        .inv-search-input {
+            width: 100%; padding: 0.75rem 1rem 0.75rem 2.75rem;
+            border-radius: 12px; border: 1.5px solid #e2e8f0; background: #f8fafc;
+            font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #0f172a; outline: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' fill='none' stroke='%2394a3b8' stroke-width='2' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath stroke-linecap='round' d='M21 21l-4.35-4.35'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: 0.85rem center; transition: all 0.2s;
+        }
+        .inv-search-input:focus { border-color: #dc2626; background: #fff; box-shadow: 0 0 0 3px rgba(220,38,38,0.12); }
+
+        /* Summary pills */
+        .stock-summary-pills { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
+        .stock-pill { padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.78rem; font-weight: 700; border: 1.5px solid; cursor: pointer; transition: all 0.18s; user-select: none; }
+        .stock-pill:hover { opacity: 0.85; transform: translateY(-1px); }
+        .stock-pill.active { box-shadow: 0 0 0 3px rgba(220,38,38,0.2); transform: translateY(-1px); }
+        .pill-total     { background: #fef2f2; color: #991b1b; border-color: #fca5a5; }
+        .pill-in-stock  { background: #f0fdf4; color: #15803d; border-color: #86efac; }
+        .pill-out-stock { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+        .pill-total.active     { background: #991b1b; color: #fff; }
+        .pill-in-stock.active  { background: #15803d; color: #fff; }
+        .pill-out-stock.active { background: #991b1b; color: #fff; }
+
+        /* Inventory-style tables (override the register table's global styling) */
+        .stock-table, .expiry-table, .dead-table { width: 100%; border-collapse: collapse; }
+        .stock-table  { min-width: 820px; }
+        .expiry-table { min-width: 620px; }
+        .dead-table   { min-width: 640px; }
+        .stock-table th, .dead-table th {
+            font-size: 0.7rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase;
+            color: #64748b; background: #f8fafc; padding: 0.75rem 1rem; text-align: left;
+            border-bottom: 2px solid #e2e8f0; white-space: nowrap;
+        }
+        .stock-table td, .dead-table td { padding: 0.8rem 1rem; font-size: 0.87rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; color: #1e293b; }
+        .stock-table tbody tr, .expiry-table tbody tr, .dead-table tbody tr { transition: background 0.15s; background: transparent; }
+        .stock-table tbody tr:nth-child(even), .expiry-table tbody tr:nth-child(even), .dead-table tbody tr:nth-child(even) { background: transparent; }
+        .stock-table tbody tr:hover { background: #fff7f7; }
+        .dead-table tbody tr:hover { background: #fffbeb; }
+        .stock-table tbody tr:last-child td, .expiry-table tbody tr:last-child td, .dead-table tbody tr:last-child td { border-bottom: none; }
+        .stock-table th:last-child, .expiry-table th:last-child, .dead-table th:last-child { width: auto; text-align: left; border-radius: 0; }
+        .stock-table td:last-child, .expiry-table td:last-child, .dead-table td:last-child { text-align: left; }
+
+        .stock-status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 0.3rem 0.75rem; border-radius: 20px; font-size: 0.74rem; font-weight: 800; white-space: nowrap; }
+        .badge-in  { background: #dcfce7; color: #16a34a; }
+        .badge-out { background: #fee2e2; color: #dc2626; }
+        .stock-qty-number { font-weight: 800; font-size: 0.95rem; padding: 0.2rem 0.55rem; border-radius: 6px; }
+        .qty-good { color: #16a34a; background: #dcfce7; }
+        .qty-out  { color: #dc2626; background: #fee2e2; }
+        .empty-state-icon { font-size: 2.5rem; margin-bottom: 0.75rem; display: block; }
+
+        /* Expiry */
+        .expiry-summary { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
+        .expiry-pill { display: inline-flex; align-items: center; gap: 8px; padding: 0.5rem 1.1rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; cursor: pointer; border: 1.5px solid; font-family: 'Inter', sans-serif; transition: transform 0.15s, box-shadow 0.15s; }
+        .expiry-pill:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+        .expiry-pill.pill-active { outline: 3px solid #1e293b; outline-offset: 2px; transform: scale(1.03); font-weight: 800; }
+        .pill-expired { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+        .pill-soon    { background: #fefce8; color: #713f12; border-color: #fde047; }
+        .pill-ok      { background: #f0fdf4; color: #14532d; border-color: #86efac; }
+        .expiry-table th { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: #64748b; background: #fffbeb; padding: 0.75rem 1rem; text-align: left; border-bottom: 2px solid #fde68a; white-space: nowrap; }
+        .expiry-table td { padding: 0.8rem 1rem; font-size: 0.87rem; border-bottom: 1px solid #fef9c3; vertical-align: middle; color: #1e293b; }
+        .expiry-table tbody tr:hover { background: #fffbeb; }
+        .expiry-status { display: inline-flex; align-items: center; gap: 6px; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.76rem; font-weight: 800; border: 1.5px solid; }
+        .status-expired { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+        .status-soon    { background: #fefce8; color: #713f12; border-color: #fde047; }
+        .status-ok      { background: #f0fdf4; color: #14532d; border-color: #86efac; }
+
+        /* Dead stock */
+        .dead-info-banner { background: linear-gradient(90deg,#fffbeb,#fef3c7); border: 1.5px solid #fde68a; border-radius: 12px; padding: 0.9rem 1.2rem; margin-bottom: 1.4rem; font-size: 0.85rem; color: #92400e; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .dead-units { font-weight: 800; color: #b91c1c; }
+        .dead-tag { display: inline-flex; align-items: center; gap: 5px; padding: 0.28rem 0.75rem; border-radius: 20px; font-size: 0.73rem; font-weight: 700; background: #fee2e2; color: #991b1b; border: 1.5px solid #fca5a5; }
+
+        /* Adjust intro */
+        .adjust-intro { background: linear-gradient(90deg,#fef2f2,#fee2e2); border: 1.5px solid #fecaca; border-radius: 12px; padding: 1rem 1.3rem; margin-bottom: 1.5rem; }
+        .adjust-intro h3 { font-size: 1.05rem; font-weight: 800; color: #991b1b; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 8px; }
+        .adjust-intro p { font-size: 0.84rem; color: #7f1d1d; opacity: 0.88; line-height: 1.5; max-width: 660px; }
+
+        /* Promise filter pills */
+        .pf-btn { padding: 0.4rem 0.95rem; border: 1.5px solid #e2e8f0; background: #fff; border-radius: 9px; font-size: 0.78rem; font-weight: 700; color: #475569; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s ease; }
+        .pf-btn:hover { border-color: #dc2626; color: #dc2626; }
+        .pf-btn.pf-active { background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; border-color: transparent; }
+
+        /* Loading spinner */
+        .loading-state { text-align: center; padding: 3rem 1rem; color: #64748b; font-size: 0.9rem; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+        .spin-ring { width: 38px; height: 38px; border: 3px solid #fee2e2; border-top-color: #dc2626; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
         /* Remove row btn */
         .remove-row-btn {
             width: 28px; height: 28px;
@@ -1165,18 +1252,26 @@
                         <div class="ph-sub">Live stock and MRP value across every Schedule H drug</div>
                     </div>
                 </div>
+                <div class="inv-search-wrap">
+                    <input type="text" class="inv-search-input" id="shLedgerSearch" placeholder="Search a Schedule H medicine…" oninput="shLedgerSearchInput(this.value)" autocomplete="off">
+                </div>
+                <div class="stock-summary-pills" id="shLedgerPills"></div>
                 <div class="table-wrap">
-                    <table class="sh-table">
+                    <table class="stock-table">
                         <thead>
                             <tr>
+                                <th>#</th>
                                 <th>Medicine</th>
-                                <th>Total Stock</th>
+                                <th>Batches</th>
+                                <th>In (Total)</th>
+                                <th>Out (Sold)</th>
+                                <th>Current Stock</th>
                                 <th>Value (MRP)</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
                         <tbody id="ledgerBody">
-                            <!-- Rows -->
+                            <tr><td colspan="8"><div class="loading-state"><div class="spin-ring"></div>Loading stock…</div></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1191,8 +1286,9 @@
                         <div class="ph-sub">Batch-wise expiry status — catch expiring stock early</div>
                     </div>
                 </div>
+                <div class="expiry-summary" id="shExpiryPills"></div>
                 <div class="table-wrap">
-                    <table class="sh-table">
+                    <table class="expiry-table">
                         <thead>
                             <tr>
                                 <th>Medicine</th>
@@ -1203,7 +1299,7 @@
                             </tr>
                         </thead>
                         <tbody id="expiryBody">
-                            <!-- Rows -->
+                            <tr><td colspan="5"><div class="loading-state"><div class="spin-ring"></div>Loading batches…</div></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1218,10 +1314,14 @@
                         <div class="ph-sub">In stock but with no sales in the last 6 months</div>
                     </div>
                 </div>
+                <div class="dead-info-banner">
+                    💀 Dead stock = Schedule H medicines in stock but not sold in the last 6 months. Consider returning these to your distributor before they expire.
+                </div>
                 <div class="table-wrap">
-                    <table class="sh-table">
+                    <table class="dead-table">
                         <thead>
                             <tr>
+                                <th>#</th>
                                 <th>Medicine</th>
                                 <th>Total Stock</th>
                                 <th>Earliest Expiry</th>
@@ -1229,7 +1329,7 @@
                             </tr>
                         </thead>
                         <tbody id="deadBody">
-                            <!-- Rows -->
+                            <tr><td colspan="5"><div class="loading-state"><div class="spin-ring"></div>Analysing stock…</div></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1243,6 +1343,10 @@
                         <div class="ph-title">Manual Stock Adjustment</div>
                         <div class="ph-sub">Correct the stock level for a specific medicine &amp; batch</div>
                     </div>
+                </div>
+                <div class="adjust-intro">
+                    <h3>⚖️ Manual Stock Adjustment</h3>
+                    <p>Use this when a Schedule H medicine is damaged, lost, expired-and-discarded, or the physical shelf count doesn't match the system. This never touches your purchase or sales records — it only corrects the stock count going forward.</p>
                 </div>
                 <div class="form-grid" style="margin-bottom: 1.5rem;">
                     <div class="form-group">
@@ -1276,8 +1380,14 @@
                         <div class="ph-sub">Customer backorders waiting on Schedule H stock</div>
                     </div>
                 </div>
+                <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.1rem;" id="shPromiseTabs">
+                    <button class="pf-btn pf-active" onclick="shSetPromiseFilter('all', this)">All</button>
+                    <button class="pf-btn" onclick="shSetPromiseFilter('pending', this)">Pending</button>
+                    <button class="pf-btn" onclick="shSetPromiseFilter('arrived', this)">Arrived</button>
+                    <button class="pf-btn" onclick="shSetPromiseFilter('completed', this)">Completed</button>
+                </div>
                 <div class="table-wrap">
-                    <table class="sh-table">
+                    <table class="stock-table" style="min-width:640px;">
                         <thead>
                             <tr>
                                 <th>Patient Name</th>
@@ -1288,7 +1398,7 @@
                             </tr>
                         </thead>
                         <tbody id="promiseBody">
-                            <!-- Rows -->
+                            <tr><td colspan="5"><div class="loading-state"><div class="spin-ring"></div>Loading…</div></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -2525,6 +2635,8 @@
                     map[k] = {
                         name: name.trim(),
                         totalQty: 0,
+                        totalIn: 0,
+                        totalOut: 0,
                         batches: {},
                         lastSold: null,
                         metrics: { totalMrp: 0 }
@@ -2545,6 +2657,7 @@
                 const q = parseFloat(p.quantity) || 0;
                 entry.batches[bNo].qty += q;
                 entry.totalQty += q;
+                entry.totalIn  += q;
                 entry.metrics.totalMrp += (q * (parseFloat(p.mrp) || 0));
             });
 
@@ -2580,6 +2693,7 @@
                     const q = parseFloat(med.qty) || 0;
                     entry.batches[bNo].qty -= q;
                     entry.totalQty -= q;
+                    entry.totalOut += q;
                 });
             });
 
@@ -2587,87 +2701,157 @@
             return map;
         }
 
+        /* ── State for the inventory tabs ── */
+        let _shLedgerItems  = [];
+        let _shLedgerSearch = '';
+        let _shLedgerFilter = 'all';   // all | in | out
+        let _shExpiryRows   = [];
+        let _shExpiryFilter = 'all';   // all | expired | soon | ok
+
         function renderScheduleHInventory() {
             const map = buildSHStockMap();
-            
-            // 1. Master Ledger
-            const ledgerBody = document.getElementById('ledgerBody');
-            let lHtml = '';
-            const items = Object.values(map).sort((a,b) => a.name.localeCompare(b.name));
-            items.forEach(item => {
-                let status = '<span class="status-badge" style="background:#dcfce7;color:#15803d">In Stock</span>';
-                if (item.totalQty <= 0) status = '<span class="status-badge" style="background:#fee2e2;color:#b91c1c">Out of Stock</span>';
-                lHtml += `<tr>
-                    <td style="font-weight:600;">${item.name}</td>
-                    <td style="font-weight:700;color:#0f172a;">${item.totalQty}</td>
-                    <td>₹${item.metrics.totalMrp.toFixed(2)}</td>
-                    <td>${status}</td>
-                </tr>`;
-            });
-            ledgerBody.innerHTML = lHtml || '<tr><td colspan="4" style="text-align:center;">No Schedule H inventory found.</td></tr>';
+            const items = Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
+            _shLedgerItems = items;
 
-            // 2. Expiry Checker
-            const expiryBody = document.getElementById('expiryBody');
-            let eHtml = '';
-            const today = new Date();
-            let soonCount = 0;
+            // Build batch-level expiry rows
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const rows = [];
             items.forEach(item => {
                 Object.values(item.batches).forEach(b => {
                     if (b.qty <= 0 || !b.exp) return;
                     let expDate = new Date(b.exp);
-                    // if exp is just YYYY-MM, make it end of month
-                    if (b.exp.length === 7) {
+                    if ((b.exp || '').length === 7) {
                         const parts = b.exp.split('-');
                         expDate = new Date(parts[0], parts[1], 0);
                     }
                     const diffDays = (expDate - today) / (1000 * 60 * 60 * 24);
-                    let statusHtml = '<span class="status-badge" style="background:#dcfce7;color:#15803d">OK</span>';
-                    if (diffDays < 0) {
-                        statusHtml = '<span class="status-badge" style="background:#fee2e2;color:#b91c1c">Expired</span>';
-                    } else if (diffDays <= 90) {
-                        statusHtml = '<span class="status-badge" style="background:#fef3c7;color:#b45309">Expiring Soon</span>';
-                    }
-                    
-                    eHtml += `<tr>
-                        <td style="font-weight:600;">${item.name}</td>
-                        <td>${b.batchNo}</td>
-                        <td style="font-weight:700;">${b.qty}</td>
-                        <td>${b.exp}</td>
-                        <td>${statusHtml}</td>
-                    </tr>`;
+                    const cat = diffDays < 0 ? 'expired' : diffDays <= 90 ? 'soon' : 'ok';
+                    rows.push({ name: item.name, batchNo: b.batchNo || '—', qty: b.qty, exp: b.exp, cat });
                 });
             });
-            expiryBody.innerHTML = eHtml || '<tr><td colspan="5" style="text-align:center;">No batches with expiry dates found.</td></tr>';
+            _shExpiryRows = rows;
 
-            // 3. Dead Stock (No sales in 6 months, >0 qty)
-            const deadBody = document.getElementById('deadBody');
-            let dHtml = '';
+            renderShLedger();
+            renderShExpiry();
+            renderShDead(items);
+        }
+
+        /* ── Master Ledger ── */
+        function renderShLedger() {
+            const items = _shLedgerItems;
+            const inStock  = items.filter(i => i.totalQty > 0).length;
+            const outStock = items.filter(i => i.totalQty <= 0).length;
+
+            const pills = document.getElementById('shLedgerPills');
+            if (pills) pills.innerHTML =
+                `<span class="stock-pill pill-total ${_shLedgerFilter === 'all' ? 'active' : ''}" onclick="shSetLedgerFilter('all')">📦 ${items.length} Total</span>
+                 <span class="stock-pill pill-in-stock ${_shLedgerFilter === 'in' ? 'active' : ''}" onclick="shSetLedgerFilter('in')">✅ ${inStock} In Stock</span>
+                 <span class="stock-pill pill-out-stock ${_shLedgerFilter === 'out' ? 'active' : ''}" onclick="shSetLedgerFilter('out')">⛔ ${outStock} Out of Stock</span>`;
+
+            const q = _shLedgerSearch.trim().toLowerCase();
+            const view = items.filter(i => {
+                if (_shLedgerFilter === 'in'  && i.totalQty <= 0) return false;
+                if (_shLedgerFilter === 'out' && i.totalQty > 0)  return false;
+                if (q && !i.name.toLowerCase().includes(q)) return false;
+                return true;
+            });
+
+            const body = document.getElementById('ledgerBody');
+            if (!body) return;
+            if (!view.length) {
+                body.innerHTML = '<tr><td colspan="8"><div class="empty-state"><span class="empty-state-icon">📦</span>No Schedule H stock matches this view.</div></td></tr>';
+                return;
+            }
+            body.innerHTML = view.map((item, idx) => {
+                const batchCount = Object.keys(item.batches).length;
+                const status = item.totalQty > 0
+                    ? '<span class="stock-status-badge badge-in">✅ In Stock</span>'
+                    : '<span class="stock-status-badge badge-out">⛔ Out of Stock</span>';
+                const qtyCls = item.totalQty > 0 ? 'qty-good' : 'qty-out';
+                return `<tr>
+                    <td style="color:#94a3b8;font-weight:700;">${idx + 1}</td>
+                    <td style="font-weight:700;color:#0f172a;">${esc(item.name)}</td>
+                    <td>${batchCount}</td>
+                    <td style="color:#16a34a;font-weight:700;">${item.totalIn}</td>
+                    <td style="color:#dc2626;font-weight:700;">${item.totalOut}</td>
+                    <td><span class="stock-qty-number ${qtyCls}">${item.totalQty}</span></td>
+                    <td>₹${item.metrics.totalMrp.toFixed(2)}</td>
+                    <td>${status}</td>
+                </tr>`;
+            }).join('');
+        }
+        function shSetLedgerFilter(f) { _shLedgerFilter = (_shLedgerFilter === f ? 'all' : f); renderShLedger(); }
+        function shLedgerSearchInput(v) { _shLedgerSearch = v || ''; renderShLedger(); }
+
+        /* ── Expiry Checker ── */
+        function renderShExpiry() {
+            const rows = _shExpiryRows;
+            const expired = rows.filter(r => r.cat === 'expired').length;
+            const soon    = rows.filter(r => r.cat === 'soon').length;
+            const ok      = rows.filter(r => r.cat === 'ok').length;
+
+            const pills = document.getElementById('shExpiryPills');
+            if (pills) pills.innerHTML =
+                `<button class="expiry-pill pill-expired ${_shExpiryFilter === 'expired' ? 'pill-active' : ''}" onclick="shSetExpiryFilter('expired')">⛔ ${expired} Expired</button>
+                 <button class="expiry-pill pill-soon ${_shExpiryFilter === 'soon' ? 'pill-active' : ''}" onclick="shSetExpiryFilter('soon')">⏳ ${soon} Expiring Soon</button>
+                 <button class="expiry-pill pill-ok ${_shExpiryFilter === 'ok' ? 'pill-active' : ''}" onclick="shSetExpiryFilter('ok')">✅ ${ok} OK</button>`;
+
+            let view = rows;
+            if (_shExpiryFilter !== 'all') view = rows.filter(r => r.cat === _shExpiryFilter);
+
+            const body = document.getElementById('expiryBody');
+            if (!body) return;
+            if (!view.length) {
+                body.innerHTML = '<tr><td colspan="5"><div class="empty-state"><span class="empty-state-icon">✅</span>No batches in this view.</div></td></tr>';
+                return;
+            }
+            body.innerHTML = view.map(r => {
+                const badge = r.cat === 'expired' ? '<span class="expiry-status status-expired">⛔ Expired</span>'
+                            : r.cat === 'soon'    ? '<span class="expiry-status status-soon">⏳ Expiring Soon</span>'
+                            :                       '<span class="expiry-status status-ok">✅ OK</span>';
+                return `<tr>
+                    <td style="font-weight:700;">${esc(r.name)}</td>
+                    <td>${esc(r.batchNo)}</td>
+                    <td style="font-weight:700;">${r.qty}</td>
+                    <td>${esc(r.exp)}</td>
+                    <td>${badge}</td>
+                </tr>`;
+            }).join('');
+        }
+        function shSetExpiryFilter(f) { _shExpiryFilter = (_shExpiryFilter === f ? 'all' : f); renderShExpiry(); }
+
+        /* ── Dead Stock ── */
+        function renderShDead(items) {
             const sixMonthsAgo = new Date();
             sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-            
+            const dead = [];
             items.forEach(item => {
                 if (item.totalQty <= 0) return;
                 const lastSoldDate = item.lastSold ? new Date(item.lastSold) : null;
-                // If never sold, or last sold > 6 months ago
                 if (!lastSoldDate || lastSoldDate < sixMonthsAgo) {
-                    let earliestExp = 'N/A';
-                    let minDate = Infinity;
+                    let earliestExp = 'N/A', minDate = Infinity;
                     Object.values(item.batches).forEach(b => {
                         if (b.qty > 0 && b.exp) {
-                            let ed = new Date(b.exp);
+                            const ed = new Date(b.exp);
                             if (ed < minDate) { minDate = ed; earliestExp = b.exp; }
                         }
                     });
-                    
-                    dHtml += `<tr>
-                        <td style="font-weight:600;">${item.name}</td>
-                        <td style="font-weight:700;color:#b91c1c;">${item.totalQty}</td>
-                        <td>${earliestExp}</td>
-                        <td>${item.lastSold || 'Never Sold'}</td>
-                    </tr>`;
+                    dead.push({ name: item.name, qty: item.totalQty, earliestExp, lastSold: item.lastSold });
                 }
             });
-            deadBody.innerHTML = dHtml || '<tr><td colspan="4" style="text-align:center;">No dead stock found! Everything is moving.</td></tr>';
+            const body = document.getElementById('deadBody');
+            if (!body) return;
+            if (!dead.length) {
+                body.innerHTML = '<tr><td colspan="5"><div class="empty-state"><span class="empty-state-icon">💤</span>No dead stock found — everything is moving well.</div></td></tr>';
+                return;
+            }
+            body.innerHTML = dead.map((d, idx) => `<tr>
+                <td style="color:#94a3b8;font-weight:700;">${idx + 1}</td>
+                <td style="font-weight:700;color:#0f172a;">${esc(d.name)}</td>
+                <td><span class="dead-units">${d.qty}</span></td>
+                <td>${esc(d.earliestExp)}</td>
+                <td>${d.lastSold ? esc(d.lastSold) : '<span class="dead-tag">Never Sold</span>'}</td>
+            </tr>`).join('');
         }
 
         /* Adjust Stock Form Logic */
@@ -2720,30 +2904,43 @@
         }
 
         /* Promise Orders Logic */
+        let _shPromiseFilter = 'all';   // all | pending | arrived | completed
+        function shSetPromiseFilter(f, el) {
+            _shPromiseFilter = f;
+            document.querySelectorAll('#shPromiseTabs .pf-btn').forEach(b => b.classList.remove('pf-active'));
+            if (el) el.classList.add('pf-active');
+            renderPromiseOrders();
+        }
+
         function renderPromiseOrders() {
             const poBody = document.getElementById('promiseBody');
+            if (!poBody) return;
             const shDrugs = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
             const shDrugSet = new Set(shDrugs.map(d => d.trim().toLowerCase()));
             const orders = JSON.parse(localStorage.getItem('mm_promise_orders') || '[]');
-            
-            let pHtml = '';
-            orders.forEach(o => {
-                if (!o.medicineName || !shDrugSet.has(o.medicineName.trim().toLowerCase())) return;
-                
-                let sHtml = '';
-                if (o.status === 'pending') sHtml = '<span class="status-badge" style="background:#fef3c7;color:#b45309">Pending</span>';
-                else if (o.status === 'arrived') sHtml = '<span class="status-badge" style="background:#dcfce7;color:#15803d">Arrived</span>';
-                else if (o.status === 'completed') sHtml = '<span class="status-badge" style="background:#e0f2fe;color:#0369a1">Completed</span>';
-                
-                pHtml += `<tr>
-                    <td style="font-weight:600;">${o.customerName || 'Walk-in'}</td>
-                    <td>${o.medicineName}</td>
+
+            const view = orders.filter(o =>
+                o.medicineName && shDrugSet.has(o.medicineName.trim().toLowerCase()) &&
+                (_shPromiseFilter === 'all' || (o.status || 'pending') === _shPromiseFilter)
+            );
+
+            if (!view.length) {
+                poBody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><span class="empty-state-icon">📦</span>No promise orders for Schedule H drugs in this view.</div></td></tr>';
+                return;
+            }
+            poBody.innerHTML = view.map(o => {
+                const st = o.status || 'pending';
+                const sHtml = st === 'arrived'   ? '<span class="stock-status-badge badge-in">✅ Arrived</span>'
+                            : st === 'completed' ? '<span class="stock-status-badge" style="background:#e0f2fe;color:#0369a1">🏁 Completed</span>'
+                            :                      '<span class="stock-status-badge" style="background:#fef3c7;color:#b45309">⏳ Pending</span>';
+                return `<tr>
+                    <td style="font-weight:700;color:#0f172a;">${esc(o.customerName || 'Walk-in')}</td>
+                    <td>${esc(o.medicineName)}</td>
                     <td style="font-weight:700;">${o.qty}</td>
-                    <td>${o.promiseDate || 'N/A'}</td>
+                    <td>${esc(o.promiseDate || 'N/A')}</td>
                     <td>${sHtml}</td>
                 </tr>`;
-            });
-            poBody.innerHTML = pHtml || '<tr><td colspan="5" style="text-align:center;">No promise orders for Schedule H drugs.</td></tr>';
+            }).join('');
         }
 
         // SW Registration
