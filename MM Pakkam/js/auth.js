@@ -774,23 +774,35 @@ function mmInjectUserBar() {
     // Inject Support Modal
     if (!document.getElementById('mmSupportModal')) {
         const supportModalHtml = `
-        <div class="modal-overlay" id="mmSupportModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); z-index:99999; align-items:center; justify-content:center; padding:16px;">
-            <div style="background:white; border-radius:16px; width:100%; max-width:400px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); overflow:hidden; animation: mmModalIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
-                <div style="padding:24px 28px; position:relative;">
-                    <button onclick="document.getElementById('mmSupportModal').style.display='none'" style="position:absolute; right:20px; top:20px; background:none; border:none; color:#94a3b8; cursor:pointer;">
-                        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        <style>
+            @keyframes mmModalIn { from { opacity:0; transform:translateY(18px) scale(0.96); } to { opacity:1; transform:translateY(0) scale(1); } }
+            @keyframes mmOverlayIn { from { opacity:0; } to { opacity:1; } }
+        </style>
+        <div class="modal-overlay" id="mmSupportModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.55); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); z-index:99999; align-items:center; justify-content:center; padding:16px; animation: mmOverlayIn 0.2s ease;">
+            <div style="background:#fff; border-radius:22px; width:100%; max-width:440px; box-shadow:0 30px 60px -15px rgba(2,132,199,0.4), 0 20px 40px -20px rgba(0,0,0,0.35); overflow:hidden; animation: mmModalIn 0.34s cubic-bezier(0.175, 0.885, 0.32, 1.275); font-family:'Inter', sans-serif;">
+                <div style="position:relative; background:linear-gradient(135deg,#0284c7 0%,#0ea5e9 55%,#38bdf8 100%); padding:24px 26px 28px; color:#fff; overflow:hidden;">
+                    <div style="position:absolute; top:-45px; right:-30px; width:150px; height:150px; background:rgba(255,255,255,0.13); border-radius:50%;"></div>
+                    <div style="position:absolute; bottom:-70px; right:50px; width:180px; height:180px; background:rgba(255,255,255,0.08); border-radius:50%;"></div>
+                    <button onclick="document.getElementById('mmSupportModal').style.display='none'" style="position:absolute; right:14px; top:14px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.22); border:none; border-radius:50%; color:#fff; cursor:pointer; transition:background 0.2s; z-index:2;" onmouseover="this.style.background='rgba(255,255,255,0.38)'" onmouseout="this.style.background='rgba(255,255,255,0.22)'">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
-                    <h2 style="margin:0 0 8px 0; color:#0f172a; font-weight:800; font-size:1.4rem; display:flex; align-items:center; gap:8px;">
-                        <svg width="24" height="24" fill="none" stroke="#0ea5e9" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243-2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a2 2 0 112.828 2.828m-2.828-2.828l-4.664-4.664M9.46 14.54A5 5 0 017 12m0 0a5 5 0 012.46-2.54M7 12l-4.664-4.664M5.636 18.364a9 9 0 010-12.728m0 12.728l-2.829 2.829m2.829-2.829L3 21"/></svg>
-                        Customer Support
-                    </h2>
-                    <p style="margin:0 0 20px 0; font-size:0.85rem; color:#64748b; line-height:1.4;">Facing an issue? Describe it below and our team will look into it.</p>
-                    
-                    <textarea id="mmSupportIssueText" rows="4" placeholder="Describe your issue or feature request..." style="width:100%; border:2px solid #e2e8f0; border-radius:8px; padding:12px; font-family:inherit; font-size:0.9rem; resize:vertical; outline:none; transition:border-color 0.2s;"></textarea>
-                    
-                    <button onclick="submitSupportIssue()" id="mmSupportSubmitBtn" style="width:100%; margin-top:16px; padding:12px; background:#0ea5e9; color:white; border:none; border-radius:8px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <div style="position:relative; z-index:1; display:flex; align-items:center; gap:14px;">
+                        <div style="width:54px; height:54px; border-radius:16px; background:rgba(255,255,255,0.22); display:flex; align-items:center; justify-content:center; box-shadow:inset 0 1px 4px rgba(255,255,255,0.5); flex-shrink:0;">
+                            <svg width="28" height="28" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243-2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a2 2 0 112.828 2.828m-2.828-2.828l-4.664-4.664M9.46 14.54A5 5 0 017 12m0 0a5 5 0 012.46-2.54M7 12l-4.664-4.664M5.636 18.364a9 9 0 010-12.728m0 12.728l-2.829 2.829m2.829-2.829L3 21"/></svg>
+                        </div>
+                        <div>
+                            <h2 style="margin:0; font-weight:800; font-size:1.3rem; letter-spacing:-0.02em;">Customer Support</h2>
+                            <p style="margin:4px 0 0; font-size:0.82rem; opacity:0.92;">We usually reply within 24 hours &#9889;</p>
+                        </div>
+                    </div>
+                </div>
+                <div style="padding:22px 26px 24px;">
+                    <label style="display:block; font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:#0369a1; margin-bottom:8px;">How can we help?</label>
+                    <textarea id="mmSupportIssueText" rows="4" placeholder="Describe your issue or feature request&hellip;" style="width:100%; border:2px solid #e2e8f0; border-radius:12px; padding:12px 14px; font-family:inherit; font-size:0.9rem; color:#0f172a; resize:vertical; outline:none; transition:all 0.2s; background:#f8fafc; box-sizing:border-box;" onfocus="this.style.borderColor='#0ea5e9';this.style.background='#fff';this.style.boxShadow='0 0 0 4px rgba(14,165,233,0.13)'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc';this.style.boxShadow='none'"></textarea>
+                    <button onclick="submitSupportIssue()" id="mmSupportSubmitBtn" style="width:100%; margin-top:18px; padding:13px; background:linear-gradient(135deg,#0284c7,#0ea5e9); color:#fff; border:none; border-radius:12px; font-weight:800; font-size:0.95rem; font-family:inherit; cursor:pointer; box-shadow:0 8px 22px rgba(14,165,233,0.38); transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 13px 28px rgba(14,165,233,0.48)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 8px 22px rgba(14,165,233,0.38)'">
                         Submit Issue
                     </button>
+                    <p style="margin:14px 0 0; text-align:center; font-size:0.74rem; color:#94a3b8;">&#128274; Your message goes straight to the Billware team</p>
                 </div>
             </div>
         </div>`;
