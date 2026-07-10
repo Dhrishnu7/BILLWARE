@@ -1039,7 +1039,6 @@
             <button class="tab-pill" onclick="switchTab('expiry')" id="tabExpiry">⏳ Expiry</button>
             <button class="tab-pill" onclick="switchTab('dead')" id="tabDead">💀 Dead Stock</button>
             <button class="tab-pill" onclick="switchTab('adjust')" id="tabAdjust">⚖️ Adjust</button>
-            <button class="tab-pill" onclick="switchTab('promise')" id="tabPromise">📦 Promise Orders</button>
             <button class="tab-pill" onclick="switchTab('manage')" id="tabManage">⚙️ Add Drugs</button>
         </div>
 
@@ -1373,39 +1372,6 @@
                 </div>
             </div>
 
-            <!-- ═══ TAB 6: Promise Orders ═══ -->
-            <div class="tab-panel" id="panelPromise">
-                <div class="panel-head">
-                    <div class="ph-icon i-promise">📦</div>
-                    <div class="ph-text">
-                        <div class="ph-title">Promise Orders</div>
-                        <div class="ph-sub">Customer backorders waiting on Schedule H stock</div>
-                    </div>
-                </div>
-                <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.1rem;" id="shPromiseTabs">
-                    <button class="pf-btn pf-active" onclick="shSetPromiseFilter('all', this)">All</button>
-                    <button class="pf-btn" onclick="shSetPromiseFilter('pending', this)">Pending</button>
-                    <button class="pf-btn" onclick="shSetPromiseFilter('arrived', this)">Arrived</button>
-                    <button class="pf-btn" onclick="shSetPromiseFilter('completed', this)">Completed</button>
-                </div>
-                <div class="table-wrap">
-                    <table class="stock-table" style="min-width:640px;">
-                        <thead>
-                            <tr>
-                                <th>Patient Name</th>
-                                <th>Medicine</th>
-                                <th>Qty</th>
-                                <th>Promise Date</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="promiseBody">
-                            <tr><td colspan="5"><div class="loading-state"><div class="spin-ring"></div>Loading…</div></td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
             <!-- ═══ TAB 7: Manage Drug List ═══ -->
             <div class="tab-panel" id="panelManage">
                 <div class="section-label">➕ Add Schedule H Drug</div>
@@ -1534,7 +1500,7 @@
            Tab Switching
         ══════════════════════════════════════════════════════════════════ */
         function switchTab(tab) {
-            const tabs = ['register', 'ledger', 'expiry', 'dead', 'adjust', 'promise', 'manage'];
+            const tabs = ['register', 'ledger', 'expiry', 'dead', 'adjust', 'manage'];
             tabs.forEach(t => {
                 const panel = document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1));
                 const pill = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
@@ -1543,8 +1509,6 @@
             });
             if (tab === 'ledger' || tab === 'expiry' || tab === 'dead') {
                 renderScheduleHInventory();
-            } else if (tab === 'promise') {
-                renderPromiseOrders();
             } else if (tab === 'adjust') {
                 populateAdjDropdowns();
             }
@@ -2950,45 +2914,6 @@
             buildSHStockMap(); // rebuild global map
         }
 
-        /* Promise Orders Logic */
-        let _shPromiseFilter = 'all';   // all | pending | arrived | completed
-        function shSetPromiseFilter(f, el) {
-            _shPromiseFilter = f;
-            document.querySelectorAll('#shPromiseTabs .pf-btn').forEach(b => b.classList.remove('pf-active'));
-            if (el) el.classList.add('pf-active');
-            renderPromiseOrders();
-        }
-
-        function renderPromiseOrders() {
-            const poBody = document.getElementById('promiseBody');
-            if (!poBody) return;
-            const shDrugs = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
-            const shDrugSet = new Set(shDrugs.map(d => d.trim().toLowerCase()));
-            const orders = JSON.parse(localStorage.getItem('mm_promise_orders') || '[]');
-
-            const view = orders.filter(o =>
-                o.medicineName && shDrugSet.has(o.medicineName.trim().toLowerCase()) &&
-                (_shPromiseFilter === 'all' || (o.status || 'pending') === _shPromiseFilter)
-            );
-
-            if (!view.length) {
-                poBody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><span class="empty-state-icon">📦</span>No promise orders for Schedule H drugs in this view.</div></td></tr>';
-                return;
-            }
-            poBody.innerHTML = view.map(o => {
-                const st = o.status || 'pending';
-                const sHtml = st === 'arrived'   ? '<span class="stock-status-badge badge-in">✅ Arrived</span>'
-                            : st === 'completed' ? '<span class="stock-status-badge" style="background:#e0f2fe;color:#0369a1">🏁 Completed</span>'
-                            :                      '<span class="stock-status-badge" style="background:#fef3c7;color:#b45309">⏳ Pending</span>';
-                return `<tr>
-                    <td style="font-weight:700;color:#0f172a;">${esc(o.customerName || 'Walk-in')}</td>
-                    <td>${esc(o.medicineName)}</td>
-                    <td style="font-weight:700;">${o.qty}</td>
-                    <td>${esc(o.promiseDate || 'N/A')}</td>
-                    <td>${sHtml}</td>
-                </tr>`;
-            }).join('');
-        }
 
         // SW Registration
         if ('serviceWorker' in navigator) {
