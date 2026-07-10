@@ -1469,7 +1469,8 @@
                             if (!bill.doctorName) return '';
                             const doctors = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
                             const match = doctors.find(d => d.name.toLowerCase() === (bill.doctorName || '').toLowerCase());
-                            return (match && match.regNo) ? match.regNo : '';
+                            // regNo (local saves) or reg_no (synced from Supabase)
+                            return (match && (match.regNo || match.reg_no)) || '';
                         })(),
                         doctorAddress: '',
                         drugName:      med.product,
@@ -1831,8 +1832,8 @@
                 // Auto-fill the customer field
                 document.getElementById('customerName').value = name;
             } else {
-                // Save to Supabase (regNo passed as third arg)
-                dbAddDoctor(name, phone, regNo, address);
+                // Save to Supabase (clinic empty here; regNo is the 5th arg → reg_no column)
+                dbAddDoctor(name, phone, '', address, regNo);
 
                 const list = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
                 const exists = list.some(d => d.name.toLowerCase() === name.toLowerCase());

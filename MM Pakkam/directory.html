@@ -433,6 +433,10 @@
                     <input type="text" id="dClinic" placeholder="e.g. Apollo Clinic">
                 </div>
                 <div class="form-group">
+                    <label>Reg. No. (MCI/SMC) <span style="color:#94a3b8;font-weight:400;font-size:0.85rem;">(optional)</span></label>
+                    <input type="text" id="dRegNo" placeholder="e.g. TN-12345">
+                </div>
+                <div class="form-group">
                     <label>Address / Place</label>
                     <textarea id="dAddress" placeholder="Enter clinic area…"></textarea>
                 </div>
@@ -633,7 +637,7 @@
             document.getElementById('custFields').style.display = isCust ? '' : 'none';
             document.getElementById('docFields').style.display  = isCust ? 'none' : '';
             // Clear inputs
-            ['cName','cPhone','cAddress','dName','dPhone','dClinic','dAddress'].forEach(id => {
+            ['cName','cPhone','cAddress','dName','dPhone','dClinic','dRegNo','dAddress'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
@@ -687,6 +691,7 @@
                 const name    = document.getElementById('dName').value.trim();
                 const phone   = document.getElementById('dPhone').value.trim();
                 const clinic  = document.getElementById('dClinic').value.trim();
+                const regNo   = document.getElementById('dRegNo').value.trim();
                 const address = document.getElementById('dAddress').value.trim();
 
                 if (!name || !phone) {
@@ -695,13 +700,13 @@
 
                 let ok = false;
                 try {
-                    const r = await dbAddDoctor(name, phone, clinic, address);
+                    const r = await dbAddDoctor(name, phone, clinic, address, regNo);
                     if (r && r.success) ok = true;
                 } catch(e) { console.warn('Supabase doctor save failed:', e); }
 
                 const docs = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
                 if (!docs.find(d => (d.name||'').toLowerCase() === name.toLowerCase() && (d.phone||'') === phone)) {
-                    docs.push({ name, phone, clinic, address });
+                    docs.push({ name, phone, clinic, regNo, address });
                     localStorage.setItem('mm_doctors', JSON.stringify(docs));
                     ok = true;
                 }

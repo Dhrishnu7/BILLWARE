@@ -360,31 +360,60 @@ async function dbGetDoctors() {
     if (error) { console.error('doctors fetch:', error); return []; }
     return data;
 }
-async function dbAddDoctor(name, phone, clinic, address) {
+async function dbAddDoctor(name, phone, clinic, address, regNo) {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbAddDoctor: no user, aborting.'); return { success: false, message: 'Not logged in.' }; }
     const dName  = name.trim();
     const dPhone = phone.trim();
     const dClinic = clinic?.trim() || '';
     const dAddr   = address?.trim() || '';
+    const dReg    = (regNo || '').trim();
+
+    // Detect the "reg_no column doesn't exist yet" error so we can fall back
+    // gracefully. reg_no is an OPTIONAL column — run once in Supabase to enable
+    // cloud sync of the doctor registration number:
+    //   alter table doctors add column if not exists reg_no text;
+    const _missingRegCol = e => !!e && (
+        e.code === 'PGRST204' || e.code === '42703' ||
+        (e.message && e.message.toLowerCase().includes('reg_no'))
+    );
 
     // Check for existing record scoped to this user
     const { data: existing } = await _supabase.from('doctors')
         .select('*').eq('name', dName).eq('phone', dPhone).eq('user_id', user).maybeSingle();
-    if (existing) return { success: true, data: existing };
+    if (existing) {
+        // Backfill the reg. no. on an existing doctor if we now have one and it was blank.
+        if (dReg && !existing.reg_no) {
+            try { await _supabase.from('doctors').update({ reg_no: dReg }).eq('id', existing.id).eq('user_id', user); } catch (_) {}
+        }
+        return { success: true, data: existing };
+    }
+
+    // Build the row; include reg_no only when provided.
+    const base = { name: dName, phone: dPhone, clinic: dClinic, address: dAddr, user_id: user };
+    let row = dReg ? { ...base, reg_no: dReg } : base;
 
     // Try insert
-    const { data, error } = await _supabase.from('doctors')
-        .insert({ name: dName, phone: dPhone, clinic: dClinic, address: dAddr, user_id: user })
-        .select();
+    let { data, error } = await _supabase.from('doctors').insert(row).select();
+
+    // If the reg_no column isn't there yet, retry without it so the save still works.
+    if (error && _missingRegCol(error) && row !== base) {
+        row = base;
+        ({ data, error } = await _supabase.from('doctors').insert(row).select());
+    }
 
     // If duplicate key (another tenant has same name+phone), upsert on conflict
     if (error && (error.code === '23505' || (error.message && error.message.includes('duplicate key')))) {
         console.warn('[db] dbAddDoctor: duplicate key, trying upsert fallback.');
-        const { data: ups, error: upsErr } = await _supabase.from('doctors')
-            .upsert({ name: dName, phone: dPhone, clinic: dClinic, address: dAddr, user_id: user },
-                    { onConflict: 'name,phone', ignoreDuplicates: false })
+        let { data: ups, error: upsErr } = await _supabase.from('doctors')
+            .upsert(row, { onConflict: 'name,phone', ignoreDuplicates: false })
             .select();
+        if (upsErr && _missingRegCol(upsErr) && row !== base) {
+            row = base;
+            ({ data: ups, error: upsErr } = await _supabase.from('doctors')
+                .upsert(row, { onConflict: 'name,phone', ignoreDuplicates: false })
+                .select());
+        }
         if (upsErr) {
             const { data: fallback } = await _supabase.from('doctors')
                 .select('*').eq('name', dName).eq('user_id', user).maybeSingle();
