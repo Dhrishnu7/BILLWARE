@@ -466,6 +466,57 @@
         .empty-state .es-title { font-size: 1rem; font-weight: 700; color: #64748b; margin-bottom: 0.3rem; }
         .empty-state .es-sub { font-size: 0.85rem; }
 
+        /* ── Status Badges (Ledger / Expiry / Promise) ── */
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 4px 11px; border-radius: 20px;
+            font-size: 0.7rem; font-weight: 800;
+            letter-spacing: 0.03em; white-space: nowrap;
+            border: 1px solid rgba(0,0,0,0.04);
+        }
+
+        /* ── Empty table rows ── */
+        tbody td[colspan] {
+            text-align: center !important;
+            padding: 2.6rem 1rem !important;
+            color: #94a3b8; font-weight: 600; font-size: 0.9rem;
+        }
+
+        /* ── Panel Header (tab intros) ── */
+        .panel-head {
+            display: flex; align-items: center; gap: 0.9rem;
+            margin-bottom: 1.4rem;
+        }
+        .panel-head .ph-icon {
+            width: 48px; height: 48px; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.45rem; flex-shrink: 0;
+            background: linear-gradient(135deg, #fee2e2, #fecaca);
+            box-shadow: inset 0 1px 3px rgba(255,255,255,0.7), 0 3px 10px rgba(0,0,0,0.05);
+        }
+        .panel-head .ph-icon.i-ledger  { background: linear-gradient(135deg,#cffafe,#a5f3fc); }
+        .panel-head .ph-icon.i-expiry  { background: linear-gradient(135deg,#fef3c7,#fde68a); }
+        .panel-head .ph-icon.i-dead    { background: linear-gradient(135deg,#e2e8f0,#cbd5e1); }
+        .panel-head .ph-icon.i-adjust  { background: linear-gradient(135deg,#fee2e2,#fecaca); }
+        .panel-head .ph-icon.i-promise { background: linear-gradient(135deg,#ede9fe,#ddd6fe); }
+        .panel-head .ph-text { flex: 1; min-width: 0; }
+        .panel-head .ph-title { font-size: 1.12rem; font-weight: 800; color: #0f172a; letter-spacing: -0.01em; }
+        .panel-head .ph-sub { font-size: 0.82rem; color: #94a3b8; margin-top: 2px; }
+
+        /* ── Adjust "Save" submit button ── */
+        .btn-submit {
+            width: 100%;
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 0.85rem 1.5rem; border-radius: 12px;
+            font-family: 'Inter', sans-serif; font-size: 0.92rem; font-weight: 800;
+            color: #fff; cursor: pointer; border: none;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            box-shadow: 0 6px 18px rgba(220,38,38,0.32);
+            transition: all 0.2s ease;
+        }
+        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(220,38,38,0.4); }
+        .btn-submit:active { transform: translateY(0); }
+
         /* Remove row btn */
         .remove-row-btn {
             width: 28px; height: 28px;
@@ -807,7 +858,7 @@
             .stats-bar { flex-direction: column; }
         }
         @media print {
-            header, .sh-hero, .sh-metrics, .tab-bar, .section-label:first-child, .form-grid, .form-actions, .filter-bar, .drug-list-actions {
+            header, .sh-hero, .sh-metrics, .tab-bar, .panel-head, .section-label:first-child, .form-grid, .form-actions, .filter-bar, .drug-list-actions {
                 display: none !important;
             }
             body { background: white; color: black; }
@@ -1107,7 +1158,13 @@
 
             <!-- ═══ TAB 2: Master Ledger ═══ -->
             <div class="tab-panel" id="panelLedger">
-                <div class="section-label">📦 Master Ledger</div>
+                <div class="panel-head">
+                    <div class="ph-icon i-ledger">📦</div>
+                    <div class="ph-text">
+                        <div class="ph-title">Master Ledger</div>
+                        <div class="ph-sub">Live stock and MRP value across every Schedule H drug</div>
+                    </div>
+                </div>
                 <div class="table-wrap">
                     <table class="sh-table">
                         <thead>
@@ -1127,7 +1184,13 @@
 
             <!-- ═══ TAB 3: Expiry Checker ═══ -->
             <div class="tab-panel" id="panelExpiry">
-                <div class="section-label">⏳ Expiry Checker</div>
+                <div class="panel-head">
+                    <div class="ph-icon i-expiry">⏳</div>
+                    <div class="ph-text">
+                        <div class="ph-title">Expiry Checker</div>
+                        <div class="ph-sub">Batch-wise expiry status — catch expiring stock early</div>
+                    </div>
+                </div>
                 <div class="table-wrap">
                     <table class="sh-table">
                         <thead>
@@ -1148,7 +1211,13 @@
 
             <!-- ═══ TAB 4: Dead Stock ═══ -->
             <div class="tab-panel" id="panelDead">
-                <div class="section-label">💀 Dead Stock (No sales in 6 months)</div>
+                <div class="panel-head">
+                    <div class="ph-icon i-dead">💀</div>
+                    <div class="ph-text">
+                        <div class="ph-title">Dead Stock</div>
+                        <div class="ph-sub">In stock but with no sales in the last 6 months</div>
+                    </div>
+                </div>
                 <div class="table-wrap">
                     <table class="sh-table">
                         <thead>
@@ -1168,7 +1237,13 @@
 
             <!-- ═══ TAB 5: Adjust Stock ═══ -->
             <div class="tab-panel" id="panelAdjust">
-                <div class="section-label">⚖️ Manual Stock Adjustment</div>
+                <div class="panel-head">
+                    <div class="ph-icon i-adjust">⚖️</div>
+                    <div class="ph-text">
+                        <div class="ph-title">Manual Stock Adjustment</div>
+                        <div class="ph-sub">Correct the stock level for a specific medicine &amp; batch</div>
+                    </div>
+                </div>
                 <div class="form-grid" style="margin-bottom: 1.5rem;">
                     <div class="form-group">
                         <label>Medicine</label>
@@ -1194,7 +1269,13 @@
 
             <!-- ═══ TAB 6: Promise Orders ═══ -->
             <div class="tab-panel" id="panelPromise">
-                <div class="section-label">📦 Promise Orders</div>
+                <div class="panel-head">
+                    <div class="ph-icon i-promise">📦</div>
+                    <div class="ph-text">
+                        <div class="ph-title">Promise Orders</div>
+                        <div class="ph-sub">Customer backorders waiting on Schedule H stock</div>
+                    </div>
+                </div>
                 <div class="table-wrap">
                     <table class="sh-table">
                         <thead>
