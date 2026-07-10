@@ -1,0 +1,47 @@
+name: Nightly DB backup
+
+# Free automated backup of the Supabase Postgres database.
+# Runs every night and keeps a downloadable copy for 90 days (GitHub Actions
+# artifacts). Also runnable on demand from the Actions tab ("Run workflow").
+#
+# One-time setup: add a repo secret named SUPABASE_DB_URL
+#   GitHub repo → Settings → Secrets and variables → Actions → New repository secret
+#   Value = Supabase → Project Settings → Database → Connection string → "URI"
+#           (use the DIRECT/session connection, NOT the transaction pooler),
+#           with your database password filled in.
+
+on:
+  schedule:
+    - cron: '0 19 * * *'   # 19:00 UTC daily (~00:30 IST)
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install pg_dump 16 (match Supabase's Postgres)
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+
+      - name: Dump database
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret is not set. See the setup note at the top of this file."
+            exit 1
+          fi
+          ts=$(date -u +%Y-%m-%d_%H%M)
+          pg_dump "$DB_URL" --no-owner --no-privileges -f "backup-$ts.sql"
+          gzip "backup-$ts.sql"
+          ls -lh backup-*.sql.gz
+
+      - name: Upload backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup
+          path: backup-*.sql.gz
+          retention-days: 90
