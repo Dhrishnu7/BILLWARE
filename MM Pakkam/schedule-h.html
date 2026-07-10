@@ -2647,10 +2647,22 @@
                 return map[k];
             }
 
-            // Purchases
+            // Schedule H "received (IN)" stock is counted from the register below (it is
+            // the authoritative source and carries the expiry date). So here we SKIP the
+            // purchases that were mirrored from the register — matched by the source flag
+            // or, for older records, by the register entry key — to avoid double-counting.
+            const regInKeys = new Set(
+                getRegister()
+                    .filter(e => (e.entryType || '') === 'in')
+                    .map(e => _shPurchaseKey(e.drugName, e.batchNo, e.date, e.qty))
+            );
+
+            // Purchases (direct purchases only; register mirrors are skipped)
             purchases.forEach(p => {
                 const pName = p.productName || p.product_name;
                 if (!pName || !shDrugSet.has(pName.trim().toLowerCase())) return;
+                if ((p.source || '') === 'schedule_h') return;
+                if (regInKeys.has(_shPurchaseKey(pName, p.batchNo || p.batch_no, p.date, p.quantity))) return;
                 const entry = getOrCreate(pName);
                 const bNo = (p.batchNo || '').trim().toUpperCase();
                 if (!entry.batches[bNo]) {
@@ -2699,20 +2711,26 @@
                 });
             });
 
-            // Enrich batch expiry/MRP from the Schedule H register itself — it is the
-            // authoritative source for received (IN) stock. The mirrored purchase can
-            // lose the expiry date (e.g. deduped against an older date-less copy), so we
-            // backfill missing exp/mrp here. Quantities are NOT touched (they already
-            // come from the mirrored purchases) to avoid double-counting.
+            // Received (IN) stock — counted directly from the Schedule H register, which
+            // is authoritative and carries the expiry date & MRP. The matching mirrored
+            // purchases were skipped above, so this does not double-count. (Order vs the
+            // sales loop doesn't matter — all totals are cumulative +=/-=.)
             getRegister().forEach(r => {
                 if ((r.entryType || '') !== 'in') return;
                 const nm = (r.drugName || '').trim();
                 if (!nm || !shDrugSet.has(nm.toLowerCase())) return;
                 const entry = getOrCreate(nm);
                 const bNo = (r.batchNo || '').trim().toUpperCase();
-                if (!entry.batches[bNo]) entry.batches[bNo] = { batchNo: bNo, qty: 0, exp: '', mrp: 0 };
+                if (!entry.batches[bNo]) {
+                    entry.batches[bNo] = { batchNo: bNo, qty: 0, exp: r.expireDate || '', mrp: parseFloat(r.mrp) || 0 };
+                }
                 if (!entry.batches[bNo].exp && r.expireDate) entry.batches[bNo].exp = r.expireDate;
                 if (!entry.batches[bNo].mrp && r.mrp) entry.batches[bNo].mrp = parseFloat(r.mrp) || 0;
+                const q = parseFloat(r.qty) || 0;
+                entry.batches[bNo].qty += q;
+                entry.totalQty += q;
+                entry.totalIn  += q;
+                entry.metrics.totalMrp += (q * (parseFloat(r.mrp) || 0));
             });
 
             shStockMap = map;
