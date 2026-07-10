@@ -12,8 +12,9 @@
 //   3. Records the user's tenant in `memberships` (the anchor RLS trusts).
 //   4. Returns a real Supabase Auth session to the browser.
 //
-// Deploy:  supabase functions deploy mm-login --no-verify-jwt
-// Secrets: SB_URL, SB_SERVICE_ROLE_KEY, SB_ANON_KEY  (set via `supabase secrets set`)
+// Deploy with JWT verification DISABLED (login happens before a user has a token).
+// Uses the SUPABASE_* env vars that Edge Functions provide automatically — no
+// secrets to configure.
 // ============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -51,9 +52,9 @@ Deno.serve(async (req) => {
     const { username, password } = await req.json().catch(() => ({}));
     if (!username || !password) return json({ error: "Missing username or password." }, 400);
 
-    const URL = Deno.env.get("SB_URL")!;
-    const SERVICE = Deno.env.get("SB_SERVICE_ROLE_KEY")!;
-    const ANON = Deno.env.get("SB_ANON_KEY")!;
+    const URL = Deno.env.get("SUPABASE_URL")!;
+    const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
     const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 
     // 1) Verify credentials against the legacy user table.
