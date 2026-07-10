@@ -1464,7 +1464,13 @@
                         patientName:   bill.customerName || '',
                         patientAddress:'',
                         doctorName:    bill.doctorName || '',
-                        doctorRegNo:   '',
+                        doctorRegNo:   (() => {
+                            // Try to pull saved regNo from mm_doctors list
+                            if (!bill.doctorName) return '';
+                            const doctors = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
+                            const match = doctors.find(d => d.name.toLowerCase() === (bill.doctorName || '').toLowerCase());
+                            return (match && match.regNo) ? match.regNo : '';
+                        })(),
                         doctorAddress: '',
                         drugName:      med.product,
                         batchNo:       med.batch || '',
@@ -1786,6 +1792,9 @@
             document.getElementById('qaName').value    = '';
             document.getElementById('qaPhone').value   = '';
             document.getElementById('qaAddress').value = '';
+            document.getElementById('qaRegNo').value   = '';
+            // Show Reg. No. only for doctors
+            document.getElementById('qaRegNoGroup').style.display = type === 'doctor' ? '' : 'none';
             document.getElementById('qaModal').classList.add('open');
             setTimeout(() => document.getElementById('qaName').focus(), 100);
         }
@@ -1798,6 +1807,7 @@
             const name    = document.getElementById('qaName').value.trim();
             const phone   = document.getElementById('qaPhone').value.trim();
             const address = document.getElementById('qaAddress').value.trim();
+            const regNo   = document.getElementById('qaRegNo').value.trim();
 
             if (!name) {
                 const el = document.getElementById('qaName');
@@ -1821,13 +1831,13 @@
                 // Auto-fill the customer field
                 document.getElementById('customerName').value = name;
             } else {
-                // Save to Supabase
-                dbAddDoctor(name, phone, '', address);
+                // Save to Supabase (regNo passed as third arg)
+                dbAddDoctor(name, phone, regNo, address);
 
                 const list = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
                 const exists = list.some(d => d.name.toLowerCase() === name.toLowerCase());
                 if (!exists) {
-                    list.push({ name, phone, address });
+                    list.push({ name, phone, regNo, address });
                     localStorage.setItem('mm_doctors', JSON.stringify(list));
                 }
                 // Auto-fill the doctor field
@@ -2223,6 +2233,11 @@
                 <div class="qa-form-group">
                     <label>Phone Number</label>
                     <input type="tel" id="qaPhone" placeholder="e.g. 9876543210">
+                </div>
+                <!-- Reg. No. — only shown for doctors -->
+                <div class="qa-form-group" id="qaRegNoGroup" style="display:none">
+                    <label>&#x1F4CB; Reg. No. <span style="color:#94a3b8;font-weight:400;font-size:0.8rem">(optional)</span></label>
+                    <input type="text" id="qaRegNo" placeholder="e.g. TN-12345" autocomplete="off">
                 </div>
                 <div class="qa-form-group">
                     <label>Address / Place</label>
