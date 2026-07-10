@@ -6,9 +6,7 @@ name: Nightly DB backup
 #
 # One-time setup: add a repo secret named SUPABASE_DB_URL
 #   GitHub repo → Settings → Secrets and variables → Actions → New repository secret
-#   Value = Supabase → Project Settings → Database → Connection string → "URI"
-#           (use the DIRECT/session connection, NOT the transaction pooler),
-#           with your database password filled in.
+#   Value = Supabase → Connect → Session pooler → URI (port 5432), password filled in.
 
 on:
   schedule:
@@ -19,23 +17,17 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: Install pg_dump 17 (match Supabase's Postgres)
-        run: |
-          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
-
-      - name: Dump database
+      - name: Dump database (pg_dump 17 via Docker — matches Supabase)
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           if [ -z "$DB_URL" ]; then
-            echo "::error::SUPABASE_DB_URL secret is not set. See the setup note at the top of this file."
+            echo "::error::SUPABASE_DB_URL secret is not set."
             exit 1
           fi
           ts=$(date -u +%Y-%m-%d_%H%M)
-          pg_dump "$DB_URL" --no-owner --no-privileges -f "backup-$ts.sql"
+          docker run --rm -e DB_URL="$DB_URL" postgres:17-alpine \
+            sh -c 'pg_dump "$DB_URL" --no-owner --no-privileges' > "backup-$ts.sql"
           gzip "backup-$ts.sql"
           ls -lh backup-*.sql.gz
 
