@@ -7,6 +7,7 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="js/modal.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
@@ -756,7 +757,7 @@ async function approveShopEdit(id, userId) {
 }
 
 async function rejectShopEdit(id, userId) {
-    if (!confirm('Reject this edit request?')) return;
+    if (!await mmConfirm('Reject this edit request?', { okText: 'Reject' })) return;
     const { error } = await sb.from('shop_edit_requests')
         .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
         .eq('id', id);
@@ -849,7 +850,7 @@ CREATE POLICY "Allow all" ON extra_user_requests FOR ALL USING (true) WITH CHECK
 }
 
 async function approveExtraUser(id, tenantId, username, passwordHash) {
-    if (!confirm(`Approve extra worker "${username}" for shop "${tenantId}"?`)) return;
+    if (!await mmConfirm(`Approve extra worker "${username}" for shop "${tenantId}"?`, { okText: 'Approve' })) return;
 
     // Build composite id exactly like _saveUser does in auth.js
     const userId = tenantId + ':' + username;
@@ -873,7 +874,7 @@ async function approveExtraUser(id, tenantId, username, passwordHash) {
 }
 
 async function rejectExtraUser(id) {
-    if (!confirm('Reject this extra worker request?')) return;
+    if (!await mmConfirm('Reject this extra worker request?', { okText: 'Reject' })) return;
     const { error } = await sb.from('extra_user_requests')
         .update({ status: 'rejected', reviewed_at: new Date().toISOString() }).eq('id', id);
     if (error) { alert('Error: ' + error.message); return; }
@@ -922,19 +923,19 @@ async function renderPasswordResets() {
 }
 
 async function approvePwdReset(id, username) {
-    if (!confirm('Approve reset for ' + username + '? This will generate a PIN you must share with them.')) return;
+    if (!await mmConfirm('Approve reset for ' + username + '? This will generate a PIN you must share with them.', { okText: 'Approve' })) return;
     const pin = Math.floor(100000 + Math.random() * 900000).toString();
     const { error } = await sb.from('password_reset_requests').update({ status: 'approved', pin: pin }).eq('id', id);
     if (error) return alert('Error: ' + error.message);
     
     // Show PIN to admin in a way they can easily copy
-    prompt(`Password Reset Approved for ${username}!\n\nGive them this exact 6-digit PIN:\n${pin}\n\nPress Ctrl+C to copy.`, pin);
+    await mmPrompt(`Password Reset Approved for ${username}!\n\nGive them this exact 6-digit PIN (tap to select & copy):`, pin, { title: 'PIN Generated', okText: 'Done' });
     
     await renderPasswordResets();
 }
 
 async function rejectPwdReset(id) {
-    if (!confirm('Reject this password reset request?')) return;
+    if (!await mmConfirm('Reject this password reset request?', { okText: 'Reject' })) return;
     const { error } = await sb.from('password_reset_requests').update({ status: 'rejected' }).eq('id', id);
     if (error) return alert('Error: ' + error.message);
     await renderPasswordResets();
@@ -949,7 +950,7 @@ async function approveAccount(id) {
     alert('✅ Account approved! They can now log in.');
 }
 async function rejectAccount(id) {
-    if(!confirm('Reject this account? They will not be able to log in.')) return;
+    if(!await mmConfirm('Reject this account? They will not be able to log in.', { danger: true, okText: 'Reject' })) return;
     const {error}=await sb.from('mm_users').update({approval_status:'rejected'}).eq('id',id);
     if(error){alert('Error: '+error.message);return;}
     const u=allUsers.find(u=>u.id===id);
@@ -1006,7 +1007,7 @@ function renderSignups() {
 
 // ── DELETE ──
 async function deleteAccount(username,id) {
-    if(!confirm(`⚠️ PERMANENTLY DELETE "${username}"?\n\nThis will:\n• Delete their account\n• Remove all their bills, purchases, customers & medicines\n• Block their login immediately\n\nThis CANNOT be undone.`)) return;
+    if(!await mmConfirm(`⚠️ PERMANENTLY DELETE "${username}"?\n\nThis will:\n• Delete their account\n• Remove all their bills, purchases, customers & medicines\n• Block their login immediately\n\nThis CANNOT be undone.`, { danger: true, okText: 'Delete Forever' })) return;
     try {
         const scope=username;
         const billIds=allBills.filter(b=>b.user_id===scope).map(b=>b.id);
@@ -1129,7 +1130,7 @@ CREATE POLICY "Allow all" ON customer_issues FOR ALL USING (true) WITH CHECK (tr
 }
 
 async function resolveSupportIssue(id) {
-    if (!confirm('Mark this issue as resolved?')) return;
+    if (!await mmConfirm('Mark this issue as resolved?', { okText: 'Resolve' })) return;
     const { error } = await sb.from('customer_issues')
         .update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', id);
     if (error) { alert('Error: ' + error.message); return; }

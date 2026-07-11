@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="js/modal.js"></script>
     <script src="js/auth.js?v=3"></script>
     <script src="js/notifications.js"></script>
     <style>
@@ -952,13 +953,13 @@
     // Manual clear — removes only messages that are already READ. Unread messages
     // are kept so nothing unseen is lost. This is the "option to clear" for when
     // the user doesn't want to wait for the 6-month auto-clear.
-    function clearReadNotifs() {
+    async function clearReadNotifs() {
         const readOnes = _allNotifs.filter(n => n.isRead && !MMNotifications.getClearedIds().has(n.id));
         if (!readOnes.length) {
             alert('No read messages to clear. Unread messages are kept until you read them.');
             return;
         }
-        if (!confirm(`Clear ${readOnes.length} read message(s)?\n\nUnread messages will stay in your inbox.`)) return;
+        if (!await mmConfirm(`Clear ${readOnes.length} read message(s)?\n\nUnread messages will stay in your inbox.`, { okText: 'Clear' })) return;
         MMNotifications.addCleared(readOnes.map(n => n.id));
         updateBellBadge();
         updateTabCounts();

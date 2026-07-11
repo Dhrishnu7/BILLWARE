@@ -527,6 +527,7 @@
             border:none; box-shadow:0 2px 8px rgba(14,165,233,0.25);
         }
     </style>
+    <script src="js/modal.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="js/auth.js?v=3"></script>
@@ -892,13 +893,13 @@
             });
 
             if (hasEmptyName) {
-                if (!confirm('Some items have empty product names. Save anyway?')) {
+                if (!await mmConfirm('Some items have empty product names. Save anyway?', { okText: 'Save Anyway' })) {
                     _isSaving = false;
                     return;
                 }
             }
             if (hasMissingDetails) {
-                if (!confirm('You have entered a Product Name but left some details (Batch, Expiry, Qty, MRP, or Rate) empty or zero. Are you sure you want to save this incomplete record?')) {
+                if (!await mmConfirm('You have entered a Product Name but left some details (Batch, Expiry, Qty, MRP, or Rate) empty or zero. Are you sure you want to save this incomplete record?', { okText: 'Save Anyway' })) {
                     _isSaving = false;
                     return;
                 }
@@ -1099,8 +1100,8 @@
         }
 
         // ── Clear Imported: wipe all line items and reset to one blank row ──
-        function clearImportedMedicines() {
-            if (confirm('Clear all imported items and start fresh?')) {
+        async function clearImportedMedicines() {
+            if (await mmConfirm('Clear all imported items and start fresh?', { okText: 'Clear All' })) {
                 const container = document.getElementById('lineItemsContainer');
                 container.innerHTML = '';
                 lineItemCounter = 0;

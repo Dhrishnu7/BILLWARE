@@ -937,6 +937,7 @@
         .chart-card { background: white; padding: 1.5rem; border-radius: 16px; border: 1px solid #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 
     </style>
+    <script src="js/modal.js"></script>
     <script src="js/auth.js?v=3"></script>
     <script src="js/notifications.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1746,7 +1747,7 @@
         }
 
         async function deleteRecord(type, id, btn) {
-            if (!confirm(`Delete this ${type === 'sales' ? 'sale' : 'purchase'} record? It will go to the Bin for 30 days.`)) return;
+            if (!await mmConfirm(`Delete this ${type === 'sales' ? 'sale' : 'purchase'} record? It will go to the Bin for 30 days.`, { danger: true, okText: 'Delete' })) return;
 
             btn.disabled = true;
             btn.innerHTML = '⏳';
@@ -1932,7 +1933,7 @@
         async function restoreAllFromBin() {
             const bin = purgeBin();
             if (bin.length === 0) return;
-            if (!confirm(`Restore all ${bin.length} items? This might take a moment.`)) return;
+            if (!await mmConfirm(`Restore all ${bin.length} items? This might take a moment.`, { okText: 'Restore All' })) return;
 
             const restoreAllBtn = document.getElementById('restoreAllBtn');
             if(restoreAllBtn) { restoreAllBtn.disabled = true; restoreAllBtn.textContent = '⏳ Restoring...'; }
@@ -2116,16 +2117,16 @@
             }
         }
 
-        function deletePermanently(binId, btn) {
-            if (!confirm('Permanently delete this record? It cannot be recovered.')) return;
+        async function deletePermanently(binId, btn) {
+            if (!await mmConfirm('Permanently delete this record? It cannot be recovered.', { danger: true, okText: 'Delete Forever' })) return;
             const bin = getBin().filter(x => x.binId !== binId);
             saveBin(bin);
             renderBin();
             showToast('🗑️ Permanently deleted.', 'success');
         }
 
-        function emptyBin() {
-            if (!confirm('Empty the entire Bin? All items will be permanently deleted.')) return;
+        async function emptyBin() {
+            if (!await mmConfirm('Empty the entire Bin? All items will be permanently deleted.', { danger: true, okText: 'Empty Bin' })) return;
             saveBin([]);
             renderBin();
             showToast('🗑️ Bin emptied.', 'success');
@@ -2555,7 +2556,7 @@
         }
 
         async function clearAllData() {
-            if (!confirm(
+            if (!await mmConfirm(
                 "⚠️ Clear ALL Sales & Purchases?\n\n" +
                 "This will delete:\n" +
                 "  ✗ All purchase records\n" +
@@ -2563,7 +2564,8 @@
                 "This will NOT delete:\n" +
                 "  ✓ Medicine list (preserved)\n" +
                 "  ✓ Customers & Doctors\n\n" +
-                "Tip: Take a Backup first!\n\nContinue?"
+                "Tip: Take a Backup first!\n\nContinue?",
+                { danger: true, okText: 'Clear All' }
             )) return;
 
             const btn = document.querySelector('.btn-clear-data');

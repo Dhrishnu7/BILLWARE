@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="js/modal.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
     <script src="js/auth.js?v=3"></script>
@@ -727,7 +728,7 @@
         // Matches on name+phone (not name alone) so two entries sharing a name
         // aren't both wiped out / the wrong one deleted.
         async function deleteEntry(type, name, phone) {
-            const confirmed = confirm(`⚠️ Delete "${name}" from ${type === 'customer' ? 'Customers' : 'Doctors'}?\n\nThis cannot be undone.`);
+            const confirmed = await mmConfirm(`⚠️ Delete "${name}" from ${type === 'customer' ? 'Customers' : 'Doctors'}?\n\nThis cannot be undone.`, { danger: true, okText: 'Delete' });
             if (!confirmed) return;
             phone = phone || '';
 

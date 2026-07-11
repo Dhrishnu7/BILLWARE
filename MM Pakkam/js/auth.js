@@ -334,7 +334,7 @@ async function _validateSession(session) {
         if (!dbUser) {
             // Account deleted from admin portal — force logout immediately
             mmClearSession();
-            alert('⚠️ Your account has been removed. You have been signed out.');
+            await mmAlert('⚠️ Your account has been removed. You have been signed out.');
             window.location.replace('login.html');
             return;
         }
@@ -342,7 +342,7 @@ async function _validateSession(session) {
         // Account exists but was rejected after login
         if (dbUser.approval_status === 'rejected') {
             mmClearSession();
-            alert('❌ Your account has been rejected by the administrator. You have been signed out.');
+            await mmAlert('❌ Your account has been rejected by the administrator. You have been signed out.');
             window.location.replace('login.html');
             return;
         }
@@ -350,7 +350,7 @@ async function _validateSession(session) {
         // Another device forcefully logged in — token mismatch
         if (dbUser.active_session_token && (!session.token || dbUser.active_session_token !== session.token)) {
             mmClearSession();
-            alert('📱 You have been logged out because this account was signed in from another device.');
+            await mmAlert('📱 You have been logged out because this account was signed in from another device.');
             window.location.replace('login.html');
         }
     } catch(e) {

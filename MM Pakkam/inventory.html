@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 
     <!-- Supabase & Auth -->
+    <script src="js/modal.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
     <script src="js/auth.js"></script>
@@ -1066,7 +1067,7 @@
     async function promiseConvertToSale(id) {
         const o = _promiseOrders.find(x => x.id === id);
         if (!o) return;
-        if (!confirm(`Convert this promise order for ${o.customer_name} into a sale?\n\nThis marks it Fulfilled and opens Sales with the customer & medicine pre-filled.`)) return;
+        if (!await mmConfirm(`Convert this promise order for ${o.customer_name} into a sale?\n\nThis marks it Fulfilled and opens Sales with the customer & medicine pre-filled.`, { okText: 'Convert' })) return;
         if (typeof dbUpdatePromiseOrderStatus === 'function') {
             try { await dbUpdatePromiseOrderStatus(id, 'fulfilled'); } catch (e) { console.warn(e); }
         }
