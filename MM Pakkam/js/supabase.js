@@ -1061,6 +1061,20 @@ async function dbSyncPendingOfflineData() {
     const pendingPurchasesKey = `mm_${user}_pending_purchases`;
     let salesSynced = 0, purchasesSynced = 0;
 
+    // Recover any legacy items queued under the OLD unscoped keys (older builds of
+    // purchase.html wrote offline purchases to global 'mm_pending_purchases'). Fold
+    // them into the scoped keys so they get synced instead of being orphaned/lost.
+    try {
+        [['mm_pending_sales', pendingSalesKey], ['mm_pending_purchases', pendingPurchasesKey]].forEach(([legacyKey, scopedKey]) => {
+            const legacy = JSON.parse(localStorage.getItem(legacyKey) || '[]');
+            if (legacy.length) {
+                const cur = JSON.parse(localStorage.getItem(scopedKey) || '[]');
+                localStorage.setItem(scopedKey, JSON.stringify(cur.concat(legacy)));
+                localStorage.removeItem(legacyKey);
+            }
+        });
+    } catch (e) { console.warn('[Offline Sync] legacy key migration failed:', e); }
+
     // Sync pending sales
     try {
         const pendingSales = JSON.parse(localStorage.getItem(pendingSalesKey) || '[]');

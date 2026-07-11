@@ -918,9 +918,14 @@
                 } else {
                     failCount++;
                     console.error('Failed to save:', record, result.message);
-                    const pending = JSON.parse(localStorage.getItem('mm_pending_purchases') || '[]');
+                    // Queue under the SCOPED key that dbSyncPendingOfflineData() reads,
+                    // otherwise the offline purchase never uploads and is lost on next sync.
+                    const session = typeof mmGetSession === 'function' ? mmGetSession() : null;
+                    const pendingKey = session ? `mm_${session.tenant_id || session.username}_pending_purchases` : 'mm_pending_purchases';
+                    const pending = JSON.parse(localStorage.getItem(pendingKey) || '[]');
                     pending.push(record);
-                    localStorage.setItem('mm_pending_purchases', JSON.stringify(pending));
+                    localStorage.setItem(pendingKey, JSON.stringify(pending));
+                    if (typeof window.updateOfflineBanner === 'function') window.updateOfflineBanner();
                 }
 
                 // Also keep localStorage as offline fallback
