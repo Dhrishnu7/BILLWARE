@@ -840,7 +840,7 @@
         /* ── Advanced Filter Bar ── */
         .filter-bar {
             display: flex; flex-wrap: wrap;
-            align-items: center; gap: 8px;
+            align-items: flex-end; gap: 8px;
             margin-bottom: 1.2rem;
         }
         .filter-bar input[type="text"] {
@@ -859,21 +859,32 @@
             border-color: #dc2626; background-color: white;
             box-shadow: 0 0 0 3px rgba(220,38,38,0.1);
         }
+        .date-range-group {
+            display: flex; align-items: flex-end; gap: 0.7rem;
+        }
+        .date-field {
+            display: flex; flex-direction: column; gap: 0.35rem;
+        }
+        .date-field label {
+            font-size: 0.7rem; font-weight: 800;
+            letter-spacing: 0.07em; text-transform: uppercase; color: #be123c;
+        }
         .filter-bar input[type="date"] {
             font-family: 'Inter', sans-serif;
             font-size: 0.82rem; color: #0f172a;
-            background: #fffbfb;
-            border: 1.5px solid #e2e8f0;
+            background: #fff1f2;
+            border: 1.5px solid #fecdd3;
             border-radius: 10px;
-            padding: 0.58rem 0.8rem;
+            padding: 0.58rem 0.9rem;
             outline: none; transition: all 0.22s ease;
         }
         .filter-bar input[type="date"]:focus {
-            border-color: #dc2626;
-            box-shadow: 0 0 0 3px rgba(220,38,38,0.1);
+            border-color: #f43f5e; background: white;
+            box-shadow: 0 0 0 3px rgba(244,63,94,0.12);
         }
         .filter-date-sep {
             font-size: 0.78rem; font-weight: 700; color: #94a3b8;
+            padding-bottom: 0.55rem;
         }
         .btn-export {
             display: inline-flex; align-items: center; gap: 6px;
@@ -1183,9 +1194,17 @@
                     <!-- Advanced Filter Bar -->
                     <div class="filter-bar">
                         <input type="text" id="logSearch" placeholder="Search by patient, doctor, drug, batch…" oninput="renderRegisterLog()">
-                        <input type="date" id="filterFrom" title="From date" oninput="renderRegisterLog()">
-                        <span class="filter-date-sep">→</span>
-                        <input type="date" id="filterTo" title="To date" oninput="renderRegisterLog()">
+                        <div class="date-range-group">
+                            <div class="date-field">
+                                <label for="filterFrom">From Date</label>
+                                <input type="date" id="filterFrom" title="From date" oninput="renderRegisterLog()">
+                            </div>
+                            <span class="filter-date-sep">→</span>
+                            <div class="date-field">
+                                <label for="filterTo">To Date</label>
+                                <input type="date" id="filterTo" title="To date" oninput="renderRegisterLog()">
+                            </div>
+                        </div>
                         <!-- IN / OUT type filter pills -->
                         <div class="type-filter-group" id="typeFilterGroup">
                             <button class="type-pill active" id="typePillAll"  onclick="setTypeFilter('all')" title="Show All">&#x1F4CB; All</button>
