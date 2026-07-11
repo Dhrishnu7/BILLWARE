@@ -529,7 +529,7 @@
     </style>
     <script src="js/modal.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <!-- tesseract.js (OCR, several MB) is lazy-loaded on first scan — see loadTesseract() -->
     <script src="js/auth.js?v=3"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
@@ -1328,6 +1328,22 @@
         }
 
         /* ── OCR path: PDF / Photo ── */
+        // Lazy-load the OCR engine only when a scan is actually requested —
+        // tesseract.js is several MB and would otherwise slow every page open.
+        let _tesseractLoading = null;
+        function loadTesseract() {
+            if (window.Tesseract) return Promise.resolve();
+            if (_tesseractLoading) return _tesseractLoading;
+            _tesseractLoading = new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+                s.onload = resolve;
+                s.onerror = () => { _tesseractLoading = null; reject(new Error('Could not load the OCR engine. Check your connection and try again.')); };
+                document.head.appendChild(s);
+            });
+            return _tesseractLoading;
+        }
+
         async function readInvOCR(file) {
             // Show scanning UI
             const dz = document.getElementById('invDropZone');
@@ -1356,6 +1372,9 @@
             }
 
             try {
+                const progEl = document.getElementById('ocrProgress');
+                if (!window.Tesseract && progEl) progEl.textContent = 'Loading OCR engine…';
+                await loadTesseract();
                 const result = await Tesseract.recognize(imageSource, 'eng', {
                     logger: m => {
                         if (m.status === 'recognizing text') {

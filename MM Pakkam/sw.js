@@ -1,9 +1,10 @@
 // ── Billware Service Worker ──
 // IMPORTANT: Change CACHE_NAME on every deploy so installed apps get the latest version
-const CACHE_NAME = 'mm-pakkam-v110';
+const CACHE_NAME = 'mm-pakkam-v111';
 
-// Pages and assets to cache for offline use
+// Pages and assets to cache for offline use + instant navigation
 const PRECACHE_URLS = [
+    '/',
     '/login.html',
     '/index.html',
     '/purchase.html',
@@ -14,8 +15,18 @@ const PRECACHE_URLS = [
     '/setup.html',
     '/manage-users.html',
     '/schedule-h.html',
+    '/khata.html',
+    '/inventory.html',
+    '/directory.html',
+    '/shop-setup.html',
     '/js/auth.js',
     '/js/supabase.js',
+    '/js/modal.js',
+    '/js/keyboard-nav.js',
+    '/js/notifications.js',
+    '/js/thermal-print.js',
+    '/js/drug-master.js',
+    '/js/substitutes.js',
     '/icon-192.png',
     '/icon-512.png',
     '/manifest.json',
@@ -55,8 +66,14 @@ self.addEventListener('activate', event => {
 });
 
 // ── Fetch handler ──
-// Strategy: Network-first for everything except images
-// This ensures the web app and installed app ALWAYS get the latest from Vercel
+// Strategy:
+//   • Supabase API  → ALWAYS network-first (live data must never be stale)
+//   • Everything else (pages, JS, CSS, images, CDN libs) → STALE-WHILE-REVALIDATE:
+//     serve the cached copy instantly (0 ms — this is what makes navigation feel
+//     native), and fetch a fresh copy in the background for the next load.
+//     New deploys still arrive automatically: the browser re-checks sw.js on
+//     navigation, the bumped CACHE_NAME re-caches everything, and the pages'
+//     `controllerchange` listeners reload them onto the new version.
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
@@ -72,29 +89,28 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // HTML pages & JS files: ALWAYS network-first (get latest from Vercel)
-    if (event.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname.endsWith('.js') || url.pathname.endsWith('.json')) {
-        event.respondWith(
-            fetch(event.request)
-                .then(response => {
-                    const clone = response.clone();
-                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-                    return response;
-                })
-                .catch(() => caches.match(event.request)) // Offline fallback
-        );
-        return;
-    }
+    // Never try to cache non-GET requests (Cache API only supports GET)
+    if (event.request.method !== 'GET') return;
 
-    // For images & other static assets: Cache-first (fast), update in background
+    // Stale-while-revalidate for everything else
     event.respondWith(
-        caches.match(event.request).then(cached => {
-            const networkFetch = fetch(event.request).then(response => {
-                caches.open(CACHE_NAME).then(cache => cache.put(event.request, response.clone()));
-                return response;
-            });
-            return cached || networkFetch;
-        })
+        caches.open(CACHE_NAME).then(cache =>
+            cache.match(event.request).then(cached => {
+                // Kick off a background refresh regardless of cache hit
+                const networkFetch = fetch(event.request)
+                    .then(response => {
+                        // Only cache good, cacheable responses
+                        if (response && (response.ok || response.type === 'opaque')) {
+                            cache.put(event.request, response.clone()).catch(() => {});
+                        }
+                        return response;
+                    })
+                    .catch(() => cached); // Offline: fall back to cache (may be undefined)
+
+                // Cache hit → instant response; miss → wait for network
+                return cached || networkFetch;
+            })
+        )
     );
 });
 
