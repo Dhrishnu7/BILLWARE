@@ -1215,8 +1215,8 @@
                         <button class="btn-export" onclick="window.print()" title="Print filtered Register">
                             &#x1F5A8;&#xFE0F; Print Report
                         </button>
-                        <button class="btn-export" onclick="exportRegisterCSV()" title="Export to Excel/CSV">
-                            &#x1F4DD; Export CSV
+                        <button class="btn-export" onclick="exportRegisterCSV()" title="Export a formatted Excel workbook">
+                            &#x1F4C4; Export Excel
                         </button>
                         <button class="btn-export" id="shBinToggleBtn" onclick="toggleShBin()" title="View deleted entries — recoverable for 30 days">
                             &#x1F5D1;&#xFE0F; Bin<span id="shBinBadge" style="display:none; background:#dc2626; color:#fff; border-radius:10px; padding:1px 7px; font-size:0.72rem; margin-left:5px; font-weight:800;">0</span>
@@ -2078,7 +2078,7 @@
             }).join('');
         }
 
-        /* ── Export Register to CSV ── */
+        /* ── Export Register to a styled Excel (.xls) workbook ── */
         function exportRegisterCSV() {
             const register = getRegister();
             const filterFrom = document.getElementById('filterFrom').value;
@@ -2101,45 +2101,135 @@
                 return;
             }
 
-            const headers = ['Type','Date','Bill No','Patient Name','Patient Address','Doctor Name','Doctor Reg No','Doctor Address','Drug Name','Batch No','Expire Date','Pack','Qty','MRP','Rate','GST%','Total','Firm/Supplier'];
-            const rows = data.map(e => [
-                e.entryType === 'in' ? 'Received (In)' : 'Dispensed (Out)',
-                e.date || '',
-                e.billNo || '',
-                e.patientName || '',
-                e.patientAddress || '',
-                e.doctorName || '',
-                e.doctorRegNo || '',
-                e.doctorAddress || '',
-                e.drugName || '',
-                e.batchNo || '',
-                e.expireDate || '',
-                e.pack || '',
-                e.qty || 0,
-                e.mrp || 0,
-                e.rate || 0,
-                e.gst || 0,
-                e.total || 0,
-                e.firmName || ''
-            ]);
+            // Oldest → newest (a register reads chronologically)
+            data = data.slice().sort((a, b) =>
+                ((a.date || '') + (a.savedAt || '')).localeCompare((b.date || '') + (b.savedAt || '')));
 
-            // Use XLSX library if available, else fallback to plain CSV
-            try {
-                const wb = XLSX.utils.book_new();
-                const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-                XLSX.utils.book_append_sheet(wb, ws, 'Schedule H Register');
-                const dateTag = filterFrom && filterTo ? `${filterFrom}_to_${filterTo}` : new Date().toISOString().split('T')[0];
-                XLSX.writeFile(wb, `ScheduleH_Register_${dateTag}.xlsx`);
-                showToast('Exported!', `${data.length} entries exported to Excel.`);
-            } catch(err) {
-                // Fallback: plain CSV
-                const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-                const a = document.createElement('a');
-                a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-                a.download = `ScheduleH_Register_${new Date().toISOString().split('T')[0]}.csv`;
-                a.click();
-                showToast('Exported!', `${data.length} entries exported to CSV.`);
+            const storeName = (localStorage.getItem('mm_storeName') || localStorage.getItem('storeName') || 'My Store');
+            const MF = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+            function fmtDate(d) {
+                if (!d) return '';
+                const p = String(d).slice(0, 10).split('-');
+                if (p.length !== 3) return String(d);
+                let y, mo, day;
+                if (p[0].length === 4) { y = p[0]; mo = p[1]; day = p[2]; }
+                else { day = p[0]; mo = p[1]; y = (p[2].length === 2 ? '20' : '') + p[2]; }
+                return day + ' ' + (MF[parseInt(mo,10)-1] || mo) + ' ' + y;
             }
+            function fmtTime(iso) {
+                if (!iso) return '';
+                try { return new Date(iso).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true }); }
+                catch (e) { return ''; }
+            }
+            function r2(n) { return (parseFloat(n) || 0).toFixed(2); }
+            function xe(v) {
+                return String(v == null ? '' : v)
+                    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            }
+            function sc(v, sid) { return '<Cell' + (sid ? ' ss:StyleID="'+sid+'"' : '') + '><Data ss:Type="String">' + xe(v) + '</Data></Cell>'; }
+            function nc(v, sid) { return '<Cell' + (sid ? ' ss:StyleID="'+sid+'"' : '') + '><Data ss:Type="Number">' + r2(v) + '</Data></Cell>'; }
+            function ic(v, sid) { return '<Cell' + (sid ? ' ss:StyleID="'+sid+'"' : '') + '><Data ss:Type="Number">' + (parseInt(v,10) || 0) + '</Data></Cell>'; }
+            function row(cells) { return '<Row>' + cells.join('') + '</Row>\n'; }
+            function erow() { return '<Row ss:Height="7"/>\n'; }
+
+            const COLS = [
+                { t:'Type', w:105 }, { t:'Date', w:95 }, { t:'Time', w:70 }, { t:'Bill No', w:80 },
+                { t:'Patient Name', w:135 }, { t:'Patient Address', w:135 }, { t:'Doctor Name', w:125 },
+                { t:'Doctor Reg No', w:100 }, { t:'Doctor Address', w:135 }, { t:'Drug Name', w:180 },
+                { t:'Batch No', w:95 }, { t:'Expire Date', w:90 }, { t:'Pack', w:60 },
+                { t:'Qty', w:50, num:true }, { t:'MRP', w:75, num:true }, { t:'Rate', w:75, num:true },
+                { t:'GST %', w:60, num:true }, { t:'Total', w:95, num:true }, { t:'Firm / Supplier', w:130 }
+            ];
+            const N = COLS.length;
+
+            let X = '<?xml version="1.0" encoding="UTF-8"?>\n'
+                  + '<?mso-application progid="Excel.Sheet"?>\n'
+                  + '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"'
+                  + ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n';
+
+            X += '<Styles>\n'
+              + '<Style ss:ID="s0"/>\n'
+              + '<Style ss:ID="title"><Font ss:Bold="1" ss:Size="14" ss:Color="#7F1D1D"/><Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/></Style>\n'
+              + '<Style ss:ID="info"><Font ss:Italic="1" ss:Size="9" ss:Color="#64748B"/><NumberFormat ss:Format="@"/></Style>\n'
+              + '<Style ss:ID="hL"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#B91C1C" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#7F1D1D"/></Borders></Style>\n'
+              + '<Style ss:ID="hR"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#B91C1C" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#7F1D1D"/></Borders></Style>\n'
+              + '<Style ss:ID="dL"><Font ss:Size="9"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/><NumberFormat ss:Format="@"/></Style>\n'
+              + '<Style ss:ID="dLb"><Font ss:Size="9" ss:Bold="1" ss:Color="#991B1B"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/><NumberFormat ss:Format="@"/></Style>\n'
+              + '<Style ss:ID="dN"><Font ss:Size="9"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><NumberFormat ss:Format="#,##0.00"/></Style>\n'
+              + '<Style ss:ID="dI"><Font ss:Size="9"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><NumberFormat ss:Format="0"/></Style>\n'
+              + '<Style ss:ID="tIn"><Font ss:Size="9" ss:Bold="1" ss:Color="#166534"/><Interior ss:Color="#DCFCE7" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/><NumberFormat ss:Format="@"/></Style>\n'
+              + '<Style ss:ID="tOut"><Font ss:Size="9" ss:Bold="1" ss:Color="#9A3412"/><Interior ss:Color="#FFEDD5" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/><NumberFormat ss:Format="@"/></Style>\n'
+              + '<Style ss:ID="gtL"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#7F1D1D" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left"/></Style>\n'
+              + '<Style ss:ID="gtI"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#7F1D1D" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="0"/></Style>\n'
+              + '<Style ss:ID="gtN"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#7F1D1D" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>\n'
+              + '</Styles>\n';
+
+            X += '<Worksheet ss:Name="Schedule H Register">\n<Table>\n';
+            COLS.forEach(c => { X += '<Column ss:Width="' + c.w + '"/>\n'; });
+
+            function blankRow(sid) { const a = []; for (let i=0;i<N;i++) a.push(sc('', sid||'s0')); return a; }
+
+            let tr = blankRow('title'); tr[0] = sc('SCHEDULE H DRUG REGISTER  —  ' + storeName, 'title'); X += row(tr);
+            let pr = blankRow('info'); pr[0] = sc('Period:   ' + (fmtDate(filterFrom) || 'All Time') + '   to   ' + (fmtDate(filterTo) || 'Today'), 'info'); X += row(pr);
+            let gr = blankRow('info'); gr[0] = sc('Generated On:   ' + fmtDate(new Date().toISOString()) + '   ·   ' + data.length + ' entries', 'info'); X += row(gr);
+            X += erow();
+
+            // Column header row
+            X += row(COLS.map(c => sc(c.t, c.num ? 'hR' : 'hL')));
+
+            // Data rows
+            let totQty = 0, totAmt = 0;
+            data.forEach(e => {
+                const isIn = (e.entryType || 'out') === 'in';
+                totQty += parseInt(e.qty,10) || 0;
+                totAmt += parseFloat(e.total) || 0;
+                X += row([
+                    sc(isIn ? 'Received (In)' : 'Dispensed (Out)', isIn ? 'tIn' : 'tOut'),
+                    sc(fmtDate(e.date), 'dL'),
+                    sc(fmtTime(e.savedAt), 'dL'),
+                    sc(e.billNo || '', 'dL'),
+                    sc(e.patientName || e.firmName || '', 'dL'),
+                    sc(e.patientAddress || '', 'dL'),
+                    sc(e.doctorName || '', 'dL'),
+                    sc(e.doctorRegNo || '', 'dL'),
+                    sc(e.doctorAddress || '', 'dL'),
+                    sc(e.drugName || '', 'dLb'),
+                    sc(e.batchNo || '', 'dL'),
+                    sc(e.expireDate || '', 'dL'),
+                    sc(e.pack || '', 'dL'),
+                    ic(e.qty, 'dI'),
+                    nc(e.mrp, 'dN'),
+                    nc(e.rate, 'dN'),
+                    ic(e.gst, 'dI'),
+                    nc(e.total, 'dN'),
+                    sc(e.firmName || '', 'dL')
+                ]);
+            });
+
+            // Grand total row (Qty in its column, Total in its column)
+            const gt = [];
+            gt.push(sc('GRAND TOTAL  (' + data.length + ' entries)', 'gtL'));
+            for (let i=1;i<N;i++) {
+                if (i === 13) gt.push(ic(totQty, 'gtI'));       // Qty column
+                else if (i === 17) gt.push(nc(totAmt, 'gtN'));  // Total column
+                else gt.push(sc('', 'gtL'));
+            }
+            X += row(gt);
+
+            X += '</Table>\n</Worksheet>\n</Workbook>';
+
+            const blob = new Blob([X], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+            const url  = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const dateTag = filterFrom && filterTo ? (filterFrom + '_to_' + filterTo) : new Date().toISOString().split('T')[0];
+            a.href = url;
+            a.download = 'ScheduleH_Register_' + dateTag + '.xls';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('Exported!', `${data.length} entries exported to Excel.`);
         }
 
         function esc(str) {
