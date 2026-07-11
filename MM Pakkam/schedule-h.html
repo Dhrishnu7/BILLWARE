@@ -2035,6 +2035,7 @@
 
             tbody.innerHTML = filtered.map(entry => {
                 const dateStr = entry.date ? new Date(entry.date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+                const timeStr = entry.savedAt ? new Date(entry.savedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
                 const type = entry.entryType || 'out';
                 const typeBadge = type === 'in'
                     ? `<span class="type-badge type-in">📥 In</span>`
@@ -2051,7 +2052,7 @@
                 return `
                 <tr style="animation: rowSlideIn 0.3s ease forwards;${isMissingRx ? 'background:rgba(254,249,195,0.4);' : ''}">
                     <td>${typeBadge}</td>
-                    <td style="white-space:nowrap; font-weight:600; font-size:0.82rem;">${dateStr}</td>
+                    <td style="white-space:nowrap; font-weight:600; font-size:0.82rem;">${dateStr}${timeStr ? `<div style="font-size:0.72rem; color:#94a3b8; font-weight:500;">🕒 ${timeStr}</div>` : ''}</td>
                     <td style="font-size:0.84rem; font-weight:600;">${esc(entry.billNo || '—')}</td>
                     <td>
                         <div style="font-weight:600;">${esc(entry.patientName || entry.firmName || '—')}</div>
