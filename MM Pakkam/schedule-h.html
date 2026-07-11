@@ -1957,6 +1957,28 @@
             set('mExpiry',  expiringCount);
         }
 
+        // Default the date range: FROM = first-ever register transaction, TO = today.
+        // Only fills empty fields so a user's manual pick is never overwritten.
+        function setDefaultRegisterDates() {
+            const fromEl = document.getElementById('filterFrom');
+            const toEl   = document.getElementById('filterTo');
+            if (!fromEl || !toEl) return;
+
+            const today = new Date().toISOString().slice(0, 10);
+            if (!toEl.value) toEl.value = today;
+
+            // FROM = earliest register transaction. If the register is still empty
+            // (e.g. cloud sync hasn't landed yet), leave it blank so nothing is hidden;
+            // this runs again after the cloud merge and fills it in then.
+            if (!fromEl.value) {
+                const dates = getRegister()
+                    .map(e => (e.date || '').slice(0, 10))
+                    .filter(Boolean)
+                    .sort();
+                if (dates.length) fromEl.value = dates[0];
+            }
+        }
+
         function renderRegisterLog() {
             refreshShMetrics();
             const register = getRegister();
@@ -2519,6 +2541,7 @@
             refreshDoctorList();
             refreshDrugDatalist();
             setupShDrugDropdown();
+            setDefaultRegisterDates();
             renderRegisterLog();
             renderDrugList();
             updateShBinBadge();
@@ -2582,6 +2605,7 @@
                     const union = [...byId.values()];
                     if (union.length !== localReg.length) {
                         setRegister(union);
+                        setDefaultRegisterDates();
                         renderRegisterLog();
                     }
                     // Push local-only entries up so pre-existing registers get backed up.
