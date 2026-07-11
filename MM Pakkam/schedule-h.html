@@ -2133,15 +2133,19 @@
             function row(cells) { return '<Row>' + cells.join('') + '</Row>\n'; }
             function erow() { return '<Row ss:Height="7"/>\n'; }
 
+            function rowH(cells, h) { return '<Row ss:Height="' + h + '">' + cells.join('') + '</Row>\n'; }
+
+            // Columns (Qty=idx12, Total=idx16)
             const COLS = [
-                { t:'Type', w:105 }, { t:'Date', w:95 }, { t:'Time', w:70 }, { t:'Bill No', w:80 },
-                { t:'Patient Name', w:135 }, { t:'Patient Address', w:135 }, { t:'Doctor Name', w:125 },
-                { t:'Doctor Reg No', w:100 }, { t:'Doctor Address', w:135 }, { t:'Drug Name', w:180 },
-                { t:'Batch No', w:95 }, { t:'Expire Date', w:90 }, { t:'Pack', w:60 },
-                { t:'Qty', w:50, num:true }, { t:'MRP', w:75, num:true }, { t:'Rate', w:75, num:true },
-                { t:'GST %', w:60, num:true }, { t:'Total', w:95, num:true }, { t:'Firm / Supplier', w:130 }
+                { t:'Date', w:100 }, { t:'Time', w:72 }, { t:'Bill No', w:82 },
+                { t:'Patient Name', w:135 }, { t:'Patient Address', w:130 }, { t:'Doctor Name', w:125 },
+                { t:'Doctor Reg No', w:100 }, { t:'Doctor Address', w:130 }, { t:'Drug Name', w:185 },
+                { t:'Batch No', w:95 }, { t:'Expire Date', w:92 }, { t:'Pack', w:58 },
+                { t:'Qty', w:55, num:true }, { t:'MRP (Rs)', w:78, num:true }, { t:'Rate (Rs)', w:78, num:true },
+                { t:'GST %', w:58, num:true }, { t:'Total (Rs)', w:98, num:true }, { t:'Firm / Supplier', w:135 }
             ];
             const N = COLS.length;
+            const QTY_I = 12, TOT_I = 16;
 
             let X = '<?xml version="1.0" encoding="UTF-8"?>\n'
                   + '<?mso-application progid="Excel.Sheet"?>\n'
@@ -2150,19 +2154,21 @@
 
             X += '<Styles>\n'
               + '<Style ss:ID="s0"/>\n'
-              + '<Style ss:ID="title"><Font ss:Bold="1" ss:Size="14" ss:Color="#7F1D1D"/><Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/></Style>\n'
+              + '<Style ss:ID="title"><Font ss:Bold="1" ss:Size="14" ss:Color="#1E3A5F"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/></Style>\n'
               + '<Style ss:ID="info"><Font ss:Italic="1" ss:Size="9" ss:Color="#64748B"/><NumberFormat ss:Format="@"/></Style>\n'
-              + '<Style ss:ID="hL"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#B91C1C" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#7F1D1D"/></Borders></Style>\n'
-              + '<Style ss:ID="hR"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#B91C1C" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#7F1D1D"/></Borders></Style>\n'
+              + '<Style ss:ID="sec"><Font ss:Bold="1" ss:Size="11" ss:Color="#FFFFFF"/><Interior ss:Color="#1E40AF" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/></Style>\n'
+              + '<Style ss:ID="hL"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#BFDBFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/></Style>\n'
+              + '<Style ss:ID="hR"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#BFDBFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right" ss:Vertical="Center" ss:WrapText="1"/></Style>\n'
               + '<Style ss:ID="dL"><Font ss:Size="9"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/><NumberFormat ss:Format="@"/></Style>\n'
-              + '<Style ss:ID="dLb"><Font ss:Size="9" ss:Bold="1" ss:Color="#991B1B"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/><NumberFormat ss:Format="@"/></Style>\n'
+              + '<Style ss:ID="dLb"><Font ss:Size="9" ss:Bold="1" ss:Color="#1E3A5F"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/><NumberFormat ss:Format="@"/></Style>\n'
               + '<Style ss:ID="dN"><Font ss:Size="9"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><NumberFormat ss:Format="#,##0.00"/></Style>\n'
               + '<Style ss:ID="dI"><Font ss:Size="9"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><NumberFormat ss:Format="0"/></Style>\n'
-              + '<Style ss:ID="tIn"><Font ss:Size="9" ss:Bold="1" ss:Color="#166534"/><Interior ss:Color="#DCFCE7" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/><NumberFormat ss:Format="@"/></Style>\n'
-              + '<Style ss:ID="tOut"><Font ss:Size="9" ss:Bold="1" ss:Color="#9A3412"/><Interior ss:Color="#FFEDD5" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/><NumberFormat ss:Format="@"/></Style>\n'
-              + '<Style ss:ID="gtL"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#7F1D1D" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left"/></Style>\n'
-              + '<Style ss:ID="gtI"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#7F1D1D" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="0"/></Style>\n'
-              + '<Style ss:ID="gtN"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#7F1D1D" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>\n'
+              + '<Style ss:ID="btL"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/><NumberFormat ss:Format="@"/></Style>\n'
+              + '<Style ss:ID="btN"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><NumberFormat ss:Format="#,##0.00"/></Style>\n'
+              + '<Style ss:ID="btI"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><NumberFormat ss:Format="0"/></Style>\n'
+              + '<Style ss:ID="gtL"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#1E40AF" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/></Style>\n'
+              + '<Style ss:ID="gtI"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#1E40AF" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><NumberFormat ss:Format="0"/></Style>\n'
+              + '<Style ss:ID="gtN"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#1E40AF" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><NumberFormat ss:Format="#,##0.00"/></Style>\n'
               + '</Styles>\n';
 
             X += '<Worksheet ss:Name="Schedule H Register">\n<Table>\n';
@@ -2170,22 +2176,14 @@
 
             function blankRow(sid) { const a = []; for (let i=0;i<N;i++) a.push(sc('', sid||'s0')); return a; }
 
-            let tr = blankRow('title'); tr[0] = sc('SCHEDULE H DRUG REGISTER  —  ' + storeName, 'title'); X += row(tr);
+            // ── Report header ──
+            let tr = blankRow('title'); tr[0] = sc('SCHEDULE H DRUG REGISTER  —  ' + storeName, 'title'); X += rowH(tr, 26);
             let pr = blankRow('info'); pr[0] = sc('Period:   ' + (fmtDate(filterFrom) || 'All Time') + '   to   ' + (fmtDate(filterTo) || 'Today'), 'info'); X += row(pr);
             let gr = blankRow('info'); gr[0] = sc('Generated On:   ' + fmtDate(new Date().toISOString()) + '   ·   ' + data.length + ' entries', 'info'); X += row(gr);
             X += erow();
 
-            // Column header row
-            X += row(COLS.map(c => sc(c.t, c.num ? 'hR' : 'hL')));
-
-            // Data rows
-            let totQty = 0, totAmt = 0;
-            data.forEach(e => {
-                const isIn = (e.entryType || 'out') === 'in';
-                totQty += parseInt(e.qty,10) || 0;
-                totAmt += parseFloat(e.total) || 0;
-                X += row([
-                    sc(isIn ? 'Received (In)' : 'Dispensed (Out)', isIn ? 'tIn' : 'tOut'),
+            function dataCells(e) {
+                return [
                     sc(fmtDate(e.date), 'dL'),
                     sc(fmtTime(e.savedAt), 'dL'),
                     sc(e.billNo || '', 'dL'),
@@ -2204,18 +2202,77 @@
                     ic(e.gst, 'dI'),
                     nc(e.total, 'dN'),
                     sc(e.firmName || '', 'dL')
-                ]);
-            });
-
-            // Grand total row (Qty in its column, Total in its column)
-            const gt = [];
-            gt.push(sc('GRAND TOTAL  (' + data.length + ' entries)', 'gtL'));
-            for (let i=1;i<N;i++) {
-                if (i === 13) gt.push(ic(totQty, 'gtI'));       // Qty column
-                else if (i === 17) gt.push(nc(totAmt, 'gtN'));  // Total column
-                else gt.push(sc('', 'gtL'));
+                ];
             }
-            X += row(gt);
+
+            // Renders one section (bar + headers + bills grouped w/ BILL TOTAL + section total).
+            // Returns { qty, amt }.
+            function renderSection(list, barText, totalLabel) {
+                let sh = blankRow('sec'); sh[0] = sc(barText, 'sec'); X += rowH(sh, 22);
+                X += rowH(COLS.map(c => sc(c.t, c.num ? 'hR' : 'hL')), 28);
+
+                // Group by bill (chronological first-appearance order)
+                const groups = {}, order = [];
+                list.forEach(e => {
+                    const k = e.billNo || '(no bill)';
+                    if (!groups[k]) { groups[k] = []; order.push(k); }
+                    groups[k].push(e);
+                });
+
+                let secQty = 0, secAmt = 0;
+                order.forEach(k => {
+                    let gQty = 0, gAmt = 0;
+                    groups[k].forEach(e => {
+                        gQty += parseInt(e.qty, 10) || 0;
+                        gAmt += parseFloat(e.total) || 0;
+                        X += row(dataCells(e));
+                    });
+                    // BILL TOTAL subtotal row
+                    const bt = blankRow('btL');
+                    bt[2] = sc('BILL TOTAL', 'btL');
+                    bt[3] = sc(k, 'btL');
+                    bt[QTY_I] = ic(gQty, 'btI');
+                    bt[TOT_I] = nc(gAmt, 'btN');
+                    X += row(bt);
+                    secQty += gQty; secAmt += gAmt;
+                    X += erow();
+                });
+
+                // Section grand total
+                const gt = blankRow('gtL');
+                gt[0] = sc(totalLabel + '  (' + list.length + ' entries)', 'gtL');
+                gt[QTY_I] = ic(secQty, 'gtI');
+                gt[TOT_I] = nc(secAmt, 'gtN');
+                X += row(gt);
+                X += erow(); X += erow();
+                return { qty: secQty, amt: secAmt };
+            }
+
+            const outList = data.filter(e => (e.entryType || 'out') !== 'in');
+            const inList  = data.filter(e => (e.entryType || 'out') === 'in');
+
+            let secNo = 0, gTotQty = 0, gTotAmt = 0;
+            if (outList.length) {
+                secNo++;
+                const s = renderSection(outList,
+                    'SECTION ' + secNo + '  ·  DISPENSED (OUT)  —  Stock sold to patients',
+                    'DISPENSED (OUT) — SECTION TOTAL');
+                gTotQty += s.qty; gTotAmt += s.amt;
+            }
+            if (inList.length) {
+                secNo++;
+                const s = renderSection(inList,
+                    'SECTION ' + secNo + '  ·  RECEIVED (IN)  —  Stock purchased / received',
+                    'RECEIVED (IN) — SECTION TOTAL');
+                gTotQty += s.qty; gTotAmt += s.amt;
+            }
+
+            // Overall total across both sections
+            const ov = blankRow('gtL');
+            ov[0] = sc('OVERALL TOTAL  (' + data.length + ' entries)', 'gtL');
+            ov[QTY_I] = ic(gTotQty, 'gtI');
+            ov[TOT_I] = nc(gTotAmt, 'gtN');
+            X += row(ov);
 
             X += '</Table>\n</Worksheet>\n</Workbook>';
 
