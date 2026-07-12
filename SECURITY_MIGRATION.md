@@ -31,12 +31,14 @@ This adds the machinery but does **not** change how anyone logs in yet.
    column, and `current_tenant()`), i.e. **do NOT run sections 3–4 yet** (those enable RLS).
 4. Deploy the Edge Function (needs the [Supabase CLI](https://supabase.com/docs/guides/cli)):
    ```bash
+   supabase login                        # once, opens browser
+   supabase link --project-ref jwyyjdwlbgjijmwillow
    supabase functions deploy mm-login --no-verify-jwt
-   supabase secrets set SB_URL="https://jwyyjdwlbgjijmwillow.supabase.co"
-   supabase secrets set SB_ANON_KEY="<your anon/publishable key>"
-   supabase secrets set SB_SERVICE_ROLE_KEY="<your service_role key — Settings → API>"
    ```
-   > The service_role key is secret — it lives only in the function's env, never in a page.
+   > **No secrets to set.** The function reads `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+   > and `SUPABASE_SERVICE_ROLE_KEY`, which Supabase **auto-injects** into every
+   > Edge Function. (You *cannot* `supabase secrets set` anything with a `SUPABASE_`
+   > prefix — the platform reserves it.) The service_role key stays server-side only.
 5. **Test the function alone** (replace with a real test login):
    ```bash
    curl -X POST "https://jwyyjdwlbgjijmwillow.functions.supabase.co/mm-login" \

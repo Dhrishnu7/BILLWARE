@@ -264,6 +264,11 @@ async function mmRequireAuth() {
     // Validate the token on page load
     await _validateSession(session);
     
+    // Phase-3 safety net: a device still on a legacy local session (no Supabase Auth
+    // session) would see no data once RLS is on. Detect that and ask for a one-time
+    // re-login instead. Stop here if it redirected.
+    if (await _mmEnsureSecureSession()) return null;
+
     // Auto-migrate legacy data in background
     _autoMigrateLocalDataToSupabase(session);
 
@@ -355,6 +360,40 @@ async function _validateSession(session) {
         }
     } catch(e) {
         // Ignore network errors — never log out offline users accidentally
+    }
+}
+
+/**
+ * Phase-3 safety net for tenant isolation (RLS).
+ * Once RLS is enabled, any request WITHOUT a real Supabase Auth session sees no
+ * data. A device still on a pre-upgrade "legacy" local session has no such session,
+ * so it would show an empty app. We detect that and ask the user to sign in once
+ * (which re-runs mmLogin → mm-login and mints a real session).
+ *
+ * Safeguards:
+ *  - ONLINE only — offline users are never disturbed (offline billing must keep working).
+ *  - At most ONCE per tab — if mm-login is briefly unreachable we let them in (degraded)
+ *    instead of bouncing them in a redirect loop.
+ * Returns true if it triggered a redirect to re-login (caller should stop).
+ */
+async function _mmEnsureSecureSession() {
+    try {
+        if (!navigator.onLine) return false;            // never disrupt offline use
+        const db = _authDB();
+        if (!db || !db.auth || !db.auth.getSession) return false;
+        const { data } = await db.auth.getSession();
+        if (data && data.session) {                     // already have a real session — good
+            sessionStorage.removeItem('mm_reauth_prompted');
+            return false;
+        }
+        if (sessionStorage.getItem('mm_reauth_prompted')) return false; // avoid loops
+        sessionStorage.setItem('mm_reauth_prompted', '1');
+        await mmAlert('🔒 Security upgrade — please sign in again to keep your shop\'s data protected. Your data is safe; this is a one-time step.');
+        mmClearSession();
+        window.location.replace('login.html');
+        return true;
+    } catch (e) {
+        return false;                                   // never block the app on this check
     }
 }
 
