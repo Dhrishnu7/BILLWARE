@@ -724,6 +724,56 @@
             margin-left: 0.5rem;
         }
 
+        /* ── Prescription Gallery ── */
+        .rx-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            gap: 1rem;
+        }
+        .rx-card {
+            background: rgba(255,255,255,0.9);
+            border: 1.5px solid #fecaca;
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex; flex-direction: column;
+            box-shadow: 0 3px 14px rgba(220,38,38,0.08);
+            transition: transform 0.18s, box-shadow 0.18s;
+        }
+        .rx-card:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(220,38,38,0.16); }
+        .rx-thumb {
+            width: 100%; height: 150px; object-fit: cover;
+            background: #fef2f2; cursor: zoom-in; display: block;
+        }
+        .rx-body { padding: 0.7rem 0.85rem 0.85rem; display: flex; flex-direction: column; gap: 3px; flex: 1; }
+        .rx-patient { font-size: 0.92rem; font-weight: 800; color: #0f172a; }
+        .rx-meta { font-size: 0.76rem; color: #64748b; font-weight: 600; }
+        .rx-meds { font-size: 0.78rem; color: #991b1b; font-weight: 700; margin-top: 2px; word-break: break-word; }
+        .rx-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 0.55rem; }
+        .rx-date-pill { font-size: 0.68rem; font-weight: 700; color: #94a3b8; }
+        .rx-del {
+            width: 26px; height: 26px; border-radius: 50%;
+            background: #fee2e2; color: #ef4444; border: none; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; transition: all 0.15s ease; flex-shrink: 0;
+        }
+        .rx-del:hover { background: #ef4444; color: #fff; transform: scale(1.12); }
+
+        /* Full-image viewer */
+        .rx-viewer {
+            position: fixed; inset: 0; z-index: 10000;
+            background: rgba(15,23,42,0.85);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+            display: none; align-items: center; justify-content: center; padding: 2rem;
+        }
+        .rx-viewer.open { display: flex; }
+        .rx-viewer img { max-width: 100%; max-height: 90vh; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        .rx-viewer-close {
+            position: absolute; top: 1.2rem; right: 1.4rem;
+            width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer;
+            background: rgba(255,255,255,0.9); color: #0f172a; font-size: 1.4rem; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+        }
+
         /* ── Import Modal ── */
         .modal-overlay {
             position:fixed; inset:0;
@@ -1051,6 +1101,7 @@
             <button class="tab-pill" onclick="switchTab('expiry')" id="tabExpiry">⏳ Expiry</button>
             <button class="tab-pill" onclick="switchTab('dead')" id="tabDead">💀 Dead Stock</button>
             <button class="tab-pill" onclick="switchTab('adjust')" id="tabAdjust">⚖️ Adjust</button>
+            <button class="tab-pill" onclick="switchTab('prescriptions')" id="tabPrescriptions">📸 Prescriptions</button>
             <button class="tab-pill" onclick="switchTab('manage')" id="tabManage">⚙️ Add Drugs</button>
         </div>
 
@@ -1393,6 +1444,78 @@
             </div>
 
             <!-- ═══ TAB 7: Manage Drug List ═══ -->
+            <!-- ═══ TAB: Prescriptions (softcopy store) ═══ -->
+            <div class="tab-panel" id="panelPrescriptions">
+                <div class="panel-head">
+                    <div class="ph-icon i-promise">📸</div>
+                    <div class="ph-text">
+                        <div class="ph-title">Prescription Softcopies</div>
+                        <div class="ph-sub">Snap or upload the doctor's prescription and keep a searchable, cloud-backed digital copy for every Schedule&nbsp;H sale.</div>
+                    </div>
+                </div>
+
+                <form id="rxForm" onsubmit="handleRxSubmit(event)" novalidate>
+                    <div class="section-label">📝 Prescription Details</div>
+                    <div class="form-grid" style="margin-bottom: 1.2rem;">
+                        <div class="form-group">
+                            <label>Patient Name</label>
+                            <input type="text" id="rxPatient" list="patientList" placeholder="Patient name…" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label>Date</label>
+                            <input type="date" id="rxDate">
+                        </div>
+                        <div class="form-group">
+                            <label>Doctor Name</label>
+                            <input type="text" id="rxDoctor" list="doctorList" placeholder="Prescribing doctor…" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label>Medicine(s) Prescribed</label>
+                            <input type="text" id="rxMeds" list="drugList" placeholder="e.g. Alprazolam 0.5mg…" autocomplete="off">
+                        </div>
+                        <div class="form-group full-width">
+                            <label>Note (optional)</label>
+                            <input type="text" id="rxNote" placeholder="Any remark — dosage, refill, etc.">
+                        </div>
+                    </div>
+
+                    <div class="section-label">🖼️ Prescription Image</div>
+                    <div class="drop-zone" id="rxDropZone" style="margin-bottom:1.2rem;"
+                         ondragover="event.preventDefault();this.classList.add('drag-over')"
+                         ondragleave="this.classList.remove('drag-over')"
+                         ondrop="handleRxDrop(event)">
+                        <input type="file" id="rxFileInput" accept="image/*" capture="environment" onchange="handleRxFile(event)">
+                        <div class="dz-ico">📷</div>
+                        <div class="dz-txt">Tap to take a photo or upload</div>
+                        <div class="dz-sub">Camera or gallery &mdash; image is auto-compressed before saving</div>
+                    </div>
+
+                    <div id="rxPreviewWrap" style="display:none; text-align:center; margin-bottom:1.2rem;">
+                        <img id="rxPreviewImg" alt="Prescription preview"
+                             style="max-width:100%; max-height:320px; border-radius:14px; border:1.5px solid #fecaca; box-shadow:0 4px 16px rgba(220,38,38,0.12);">
+                        <div>
+                            <button type="button" class="btn-mcancel" style="margin-top:0.7rem;" onclick="clearRxImage()">🗑️ Remove image</button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-submit">💾 Save Prescription</button>
+                </form>
+
+                <div class="section-label" style="margin-top:2rem;">
+                    🗂️ Saved Prescriptions
+                    <span class="drug-count-badge" id="rxCountBadge">0</span>
+                </div>
+                <div class="search-bar">
+                    <input type="text" id="rxSearch" placeholder="Search by patient, doctor, or medicine…" oninput="renderPrescriptions()">
+                </div>
+                <div class="rx-grid" id="rxGrid"></div>
+                <div id="rxEmptyState" class="empty-state" style="display:none;">
+                    <div class="es-icon">📸</div>
+                    <div class="es-title">No Prescriptions Saved Yet</div>
+                    <div class="es-sub">Add a prescription softcopy above to start your digital record.</div>
+                </div>
+            </div>
+
             <div class="tab-panel" id="panelManage">
                 <div class="section-label">➕ Add Schedule H Drug</div>
                 <div class="add-drug-row">
@@ -1452,6 +1575,12 @@
             <div style="font-weight:800;" id="toastTitle">Saved!</div>
             <div style="font-size:0.78rem; color:#f87171; margin-top:2px;" id="toastSub">Record added successfully.</div>
         </div>
+    </div>
+
+    <!-- ── Prescription Image Viewer ── -->
+    <div class="rx-viewer" id="rxViewer" onclick="closeRxViewer()">
+        <button class="rx-viewer-close" type="button" onclick="closeRxViewer()">×</button>
+        <img id="rxViewerImg" src="" alt="Prescription" onclick="event.stopPropagation()">
     </div>
 
     <!-- ── Import Drug List Modal ── -->
@@ -1520,7 +1649,7 @@
            Tab Switching
         ══════════════════════════════════════════════════════════════════ */
         function switchTab(tab) {
-            const tabs = ['register', 'ledger', 'expiry', 'dead', 'adjust', 'manage'];
+            const tabs = ['register', 'ledger', 'expiry', 'dead', 'adjust', 'prescriptions', 'manage'];
             tabs.forEach(t => {
                 const panel = document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1));
                 const pill = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
@@ -1531,6 +1660,8 @@
                 renderScheduleHInventory();
             } else if (tab === 'adjust') {
                 populateAdjDropdowns();
+            } else if (tab === 'prescriptions') {
+                renderPrescriptions();
             }
         }
 
@@ -2695,6 +2826,10 @@
             renderDrugList();
             updateShBinBadge();
 
+            const rxDateEl = document.getElementById('rxDate');
+            if (rxDateEl) rxDateEl.value = new Date().toISOString().slice(0, 10);
+            renderPrescriptions();
+
             // Refresh customers/doctors/sales from Supabase so the patient/doctor
             // name lists reflect activity from other devices, not just this one.
             if (typeof dbSyncCoreData === 'function') {
@@ -2711,6 +2846,9 @@
                 // IN entry has a matching purchase so received stock is sellable.
                 backfillScheduleHInToPurchases();
             });
+
+            // Pull prescription softcopies down from the cloud and union-merge.
+            syncPrescriptionsFromCloud();
         });
 
         async function syncScheduleHFromCloud() {
@@ -2767,6 +2905,200 @@
                     }
                 }
             } catch (e) { console.warn('Schedule H register cloud sync failed:', e); }
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           PRESCRIPTIONS — softcopy store
+           Images are downscaled client-side to a base64 JPEG and saved to
+           localStorage + Supabase (union-merged on load, same as the register).
+        ══════════════════════════════════════════════════════════════════ */
+        const RX_KEY = 'mm_schedule_h_prescriptions';
+        const getRxList = () => { try { return JSON.parse(localStorage.getItem(RX_KEY) || '[]'); } catch { return []; } };
+        const setRxList = list => localStorage.setItem(RX_KEY, JSON.stringify(list));
+
+        let _rxImageData = '';   // base64 of the image currently staged in the form
+
+        function _rxEsc(s) {
+            return String(s || '').replace(/[&<>"']/g, c => (
+                { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+            ));
+        }
+
+        // Downscale + compress an image File to a base64 JPEG (max 1200px, q0.7)
+        // so rows stay small enough to store in a text column and sync quickly.
+        function _rxCompress(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const MAX = 1200;
+                        let { width: w, height: h } = img;
+                        if (w > MAX || h > MAX) {
+                            if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
+                            else        { w = Math.round(w * MAX / h); h = MAX; }
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w; canvas.height = h;
+                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        resolve(canvas.toDataURL('image/jpeg', 0.7));
+                    };
+                    img.onerror = reject;
+                    img.src = reader.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function _rxLoadFile(file) {
+            if (!file) return;
+            if (!file.type.startsWith('image/')) { showToast('Not an image', 'Please choose a photo or image file.'); return; }
+            try {
+                _rxImageData = await _rxCompress(file);
+                document.getElementById('rxPreviewImg').src = _rxImageData;
+                document.getElementById('rxPreviewWrap').style.display = 'block';
+                document.getElementById('rxDropZone').style.display = 'none';
+            } catch (e) {
+                console.error('image compress failed:', e);
+                showToast('Image error', 'Could not read that image — try another.');
+            }
+        }
+
+        function handleRxFile(e) { _rxLoadFile(e.target.files && e.target.files[0]); }
+        function handleRxDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            _rxLoadFile(e.dataTransfer.files && e.dataTransfer.files[0]);
+        }
+        function clearRxImage() {
+            _rxImageData = '';
+            document.getElementById('rxFileInput').value = '';
+            document.getElementById('rxPreviewWrap').style.display = 'none';
+            document.getElementById('rxDropZone').style.display = 'block';
+        }
+
+        async function handleRxSubmit(e) {
+            e.preventDefault();
+            const patient = document.getElementById('rxPatient').value.trim();
+            if (!_rxImageData) { showToast('No image', 'Add a prescription photo first.'); return; }
+            if (!patient)      { showToast('Patient needed', 'Enter the patient name.'); return; }
+
+            const rx = {
+                id:          genId(),
+                patientName: patient,
+                doctorName:  document.getElementById('rxDoctor').value.trim(),
+                rxDate:      document.getElementById('rxDate').value || new Date().toISOString().slice(0,10),
+                medicines:   document.getElementById('rxMeds').value.trim(),
+                note:        document.getElementById('rxNote').value.trim(),
+                imageData:   _rxImageData,
+                savedAt:     new Date().toISOString(),
+            };
+
+            const list = getRxList();
+            list.unshift(rx);
+            setRxList(list);
+
+            document.getElementById('rxForm').reset();
+            document.getElementById('rxDate').value = new Date().toISOString().slice(0,10);
+            clearRxImage();
+            renderPrescriptions();
+            showToast('Prescription saved', 'Softcopy stored & backing up to cloud.');
+
+            if (typeof dbAddPrescription === 'function') {
+                dbAddPrescription(rx).catch(err => console.warn('prescription cloud save failed:', err));
+            }
+        }
+
+        function renderPrescriptions() {
+            const grid  = document.getElementById('rxGrid');
+            const empty = document.getElementById('rxEmptyState');
+            const badge = document.getElementById('rxCountBadge');
+            if (!grid) return;
+
+            const all = getRxList();
+            const q = (document.getElementById('rxSearch').value || '').trim().toLowerCase();
+            const list = q ? all.filter(r =>
+                (r.patientName || '').toLowerCase().includes(q) ||
+                (r.doctorName  || '').toLowerCase().includes(q) ||
+                (r.medicines   || '').toLowerCase().includes(q)
+            ) : all;
+
+            if (badge) badge.textContent = all.length;
+
+            if (!list.length) {
+                grid.innerHTML = '';
+                empty.style.display = 'block';
+                empty.querySelector('.es-title').textContent = q ? 'No matches' : 'No Prescriptions Saved Yet';
+                empty.querySelector('.es-sub').textContent   = q ? 'Try a different search term.' : 'Add a prescription softcopy above to start your digital record.';
+                return;
+            }
+            empty.style.display = 'none';
+
+            grid.innerHTML = list.map(r => {
+                const dateTxt = r.rxDate ? new Date(r.rxDate).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+                return `
+                <div class="rx-card">
+                    <img class="rx-thumb" src="${r.imageData}" alt="Prescription" onclick="openRxViewer('${r.id}')">
+                    <div class="rx-body">
+                        <div class="rx-patient">${_rxEsc(r.patientName) || 'Unknown patient'}</div>
+                        ${r.doctorName ? `<div class="rx-meta">👨‍⚕️ ${_rxEsc(r.doctorName)}</div>` : ''}
+                        ${r.medicines ? `<div class="rx-meds">💊 ${_rxEsc(r.medicines)}</div>` : ''}
+                        ${r.note ? `<div class="rx-meta">📝 ${_rxEsc(r.note)}</div>` : ''}
+                        <div class="rx-foot">
+                            <span class="rx-date-pill">📅 ${dateTxt}</span>
+                            <button class="rx-del" type="button" title="Delete" onclick="deleteRx('${r.id}')">🗑️</button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function openRxViewer(id) {
+            const rx = getRxList().find(r => r.id === id);
+            if (!rx) return;
+            document.getElementById('rxViewerImg').src = rx.imageData;
+            document.getElementById('rxViewer').classList.add('open');
+        }
+        function closeRxViewer() {
+            document.getElementById('rxViewer').classList.remove('open');
+            document.getElementById('rxViewerImg').src = '';
+        }
+
+        async function deleteRx(id) {
+            const ok = await mmConfirm('Delete this prescription softcopy? This cannot be undone.', { title: 'Delete Prescription', danger: true });
+            if (!ok) return;
+            setRxList(getRxList().filter(r => r.id !== id));
+            renderPrescriptions();
+            showToast('Deleted', 'Prescription removed.');
+            if (typeof dbDeletePrescription === 'function') {
+                dbDeletePrescription(id).catch(err => console.warn('prescription cloud delete failed:', err));
+            }
+        }
+
+        // Union-merge cloud prescriptions with local (cloud is the backup that
+        // survives a storage clear), and push any local-only rows up. Same
+        // pattern as syncScheduleHFromCloud()'s register merge.
+        async function syncPrescriptionsFromCloud() {
+            try {
+                if (typeof dbGetPrescriptions !== 'function') return;
+                const cloud = await dbGetPrescriptions();
+                const local = getRxList();
+                const byId = new Map();
+                [...local, ...cloud].forEach(r => { if (r && r.id && !byId.has(r.id)) byId.set(r.id, r); });
+                const union = [...byId.values()].sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt)));
+                if (union.length !== local.length) {
+                    setRxList(union);
+                    renderPrescriptions();
+                }
+                const cloudIds = new Set(cloud.map(r => r.id));
+                const localOnly = local.filter(r => r && r.id && !cloudIds.has(r.id));
+                if (localOnly.length && typeof dbAddPrescription === 'function') {
+                    for (const r of localOnly) {
+                        dbAddPrescription(r).catch(err => console.warn('prescription backfill failed:', err));
+                    }
+                }
+            } catch (e) { console.warn('Prescription cloud sync failed:', e); }
         }
     </script>
 

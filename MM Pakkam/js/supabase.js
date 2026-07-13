@@ -351,6 +351,70 @@ async function dbDeleteScheduleHEntry(id) {
 window.dbDeleteScheduleHEntry = dbDeleteScheduleHEntry;
 
 /* ─────────────────────────────────────────────────────
+   PRESCRIPTIONS  (softcopy of paper prescriptions)
+   Each row stores a downscaled image (base64 in `image_data`)
+   plus tagging metadata so Schedule H sales can be tied to the
+   doctor's prescription that authorized them. rx_id (the
+   app-generated string) is the primary key so re-syncs dedupe
+   cleanly, exactly like schedule_h_register. Scoped by user_id.
+───────────────────────────────────────────────────── */
+function _rxToRow(p, user) {
+    return {
+        rx_id:        p.id,
+        user_id:      user,
+        patient_name: p.patientName || '',
+        doctor_name:  p.doctorName  || '',
+        rx_date:      p.rxDate || null,
+        medicines:    p.medicines || '',
+        note:         p.note || '',
+        image_data:   p.imageData || '',
+        saved_at:     p.savedAt || new Date().toISOString(),
+    };
+}
+function _rxRowToObj(r) {
+    return {
+        id:          r.rx_id,
+        patientName: r.patient_name || '',
+        doctorName:  r.doctor_name  || '',
+        rxDate:      r.rx_date || '',
+        medicines:   r.medicines || '',
+        note:        r.note || '',
+        imageData:   r.image_data || '',
+        savedAt:     r.saved_at || '',
+    };
+}
+
+async function dbGetPrescriptions() {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetPrescriptions: no user, aborting.'); return []; }
+    const { data, error } = await _supabase.from('prescriptions')
+        .select('*').eq('user_id', user).order('saved_at', { ascending: false });
+    if (error) { console.error('prescriptions fetch:', error); return []; }
+    return (data || []).map(_rxRowToObj);
+}
+window.dbGetPrescriptions = dbGetPrescriptions;
+
+async function dbAddPrescription(p) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbAddPrescription: no user, aborting.'); return { success: false }; }
+    const { error } = await _supabase.from('prescriptions')
+        .upsert(_rxToRow(p, user), { onConflict: 'rx_id' });
+    if (error) { console.error('prescription add:', error); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbAddPrescription = dbAddPrescription;
+
+async function dbDeletePrescription(id) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbDeletePrescription: no user, aborting.'); return false; }
+    const { error } = await _supabase.from('prescriptions')
+        .delete().eq('user_id', user).eq('rx_id', id);
+    if (error) { console.error('prescription delete:', error); return false; }
+    return true;
+}
+window.dbDeletePrescription = dbDeletePrescription;
+
+/* ─────────────────────────────────────────────────────
    DOCTORS
 ───────────────────────────────────────────────────── */
 async function dbGetDoctors() {
