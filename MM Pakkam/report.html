@@ -1470,7 +1470,54 @@
         let _dbBills = [];
         let _stockAdjustments = [];
 
+        // Builds the report from the localStorage cache for an INSTANT first paint,
+        // before loadData() does its (slower) session-restore + Supabase fetch and
+        // re-paints. Uses the same local mapping as loadData()'s localStorage branch.
+        function _renderReportFromLocal() {
+            const rawPurchases = (typeof mmLsGet === 'function')
+                ? (mmLsGet('purchases') || [])
+                : JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+            const mappedPurchases = rawPurchases.map(p => {
+                const qty = parseFloat(p.quantity) || 0;
+                const rate = parseFloat(p.rate) || 0;
+                const gst = parseFloat(p.gst) || 0;
+                const total = (qty * rate) * (1 + (gst / 100));
+                return { billNo: p.billNo || '-', date: p.date || '', type: 'purchase', product: p.productName || '-', qty, rate, gst, total };
+            });
+            const rawSales = (typeof mmLsGet === 'function')
+                ? (mmLsGet('sales') || [])
+                : JSON.parse(localStorage.getItem('mm_sales') || '[]');
+            const mappedSales = [];
+            rawSales.forEach(bill => {
+                if (Array.isArray(bill.medicines)) {
+                    bill.medicines.forEach(m => {
+                        mappedSales.push({ billNo: bill.billNo || '-', date: bill.date || '', type: 'sales', customer: bill.customerName || bill.customer_name || 'Walk-in', product: m.product || '-', qty: parseFloat(m.qty) || 0, rate: parseFloat(m.rate) || 0, gst: parseFloat(m.gst) || 0, total: parseFloat(m.total) || 0 });
+                    });
+                }
+            });
+            if (_stockAdjustments.length === 0) {
+                _stockAdjustments = (typeof mmLsGet === 'function')
+                    ? (mmLsGet('stockAdjustments') || [])
+                    : JSON.parse(localStorage.getItem('mm_stockAdjustments') || '[]');
+            }
+            if (!mappedSales.length && !mappedPurchases.length) return; // nothing cached yet
+            allData = [...mappedSales, ...mappedPurchases].sort((a, b) => {
+                if (a.date > b.date) return -1;
+                if (a.date < b.date) return 1;
+                return 0;
+            });
+            const fd = document.getElementById('fromDate');
+            if (fd && !fd.value && allData.length > 0) {
+                const dates = allData.map(r => (r.date || '').slice(0, 10)).filter(Boolean).sort();
+                if (dates.length > 0) fd.value = dates[0];
+            }
+            generateReport();
+        }
+
         async function loadData() {
+            // Instant paint from the localStorage cache before the network work below.
+            try { _renderReportFromLocal(); } catch (e) { console.warn('report cache pre-render failed:', e); }
+
             let dbPurchases = [];
             let dbBills = [];
             let useSupabase = false;
