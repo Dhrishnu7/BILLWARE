@@ -1079,36 +1079,16 @@
     // ═══════════════════════════════════════════════════════
     // DATA LOADING
     // ═══════════════════════════════════════════════════════
+    function _renderInventory() {
+        buildStockData();
+        renderStockTable('');
+        updateMetrics();
+        populateAdjustMedicineList();
+        renderAdjustLog();
+    }
+
     async function loadData() {
-        try {
-            let session = (typeof mmGetSession === 'function') ? mmGetSession() : null;
-            if (!session) {
-                for (let i = 0; i < 15 && !session; i++) {
-                    await new Promise(r => setTimeout(r, 200));
-                    session = (typeof mmGetSession === 'function') ? mmGetSession() : null;
-                }
-            }
-
-            if (session && typeof dbGetReportData === 'function') {
-                const data = await dbGetReportData();
-                if (data && (Array.isArray(data.bills) || Array.isArray(data.purchases))) {
-                    _dbPurchases = data.purchases || [];
-                    _dbBills     = data.bills     || [];
-                }
-            }
-            if (session && typeof dbSyncPendingStockAdjustments === 'function') {
-                // Push any adjustment stuck locally (e.g. made before the
-                // 'stock_adjustments' table existed, or made offline) to the
-                // cloud now, so every device sees it — not just this one.
-                try { await dbSyncPendingStockAdjustments(); } catch(e) { console.warn('Pending adjustment retry failed:', e); }
-            }
-            if (session && typeof dbGetStockAdjustments === 'function') {
-                const adj = await dbGetStockAdjustments();
-                if (Array.isArray(adj) && adj.length) _stockAdjustments = adj;
-            }
-        } catch(e) { console.warn('Supabase load failed, using localStorage:', e); }
-
-        // localStorage fallback
+        // ── Step 1: Instant paint from the local cache — no waiting on the network ──
         if (_dbPurchases.length === 0) {
             _dbPurchases = (typeof mmLsGet === 'function')
                 ? (mmLsGet('purchases') || [])
@@ -1124,13 +1104,41 @@
                 ? (mmLsGet('stockAdjustments') || [])
                 : JSON.parse(localStorage.getItem('mm_stockAdjustments') || '[]');
         }
-
-        buildStockData();
-        renderStockTable('');
-        updateMetrics();
-        populateAdjustMedicineList();
-        renderAdjustLog();
+        _renderInventory();
         _dataLoaded = true;
+
+        // ── Step 2: Background refresh from Supabase, then re-paint if data arrived ──
+        try {
+            let session = (typeof mmGetSession === 'function') ? mmGetSession() : null;
+            if (!session) {
+                for (let i = 0; i < 15 && !session; i++) {
+                    await new Promise(r => setTimeout(r, 200));
+                    session = (typeof mmGetSession === 'function') ? mmGetSession() : null;
+                }
+            }
+
+            if (session && typeof dbGetReportData === 'function') {
+                const data = await dbGetReportData();
+                if (data) {
+                    // Only overwrite the cache view when the cloud actually returned
+                    // rows — an empty/failed fetch must not blank out local data.
+                    if (Array.isArray(data.purchases) && data.purchases.length) _dbPurchases = data.purchases;
+                    if (Array.isArray(data.bills) && data.bills.length)         _dbBills     = data.bills;
+                }
+            }
+            if (session && typeof dbSyncPendingStockAdjustments === 'function') {
+                // Push any adjustment stuck locally (e.g. made before the
+                // 'stock_adjustments' table existed, or made offline) to the
+                // cloud now, so every device sees it — not just this one.
+                try { await dbSyncPendingStockAdjustments(); } catch(e) { console.warn('Pending adjustment retry failed:', e); }
+            }
+            if (session && typeof dbGetStockAdjustments === 'function') {
+                const adj = await dbGetStockAdjustments();
+                if (Array.isArray(adj) && adj.length) _stockAdjustments = adj;
+            }
+        } catch(e) { console.warn('Supabase load failed, using localStorage:', e); }
+
+        _renderInventory();
 
         document.getElementById('heroStatus').innerHTML = '&#x2705; Stock data loaded';
         setTimeout(() => {

@@ -443,11 +443,59 @@
             renderKhata();
         }
 
-        async function loadAndRenderKhata() {
-            let supabaseDebtors = [];
-            let localDebtors    = [];
+        // Build the debtor list from the two localStorage stores (no network).
+        function _khataBuildLocal() {
+            let localDebtors = [];
+            // ─── Unscoped localStorage (mm_customers) ─────
+            try {
+                const raw = localStorage.getItem('mm_customers');
+                const customers = JSON.parse(raw || '[]');
+                localDebtors = customers
+                    .filter(c => parseFloat(c.balance || 0) > 0)
+                    .map(c => ({ id: null, name: c.name, phone: c.phone || '', address: c.address || '', balance: parseFloat(c.balance) }));
+            } catch(e) {}
+            // ─── Scoped localStorage (mm_{user}_customers) ─
+            try {
+                const scopedCustomers = mmLsGet('customers') || [];
+                scopedCustomers
+                    .filter(c => parseFloat(c.balance || 0) > 0)
+                    .forEach(c => {
+                        const exists = localDebtors.find(lc => lc.name.toLowerCase() === c.name.toLowerCase());
+                        if (!exists) localDebtors.push({ id: null, name: c.name, phone: c.phone || '', address: c.address || '', balance: parseFloat(c.balance) });
+                    });
+            } catch(e) {}
+            return localDebtors;
+        }
 
-            // ─── Layer 1: Supabase ───────────────────────────────
+        // MERGE: take the HIGHER of cloud vs local for each customer, then paint.
+        // Previously Supabase always won, so a stale/failed cloud balance (one that
+        // never persisted the latest credit sale) would hide the correct, higher
+        // local balance. We never want a merge to LOSE an amount that's owed, so we
+        // keep whichever store shows more. (Same-device settlements lower both
+        // stores together, so this stays correct.)
+        // Called twice per load: first with just the local cache for an INSTANT
+        // view, then again once the cloud data arrives — and since the merge only
+        // ever keeps the higher balance, that second pass can never make a number
+        // wrongly drop mid-load.
+        function _khataMergeAndRender(supabaseDebtors, localDebtors) {
+            const merged = [...supabaseDebtors];
+            localDebtors.forEach(lc => {
+                const inSupabase = merged.find(sc => sc.name.toLowerCase() === lc.name.toLowerCase());
+                if (!inSupabase) merged.push(lc); // only in local — add it
+                else inSupabase.balance = Math.max(inSupabase.balance, lc.balance);
+            });
+            _allKhataCustomers = merged.filter(c => c.balance > 0).sort((a, b) => b.balance - a.balance);
+            _khataCustomers    = [..._allKhataCustomers];
+            renderKhata();
+        }
+
+        async function loadAndRenderKhata() {
+            const localDebtors = _khataBuildLocal();
+            // Instant paint from the local cache — no waiting on the network.
+            _khataMergeAndRender([], localDebtors);
+
+            // Background refresh from Supabase, then re-merge & re-paint.
+            let supabaseDebtors = [];
             try {
                 if (typeof dbGetKhataData === 'function') {
                     const rows = await dbGetKhataData();
@@ -465,43 +513,7 @@
                 }
             } catch(e) { console.warn('Supabase khata load failed:', e); }
 
-            // ─── Layer 2: Unscoped localStorage (mm_customers) ─────
-            try {
-                const raw = localStorage.getItem('mm_customers');
-                const customers = JSON.parse(raw || '[]');
-                localDebtors = customers
-                    .filter(c => parseFloat(c.balance || 0) > 0)
-                    .map(c => ({ id: null, name: c.name, phone: c.phone || '', address: c.address || '', balance: parseFloat(c.balance) }));
-            } catch(e) {}
-
-            // ─── Layer 3: Scoped localStorage (mm_{user}_customers) ─
-            try {
-                const scopedCustomers = mmLsGet('customers') || [];
-                scopedCustomers
-                    .filter(c => parseFloat(c.balance || 0) > 0)
-                    .forEach(c => {
-                        const exists = localDebtors.find(lc => lc.name.toLowerCase() === c.name.toLowerCase());
-                        if (!exists) localDebtors.push({ id: null, name: c.name, phone: c.phone || '', address: c.address || '', balance: parseFloat(c.balance) });
-                    });
-            } catch(e) {}
-
-            // ─── MERGE: take the HIGHER of cloud vs local for each customer ───
-            // Previously Supabase always won, so a stale/failed cloud balance
-            // (one that never persisted the latest credit sale) would hide the
-            // correct, higher local balance — making a customer's dues look
-            // "reset to the latest bill only". We never want a merge to LOSE an
-            // amount that's owed, so we keep whichever store shows more. (Same-
-            // device settlements lower both stores together, so this stays correct.)
-            const merged = [...supabaseDebtors];
-            localDebtors.forEach(lc => {
-                const inSupabase = merged.find(sc => sc.name.toLowerCase() === lc.name.toLowerCase());
-                if (!inSupabase) merged.push(lc); // only in local — add it
-                else inSupabase.balance = Math.max(inSupabase.balance, lc.balance);
-            });
-
-            _allKhataCustomers = merged.filter(c => c.balance > 0).sort((a, b) => b.balance - a.balance);
-            _khataCustomers    = [..._allKhataCustomers];
-            renderKhata();
+            _khataMergeAndRender(supabaseDebtors, localDebtors);
         }
 
         function getInitials(name) {
@@ -759,6 +771,8 @@
         // DOMContentLoaded fires before Supabase restores the session,
         // so _currentUser() would return null. We wait for getSession() first.
         document.addEventListener('DOMContentLoaded', async () => {
+            // Instant paint from the local cache before we even restore the session.
+            try { _khataMergeAndRender([], _khataBuildLocal()); } catch(e) {}
             try {
                 await _supabase.auth.getSession(); // ensures session is restored
             } catch(e) {
