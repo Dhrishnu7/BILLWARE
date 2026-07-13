@@ -1,6 +1,6 @@
 // ── Billware Service Worker ──
 // IMPORTANT: Change CACHE_NAME on every deploy so installed apps get the latest version
-const CACHE_NAME = 'mm-pakkam-v114';
+const CACHE_NAME = 'mm-pakkam-v115';
 
 // Pages and assets to cache for offline use + instant navigation
 const PRECACHE_URLS = [
@@ -30,7 +30,8 @@ const PRECACHE_URLS = [
     '/icon-192.png',
     '/icon-512.png',
     '/manifest.json',
-    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+    'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
 ];
 
 // ── Install: pre-cache all core files ──

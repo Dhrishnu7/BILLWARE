@@ -612,6 +612,8 @@
     <script src="js/supabase.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <script src="js/thermal-print.js"></script>
+    <!-- html2canvas: renders the invoice to a PNG for the WhatsApp bill softcopy -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
     <script>
@@ -1873,10 +1875,8 @@
             document.getElementById('successModal').classList.remove('open');
         }
 
-        function printInvoice() {
-            const bill = window.currentPrintBill;
-            if (!bill) return;
-
+        // Builds the invoice inner HTML (shared by Print and the WhatsApp softcopy image).
+        function buildInvoiceHtml(bill) {
             // Delivery address lookup from mm_customers
             let deliveryAddress = (bill.deliveryAddress || '').trim();
             if (!deliveryAddress && bill.customerName) {
@@ -1935,25 +1935,7 @@
                 </tr>
             `).join('');
 
-            const printWindow = window.open('', '_blank');
-            if(!printWindow) {
-                alert('Please allow popups to print invoices.');
-                return;
-            }
-
-            const html = `
-                <html>
-                <head>
-                    <title>Invoice - ${bill.billNo}</title>
-                    <style>
-                        body { margin: 0; padding: 0; background: #fff; }
-                        @media print {
-                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                            @page { margin: 0.5cm; }
-                        }
-                    </style>
-                </head>
-                <body>
+            return `
                     <div style="font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 800px; margin: 0 auto; color: #1e293b; background: #fff; padding: 30px; box-sizing: border-box; font-size: 13px; line-height: 1.5;">
                         
                         <!-- Header: Logo/Title Left, Info Right -->
@@ -2080,18 +2062,135 @@
                         </div>
 
                     </div>
-                </body>
-                </html>
             `;
-            printWindow.document.write(html);
+        }
+
+        function printInvoice() {
+            const bill = window.currentPrintBill;
+            if (!bill) return;
+            const inner = buildInvoiceHtml(bill);
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) { alert('Please allow popups to print invoices.'); return; }
+            printWindow.document.write(`<html><head><title>Invoice - ${bill.billNo}</title><style>body{margin:0;padding:0;background:#fff;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}@page{margin:0.5cm;}}</style></head><body>${inner}</body></html>`);
             printWindow.document.close();
-
-            setTimeout(() => {
-                printWindow.focus();
-                printWindow.print();
-            }, 500);
-
+            setTimeout(() => { printWindow.focus(); printWindow.print(); }, 500);
             closeSuccessModal();
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           BILL SOFTCOPY — share the invoice as a PNG image (WhatsApp / download)
+           On mobile: native share sheet with the image file → WhatsApp/anywhere.
+           On desktop (or no file-share support): downloads the PNG and opens
+           WhatsApp (Web) with a text note so staff can attach the saved image.
+           If html2canvas didn't load (offline & uncached), falls back to a
+           WhatsApp text bill so the feature never dead-ends.
+        ══════════════════════════════════════════════════════════════════ */
+        function _billCustomerPhone(bill) {
+            let phone = (bill.customerPhone || '').trim();
+            if (!phone && bill.customerName) {
+                const customers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+                const c = customers.find(c => (c.name || '').trim().toLowerCase() === (bill.customerName || '').trim().toLowerCase());
+                if (c) phone = (c.phone || '').trim();
+            }
+            // Normalise to international digits for wa.me (assume India +91 for 10-digit numbers).
+            let digits = phone.replace(/\D/g, '');
+            if (digits.length === 10) digits = '91' + digits;
+            return digits; // '' if unknown → WhatsApp opens contact picker
+        }
+
+        function _billWhatsappText(bill) {
+            const sp = window.mmShopProfile || {};
+            const shopName = sp.shop_name || 'Billware';
+            const lines = [];
+            lines.push('*' + shopName + '*');
+            lines.push('Bill: ' + (bill.billNo || '-') + '  |  ' + new Date(bill.savedAt || Date.now()).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }));
+            if (bill.customerName) lines.push('Customer: ' + bill.customerName);
+            lines.push('--------------------------');
+            (bill.medicines || []).forEach(m => {
+                const nm = (m.product || '').substring(0, 22);
+                const qty = m.qty || 0;
+                const tot = parseFloat(m.total || 0).toFixed(2);
+                lines.push(`${nm}  x${qty}  ₹${tot}`);
+            });
+            lines.push('--------------------------');
+            const gt = parseFloat(String(bill.grandTotal || bill.total || 0).replace(/[^0-9.]/g, '')) || 0;
+            lines.push('*TOTAL: ₹' + gt.toFixed(2) + '*');
+            lines.push((sp.footer_msg || 'Thank you! Get well soon.').replace(/["]/g, ''));
+            return lines.join('\n');
+        }
+
+        function _openWhatsapp(bill, note) {
+            const phone = _billCustomerPhone(bill);
+            const text = encodeURIComponent(note || _billWhatsappText(bill));
+            const url = phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`;
+            window.open(url, '_blank');
+        }
+
+        function _downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 4000);
+        }
+
+        function _toast(title, sub) {
+            document.getElementById('toastTitle').textContent = title;
+            document.getElementById('toastSub').textContent   = sub;
+            const t = document.getElementById('toast');
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        async function shareBillSoftcopy() {
+            const bill = window.currentPrintBill;
+            if (!bill) return;
+            const btn = document.getElementById('shareBillBtn');
+            const orig = btn ? btn.innerHTML : '';
+
+            // No image library available → graceful WhatsApp text fallback.
+            if (typeof html2canvas === 'undefined') {
+                _openWhatsapp(bill);
+                _toast('📱 WhatsApp opened', 'Sent as a text bill (image unavailable offline).');
+                return;
+            }
+
+            if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Preparing…'; }
+
+            // Render the invoice into an off-screen container, then snapshot it.
+            const holder = document.createElement('div');
+            holder.style.cssText = 'position:fixed;left:-99999px;top:0;width:800px;background:#fff;z-index:-1;';
+            holder.innerHTML = buildInvoiceHtml(bill);
+            document.body.appendChild(holder);
+
+            try {
+                const canvas = await html2canvas(holder.firstElementChild || holder, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+                const blob = await new Promise(res => canvas.toBlob(res, 'image/png', 0.95));
+                const filename = `Invoice-${(bill.billNo || 'bill').replace(/[^\w-]/g, '')}.png`;
+                const file = new File([blob], filename, { type: 'image/png' });
+
+                // Mobile: native share sheet with the image file → WhatsApp directly.
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: 'Invoice ' + (bill.billNo || ''),
+                        text: `Your bill from ${(window.mmShopProfile || {}).shop_name || 'Billware'}`,
+                    });
+                    _toast('✅ Shared', 'Bill softcopy sent.');
+                } else {
+                    // Desktop / no file-share: download the image + open WhatsApp with a note.
+                    _downloadBlob(blob, filename);
+                    _openWhatsapp(bill, `Your bill *${bill.billNo || ''}* from ${(window.mmShopProfile || {}).shop_name || 'Billware'} — invoice image attached.`);
+                    _toast('📱 WhatsApp opened', 'Invoice image downloaded — attach it in the chat.');
+                }
+            } catch (e) {
+                console.error('softcopy share failed:', e);
+                _openWhatsapp(bill);
+                _toast('📱 WhatsApp opened', 'Sent as a text bill (image render failed).');
+            } finally {
+                holder.remove();
+                if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+            }
         }
     </script>
 
@@ -2260,10 +2359,13 @@
                 <div style="font-size: 3.5rem; margin-bottom: 0.5rem; animation: fadeUp 0.5s ease;">🎉</div>
                 <h3 style="font-size: 1.35rem; font-weight: 800; color: #0f172a; margin-bottom: 0.5rem;">Order Placed Successfully!</h3>
                 <p style="color: #64748b; font-size: 0.95rem; margin-bottom: 1.8rem; line-height: 1.5;" id="successModalSub"></p>
-                <div style="display: flex; gap: 0.8rem; justify-content: center;">
-                    <button class="btn-mcancel" onclick="closeSuccessModal()" style="flex: 1;">Cancel</button>
+                <div style="display: flex; gap: 0.7rem; justify-content: center; flex-wrap: wrap;">
+                    <button class="btn-mcancel" onclick="closeSuccessModal()" style="flex: 1 1 100%;">Cancel</button>
+                    <button class="btn-do-import" id="shareBillBtn" onclick="shareBillSoftcopy()" style="flex: 1; background: linear-gradient(135deg, #22c55e, #16a34a); box-shadow: 0 4px 14px rgba(34,197,94,0.3);">
+                        📱 Share Bill
+                    </button>
                     <button class="btn-do-import" onclick="printInvoice()" style="flex: 1; background: linear-gradient(135deg, #0ea5e9, #0284c7); box-shadow: 0 4px 14px rgba(14,165,233,0.3);">
-                        🖨️ Print Invoice
+                        🖨️ Print
                     </button>
                 </div>
             </div>
