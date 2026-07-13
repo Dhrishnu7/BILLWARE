@@ -27,6 +27,9 @@
     document.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter') return;
 
+        // Let pages use Ctrl/Cmd+Enter as their own shortcut (e.g. save the bill)
+        if (e.ctrlKey || e.metaKey) return;
+
         // Let buttons do their own click (Space/Enter)
         const tag = e.target.tagName.toLowerCase();
         if (tag === 'button' || tag === 'a') return;

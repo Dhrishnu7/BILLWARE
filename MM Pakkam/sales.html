@@ -1643,20 +1643,80 @@
         document.addEventListener('keydown', function (e) {
             // F1 → open the shortcuts cheat-sheet
             if (e.key === 'F1') { e.preventDefault(); toggleShortcutsHelp(true); return; }
+            // Ctrl+Enter → save the bill
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                const btn = document.querySelector('button[type="submit"]') || document.getElementById('saveBtn');
+                if (btn && !btn.disabled) btn.click();
+                return;
+            }
+            if (!e.altKey) return;                 // everything below is an Alt shortcut
+            const k = (e.key || '').toLowerCase();
             // Alt+C → jump straight to the Customer field
-            if (e.altKey && (e.key === 'c' || e.key === 'C')) {
+            if (k === 'c') {
                 const el = document.getElementById('customerName');
                 if (el) { e.preventDefault(); el.focus(); if (el.select) el.select(); }
                 return;
             }
             // Alt+R → remove the medicine row you're currently editing
-            if (e.altKey && (e.key === 'r' || e.key === 'R')) {
+            if (k === 'r') {
                 const a = document.activeElement;
                 const m = a && a.id && a.id.match(/_(\d+)$/);
                 if (m) { e.preventDefault(); removeRow(parseInt(m[1], 10)); }
                 return;
             }
+            // Alt+Q → jump to the Quantity box of the current row
+            if (k === 'q') {
+                e.preventDefault();
+                const a = document.activeElement;
+                const m = a && a.id && a.id.match(/_(\d+)$/);
+                const q = m ? document.getElementById('qty_' + m[1]) : document.querySelector('[id^="qty_"]');
+                if (q) { q.focus(); if (q.select) q.select(); }
+                return;
+            }
+            // Alt+P → toggle Cash / Credit payment mode
+            if (k === 'p') {
+                e.preventDefault();
+                const pm = document.getElementById('paymentMode');
+                if (pm) { pm.value = (pm.value === 'credit') ? 'cash' : 'credit'; pm.dispatchEvent(new Event('change')); }
+                return;
+            }
+            // Alt+M → open the medicine import
+            if (k === 'm') {
+                e.preventDefault();
+                if (typeof openImportModal === 'function') openImportModal();
+                return;
+            }
+            // Alt+N → start a fresh bill (clears the form)
+            if (k === 'n') {
+                e.preventDefault();
+                _salesNewBill();
+                return;
+            }
         });
+
+        async function _salesNewBill() {
+            const hasData = (document.getElementById('customerName').value.trim() !== '') ||
+                Array.from(document.querySelectorAll('[id^="product_"]')).some(i => i.value.trim() !== '');
+            if (hasData && typeof mmConfirm === 'function') {
+                const ok = await mmConfirm('Start a fresh bill? The current unsaved entries will be cleared.', { title: 'New Bill', okText: 'Clear & Start' });
+                if (!ok) return;
+            }
+            _salesResetForm();
+        }
+
+        function _salesResetForm() {
+            const cn = document.getElementById('customerName'); if (cn) cn.value = '';
+            const dn = document.getElementById('doctorName');   if (dn) dn.value = '';
+            const pm = document.getElementById('paymentMode');  if (pm) pm.value = 'cash';
+            const mr = document.getElementById('medicineRows'); if (mr) mr.innerHTML = '';
+            rowCount = 0;
+            addRow();
+            const sd = document.getElementById('saleDate'); if (sd) sd.valueAsDate = new Date();
+            if (typeof generateBillNo === 'function') generateBillNo();
+            if (typeof refreshNamesLists === 'function') refreshNamesLists();
+            if (cn) cn.focus();
+        }
 
         function toggleShortcutsHelp(show) {
             const m = document.getElementById('shortcutsModal');
@@ -2518,9 +2578,14 @@
                         <tr><td><kbd>Enter</kbd></td><td style="color:#475569;">Next field &mdash; on the last field it adds a new medicine row</td></tr>
                         <tr><td><kbd>F2</kbd></td><td style="color:#475569;">Add a new medicine row</td></tr>
                         <tr><td><kbd>Alt</kbd> + <kbd>R</kbd></td><td style="color:#475569;">Remove the medicine row you're in</td></tr>
+                        <tr><td><kbd>Alt</kbd> + <kbd>Q</kbd></td><td style="color:#475569;">Jump to the Quantity box of the current row</td></tr>
                         <tr><td><kbd>Alt</kbd> + <kbd>C</kbd></td><td style="color:#475569;">Jump to the Customer field</td></tr>
+                        <tr><td><kbd>Alt</kbd> + <kbd>P</kbd></td><td style="color:#475569;">Toggle Cash &harr; Credit</td></tr>
+                        <tr><td><kbd>Alt</kbd> + <kbd>M</kbd></td><td style="color:#475569;">Open the medicine import</td></tr>
+                        <tr><td><kbd>Alt</kbd> + <kbd>N</kbd></td><td style="color:#475569;">Start a fresh bill (clears the form)</td></tr>
                         <tr><td><kbd>F9</kbd></td><td style="color:#475569;">Focus the Save button</td></tr>
                         <tr><td><kbd>Alt</kbd> + <kbd>S</kbd></td><td style="color:#475569;">Save the bill</td></tr>
+                        <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td style="color:#475569;">Save the bill</td></tr>
                         <tr><td><kbd>Esc</kbd></td><td style="color:#475569;">Close a popup, or go Back</td></tr>
                         <tr><td><kbd>F1</kbd></td><td style="color:#475569;">Show this shortcuts list</td></tr>
                     </tbody>
