@@ -2085,6 +2085,13 @@
            If html2canvas didn't load (offline & uncached), falls back to a
            WhatsApp text bill so the feature never dead-ends.
         ══════════════════════════════════════════════════════════════════ */
+        function _normPhone(raw) {
+            // Normalise to international digits for wa.me (assume India +91 for 10-digit numbers).
+            let digits = String(raw || '').replace(/\D/g, '');
+            if (digits.length === 10) digits = '91' + digits;
+            return digits; // '' if unknown
+        }
+
         function _billCustomerPhone(bill) {
             let phone = (bill.customerPhone || '').trim();
             if (!phone && bill.customerName) {
@@ -2092,10 +2099,7 @@
                 const c = customers.find(c => (c.name || '').trim().toLowerCase() === (bill.customerName || '').trim().toLowerCase());
                 if (c) phone = (c.phone || '').trim();
             }
-            // Normalise to international digits for wa.me (assume India +91 for 10-digit numbers).
-            let digits = phone.replace(/\D/g, '');
-            if (digits.length === 10) digits = '91' + digits;
-            return digits; // '' if unknown → WhatsApp opens contact picker
+            return _normPhone(phone); // '' if unknown → we prompt the walk-in
         }
 
         function _billWhatsappText(bill) {
@@ -2119,10 +2123,10 @@
             return lines.join('\n');
         }
 
-        function _openWhatsapp(bill, note) {
-            const phone = _billCustomerPhone(bill);
+        function _openWhatsapp(bill, note, phone) {
+            const p = (phone != null) ? phone : _billCustomerPhone(bill);
             const text = encodeURIComponent(note || _billWhatsappText(bill));
-            const url = phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`;
+            const url = p ? `https://wa.me/${p}?text=${text}` : `https://wa.me/?text=${text}`;
             window.open(url, '_blank');
         }
 
@@ -2147,11 +2151,29 @@
             if (!bill) return;
             const btn = document.getElementById('shareBillBtn');
             const orig = btn ? btn.innerHTML : '';
+            const shopName = (window.mmShopProfile || {}).shop_name || 'Billware';
+
+            // Resolve a WhatsApp number. Saved customers auto-fill; a walk-in has
+            // none on record, so ask once (blank = just download the image).
+            let phone = _billCustomerPhone(bill);
+            if (!phone) {
+                const entered = await mmPrompt(
+                    "Customer's WhatsApp number?\n(Leave blank to just download the image.)",
+                    '',
+                    { title: '📱 Send Bill on WhatsApp', placeholder: 'e.g. 9876543210', okText: 'Continue' }
+                );
+                if (entered === null) return;            // cancelled → abort
+                phone = _normPhone(entered);             // '' if blank → download-only
+            }
 
             // No image library available → graceful WhatsApp text fallback.
             if (typeof html2canvas === 'undefined') {
-                _openWhatsapp(bill);
-                _toast('📱 WhatsApp opened', 'Sent as a text bill (image unavailable offline).');
+                if (phone) {
+                    _openWhatsapp(bill, null, phone);
+                    _toast('📱 WhatsApp opened', 'Sent as a text bill (image unavailable offline).');
+                } else {
+                    _toast('⚠️ No number given', 'Enter a number, or reconnect online to make the image.');
+                }
                 return;
             }
 
@@ -2174,19 +2196,27 @@
                     await navigator.share({
                         files: [file],
                         title: 'Invoice ' + (bill.billNo || ''),
-                        text: `Your bill from ${(window.mmShopProfile || {}).shop_name || 'Billware'}`,
+                        text: `Your bill from ${shopName}`,
                     });
                     _toast('✅ Shared', 'Bill softcopy sent.');
-                } else {
-                    // Desktop / no file-share: download the image + open WhatsApp with a note.
+                } else if (phone) {
+                    // Desktop with a number: download the image + open that WhatsApp chat.
                     _downloadBlob(blob, filename);
-                    _openWhatsapp(bill, `Your bill *${bill.billNo || ''}* from ${(window.mmShopProfile || {}).shop_name || 'Billware'} — invoice image attached.`);
+                    _openWhatsapp(bill, `Your bill *${bill.billNo || ''}* from ${shopName} — invoice image attached.`, phone);
                     _toast('📱 WhatsApp opened', 'Invoice image downloaded — attach it in the chat.');
+                } else {
+                    // No number entered: just save the image for the customer/staff.
+                    _downloadBlob(blob, filename);
+                    _toast('📥 Downloaded', 'Invoice image saved — no number entered.');
                 }
             } catch (e) {
                 console.error('softcopy share failed:', e);
-                _openWhatsapp(bill);
-                _toast('📱 WhatsApp opened', 'Sent as a text bill (image render failed).');
+                if (phone) {
+                    _openWhatsapp(bill, null, phone);
+                    _toast('📱 WhatsApp opened', 'Sent as a text bill (image render failed).');
+                } else {
+                    _toast('⚠️ Could not share', 'Image render failed and no number was entered.');
+                }
             } finally {
                 holder.remove();
                 if (btn) { btn.disabled = false; btn.innerHTML = orig; }
