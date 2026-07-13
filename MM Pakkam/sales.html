@@ -833,6 +833,41 @@
         }
 
         /* -- Build datalist options: ONLY unique base medicine names (no batch suffixes) -- */
+        // Auto-close any open promise order this bill fulfils, so staff don't have
+        // to remember the Inventory page's "Convert to Sale" button. Matches on
+        // customer (phone if known, else name) + medicine name. Fire-and-forget:
+        // it updates the cloud status; the Inventory promise tab also reconciles
+        // on load, so nothing is lost if this runs slowly or the user navigates away.
+        async function autoFulfillPromiseOrders(bill) {
+            if (typeof dbGetPromiseOrders !== 'function' || typeof dbUpdatePromiseOrderStatus !== 'function') return;
+            const custName = (bill.customerName || '').trim().toLowerCase();
+            if (!custName) return; // walk-in with no name → nothing to match against
+            const soldProducts = (bill.medicines || []).map(m => (m.product || '').trim().toLowerCase()).filter(Boolean);
+            if (!soldProducts.length) return;
+            // Bills don't store a phone — look this customer's up for a stronger match.
+            let custPhone = '';
+            try {
+                const customers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+                const c = customers.find(cc => (cc.name || '').trim().toLowerCase() === custName);
+                if (c) custPhone = (c.phone || '').replace(/\D/g, '');
+            } catch (e) {}
+            try {
+                const open = await dbGetPromiseOrders(['pending', 'ordered', 'arrived']);
+                for (const o of (open || [])) {
+                    const oName  = (o.customer_name  || '').trim().toLowerCase();
+                    const oPhone = (o.customer_phone || '').replace(/\D/g, '');
+                    const custMatch = (oPhone && custPhone && oPhone === custPhone) || (oName && oName === custName);
+                    if (!custMatch) continue;
+                    const med = (o.medicine_name || '').trim().toLowerCase();
+                    if (med.length < 3) continue; // too short to match safely
+                    const medMatch = soldProducts.some(p => p === med || p.includes(med) || med.includes(p));
+                    if (!medMatch) continue;
+                    try { await dbUpdatePromiseOrderStatus(o.id, 'fulfilled'); }
+                    catch (e) { console.warn('promise auto-fulfill failed:', e); }
+                }
+            } catch (e) { console.warn('autoFulfillPromiseOrders error:', e); }
+        }
+
         function getMedicineOptions() {
             const medList   = JSON.parse(localStorage.getItem('mm_medicine_list') || '[]');
             const purchases = JSON.parse(localStorage.getItem('mm_purchases')     || '[]');
@@ -1500,6 +1535,9 @@
                     console.log(`[SH] Auto-logged ${addedSHCount} Schedule H drug(s) from Bill ${bill.billNo}`);
                 }
             } catch(shErr) { console.warn('[SH] Auto-log error:', shErr); }
+
+            // Auto-close any promise order this bill fulfils (no manual "Convert to Sale" needed).
+            autoFulfillPromiseOrders(bill);
 
             // Update Customer Balance if Credit (localStorage + Supabase)
             if (paymentMode === 'credit' && customerName) {

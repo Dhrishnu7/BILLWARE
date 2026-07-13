@@ -1012,7 +1012,42 @@
         }
         try { _promiseOrders = await dbGetPromiseOrders(); }
         catch (e) { _promiseOrders = []; console.warn('promise orders load failed:', e); }
+        await _reconcilePromiseOrders();
         renderPromiseOrders();
+    }
+
+    // Close any open promise order that's already been satisfied by a normal sale
+    // (billed on the Sales page without using "Convert to Sale") — including sales
+    // made before the auto-fulfil feature existed. Matches customer name + medicine,
+    // and ignores sales made before the order was created so an old sale can't
+    // wrongly close a fresh order.
+    async function _reconcilePromiseOrders() {
+        if (typeof dbUpdatePromiseOrderStatus !== 'function') return;
+        let sales = [];
+        try { sales = JSON.parse(localStorage.getItem('mm_sales') || '[]'); } catch (e) {}
+        if (!sales.length) return;
+        const open = _promiseOrders.filter(o => (o.status || 'pending') !== 'fulfilled');
+        for (const o of open) {
+            const oName = (o.customer_name || '').trim().toLowerCase();
+            const med   = (o.medicine_name || '').trim().toLowerCase();
+            if (!oName || med.length < 3) continue;
+            const created = o.created_at ? new Date(o.created_at).getTime() : 0;
+            const satisfied = sales.some(s => {
+                const sName = (s.customerName || '').trim().toLowerCase();
+                if (!sName || sName !== oName) return false;
+                const sDate = new Date(s.date || s.savedAt || 0).getTime();
+                if (created && sDate && sDate < created - 86400000) return false; // sale predates the order
+                return (s.medicines || []).some(m => {
+                    const p = (m.product || '').trim().toLowerCase();
+                    return p && (p === med || p.includes(med) || med.includes(p));
+                });
+            });
+            if (satisfied) {
+                o.status = 'fulfilled';
+                try { await dbUpdatePromiseOrderStatus(o.id, 'fulfilled'); }
+                catch (e) { console.warn('promise reconcile update failed:', e); }
+            }
+        }
     }
 
     function promiseSetFilter(f, btn) {
