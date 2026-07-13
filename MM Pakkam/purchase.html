@@ -528,7 +528,7 @@
         }
     </style>
     <script src="js/modal.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- xlsx (Excel import) is lazy-loaded on demand via mmLoadScript() so it never blocks page load. -->
     <!-- tesseract.js (OCR, several MB) is lazy-loaded on first scan — see loadTesseract() -->
     <script src="js/auth.js?v=3"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1196,7 +1196,13 @@
             if(files.length) processFileList(files);
         }
 
-        function processFileList(files) {
+        const XLSX_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        async function processFileList(files) {
+            // Load the Excel parser on demand (kept out of the page's initial load).
+            if (typeof XLSX === 'undefined') {
+                try { await mmLoadScript(XLSX_CDN); }
+                catch (e) { alert('Could not load the import tool. Please check your internet and try again.'); return; }
+            }
             _iFileCount=files.length; _iRows=[]; _iHdrs=[];
             let done=0;
             const results=new Array(files.length).fill(null);
@@ -1315,7 +1321,12 @@
             else if (/\.(pdf|jpg|jpeg|png|webp|bmp|tiff?)$/i.test(file.name)) { readInvOCR(file); }
         }
 
-        function readInvFile(file) {
+        async function readInvFile(file) {
+            // Load the Excel parser on demand (kept out of the page's initial load).
+            if (typeof XLSX === 'undefined') {
+                try { await mmLoadScript(XLSX_CDN); }
+                catch (e) { showToast('Load Error', 'Could not load the import tool. Check your internet.'); return; }
+            }
             const rdr=new FileReader();
             rdr.onload=ev=>{
                 try {

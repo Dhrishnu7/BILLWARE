@@ -1030,7 +1030,7 @@
         }
     </style>
     <script src="js/modal.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- xlsx (Excel import) is lazy-loaded on demand via mmLoadScript() so it never blocks page load. -->
     <script src="js/auth.js?v=3"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
@@ -2728,7 +2728,13 @@
             if (files.length) processFileList(files);
         }
 
-        function processFileList(files) {
+        const XLSX_CDN = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        async function processFileList(files) {
+            // Load the Excel parser on demand (kept out of the page's initial load).
+            if (typeof XLSX === 'undefined') {
+                try { await mmLoadScript(XLSX_CDN); }
+                catch (e) { alert('Could not load the import tool. Please check your internet and try again.'); return; }
+            }
             _iFileCount = files.length; _iRows = []; _iHdrs = [];
             let done = 0;
             const results = new Array(files.length).fill(null);

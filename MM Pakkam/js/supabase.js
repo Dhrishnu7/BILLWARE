@@ -47,6 +47,29 @@ function mmLsRemove(key) {
 }
 
 /* ─────────────────────────────────────────────────────
+   LAZY SCRIPT LOADER
+   Loads a heavy CDN library (xlsx, html2canvas, …) only when
+   it's actually needed, instead of blocking every page load.
+   Caches by URL so repeat calls resolve instantly. Once fetched,
+   the service worker caches it for offline/next-time use.
+───────────────────────────────────────────────────── */
+window._mmScriptCache = window._mmScriptCache || {};
+function mmLoadScript(src) {
+    if (window._mmScriptCache[src]) return window._mmScriptCache[src];
+    const p = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.onload = () => resolve();
+        s.onerror = () => { delete window._mmScriptCache[src]; reject(new Error('Failed to load ' + src)); };
+        document.head.appendChild(s);
+    });
+    window._mmScriptCache[src] = p;
+    return p;
+}
+window.mmLoadScript = mmLoadScript;
+
+/* ─────────────────────────────────────────────────────
    CUSTOMERS
 ───────────────────────────────────────────────────── */
 async function dbGetCustomers() {

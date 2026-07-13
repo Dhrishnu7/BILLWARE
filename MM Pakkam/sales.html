@@ -606,14 +606,14 @@
         .qa-cancel-btn:hover { background: #f1f5f9; }
     </style>
     <script src="js/modal.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="js/auth.js?v=3"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <script src="js/thermal-print.js"></script>
-    <!-- html2canvas: renders the invoice to a PNG for the WhatsApp bill softcopy -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- xlsx (Excel import) and html2canvas (bill softcopy) are heavy and only
+         needed on demand — they're lazy-loaded via mmLoadScript() when used, so
+         they never block page load. -->
 </head>
 <body>
     <script>
@@ -1704,7 +1704,13 @@
             if(files.length) processFileList(files);
         }
 
-        function processFileList(files) {
+        const XLSX_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        async function processFileList(files) {
+            // Load the Excel parser on demand (kept out of the page's initial load).
+            if (typeof XLSX === 'undefined') {
+                try { await mmLoadScript(XLSX_CDN); }
+                catch (e) { alert('Could not load the import tool. Please check your internet and try again.'); return; }
+            }
             _iFileCount=files.length; _iRows=[]; _iHdrs=[];
             let done=0;
             const results=new Array(files.length).fill(null);
@@ -2166,7 +2172,13 @@
                 phone = _normPhone(entered);             // '' if blank → download-only
             }
 
-            // No image library available → graceful WhatsApp text fallback.
+            // Load the image renderer on demand (kept out of the page's initial load).
+            if (typeof html2canvas === 'undefined') {
+                try { await mmLoadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'); }
+                catch (_) { /* offline & uncached → fall through to text bill below */ }
+            }
+
+            // Still no image library (offline first use) → graceful WhatsApp text fallback.
             if (typeof html2canvas === 'undefined') {
                 if (phone) {
                     _openWhatsapp(bill, null, phone);
