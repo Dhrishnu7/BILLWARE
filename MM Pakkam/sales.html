@@ -2558,9 +2558,10 @@
         #shortcutsFab { position:fixed; left:1.2rem; bottom:1.2rem; z-index:900; width:46px; height:46px; border-radius:50%; border:none; cursor:pointer; background:linear-gradient(135deg,#0ea5e9,#0284c7); color:#fff; font-size:1.2rem; box-shadow:0 6px 18px rgba(2,132,199,0.4); display:flex; align-items:center; justify-content:center; transition:transform 0.15s; }
         #shortcutsFab:hover { transform:translateY(-2px) scale(1.05); }
         #shortcutsModal kbd { display:inline-block; padding:2px 9px; border-radius:6px; border:1.5px solid #cbd5e1; border-bottom-width:3px; background:#f8fafc; font-family:'Inter',monospace; font-size:0.8rem; font-weight:800; color:#0f172a; white-space:nowrap; }
-        #shortcutsModal table { width:100%; border-collapse:collapse; font-size:0.9rem; }
-        #shortcutsModal td { padding:9px 6px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
-        #shortcutsModal td:first-child { white-space:nowrap; width:1%; }
+        #shortcutsModal table { width:100%; border-collapse:collapse; font-size:0.88rem; table-layout:fixed; }
+        #shortcutsModal td { padding:8px 4px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+        #shortcutsModal td:first-child { width:118px; white-space:normal; }
+        #shortcutsModal td:last-child { color:#475569; word-break:break-word; line-height:1.4; }
         #shortcutsModal tr:last-child td { border-bottom:none; }
         @media (max-width:700px){ #shortcutsFab{ left:auto; right:1rem; bottom:5.5rem; } }
     </style>
