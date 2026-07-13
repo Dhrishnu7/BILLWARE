@@ -2180,13 +2180,21 @@
             if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Preparing…'; }
 
             // Render the invoice into an off-screen container, then snapshot it.
+            // Pin a fixed 800px width on BOTH the box and html2canvas (width +
+            // windowWidth) so the right-hand columns are never clipped — that
+            // happened when the layout width was inferred from the live viewport
+            // instead of the invoice's own box.
             const holder = document.createElement('div');
-            holder.style.cssText = 'position:fixed;left:-99999px;top:0;width:800px;background:#fff;z-index:-1;';
+            holder.style.cssText = 'position:fixed;left:0;top:0;z-index:-9999;opacity:0;pointer-events:none;background:#fff;width:800px;';
             holder.innerHTML = buildInvoiceHtml(bill);
             document.body.appendChild(holder);
+            const node = holder.firstElementChild || holder;
+            node.style.width = '800px';
+            node.style.maxWidth = 'none';
+            node.style.margin = '0';
 
             try {
-                const canvas = await html2canvas(holder.firstElementChild || holder, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+                const canvas = await html2canvas(node, { scale: 2, backgroundColor: '#ffffff', useCORS: true, width: 800, windowWidth: 800 });
                 const blob = await new Promise(res => canvas.toBlob(res, 'image/png', 0.95));
                 const filename = `Invoice-${(bill.billNo || 'bill').replace(/[^\w-]/g, '')}.png`;
                 const file = new File([blob], filename, { type: 'image/png' });
