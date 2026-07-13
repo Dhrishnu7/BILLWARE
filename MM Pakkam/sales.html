@@ -2558,39 +2558,37 @@
         #shortcutsFab { position:fixed; left:1.2rem; bottom:1.2rem; z-index:900; width:46px; height:46px; border-radius:50%; border:none; cursor:pointer; background:linear-gradient(135deg,#0ea5e9,#0284c7); color:#fff; font-size:1.2rem; box-shadow:0 6px 18px rgba(2,132,199,0.4); display:flex; align-items:center; justify-content:center; transition:transform 0.15s; }
         #shortcutsFab:hover { transform:translateY(-2px) scale(1.05); }
         #shortcutsModal kbd { display:inline-block; padding:2px 9px; border-radius:6px; border:1.5px solid #cbd5e1; border-bottom-width:3px; background:#f8fafc; font-family:'Inter',monospace; font-size:0.8rem; font-weight:800; color:#0f172a; white-space:nowrap; }
-        #shortcutsModal table { width:100%; border-collapse:collapse; font-size:0.88rem; table-layout:fixed; }
-        #shortcutsModal td { padding:8px 4px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
-        #shortcutsModal td:first-child { width:118px; white-space:normal; }
-        #shortcutsModal td:last-child { color:#475569; word-break:break-word; line-height:1.4; }
-        #shortcutsModal tr:last-child td { border-bottom:none; }
+        #shortcutsModal .sc-item { display:flex; align-items:center; gap:12px; padding:7px 2px; border-bottom:1px solid #f1f5f9; }
+        #shortcutsModal .sc-item:last-child { border-bottom:none; }
+        #shortcutsModal .sc-key { flex:0 0 100px; display:flex; gap:5px; flex-wrap:wrap; }
+        #shortcutsModal .sc-desc { flex:1; color:#475569; font-size:0.86rem; line-height:1.35; }
+        #shortcutsModal kbd { padding:2px 7px; font-size:0.76rem; }
         @media (max-width:700px){ #shortcutsFab{ left:auto; right:1rem; bottom:5.5rem; } }
     </style>
     <button type="button" id="shortcutsFab" onclick="toggleShortcutsHelp(true)" title="Keyboard shortcuts (F1)">⌨️</button>
     <div class="modal-overlay" id="shortcutsModal">
-        <div class="modal-card" style="max-width:500px;">
+        <div class="modal-card" style="max-width:430px;">
             <div class="modal-hd">
                 <h3>⌨️ Keyboard Shortcuts</h3>
                 <button class="modal-x" type="button" onclick="toggleShortcutsHelp(false)">×</button>
             </div>
             <div class="modal-bd">
                 <p style="color:#64748b;font-size:0.82rem;margin-bottom:0.9rem;">Bill without touching the mouse — tab through with Enter and save with Alt + S.</p>
-                <table>
-                    <tbody>
-                        <tr><td><kbd>Enter</kbd></td><td style="color:#475569;">Next field &mdash; on the last field it adds a new medicine row</td></tr>
-                        <tr><td><kbd>F2</kbd></td><td style="color:#475569;">Add a new medicine row</td></tr>
-                        <tr><td><kbd>Alt</kbd> + <kbd>R</kbd></td><td style="color:#475569;">Remove the medicine row you're in</td></tr>
-                        <tr><td><kbd>Alt</kbd> + <kbd>Q</kbd></td><td style="color:#475569;">Jump to the Quantity box of the current row</td></tr>
-                        <tr><td><kbd>Alt</kbd> + <kbd>C</kbd></td><td style="color:#475569;">Jump to the Customer field</td></tr>
-                        <tr><td><kbd>Alt</kbd> + <kbd>P</kbd></td><td style="color:#475569;">Toggle Cash &harr; Credit</td></tr>
-                        <tr><td><kbd>Alt</kbd> + <kbd>M</kbd></td><td style="color:#475569;">Open the medicine import</td></tr>
-                        <tr><td><kbd>Alt</kbd> + <kbd>N</kbd></td><td style="color:#475569;">Start a fresh bill (clears the form)</td></tr>
-                        <tr><td><kbd>F9</kbd></td><td style="color:#475569;">Focus the Save button</td></tr>
-                        <tr><td><kbd>Alt</kbd> + <kbd>S</kbd></td><td style="color:#475569;">Save the bill</td></tr>
-                        <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td style="color:#475569;">Save the bill</td></tr>
-                        <tr><td><kbd>Esc</kbd></td><td style="color:#475569;">Close a popup, or go Back</td></tr>
-                        <tr><td><kbd>F1</kbd></td><td style="color:#475569;">Show this shortcuts list</td></tr>
-                    </tbody>
-                </table>
+                <div class="sc-list">
+                    <div class="sc-item"><span class="sc-key"><kbd>Enter</kbd></span><span class="sc-desc">Next field &mdash; adds a new row on the last field</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>F2</kbd></span><span class="sc-desc">Add a new medicine row</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>R</kbd></span><span class="sc-desc">Remove the current medicine row</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>Q</kbd></span><span class="sc-desc">Jump to the Quantity box</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>C</kbd></span><span class="sc-desc">Jump to the Customer field</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>P</kbd></span><span class="sc-desc">Toggle Cash / Credit</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>M</kbd></span><span class="sc-desc">Open the medicine import</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>N</kbd></span><span class="sc-desc">Start a fresh bill</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>F9</kbd></span><span class="sc-desc">Focus the Save button</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>S</kbd></span><span class="sc-desc">Save the bill</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Ctrl</kbd><kbd>Enter</kbd></span><span class="sc-desc">Save the bill</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Esc</kbd></span><span class="sc-desc">Close a popup, or go Back</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>F1</kbd></span><span class="sc-desc">Show this shortcuts list</span></div>
+                </div>
             </div>
         </div>
     </div>
