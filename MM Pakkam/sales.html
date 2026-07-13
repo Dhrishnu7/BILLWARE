@@ -1639,6 +1639,32 @@
             if (newId) setTimeout(() => document.getElementById('product_' + newId)?.focus(), 50);
         };
 
+        /* ── Extra Sales shortcuts (on top of the shared keyboard-nav.js ones) ── */
+        document.addEventListener('keydown', function (e) {
+            // F1 → open the shortcuts cheat-sheet
+            if (e.key === 'F1') { e.preventDefault(); toggleShortcutsHelp(true); return; }
+            // Alt+C → jump straight to the Customer field
+            if (e.altKey && (e.key === 'c' || e.key === 'C')) {
+                const el = document.getElementById('customerName');
+                if (el) { e.preventDefault(); el.focus(); if (el.select) el.select(); }
+                return;
+            }
+            // Alt+R → remove the medicine row you're currently editing
+            if (e.altKey && (e.key === 'r' || e.key === 'R')) {
+                const a = document.activeElement;
+                const m = a && a.id && a.id.match(/_(\d+)$/);
+                if (m) { e.preventDefault(); removeRow(parseInt(m[1], 10)); }
+                return;
+            }
+        });
+
+        function toggleShortcutsHelp(show) {
+            const m = document.getElementById('shortcutsModal');
+            if (!m) return;
+            if (show === false) m.classList.remove('open');
+            else m.classList.add('open');
+        }
+
         /* ── Printer Status UI ── */
         function updatePrinterStatus() {
             const dot        = document.getElementById('printerStatusDot');
@@ -2463,6 +2489,42 @@
                         🖨️ Print
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- -- Keyboard Shortcuts helper -- -->
+    <style>
+        #shortcutsFab { position:fixed; left:1.2rem; bottom:1.2rem; z-index:900; width:46px; height:46px; border-radius:50%; border:none; cursor:pointer; background:linear-gradient(135deg,#0ea5e9,#0284c7); color:#fff; font-size:1.2rem; box-shadow:0 6px 18px rgba(2,132,199,0.4); display:flex; align-items:center; justify-content:center; transition:transform 0.15s; }
+        #shortcutsFab:hover { transform:translateY(-2px) scale(1.05); }
+        #shortcutsModal kbd { display:inline-block; padding:2px 9px; border-radius:6px; border:1.5px solid #cbd5e1; border-bottom-width:3px; background:#f8fafc; font-family:'Inter',monospace; font-size:0.8rem; font-weight:800; color:#0f172a; white-space:nowrap; }
+        #shortcutsModal table { width:100%; border-collapse:collapse; font-size:0.9rem; }
+        #shortcutsModal td { padding:9px 6px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+        #shortcutsModal td:first-child { white-space:nowrap; width:1%; }
+        #shortcutsModal tr:last-child td { border-bottom:none; }
+        @media (max-width:700px){ #shortcutsFab{ left:auto; right:1rem; bottom:5.5rem; } }
+    </style>
+    <button type="button" id="shortcutsFab" onclick="toggleShortcutsHelp(true)" title="Keyboard shortcuts (F1)">⌨️</button>
+    <div class="modal-overlay" id="shortcutsModal">
+        <div class="modal-card" style="max-width:500px;">
+            <div class="modal-hd">
+                <h3>⌨️ Keyboard Shortcuts</h3>
+                <button class="modal-x" type="button" onclick="toggleShortcutsHelp(false)">×</button>
+            </div>
+            <div class="modal-bd">
+                <p style="color:#64748b;font-size:0.82rem;margin-bottom:0.9rem;">Bill without touching the mouse — tab through with Enter and save with Alt + S.</p>
+                <table>
+                    <tbody>
+                        <tr><td><kbd>Enter</kbd></td><td style="color:#475569;">Next field &mdash; on the last field it adds a new medicine row</td></tr>
+                        <tr><td><kbd>F2</kbd></td><td style="color:#475569;">Add a new medicine row</td></tr>
+                        <tr><td><kbd>Alt</kbd> + <kbd>R</kbd></td><td style="color:#475569;">Remove the medicine row you're in</td></tr>
+                        <tr><td><kbd>Alt</kbd> + <kbd>C</kbd></td><td style="color:#475569;">Jump to the Customer field</td></tr>
+                        <tr><td><kbd>F9</kbd></td><td style="color:#475569;">Focus the Save button</td></tr>
+                        <tr><td><kbd>Alt</kbd> + <kbd>S</kbd></td><td style="color:#475569;">Save the bill</td></tr>
+                        <tr><td><kbd>Esc</kbd></td><td style="color:#475569;">Close a popup, or go Back</td></tr>
+                        <tr><td><kbd>F1</kbd></td><td style="color:#475569;">Show this shortcuts list</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
