@@ -1488,15 +1488,8 @@
             </div>
 
             <div class="tab-panel" id="panelManage">
-                <div class="section-label">➕ Add Schedule H Drug</div>
-                <div class="add-drug-row">
-                    <input type="text" id="newDrugName" placeholder="Enter Schedule H drug name…" onkeydown="if(event.key==='Enter'){event.preventDefault();addDrug();}">
-                    <button type="button" class="btn-add-drug" onclick="addDrug()">
-                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
-                        </svg>
-                        Add Drug
-                    </button>
+                <div style="background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:12px; padding:0.9rem 1.2rem; margin-bottom:1.2rem; color:#1e40af; font-size:0.85rem; font-weight:600; line-height:1.5;">
+                    💡 New Schedule H drugs are added automatically when you type them in the <b>Drug Register</b> and save — just like the Purchase page. Use this tab to review, import in bulk, or remove drugs.
                 </div>
 
                 <div class="drug-list-actions">
@@ -1787,9 +1780,9 @@
                 scroll.className = 'shdd-scroll';
 
                 if (!matches.length) {
-                    scroll.innerHTML = getDrugList().length
-                        ? '<div class="shdd-empty">No matching Schedule&nbsp;H drug.<br>Add it in the <b>Manage</b> tab.</div>'
-                        : '<div class="shdd-empty">No Schedule&nbsp;H drugs yet.<br>Add them in the <b>Manage</b> tab.</div>';
+                    scroll.innerHTML = q
+                        ? `<div class="shdd-empty">No match — <b>&ldquo;${esc(q)}&rdquo;</b> will be added to the Schedule&nbsp;H list when you save.</div>`
+                        : '<div class="shdd-empty">No Schedule&nbsp;H drugs yet.<br>Just type a name — it&rsquo;s added on save.</div>';
                 } else {
                     shown = matches.slice(0, CAP);
                     scroll.innerHTML = shown.map((n, i) =>
@@ -2081,8 +2074,11 @@
             }
 
             const register = getRegister();
+            let newDrugCount = 0;
             entries.forEach(entry => {
                 register.push(entry);
+                // Auto-add a never-seen drug name to the Schedule H list (like Purchase's free typing).
+                if (_ensureShDrug(entry.drugName)) newDrugCount++;
                 if (typeof dbAddScheduleHEntry === 'function') {
                     dbAddScheduleHEntry(entry).catch(err => console.warn('cloud register save failed:', err));
                 }
@@ -2090,8 +2086,9 @@
                 mirrorInEntryToPurchase(entry);
             });
             setRegister(register);
+            if (newDrugCount > 0) { refreshDrugDatalist(); renderDrugList(); }
 
-            showToast('Entries Saved!', `${entries.length} item${entries.length === 1 ? '' : 's'} added to the register.`);
+            showToast('Entries Saved!', `${entries.length} item${entries.length === 1 ? '' : 's'} added to the register${newDrugCount ? ` (${newDrugCount} new drug${newDrugCount === 1 ? '' : 's'} added to the list)` : ''}.`);
             resetRegisterForm();
             renderRegisterLog();
         }
@@ -2655,30 +2652,21 @@
         /* ══════════════════════════════════════════════════════════════════
            TAB 2: Manage Drug List
         ══════════════════════════════════════════════════════════════════ */
-        function addDrug() {
-            const input = document.getElementById('newDrugName');
-            const name = (input.value || '').trim();
-            if (!name) {
-                showToast('Empty Name', 'Please enter a drug name.');
-                return;
-            }
-
+        /* Add a drug name to the Schedule H list if it's not already there.
+           Returns true if it was newly added. Used to auto-register drugs typed
+           straight into the register form (no separate "Add Drug" step needed). */
+        function _ensureShDrug(name) {
+            const clean = (name || '').trim();
+            if (!clean) return false;
             const drugs = getDrugList();
-            if (drugs.some(d => d.toLowerCase() === name.toLowerCase())) {
-                showToast('Duplicate', 'This drug is already in the list.');
-                return;
-            }
-
-            drugs.push(name);
+            if (drugs.some(d => d.toLowerCase() === clean.toLowerCase())) return false;
+            drugs.push(clean);
             drugs.sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
             setDrugList(drugs);
-            input.value = '';
-            renderDrugList();
-            refreshDrugDatalist();
-            showToast('Drug Added!', `"${name}" added to Schedule H list.`);
             if (typeof dbAddScheduleHDrugs === 'function') {
-                dbAddScheduleHDrugs([name]).catch(e => console.warn('cloud drug add failed:', e));
+                dbAddScheduleHDrugs([clean]).catch(e => console.warn('cloud drug add failed:', e));
             }
+            return true;
         }
 
         function removeDrug(name) {
