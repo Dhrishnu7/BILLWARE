@@ -1103,7 +1103,6 @@
             <button class="tab-pill" onclick="switchTab('dead')" id="tabDead">💀 Dead Stock</button>
             <button class="tab-pill" onclick="switchTab('adjust')" id="tabAdjust">⚖️ Adjust</button>
             <button class="tab-pill" onclick="switchTab('prescriptions')" id="tabPrescriptions">📸 Prescriptions</button>
-            <button class="tab-pill" onclick="switchTab('manage')" id="tabManage">⚙️ Add Drugs</button>
         </div>
 
         <div class="form-card">
@@ -1487,44 +1486,6 @@
                 </div>
             </div>
 
-            <div class="tab-panel" id="panelManage">
-                <div style="background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:12px; padding:0.9rem 1.2rem; margin-bottom:1.2rem; color:#1e40af; font-size:0.85rem; font-weight:600; line-height:1.5;">
-                    💡 New Schedule H drugs are added automatically when you type them in the <b>Drug Register</b> and save — just like the Purchase page. Use this tab to review, import in bulk, or remove drugs.
-                </div>
-
-                <div class="drug-list-actions">
-                    <button type="button" class="clear-btn-sm" onclick="clearAllDrugs()">
-                        🗑️ Clear All
-                    </button>
-                    <button type="button" class="import-btn-sm" onclick="openImportModal()">
-                        📋 Import from Excel/CSV
-                    </button>
-                </div>
-
-                <div class="section-label">
-                    📋 Schedule H Drug List
-                    <span class="drug-count-badge" id="drugCountBadge">0 drugs</span>
-                </div>
-
-                <div class="search-bar">
-                    <input type="text" id="drugSearch" placeholder="Type to search and view drugs…" oninput="renderDrugList()">
-                </div>
-
-                <div class="drug-grid" id="drugGrid" style="display:none;">
-                    <!-- Drug chips rendered by JS -->
-                </div>
-                
-                <div id="drugSearchPrompt" style="text-align:center; padding: 2rem; color: #64748b; font-weight:600;">
-                    🔍 Search above to manage specific drugs, or add a new one.
-                </div>
-
-                <div id="drugEmptyState" class="empty-state" style="display:none;">
-                    <div class="es-icon">💊</div>
-                    <div class="es-title">No Schedule H Drugs Added</div>
-                    <div class="es-sub">Add drugs manually or import from Excel/CSV</div>
-                </div>
-            </div>
-
         </div>
     </div>
 
@@ -1613,7 +1574,7 @@
            Tab Switching
         ══════════════════════════════════════════════════════════════════ */
         function switchTab(tab) {
-            const tabs = ['register', 'ledger', 'expiry', 'dead', 'adjust', 'prescriptions', 'manage'];
+            const tabs = ['register', 'ledger', 'expiry', 'dead', 'adjust', 'prescriptions'];
             tabs.forEach(t => {
                 const panel = document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1));
                 const pill = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
@@ -2692,8 +2653,10 @@
         }
 
         function renderDrugList() {
+            const searchEl = document.getElementById('drugSearch');
+            if (!searchEl) return; // Add Drugs tab removed — nothing to render
             const drugs = getDrugList();
-            const searchTerm = (document.getElementById('drugSearch').value || '').trim().toLowerCase();
+            const searchTerm = (searchEl.value || '').trim().toLowerCase();
             const filtered = drugs.filter(d => !searchTerm || d.toLowerCase().includes(searchTerm));
 
             document.getElementById('drugCountBadge').textContent = `${drugs.length} drug${drugs.length !== 1 ? 's' : ''}`;
