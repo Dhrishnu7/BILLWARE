@@ -685,6 +685,40 @@
         }
         .clear-btn-sm:hover { background:#ef4444; color:white; border-color:#ef4444; }
 
+        /* ── Full Invoice import wizard (ported from Purchase page) ── */
+        .inv-chip-grid { display: flex; flex-direction: column; gap: 0.45rem; margin: 0.8rem 0; }
+        .inv-chip {
+            display: flex; align-items: center; gap: 0.6rem;
+            padding: 0.5rem 0.75rem; border-radius: 10px;
+            background: #f8fafc; border: 1.5px solid #e2e8f0;
+            transition: opacity 0.2s, background 0.2s;
+        }
+        .inv-chip.inv-chip-skip { opacity: 0.45; background: #f1f5f9; }
+        .inv-chip-label {
+            font-size: 0.78rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: .06em; color: #374151; min-width: 130px;
+        }
+        .inv-chip-detected { font-size: 0.82rem; font-weight: 600; color: #0ea5e9; flex: 1; }
+        .inv-chip.inv-chip-skip .inv-chip-detected { color: #94a3b8; }
+        .inv-chip-skip-btn {
+            font-size: 0.72rem; font-weight: 700; padding: 3px 12px;
+            border-radius: 20px; border: 1.5px solid #e2e8f0;
+            background: white; color: #64748b; cursor: pointer;
+            transition: background 0.15s, color 0.15s, border-color 0.15s; white-space: nowrap;
+        }
+        .inv-chip-skip-btn:hover { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
+        .inv-chip.inv-chip-skip .inv-chip-skip-btn { background: #d1fae5; border-color: #6ee7b7; color: #059669; }
+        .inv-chip.inv-chip-skip .inv-chip-skip-btn:hover { background: #a7f3d0; }
+        .inv-preview-table { width:100%; border-collapse:collapse; font-size:0.78rem; margin-top:0.5rem; }
+        .inv-preview-table th { background:#f1f5f9; padding:5px 8px; text-align:left; font-weight:800; color:#475569; border-bottom:2px solid #e2e8f0; white-space:nowrap; }
+        .inv-preview-table td { padding:5px 8px; border-bottom:1px solid #f1f5f9; color:#0f172a; white-space:nowrap; }
+        .inv-preview-table tr:last-child td { border-bottom:none; }
+        .inv-prev-wrap { overflow:auto; max-height:160px; border:1.5px solid #e2e8f0; border-radius:10px; margin-top:0.5rem; }
+        .btn-do-import.inv { background:linear-gradient(135deg,#0ea5e9,#0284c7); color:white; box-shadow:0 4px 14px rgba(14,165,233,0.3); }
+        .btn-do-import.inv:hover { box-shadow:0 6px 20px rgba(14,165,233,0.4); }
+        .import-btn-sm.inv-btn { background:linear-gradient(135deg,#0ea5e9,#0284c7); color:white; border-color:#0284c7; }
+        .import-btn-sm.inv-btn:hover { background:linear-gradient(135deg,#0284c7,#0369a1); color:white; }
+
         .drug-chip {
             display: inline-flex; align-items: center; gap: 8px;
             padding: 0.5rem 0.7rem 0.5rem 1rem;
@@ -1168,9 +1202,7 @@
                     <div style="display:flex; gap:0.6rem; flex-wrap:wrap; justify-content:flex-end; margin-bottom:0.9rem;">
                         <button type="button" class="clear-btn-sm" onclick="clearShImported()">🗑️ Clear Imported</button>
                         <button type="button" class="import-btn-sm" onclick="openImportModal()">📋 Import Drug Names</button>
-                        <button type="button" class="import-btn-sm" onclick="triggerShInvoiceImport()"
-                            style="background:#0284c7; border-color:#0284c7; color:#fff;">📥 Import Full Invoice</button>
-                        <input type="file" id="shInvFileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleShInvoiceFile(event)">
+                        <button type="button" class="import-btn-sm inv-btn" onclick="openInvoiceImportModal()">📥 Import Full Invoice</button>
                     </div>
 
                     <div class="section-label">💊 Drug Details</div>
@@ -1547,6 +1579,66 @@
                 <button class="btn-mcancel" type="button" onclick="closeImportModal()">Cancel</button>
                 <button class="btn-do-import" id="importConfirmBtn" type="button" onclick="doImport()" disabled>
                     ✓ Import Drugs
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Full Invoice Import Modal (Excel/CSV → register rows) ── -->
+    <div class="modal-overlay" id="invImportModal">
+        <div class="modal-card" style="max-width:580px;">
+            <div class="modal-hd">
+                <h3>📥 Import Full Invoice</h3>
+                <button class="modal-x" type="button" onclick="closeInvoiceImportModal()">×</button>
+            </div>
+
+            <!-- Step 1: Upload File -->
+            <div class="modal-bd" id="invStep1">
+                <div style="font-size:0.82rem;color:#64748b;margin-bottom:0.8rem;">
+                    Upload your distributor's Excel or CSV invoice. Billware reads all columns and fills the register rows automatically.
+                </div>
+                <div class="drop-zone" id="invDropZone"
+                     ondragover="event.preventDefault();this.classList.add('drag-over')"
+                     ondragleave="this.classList.remove('drag-over')"
+                     ondrop="handleInvDrop(event)">
+                    <input type="file" id="invFileInput" accept=".csv,.xlsx,.xls" onchange="handleInvFile(event)">
+                    <div class="dz-ico">📊</div>
+                    <div class="dz-txt">Drop invoice file here or click to browse</div>
+                    <div class="dz-sub">Excel (.xlsx / .xls) or CSV — columns auto-mapped</div>
+                </div>
+                <div style="margin-top:0.75rem;display:flex;align-items:flex-start;gap:0.55rem;padding:0.65rem 0.9rem;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;">
+                    <span style="font-size:1.1rem;flex-shrink:0;">💡</span>
+                    <div style="font-size:0.78rem;color:#166534;line-height:1.5;">
+                        <strong>Tip:</strong> The first row must be the column headers (Product, Batch, Expiry, Qty, MRP, Rate, GST, Pack). You can review and fix the mapping in the next step.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Map Columns -->
+            <div class="modal-bd" id="invStep2" style="display:none">
+                <div class="step-lbl">Review auto-detected columns</div>
+                <div class="stats-txt" id="invRowCount"></div>
+                <div id="invFieldChips" class="inv-chip-grid"></div>
+                <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.8rem;">✱ Drug Name is required. Click <strong>Skip</strong> on any field you don't want to import.</div>
+            </div>
+
+            <!-- Step 3: Preview -->
+            <div class="modal-bd" id="invStep3" style="display:none">
+                <div class="step-lbl">Preview (first 8 rows)</div>
+                <div class="inv-prev-wrap">
+                    <table class="inv-preview-table" id="invPreviewTable"></table>
+                </div>
+                <div class="import-count" id="invPreviewCount" style="margin-top:0.6rem;"></div>
+                <div style="font-size:0.78rem;color:#64748b;margin-top:0.4rem;">✅ Looks good? Click <strong>Load into Register</strong> to fill all items.</div>
+            </div>
+
+            <div class="modal-ft">
+                <button class="btn-mcancel" type="button" onclick="closeInvoiceImportModal()">Cancel</button>
+                <button class="btn-do-import inv" id="invPreviewBtn" type="button" onclick="buildInvPreview()" style="display:none">
+                    Preview →
+                </button>
+                <button class="btn-do-import inv" id="invImportBtn" type="button" onclick="applyInvoiceImport()" style="display:none" disabled>
+                    ✓ Load into Register
                 </button>
             </div>
         </div>
@@ -1938,96 +2030,235 @@
             }
         }
 
-        /* ── Import Full Invoice (Excel/CSV) → auto-map columns → fill register rows ──
-           Like the Purchase page, but auto-mapped straight into the form (the editable
-           rows ARE the review step). Photo/PDF OCR is intentionally not included here. */
-        function triggerShInvoiceImport() {
-            document.getElementById('shInvFileInput').click();
+        /* ══════════════════════════════════════════════════════════════════
+           Import Full Invoice (Excel/CSV) — same accurate wizard as the
+           Purchase page: upload → review auto-mapped columns → preview →
+           load into the register rows. (Photo/PDF OCR is Purchase-only.)
+        ══════════════════════════════════════════════════════════════════ */
+        const INV_FIELDS = [
+            { key:'productName', label:'Drug Name ✱', required:true },
+            { key:'batchNo',     label:'Batch No' },
+            { key:'expireDate',  label:'Expiry (MM/YY or YYYY-MM)' },
+            { key:'quantity',    label:'Quantity' },
+            { key:'mrp',         label:'MRP (₹)' },
+            { key:'rate',        label:'Purchase Rate (₹)' },
+            { key:'gst',         label:'GST (%)' },
+            { key:'pack',        label:'Pack Size' },
+        ];
+
+        let _invRows = [], _invHdrs = [];
+
+        function openInvoiceImportModal() {
+            _invRows = []; _invHdrs = [];
+            document.getElementById('invImportModal').classList.add('open');
+            document.getElementById('invStep1').style.display = 'block';
+            document.getElementById('invStep2').style.display = 'none';
+            document.getElementById('invStep3').style.display = 'none';
+            document.getElementById('invPreviewBtn').style.display = 'none';
+            document.getElementById('invImportBtn').style.display = 'none';
+            document.getElementById('invImportBtn').disabled = true;
+            const fi = document.getElementById('invFileInput'); if (fi) fi.value = '';
+        }
+        function closeInvoiceImportModal() { document.getElementById('invImportModal').classList.remove('open'); }
+
+        function handleInvFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (/\.(csv|xlsx|xls)$/i.test(file.name)) { readInvFile(file); }
+            else { showToast('Wrong File', 'Please upload an Excel (.xlsx/.xls) or CSV file.'); }
+        }
+        function handleInvDrop(e) {
+            e.preventDefault();
+            document.getElementById('invDropZone').classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (!file) return;
+            if (/\.(csv|xlsx|xls)$/i.test(file.name)) { readInvFile(file); }
+            else { showToast('Wrong File', 'Please upload an Excel (.xlsx/.xls) or CSV file.'); }
         }
 
-        async function handleShInvoiceFile(e) {
-            const file = e.target.files[0];
-            e.target.value = ''; // reset so the same file can be re-picked
-            if (!file) return;
-            if (!/\.(csv|xlsx|xls)$/i.test(file.name)) {
-                showToast('Wrong File', 'Please upload an Excel (.xlsx/.xls) or CSV file.');
-                return;
-            }
+        async function readInvFile(file) {
             if (typeof XLSX === 'undefined') {
                 try { await mmLoadScript(XLSX_CDN); }
-                catch (err) { showToast('Load Error', 'Could not load the import tool. Check your internet.'); return; }
+                catch (e) { showToast('Load Error', 'Could not load the import tool. Check your internet.'); return; }
             }
             const rdr = new FileReader();
             rdr.onload = ev => {
                 try {
                     const isCSV = file.name.toLowerCase().endsWith('.csv');
-                    const wb  = XLSX.read(ev.target.result, { type: isCSV ? 'string' : 'array' });
-                    const ws  = wb.Sheets[wb.SheetNames[0]];
+                    const wb = XLSX.read(ev.target.result, { type: isCSV ? 'string' : 'array' });
+                    const ws = wb.Sheets[wb.SheetNames[0]];
                     const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
                     if (!raw || raw.length < 2) { showToast('Empty File', 'No data rows found.'); return; }
-                    const hdrs = raw[0].map(h => String(h).trim());
-                    const rows = raw.slice(1).filter(r => r.some(c => String(c).trim()));
-                    _fillShRowsFromInvoice(hdrs, rows);
-                } catch (err) { showToast('Read Error', 'Could not read the file.'); console.error(err); }
+                    _invHdrs = raw[0].map(String);
+                    _invRows = raw.slice(1).filter(r => r.some(c => String(c).trim()));
+                    showInvMapper();
+                } catch (err) { showToast('Read Error', 'Could not read file.'); }
             };
             file.name.toLowerCase().endsWith('.csv') ? rdr.readAsText(file) : rdr.readAsArrayBuffer(file);
         }
 
-        function _fillShRowsFromInvoice(hdrs, rows) {
-            const kw = {
-                drug:  /product|medicine|drug|name|item|brand|generic/i,
-                batch: /batch|lot/i,
-                exp:   /exp|expiry|expire/i,
-                qty:   /qty|quant|nos|units/i,
-                mrp:   /mrp|max.*price|selling/i,
-                rate:  /rate|purchase|cost|ptr|pts/i,
-                gst:   /gst|tax|vat/i,
-                pack:  /^pack(\s*size)?$|^packing$/i,
+        // Reject a "pack" column whose values look like weight/volume (75 GM, 100 ML)
+        function isWeightVolumeCol(colIdx) {
+            const wvPat = /^\s*[\d.]+\s*(ml|mg|gm|g|l|mcg|iu|kg|oz|tab|cap|nos)\s*$/i;
+            const sample = _invRows.slice(0, 12);
+            const nonEmpty = sample.filter(r => String(r[colIdx] ?? '').trim()).length;
+            if (!nonEmpty) return false;
+            const hits = sample.filter(r => wvPat.test(String(r[colIdx] ?? '').trim())).length;
+            return (hits / nonEmpty) >= 0.4;
+        }
+
+        function showInvMapper() {
+            document.getElementById('invStep1').style.display = 'none';
+            document.getElementById('invStep2').style.display = 'block';
+            document.getElementById('invStep3').style.display = 'none';
+            document.getElementById('invPreviewBtn').style.display = '';
+            document.getElementById('invImportBtn').style.display = 'none';
+            document.getElementById('invImportBtn').disabled = true;
+            document.getElementById('invRowCount').textContent = `${_invRows.length} data row(s) detected`;
+
+            const keywords = {
+                productName:/product|medicine|drug|name|item|brand|generic/i,
+                batchNo:/batch|lot/i,
+                expireDate:/exp|expiry|expire/i,
+                quantity:/qty|quant|nos|units/i,
+                mrp:/mrp|max.*price|selling/i,
+                rate:/rate|purchase|cost|ptr|pts/i,
+                gst:/gst|tax|vat/i,
+                pack:/^pack(\s*size)?$|^packing$/i,
             };
-            const idx = {};
-            Object.keys(kw).forEach(k => { idx[k] = hdrs.findIndex(h => kw[k].test(h)); });
-            if (idx.drug < 0) {
-                showToast('No Product Column', 'Could not find a drug/medicine name column in the file.');
+            const container = document.getElementById('invFieldChips');
+            container.innerHTML = '';
+            INV_FIELDS.forEach(f => {
+                const kw = keywords[f.key];
+                let idx = kw ? _invHdrs.findIndex(h => kw.test(h.trim())) : -1;
+                if (f.key === 'pack' && idx >= 0 && isWeightVolumeCol(idx)) { idx = -1; }
+                const detectedName = idx >= 0 ? (_invHdrs[idx] || 'Col ' + (idx + 1)) : null;
+                const chip = document.createElement('div');
+                chip.className = 'inv-chip' + (detectedName ? '' : ' inv-chip-skip');
+                chip.dataset.key = f.key;
+                chip.dataset.idx = idx;
+                chip.dataset.skipped = detectedName ? 'false' : 'true';
+                const hint = (f.key === 'pack' && !detectedName)
+                    ? ' <span style="font-size:0.7rem;color:#f59e0b;">(will default to 1)</span>' : '';
+                chip.innerHTML = `
+                    <span class="inv-chip-label">${f.label.replace(' ✱', '')}</span>
+                    <span class="inv-chip-detected">${detectedName ? '→ ' + detectedName : 'Not found' + hint}</span>
+                    <button type="button" class="inv-chip-skip-btn" onclick="toggleChipSkip(this.closest('.inv-chip'))">
+                        ${chip.dataset.skipped === 'true' ? 'Include' : 'Skip'}
+                    </button>`;
+                container.appendChild(chip);
+            });
+        }
+
+        function toggleChipSkip(chip) {
+            const skipped = chip.dataset.skipped === 'true';
+            chip.dataset.skipped = skipped ? 'false' : 'true';
+            chip.classList.toggle('inv-chip-skip', !skipped);
+            chip.querySelector('.inv-chip-skip-btn').textContent = skipped ? 'Skip' : 'Include';
+        }
+
+        function buildInvPreview() {
+            const map = {};
+            document.querySelectorAll('#invFieldChips .inv-chip').forEach(chip => {
+                if (chip.dataset.skipped === 'false') {
+                    const idx = parseInt(chip.dataset.idx);
+                    if (!isNaN(idx) && idx >= 0) map[chip.dataset.key] = idx;
+                }
+            });
+            if (map.productName === undefined) {
+                showToast('Required', 'Drug Name column was not detected or was skipped. Please check your file headers.');
                 return;
             }
+            document.getElementById('invStep2').style.display = 'none';
+            document.getElementById('invStep3').style.display = 'block';
+            document.getElementById('invPreviewBtn').style.display = 'none';
+            document.getElementById('invImportBtn').style.display = '';
+            document.getElementById('invImportBtn').disabled = false;
 
+            const previewRows = _invRows.slice(0, 8);
+            const thead = INV_FIELDS.filter(f => map[f.key] !== undefined).map(f => `<th>${f.label.replace(' ✱', '')}</th>`).join('');
+            const tbody = previewRows.map(row => {
+                const cells = INV_FIELDS.filter(f => map[f.key] !== undefined).map(f => {
+                    let v = String(row[map[f.key]] ?? '').trim();
+                    return `<td>${v || '—'}</td>`;
+                }).join('');
+                return `<tr>${cells}</tr>`;
+            }).join('');
+            document.getElementById('invPreviewTable').innerHTML = `<thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody>`;
+            document.getElementById('invPreviewCount').textContent = `${_invRows.length} row(s) will be loaded into the register.`;
+            window._invMap = map;
+        }
+
+        function _parseExpiry(raw) {
+            const s = String(raw || '').trim();
+            if (!s) return '';
+            if (/^\d{4}-\d{2}/.test(s)) return s.slice(0, 7);
+            const m1 = s.match(/^(\d{1,2})[\/\-](\d{2,4})$/);
+            if (m1) {
+                const mm = m1[1].padStart(2, '0');
+                const yy = m1[2].length === 2 ? '20' + m1[2] : m1[2];
+                return `${yy}-${mm}`;
+            }
+            if (/^\d{5}$/.test(s) && window.XLSX && XLSX.SSF) {
+                const d = XLSX.SSF.parse_date_code(parseInt(s));
+                if (d) return `${d.y}-${String(d.m).padStart(2, '0')}`;
+            }
+            return '';
+        }
+
+        function applyInvoiceImport() {
+            const map = window._invMap || {};
+            if (map.productName === undefined) { showToast('Error', 'Column mapping lost. Please re-map.'); return; }
+
+            // Value parsers — identical to the Purchase page for consistent results.
             const numOnly = v => {
-                const r = String(v ?? '').trim();
-                const m = r.match(/^(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)$/);
-                if (m) return String(Math.round(Number(m[1]) * Number(m[2])));
-                return r.replace(/[^\d.]/g, '');
+                const raw = String(v ?? '').trim();
+                const mul = raw.match(/^(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)$/);
+                if (mul) return String(Math.round(Number(mul[1]) * Number(mul[2])));
+                return raw.replace(/[^\d.]/g, '');
             };
-            const parseExp = raw => {
-                const s = String(raw || '').trim();
-                if (!s) return '';
-                if (/^\d{4}-\d{2}/.test(s)) return s.slice(0, 7);
-                const m = s.match(/^(\d{1,2})[\/\-](\d{2,4})$/);
-                if (m) { const mm = m[1].padStart(2, '0'); const yy = m[2].length === 2 ? '20' + m[2] : m[2]; return `${yy}-${mm}`; }
-                if (/^\d{5}$/.test(s) && window.XLSX && XLSX.SSF) { const d = XLSX.SSF.parse_date_code(Number(s)); if (d) return `${d.y}-${String(d.m).padStart(2, '0')}`; }
-                return '';
+            const wvPat    = /^[\d.]+\s*(ml|mg|gm|g|l|mcg|iu|kg|oz)\s*$/i;
+            const mulWvPat = /^(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)\s*(ml|mg|gm|g|l|mcg|iu|kg|oz)\s*$/i;
+            const mulPat   = /^(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)$/;
+            const packVal = v => {
+                const raw = String(v ?? '').trim();
+                if (!raw) return '';
+                if (wvPat.test(raw))    return '1';
+                if (mulWvPat.test(raw)) return '1';
+                const mul = raw.match(mulPat);
+                if (mul) return String(Math.round(Number(mul[1]) * Number(mul[2])));
+                return raw.replace(/[^\d.]/g, '');
+            };
+            const gstVal = v => {
+                const raw = String(v ?? '').trim();
+                const num = parseFloat(raw.replace(/[^\d.]/g, ''));
+                if (isNaN(num) || raw === '') return '';
+                if (num > 0 && num < 1) return String(parseFloat((num * 100).toFixed(4)).toString());
+                return String(num);
             };
 
             document.getElementById('shDrugRows').innerHTML = '';
             shRowCounter = 0;
             let count = 0;
-            rows.forEach(row => {
-                const drug = String(row[idx.drug] ?? '').trim();
-                if (!drug) return;
+            _invRows.forEach(row => {
+                const pName = String(row[map.productName] ?? '').trim();
+                if (!pName) return;
                 const id = addShDrugRow();
-                document.getElementById('drug_' + id).value = drug;
-                if (idx.batch >= 0) document.getElementById('batch_' + id).value = String(row[idx.batch] ?? '').trim();
-                if (idx.exp   >= 0) document.getElementById('exp_' + id).value   = parseExp(row[idx.exp]);
-                if (idx.pack  >= 0) document.getElementById('pack_' + id).value  = numOnly(row[idx.pack]);
-                if (idx.qty   >= 0) document.getElementById('qty_' + id).value   = numOnly(row[idx.qty]);
-                if (idx.mrp   >= 0) document.getElementById('mrp_' + id).value   = numOnly(row[idx.mrp]);
-                if (idx.rate  >= 0) document.getElementById('rate_' + id).value  = numOnly(row[idx.rate]);
-                if (idx.gst   >= 0) document.getElementById('gst_' + id).value   = numOnly(row[idx.gst]);
+                document.getElementById('drug_' + id).value = pName;
+                if (map.batchNo    !== undefined) document.getElementById('batch_' + id).value = String(row[map.batchNo] ?? '').trim();
+                if (map.expireDate !== undefined) document.getElementById('exp_' + id).value   = _parseExpiry(row[map.expireDate]);
+                if (map.pack       !== undefined) document.getElementById('pack_' + id).value  = packVal(row[map.pack]);
+                if (map.quantity   !== undefined) document.getElementById('qty_' + id).value   = numOnly(row[map.quantity]);
+                if (map.mrp        !== undefined) document.getElementById('mrp_' + id).value   = numOnly(row[map.mrp]);
+                if (map.rate       !== undefined) document.getElementById('rate_' + id).value  = numOnly(row[map.rate]);
+                if (map.gst        !== undefined) document.getElementById('gst_' + id).value   = gstVal(row[map.gst]);
                 calcShRow(id);
                 count++;
             });
-            if (count === 0) { addShDrugRow(); showToast('Nothing Imported', 'No drug rows found in the file.'); return; }
+            if (count === 0) addShDrugRow();
             calcGrandTotal();
-            showToast('Invoice Loaded!', `${count} item${count === 1 ? '' : 's'} loaded — review, then Save All Entries.`);
+            closeInvoiceImportModal();
+            showToast(`✅ ${count} item${count === 1 ? '' : 's'} loaded!`, 'Review, adjust, then click Save All Entries.');
         }
 
         /* ══════════════════════════════════════════════════════════════════
