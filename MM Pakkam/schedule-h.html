@@ -1165,6 +1165,14 @@
                     </div>
 
 
+                    <div style="display:flex; gap:0.6rem; flex-wrap:wrap; justify-content:flex-end; margin-bottom:0.9rem;">
+                        <button type="button" class="clear-btn-sm" onclick="clearShImported()">🗑️ Clear Imported</button>
+                        <button type="button" class="import-btn-sm" onclick="openImportModal()">📋 Import Drug Names</button>
+                        <button type="button" class="import-btn-sm" onclick="triggerShInvoiceImport()"
+                            style="background:#0284c7; border-color:#0284c7; color:#fff;">📥 Import Full Invoice</button>
+                        <input type="file" id="shInvFileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleShInvoiceFile(event)">
+                    </div>
+
                     <div class="section-label">💊 Drug Details</div>
                     <datalist id="drugList"></datalist>
                     <div id="shDrugRows"></div>
@@ -1918,6 +1926,108 @@
             shRowCounter = 0;
             addShDrugRow();
             document.getElementById('totalDisplay').textContent = '₹ 0.00';
+        }
+
+        /* ── Clear Imported: wipe the register rows and start with one blank row ── */
+        async function clearShImported() {
+            if (await mmConfirm('Clear all items and start fresh?', { okText: 'Clear All' })) {
+                document.getElementById('shDrugRows').innerHTML = '';
+                shRowCounter = 0;
+                addShDrugRow(true);
+                calcGrandTotal();
+            }
+        }
+
+        /* ── Import Full Invoice (Excel/CSV) → auto-map columns → fill register rows ──
+           Like the Purchase page, but auto-mapped straight into the form (the editable
+           rows ARE the review step). Photo/PDF OCR is intentionally not included here. */
+        function triggerShInvoiceImport() {
+            document.getElementById('shInvFileInput').click();
+        }
+
+        async function handleShInvoiceFile(e) {
+            const file = e.target.files[0];
+            e.target.value = ''; // reset so the same file can be re-picked
+            if (!file) return;
+            if (!/\.(csv|xlsx|xls)$/i.test(file.name)) {
+                showToast('Wrong File', 'Please upload an Excel (.xlsx/.xls) or CSV file.');
+                return;
+            }
+            if (typeof XLSX === 'undefined') {
+                try { await mmLoadScript(XLSX_CDN); }
+                catch (err) { showToast('Load Error', 'Could not load the import tool. Check your internet.'); return; }
+            }
+            const rdr = new FileReader();
+            rdr.onload = ev => {
+                try {
+                    const isCSV = file.name.toLowerCase().endsWith('.csv');
+                    const wb  = XLSX.read(ev.target.result, { type: isCSV ? 'string' : 'array' });
+                    const ws  = wb.Sheets[wb.SheetNames[0]];
+                    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+                    if (!raw || raw.length < 2) { showToast('Empty File', 'No data rows found.'); return; }
+                    const hdrs = raw[0].map(h => String(h).trim());
+                    const rows = raw.slice(1).filter(r => r.some(c => String(c).trim()));
+                    _fillShRowsFromInvoice(hdrs, rows);
+                } catch (err) { showToast('Read Error', 'Could not read the file.'); console.error(err); }
+            };
+            file.name.toLowerCase().endsWith('.csv') ? rdr.readAsText(file) : rdr.readAsArrayBuffer(file);
+        }
+
+        function _fillShRowsFromInvoice(hdrs, rows) {
+            const kw = {
+                drug:  /product|medicine|drug|name|item|brand|generic/i,
+                batch: /batch|lot/i,
+                exp:   /exp|expiry|expire/i,
+                qty:   /qty|quant|nos|units/i,
+                mrp:   /mrp|max.*price|selling/i,
+                rate:  /rate|purchase|cost|ptr|pts/i,
+                gst:   /gst|tax|vat/i,
+                pack:  /^pack(\s*size)?$|^packing$/i,
+            };
+            const idx = {};
+            Object.keys(kw).forEach(k => { idx[k] = hdrs.findIndex(h => kw[k].test(h)); });
+            if (idx.drug < 0) {
+                showToast('No Product Column', 'Could not find a drug/medicine name column in the file.');
+                return;
+            }
+
+            const numOnly = v => {
+                const r = String(v ?? '').trim();
+                const m = r.match(/^(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)$/);
+                if (m) return String(Math.round(Number(m[1]) * Number(m[2])));
+                return r.replace(/[^\d.]/g, '');
+            };
+            const parseExp = raw => {
+                const s = String(raw || '').trim();
+                if (!s) return '';
+                if (/^\d{4}-\d{2}/.test(s)) return s.slice(0, 7);
+                const m = s.match(/^(\d{1,2})[\/\-](\d{2,4})$/);
+                if (m) { const mm = m[1].padStart(2, '0'); const yy = m[2].length === 2 ? '20' + m[2] : m[2]; return `${yy}-${mm}`; }
+                if (/^\d{5}$/.test(s) && window.XLSX && XLSX.SSF) { const d = XLSX.SSF.parse_date_code(Number(s)); if (d) return `${d.y}-${String(d.m).padStart(2, '0')}`; }
+                return '';
+            };
+
+            document.getElementById('shDrugRows').innerHTML = '';
+            shRowCounter = 0;
+            let count = 0;
+            rows.forEach(row => {
+                const drug = String(row[idx.drug] ?? '').trim();
+                if (!drug) return;
+                const id = addShDrugRow();
+                document.getElementById('drug_' + id).value = drug;
+                if (idx.batch >= 0) document.getElementById('batch_' + id).value = String(row[idx.batch] ?? '').trim();
+                if (idx.exp   >= 0) document.getElementById('exp_' + id).value   = parseExp(row[idx.exp]);
+                if (idx.pack  >= 0) document.getElementById('pack_' + id).value  = numOnly(row[idx.pack]);
+                if (idx.qty   >= 0) document.getElementById('qty_' + id).value   = numOnly(row[idx.qty]);
+                if (idx.mrp   >= 0) document.getElementById('mrp_' + id).value   = numOnly(row[idx.mrp]);
+                if (idx.rate  >= 0) document.getElementById('rate_' + id).value  = numOnly(row[idx.rate]);
+                if (idx.gst   >= 0) document.getElementById('gst_' + id).value   = numOnly(row[idx.gst]);
+                calcShRow(id);
+                count++;
+            });
+            if (count === 0) { addShDrugRow(); showToast('Nothing Imported', 'No drug rows found in the file.'); return; }
+            calcGrandTotal();
+            showToast('Invoice Loaded!', `${count} item${count === 1 ? '' : 's'} loaded — review, then Save All Entries.`);
         }
 
         /* ══════════════════════════════════════════════════════════════════
