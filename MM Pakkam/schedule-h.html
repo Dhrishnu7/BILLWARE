@@ -1167,45 +1167,15 @@
 
 
                     <div class="section-label">💊 Drug Details</div>
-                    <div class="form-grid" style="margin-bottom: 1rem;">
-                        <div class="form-group">
-                            <label>Drug Name</label>
-                            <input type="text" id="drugName" placeholder="Type or select Schedule H drug…" autocomplete="off">
-                            <datalist id="drugList"></datalist>
-                        </div>
-                        <div class="form-group">
-                            <label>Batch No</label>
-                            <input type="text" id="batchNo" placeholder="e.g. BT20240001">
-                        </div>
-                        <div class="form-group">
-                            <label>Expire Date</label>
-                            <input type="month" id="expireDate" placeholder="YYYY-MM">
-                        </div>
-                        <div class="form-group">
-                            <label>Pack</label>
-                            <input type="text" id="pack" placeholder="e.g. 10s, 15ml">
-                        </div>
-                    </div>
-                    <div class="form-grid" style="margin-bottom: 1.5rem;">
-                        <div class="form-group">
-                            <label>Quantity</label>
-                            <input type="number" id="qty" placeholder="0" min="1" step="1" oninput="calcTotal()">
-                        </div>
-                        <div class="form-group">
-                            <label>MRP (₹)</label>
-                            <input type="number" id="mrp" placeholder="0.00" min="0" step="0.01" oninput="calcTotal()">
-                        </div>
-                        <div class="form-group">
-                            <label>Rate (₹)</label>
-                            <input type="number" id="rate" placeholder="0.00" min="0" step="0.01" oninput="calcTotal()">
-                        </div>
-                        <div class="form-group">
-                            <label>GST (%)</label>
-                            <input type="number" id="gst" placeholder="0" min="0" step="0.01" oninput="calcTotal()">
-                        </div>
-                    </div>
+                    <datalist id="drugList"></datalist>
+                    <div id="shDrugRows"></div>
+                    <button type="button" id="shAddItemBtn" onclick="addShDrugRow(true)"
+                        style="width:100%; margin-bottom:1.2rem; background:#fff; border:1.5px dashed #fca5a5; color:#b91c1c; border-radius:12px; padding:0.75rem 1.2rem; font-weight:700; font-size:0.9rem; cursor:pointer;">
+                        ➕ Add Item
+                    </button>
+
                     <div style="background:#fef2f2; border:1.5px solid #fecaca; border-radius:14px; padding:1rem 1.4rem; margin-bottom:0.5rem; display:flex; align-items:center; justify-content:space-between;">
-                        <span style="font-size:0.85rem; font-weight:800; color:#991b1b; text-transform:uppercase; letter-spacing:0.06em;">Total Amount</span>
+                        <span style="font-size:0.85rem; font-weight:800; color:#991b1b; text-transform:uppercase; letter-spacing:0.06em;">Grand Total</span>
                         <span id="totalDisplay" style="font-size:1.3rem; font-weight:800; color:#dc2626;">₹ 0.00</span>
                     </div>
 
@@ -1215,7 +1185,7 @@
                             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                             </svg>
-                            Save Entry
+                            Save All Entries
                         </button>
                     </div>
                 </form>
@@ -1736,8 +1706,7 @@
             document.head.appendChild(s);
         }
 
-        function setupShDrugDropdown() {
-            const input = document.getElementById('drugName');
+        function setupShDrugDropdown(input, rowId) {
             if (!input || input._shddWired) return;
             input._shddWired = true;
             _injectShDrugStyles();
@@ -1794,7 +1763,7 @@
                 input.value = name;
                 remove();
                 input.dispatchEvent(new Event('change', { bubbles: true }));
-                const next = document.getElementById('batchNo');
+                const next = document.getElementById('batch_' + rowId);
                 if (next) setTimeout(() => next.focus(), 50);
             }
 
@@ -1906,18 +1875,94 @@
         // Default today
         document.getElementById('entryDate').valueAsDate = new Date();
 
-        function calcTotal() {
-            const qty  = parseFloat(document.getElementById('qty').value) || 0;
-            const rate = parseFloat(document.getElementById('rate').value) || 0;
-            const gst  = parseFloat(document.getElementById('gst').value) || 0;
-            const base = qty * rate;
-            const total = base + (base * gst / 100);
-            document.getElementById('totalDisplay').textContent = '₹ ' + total.toFixed(2);
+        /* ── Multi-item drug rows (like the Purchase page) ── */
+        let shRowCounter = 0;
+
+        function addShDrugRow(focusIt) {
+            shRowCounter++;
+            const id = shRowCounter;
+            const wrap = document.getElementById('shDrugRows');
+            const div = document.createElement('div');
+            div.className = 'sh-drug-row';
+            div.id = 'shrow_' + id;
+            div.style.cssText = 'border:1.5px solid #fecaca; border-radius:14px; padding:1rem 1.2rem; margin-bottom:1rem; background:#fffafa;';
+            div.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem;">
+                    <span style="font-weight:800; color:#991b1b; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.05em;">💊 Item <span class="sh-row-num">${id}</span></span>
+                    <button type="button" onclick="removeShDrugRow(${id})" title="Remove item"
+                        style="background:#fee2e2; color:#b91c1c; border:none; border-radius:8px; padding:5px 11px; font-weight:700; font-size:0.74rem; cursor:pointer;">✕ Remove</button>
+                </div>
+                <div class="form-grid" style="margin-bottom:1rem;">
+                    <div class="form-group"><label>Drug Name</label>
+                        <input type="text" id="drug_${id}" placeholder="Type or select Schedule H drug…" autocomplete="off"></div>
+                    <div class="form-group"><label>Batch No</label>
+                        <input type="text" id="batch_${id}" placeholder="e.g. BT20240001"></div>
+                    <div class="form-group"><label>Expire Date</label>
+                        <input type="month" id="exp_${id}" placeholder="YYYY-MM"></div>
+                    <div class="form-group"><label>Pack</label>
+                        <input type="text" id="pack_${id}" placeholder="e.g. 10s, 15ml"></div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group"><label>Quantity</label>
+                        <input type="number" id="qty_${id}" placeholder="0" min="1" step="1" oninput="calcShRow(${id})"></div>
+                    <div class="form-group"><label>MRP (₹)</label>
+                        <input type="number" id="mrp_${id}" placeholder="0.00" min="0" step="0.01"></div>
+                    <div class="form-group"><label>Rate (₹)</label>
+                        <input type="number" id="rate_${id}" placeholder="0.00" min="0" step="0.01" oninput="calcShRow(${id})"></div>
+                    <div class="form-group"><label>GST (%)</label>
+                        <input type="number" id="gst_${id}" placeholder="0" min="0" step="0.01" oninput="calcShRow(${id})"></div>
+                </div>
+                <div style="text-align:right; margin-top:0.6rem; font-size:0.82rem; color:#991b1b; font-weight:700;">Item Total: <span id="rowtotal_${id}">₹ 0.00</span></div>
+            `;
+            wrap.appendChild(div);
+            updateShRowNums();
+            setupShDrugDropdown(document.getElementById('drug_' + id), id);
+            if (focusIt) setTimeout(() => document.getElementById('drug_' + id)?.focus(), 50);
+            return id;
+        }
+
+        function removeShDrugRow(id) {
+            const rows = document.querySelectorAll('#shDrugRows .sh-drug-row');
+            if (rows.length <= 1) { showToast('Cannot Remove', 'At least one item is required.'); return; }
+            document.getElementById('shrow_' + id)?.remove();
+            updateShRowNums();
+            calcGrandTotal();
+        }
+
+        function updateShRowNums() {
+            document.querySelectorAll('#shDrugRows .sh-drug-row .sh-row-num')
+                .forEach((s, i) => s.textContent = i + 1);
+        }
+
+        function calcShRow(id) {
+            const qty  = parseFloat(document.getElementById('qty_' + id)?.value)  || 0;
+            const rate = parseFloat(document.getElementById('rate_' + id)?.value) || 0;
+            const gst  = parseFloat(document.getElementById('gst_' + id)?.value)  || 0;
+            const total = qty * rate + (qty * rate * gst / 100);
+            const el = document.getElementById('rowtotal_' + id);
+            if (el) el.textContent = '₹ ' + total.toFixed(2);
+            calcGrandTotal();
+        }
+
+        function calcGrandTotal() {
+            let g = 0;
+            document.querySelectorAll('#shDrugRows .sh-drug-row').forEach(row => {
+                const id   = row.id.replace('shrow_', '');
+                const qty  = parseFloat(document.getElementById('qty_' + id)?.value)  || 0;
+                const rate = parseFloat(document.getElementById('rate_' + id)?.value) || 0;
+                const gst  = parseFloat(document.getElementById('gst_' + id)?.value)  || 0;
+                g += qty * rate + (qty * rate * gst / 100);
+            });
+            const disp = document.getElementById('totalDisplay');
+            if (disp) disp.textContent = '₹ ' + g.toFixed(2);
         }
 
         function resetRegisterForm() {
             document.getElementById('registerForm').reset();
             document.getElementById('entryDate').valueAsDate = new Date();
+            document.getElementById('shDrugRows').innerHTML = '';
+            shRowCounter = 0;
+            addShDrugRow();
             document.getElementById('totalDisplay').textContent = '₹ 0.00';
         }
 
@@ -1989,65 +2034,66 @@
         function handleRegisterSubmit(e) {
             e.preventDefault();
 
-            const drugName = document.getElementById('drugName').value.trim();
-            const patientName = document.getElementById('patientName').value.trim();
-            const entryType = document.getElementById('entryType').value || 'manual';
+            // Shared header for every item on this supplier bill
+            const date     = document.getElementById('entryDate').value;
+            const billNo   = document.getElementById('billNo').value.trim();
+            const firmName = document.getElementById('firmName').value.trim();
 
-            if (!drugName) {
-                showToast('Missing Drug', 'Please select or enter a drug name.');
+            const rows = [...document.querySelectorAll('#shDrugRows .sh-drug-row')];
+            const entries = [];
+            for (const row of rows) {
+                const id = row.id.replace('shrow_', '');
+                const drugName = (document.getElementById('drug_' + id)?.value || '').trim();
+                if (!drugName) continue; // skip blank rows
+
+                const qty  = parseFloat(document.getElementById('qty_' + id)?.value)  || 0;
+                const rate = parseFloat(document.getElementById('rate_' + id)?.value) || 0;
+                const gst  = parseFloat(document.getElementById('gst_' + id)?.value)  || 0;
+                const base = qty * rate;
+
+                entries.push({
+                    id:               genId(),
+                    entryType:        'in',
+                    date:             date,
+                    billNo:           billNo,
+                    firmName:         firmName,
+                    patientName:      '',
+                    patientAddress:   '',
+                    doctorName:       '',
+                    doctorRegNo:      '',
+                    doctorAddress:    '',
+                    drugName:         drugName,
+                    batchNo:          (document.getElementById('batch_' + id)?.value || '').trim(),
+                    expireDate:       document.getElementById('exp_' + id)?.value || '',
+                    pack:             (document.getElementById('pack_' + id)?.value || '').trim(),
+                    qty:              qty,
+                    mrp:              parseFloat(document.getElementById('mrp_' + id)?.value) || 0,
+                    rate:             rate,
+                    gst:              gst,
+                    total:            base + (base * gst / 100),
+                    savedAt:          new Date().toISOString()
+                });
+            }
+
+            if (!entries.length) {
+                showToast('Missing Drug', 'Please add at least one drug with a name.');
                 return;
             }
-            if (entryType === 'out' && !patientName) {
-                showToast('Missing Patient', 'Please enter the patient name for a Dispensed entry.');
-                return;
-            }
-
-            const qty  = parseFloat(document.getElementById('qty').value) || 0;
-            const rate = parseFloat(document.getElementById('rate').value) || 0;
-            const gst  = parseFloat(document.getElementById('gst').value) || 0;
-            const base = qty * rate;
-            const total = base + (base * gst / 100);
-
-            const entry = {
-                id:               genId(),
-                entryType:        entryType,
-                date:             document.getElementById('entryDate').value,
-                billNo:           document.getElementById('billNo').value.trim(),
-                firmName:         document.getElementById('firmName').value.trim(),
-                patientName:      patientName,
-                patientAddress:   document.getElementById('patientAddress').value.trim(),
-                doctorName:       document.getElementById('doctorName').value.trim(),
-                doctorRegNo:      document.getElementById('doctorRegNo').value.trim(),
-                doctorAddress:    document.getElementById('doctorAddress').value.trim(),
-                drugName:         drugName,
-                batchNo:          document.getElementById('batchNo').value.trim(),
-                expireDate:       document.getElementById('expireDate').value,
-                pack:             document.getElementById('pack').value.trim(),
-                qty:              qty,
-                mrp:              parseFloat(document.getElementById('mrp').value) || 0,
-                rate:             rate,
-                gst:              gst,
-                total:            total,
-                savedAt:          new Date().toISOString()
-            };
 
             const register = getRegister();
-            register.push(entry);
+            entries.forEach(entry => {
+                register.push(entry);
+                if (typeof dbAddScheduleHEntry === 'function') {
+                    dbAddScheduleHEntry(entry).catch(err => console.warn('cloud register save failed:', err));
+                }
+                // Received stock → mirror into purchases so it's sellable on the Sales page.
+                mirrorInEntryToPurchase(entry);
+            });
             setRegister(register);
 
-            // Compliance warning if dispensed without doctor
-            if (entryType === 'out' && !entry.doctorName) {
-                showToast('⚠️ Entry Saved', `${drugName} saved but is missing a Doctor — compliance risk!`);
-            } else {
-                showToast('Entry Saved!', `${drugName} — ${patientName || entry.firmName || 'Received'}`);
-            }
+            showToast('Entries Saved!', `${entries.length} item${entries.length === 1 ? '' : 's'} added to the register.`);
             resetRegisterForm();
             renderRegisterLog();
-            if (typeof dbAddScheduleHEntry === 'function') {
-                dbAddScheduleHEntry(entry).catch(e => console.warn('cloud register save failed:', e));
-            }
-            // Received stock → mirror into purchases so it's sellable on the Sales page.
-            mirrorInEntryToPurchase(entry);
         }
 
         /* ── Type Filter State ── */
@@ -2827,7 +2873,7 @@
             refreshPatientList();
             refreshDoctorList();
             refreshDrugDatalist();
-            setupShDrugDropdown();
+            addShDrugRow();
             setDefaultRegisterDates();
             renderRegisterLog();
             renderDrugList();
