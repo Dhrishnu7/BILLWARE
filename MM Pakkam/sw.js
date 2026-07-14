@@ -1,6 +1,6 @@
 // ── Billware Service Worker ──
 // IMPORTANT: Change CACHE_NAME on every deploy so installed apps get the latest version
-const CACHE_NAME = 'mm-pakkam-v127';
+const CACHE_NAME = 'mm-pakkam-v128';
 
 // Pages and assets to cache for offline use + instant navigation
 const PRECACHE_URLS = [

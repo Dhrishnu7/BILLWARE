@@ -316,6 +316,8 @@
             inputEl.value=med.name;
             const gstEl=lineEl.querySelector('.li-gst');
             if(gstEl && med.gst){ gstEl.value=med.gst; gstEl.dispatchEvent(new Event('input',{bubbles:true})); }
+            const hsnEl=lineEl.querySelector('.li-hsn');
+            if(hsnEl && med.hsn){ hsnEl.value=med.hsn; }
             // Pack size is intentionally NOT auto-filled to prevent inventory errors.
             // It is only shown in the dropdown as a helpful hint.
             removeDd();
@@ -360,7 +362,8 @@
         inputEl.addEventListener('blur',()=>setTimeout(removeDd,180));
         inputEl.addEventListener('change',async e=>{
             const med=await getByName(e.target.value);
-            if(med){const g=lineEl.querySelector('.li-gst');if(g&&med.gst&&!g.value){g.value=med.gst;g.dispatchEvent(new Event('input',{bubbles:true}));}}
+            if(med){const g=lineEl.querySelector('.li-gst');if(g&&med.gst&&!g.value){g.value=med.gst;g.dispatchEvent(new Event('input',{bubbles:true}));}
+                const h=lineEl.querySelector('.li-hsn');if(h&&med.hsn&&!h.value){h.value=med.hsn;}}
         });
     }
 

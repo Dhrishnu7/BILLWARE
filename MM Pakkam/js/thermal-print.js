@@ -250,6 +250,10 @@ const ThermalPrinter = (() => {
                     const batchLine = '  Batch: ' + (m.batch || '-') + '  Exp: ' + (m.exp || '-');
                     add(text(batchLine)); lf();
                 }
+                // HSN line (GST tax invoice detail)
+                if (m.hsn) {
+                    add(text('  HSN: ' + m.hsn)); lf();
+                }
 
                 // Discount line if applicable
                 if (parseFloat(m.discount) > 0) {

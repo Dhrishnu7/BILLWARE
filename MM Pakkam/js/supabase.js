@@ -581,6 +581,7 @@ async function dbAddPurchase(row) {
         mrp:          Number(row.mrp)      || 0,
         rate:         Number(row.rate)     || 0,
         gst:          Number(row.gst)      || 0,
+        hsn:          row.hsn || row.hsn_code || '',
         user_id:      user,
     });
     if (error) { console.error('purchase add:', error); return { success: false, message: error.message }; }
@@ -755,6 +756,7 @@ async function dbSaveBill(bill) {
         gst:      Number(m.gst)      || 0,
         discount: Number(m.discount) || 0,
         total:    Number(m.total)    || 0,
+        hsn:      m.hsn || '',
     }));
 
     if (items.length > 0) {

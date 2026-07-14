@@ -2045,7 +2045,7 @@
                                 exp:      m.exp      || '', pack: m.pack || 0, qty:      Number(m.qty) || 0,
                                 mrp:      Number(m.mrp) || 0, rate:     Number(m.rate) || 0,
                                 gst:      Number(m.gst) || 0, discount: Number(m.discount) || 0,
-                                total:    Number(m.total) || 0
+                                total:    Number(m.total) || 0, hsn: m.hsn || ''
                             }))
                         };
                         let res = await dbSaveBill(payload);
@@ -2137,7 +2137,7 @@
                             exp:      m.exp      || '', pack: m.pack || 0, qty:      Number(m.qty) || 0,
                             mrp:      Number(m.mrp) || 0, rate:     Number(m.rate) || 0,
                             gst:      Number(m.gst) || 0, discount: Number(m.discount) || 0,
-                            total:    Number(m.total) || 0
+                            total:    Number(m.total) || 0, hsn: m.hsn || ''
                         }))
                     };
                     let res = await dbSaveBill(payload);
@@ -3869,7 +3869,7 @@
                     <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; color: #64748b;">${r.i}</td>
                     <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0;">
                         <div style="font-weight: 600; color: #0f172a; font-size: 13px;">${r.m.product}</div>
-                        <div style="color: #64748b; font-size: 11px; margin-top: 4px;">Exp: <span style="color:#0f172a">${r.m.exp || '-'}</span> &nbsp;|&nbsp; Batch: <span style="color:#0f172a">${r.m.batch || '-'}</span></div>
+                        <div style="color: #64748b; font-size: 11px; margin-top: 4px;">Exp: <span style="color:#0f172a">${r.m.exp || '-'}</span> &nbsp;|&nbsp; Batch: <span style="color:#0f172a">${r.m.batch || '-'}</span>${r.m.hsn ? ` &nbsp;|&nbsp; HSN: <span style="color:#0f172a">${r.m.hsn}</span>` : ''}</div>
                     </td>
                     <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: 600; color: #0f172a;">${r.qty}</td>
                     <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; color: #475569;">${r.mrpUnit.toFixed(2)}</td>
@@ -3878,6 +3878,47 @@
                     <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #0f172a;">${r.payable.toFixed(2)}</td>
                 </tr>
             `).join('');
+
+            // ── HSN-wise tax summary (GST-mandated on a tax invoice) ──
+            const _hsnGroups = {};
+            rows.forEach(r => {
+                const key = (r.m.hsn || '—') + '|' + r.gstPct;
+                if (!_hsnGroups[key]) _hsnGroups[key] = { hsn: r.m.hsn || '—', gstPct: r.gstPct, taxable: 0, cgst: 0, sgst: 0 };
+                _hsnGroups[key].taxable += r.netBase;
+                _hsnGroups[key].cgst    += r.cgst;
+                _hsnGroups[key].sgst    += r.sgst;
+            });
+            const _hsnList = Object.values(_hsnGroups);
+            const hsnSummaryHtml = _hsnList.length ? `
+                <h4 style="margin: 0 0 8px; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">HSN / Tax Summary</h4>
+                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin-bottom: 30px;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: left; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; background:#f8fafc;">HSN</th>
+                            <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; background:#f8fafc;">Taxable Value</th>
+                            <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; background:#f8fafc;">CGST</th>
+                            <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; background:#f8fafc;">SGST</th>
+                            <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; background:#f8fafc;">Total Tax</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${_hsnList.map(g => `
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #e2e8f0; color:#0f172a; font-weight:600;">${g.hsn}</td>
+                            <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; color:#475569;">₹${g.taxable.toFixed(2)}</td>
+                            <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color:#475569;">${(g.gstPct/2)}% &nbsp; ₹${g.cgst.toFixed(2)}</td>
+                            <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color:#475569;">${(g.gstPct/2)}% &nbsp; ₹${g.sgst.toFixed(2)}</td>
+                            <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; color:#0f172a; font-weight:600;">₹${(g.cgst+g.sgst).toFixed(2)}</td>
+                        </tr>`).join('')}
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #cbd5e1; font-weight: 700; color:#0f172a; background:#f8fafc;">Total</td>
+                            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: right; font-weight: 700; color:#0f172a; background:#f8fafc;">₹${totalValue.toFixed(2)}</td>
+                            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: right; font-weight: 700; color:#0f172a; background:#f8fafc;">₹${totalCGST.toFixed(2)}</td>
+                            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: right; font-weight: 700; color:#0f172a; background:#f8fafc;">₹${totalSGST.toFixed(2)}</td>
+                            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: right; font-weight: 700; color:#0f172a; background:#f8fafc;">₹${(totalCGST+totalSGST).toFixed(2)}</td>
+                        </tr>
+                    </tbody>
+                </table>` : '';
 
             return `
             <div style="font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 800px; margin: 0 auto; color: #1e293b; background: #fff; padding: 30px; box-sizing: border-box; font-size: 13px; line-height: 1.5;">
@@ -3949,6 +3990,9 @@
                         ${tableRows}
                     </tbody>
                 </table>
+
+                <!-- HSN-wise Tax Summary -->
+                ${hsnSummaryHtml}
 
                 <!-- Footer Summary -->
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 40px;">
