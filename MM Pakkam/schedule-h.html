@@ -3323,6 +3323,30 @@
             document.getElementById('rxDropZone').style.display = 'block';
         }
 
+        // Background: upload the photo to cloud Storage and keep only the light
+        // URL in localStorage + the DB (instead of the heavy base64). Falls back
+        // to the inline base64 copy if Storage isn't set up, so saving never fails.
+        async function _rxPersistCloud(rx) {
+            let finalImage = rx.imageData;
+            if (typeof dbUploadPrescriptionImage === 'function' &&
+                typeof finalImage === 'string' && finalImage.startsWith('data:')) {
+                try {
+                    const url = await dbUploadPrescriptionImage(rx.id, finalImage);
+                    if (url) {
+                        finalImage = url;
+                        // Swap the heavy base64 in localStorage for the light URL.
+                        const list = getRxList();
+                        const idx = list.findIndex(r => r.id === rx.id);
+                        if (idx >= 0) { list[idx].imageData = url; setRxList(list); renderPrescriptions(); }
+                    }
+                } catch (e) { console.warn('rx image upload failed, keeping inline copy:', e); }
+            }
+            if (typeof dbAddPrescription === 'function') {
+                dbAddPrescription({ ...rx, imageData: finalImage })
+                    .catch(err => console.warn('prescription cloud save failed:', err));
+            }
+        }
+
         async function handleRxSubmit(e) {
             e.preventDefault();
             const patient = document.getElementById('rxPatient').value.trim();
@@ -3350,9 +3374,9 @@
             renderPrescriptions();
             showToast('Prescription saved', 'Softcopy stored & backing up to cloud.');
 
-            if (typeof dbAddPrescription === 'function') {
-                dbAddPrescription(rx).catch(err => console.warn('prescription cloud save failed:', err));
-            }
+            // Move the photo to cloud Storage (keeps the DB light) & back it up.
+            // Runs in the background so the UI stays instant.
+            _rxPersistCloud(rx);
         }
 
         function renderPrescriptions() {
@@ -3438,10 +3462,10 @@
                 }
                 const cloudIds = new Set(cloud.map(r => r.id));
                 const localOnly = local.filter(r => r && r.id && !cloudIds.has(r.id));
-                if (localOnly.length && typeof dbAddPrescription === 'function') {
-                    for (const r of localOnly) {
-                        dbAddPrescription(r).catch(err => console.warn('prescription backfill failed:', err));
-                    }
+                if (localOnly.length) {
+                    // Route through _rxPersistCloud so any old inline-base64 photos
+                    // also get migrated up to Storage as they back up.
+                    for (const r of localOnly) _rxPersistCloud(r);
                 }
             } catch (e) { console.warn('Prescription cloud sync failed:', e); }
         }

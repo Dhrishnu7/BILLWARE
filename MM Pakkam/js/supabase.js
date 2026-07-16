@@ -407,6 +407,43 @@ function _rxRowToObj(r) {
     };
 }
 
+/* ── Prescription image Storage helpers ──
+   Instead of stuffing the base64 photo into the `image_data` text
+   column (heavy — bloats the DB and slows every sync), we upload the
+   photo to a Storage bucket and keep only its URL in image_data.
+   Path is deterministic (`<tenant>/<rx_id>.jpg`) so re-saves overwrite
+   cleanly and deletes are easy. Everything is best-effort: if the
+   bucket isn't set up yet or the upload fails, callers fall back to the
+   old inline-base64 behaviour, so nothing ever breaks. */
+const RX_BUCKET = 'prescriptions';
+
+// Upload a base64 JPEG data URL → returns a public URL, or null on any failure.
+async function dbUploadPrescriptionImage(rxId, dataUrl) {
+    try {
+        const user = _currentUser();
+        if (!user || !_supabase || !rxId) return null;
+        if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return null;
+        const blob = await (await fetch(dataUrl)).blob();
+        const path = `${user}/${rxId}.jpg`;
+        const { error } = await _supabase.storage.from(RX_BUCKET)
+            .upload(path, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '31536000' });
+        if (error) { console.warn('[db] rx image upload failed:', error.message); return null; }
+        const { data } = _supabase.storage.from(RX_BUCKET).getPublicUrl(path);
+        return (data && data.publicUrl) || null;
+    } catch (e) { console.warn('[db] rx image upload error:', e); return null; }
+}
+window.dbUploadPrescriptionImage = dbUploadPrescriptionImage;
+
+// Best-effort removal of a prescription's photo from Storage (no-op if absent).
+async function dbDeletePrescriptionImage(rxId) {
+    try {
+        const user = _currentUser();
+        if (!user || !_supabase || !rxId) return;
+        await _supabase.storage.from(RX_BUCKET).remove([`${user}/${rxId}.jpg`]);
+    } catch (e) { /* best-effort — old rows have no Storage file */ }
+}
+window.dbDeletePrescriptionImage = dbDeletePrescriptionImage;
+
 async function dbGetPrescriptions() {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbGetPrescriptions: no user, aborting.'); return []; }
@@ -433,6 +470,8 @@ async function dbDeletePrescription(id) {
     const { error } = await _supabase.from('prescriptions')
         .delete().eq('user_id', user).eq('rx_id', id);
     if (error) { console.error('prescription delete:', error); return false; }
+    // Also clean up the photo in Storage (best-effort; no-op for old inline rows).
+    dbDeletePrescriptionImage(id);
     return true;
 }
 window.dbDeletePrescription = dbDeletePrescription;
