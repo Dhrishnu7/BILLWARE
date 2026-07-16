@@ -454,7 +454,7 @@ let allUsers=[], allBills=[], allPurchases=[], allCustomers=[], allMedicines=[];
 
 async function loadAll() {
     const [uR,bR,pR,cR,mR,sR] = await Promise.all([
-        sb.from('mm_users').select('*'),
+        sb.from('mm_users').select('id,username,role,tenant_id,createdAt,approval_status,payment_status,active_session_token,auth_uid'),
         sb.from('bills').select('*').order('saved_at',{ascending:false}),
         sb.from('purchases').select('*'),
         sb.from('customers').select('*'),
