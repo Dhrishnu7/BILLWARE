@@ -97,6 +97,27 @@ async function findUser(db: any, username: string) {
 }
 
 /**
+ * Usernames are globally unique by policy (see sql/04_unique_usernames.sql).
+ * That is what keeps login unambiguous and keeps emailFor() — which derives a
+ * user's Supabase Auth identity from the username — collision-free. Every path
+ * that creates or renames a user must call this; a gap in any one of them puts
+ * two same-named users back in the database.
+ *
+ * `exceptId` lets a rename keep its own name.
+ */
+async function usernameTaken(db: any, username: string, exceptId?: string) {
+  const uname = String(username || "").trim();
+  if (!uname) return true;
+  const { data } = await db.from("mm_users").select("id,username").ilike("username", uname);
+  return (data || []).some(
+    (u: any) => (u.username || "").toLowerCase() === uname.toLowerCase() && u.id !== exceptId,
+  );
+}
+
+const TAKEN_MSG =
+  "That username is already taken. Usernames must be unique across all shops, so please pick a different one.";
+
+/**
  * Tenant-scoped lookup — use this for anything acting ON a user. Resolving by
  * bare username would pick whichever shop's row came back first and could act
  * on a different shop entirely.
@@ -203,6 +224,16 @@ Deno.serve(async (req) => {
           if (!rq) return json({ error: "Request not found." }, 404);
           if (rq.status !== "pending") return json({ error: "Already reviewed." }, 409);
 
+          // Re-check at approval time, not just when the request was filed: the
+          // name may have been claimed by another shop in between. Without this
+          // the upsert below would happily create a duplicate.
+          if (await usernameTaken(db, rq.requested_username)) {
+            return json({
+              error: `"${rq.requested_username}" has been taken since this request was made. ` +
+                     `Ask the shop to request a different username.`,
+            }, 409);
+          }
+
           const userId = `${rq.tenant_id}:${rq.requested_username}`;
           const { error: uErr } = await db.from("mm_users").upsert({
             id: userId,
@@ -257,10 +288,7 @@ Deno.serve(async (req) => {
       const password = String(body.password || "");
       if (uname.length < 3 || password.length < 4) return json({ error: "Invalid username or password." }, 400);
 
-      const { data: all } = await db.from("mm_users").select("username");
-      if ((all || []).some((u: any) => (u.username || "").toLowerCase() === uname.toLowerCase())) {
-        return json({ error: "This username is already taken. Please choose a different one." }, 409);
-      }
+      if (await usernameTaken(db, uname)) return json({ error: TAKEN_MSG }, 409);
       const { error } = await db.from("mm_users").insert({
         id: `${uname}:${uname}`,
         username: uname,
@@ -360,12 +388,8 @@ Deno.serve(async (req) => {
       const role = body.role === "owner" ? "owner" : "worker";
       if (uname.length < 3 || password.length < 4) return json({ error: "Invalid username or password." }, 400);
 
-      // Scoped to the caller's own tenant — the body cannot name another shop.
-      const { data: existing } = await db.from("mm_users")
-        .select("id,username").eq("tenant_id", me.tenant);
-      if ((existing || []).some((u: any) => (u.username || "").toLowerCase() === uname.toLowerCase())) {
-        return json({ error: "This username already exists in your store." }, 409);
-      }
+      // Global, not per-tenant: a name taken by ANY shop is unavailable.
+      if (await usernameTaken(db, uname)) return json({ error: TAKEN_MSG }, 409);
       const { error } = await db.from("mm_users").insert({
         id: `${me.tenant}:${uname}`,
         username: uname,
@@ -383,6 +407,8 @@ Deno.serve(async (req) => {
       const password = String(body.password || "");
       const reason = String(body.reason || "").trim();
       if (uname.length < 3 || password.length < 4 || !reason) return json({ error: "Invalid request." }, 400);
+      // Fail here rather than letting the superadmin discover it at approval.
+      if (await usernameTaken(db, uname)) return json({ error: TAKEN_MSG }, 409);
       const { error } = await db.from("extra_user_requests").insert({
         tenant_id: me.tenant,               // from memberships, not the body
         requested_username: uname,
@@ -403,10 +429,8 @@ Deno.serve(async (req) => {
       const isSelf = row.username.toLowerCase() === me.username.toLowerCase();
       if (!isSelf && me.role !== "owner") return json({ error: "Not allowed." }, 403);
 
-      const { data: existing } = await db.from("mm_users").select("username").eq("tenant_id", me.tenant);
-      if ((existing || []).some((u: any) => (u.username || "").toLowerCase() === newName.toLowerCase())) {
-        return json({ error: "That username is already taken in your store." }, 409);
-      }
+      // Global check, excluding this user's own row so a no-op rename works.
+      if (await usernameTaken(db, newName, row.id)) return json({ error: TAKEN_MSG }, 409);
       const { error } = await db.from("mm_users")
         .update({ username: newName, id: `${row.tenant_id || newName}:${newName}` }).eq("id", row.id);
       if (error) return json({ error: error.message }, 400);

@@ -575,10 +575,13 @@ async function mmGetTenantUsers() {
 
 /** Create a new store owner account. Every account is fully isolated. Returns { success, message } */
 async function mmCreateOwner(username, password, shopInfo = null) {
-    // Owner usernames must be globally unique (needed for unambiguous login)
+    // Every username is globally unique, workers included — login, password
+    // reset and the derived Auth identity all resolve by bare username and
+    // cannot tell two same-named users apart. This check is only for fast
+    // feedback; the server and a unique index are what actually enforce it.
     const users = await mmGetUsers();
     if (users.find(u => u.username.toLowerCase() === username.trim().toLowerCase())) {
-        return { success: false, message: 'This username is already taken. Please choose a different one.' };
+        return { success: false, message: 'That username is already taken. Usernames must be unique across all shops, so please pick a different one.' };
     }
     // The server creates the account. It always forces role=owner,
     // tenant_id=username and approval_status=pending, so a crafted request
