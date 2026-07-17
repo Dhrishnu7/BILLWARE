@@ -2405,8 +2405,21 @@
                 // bill; we also save the image so it can be attached if wanted.
                 if (phone) {
                     _downloadBlob(blob, filename);
+                    // WhatsApp can't auto-attach an image to a number that isn't a
+                    // saved contact, so show a one-time (dismissible) tip on how to
+                    // attach the just-downloaded invoice image. Both buttons proceed
+                    // to open WhatsApp; "Don't show again" only stops future tips.
+                    if (!localStorage.getItem('mm_bill_attach_hint_off')) {
+                        const keep = await mmConfirm(
+                            `The invoice image has been saved to your phone.\n\n` +
+                            `WhatsApp will now open the chat for this number with the bill.\n\n` +
+                            `📎 To also send the IMAGE: in the chat, tap 📎 (attach) → Gallery → pick the invoice (the newest image).`,
+                            { title: 'Sending the bill', emoji: '📱', okText: 'Open WhatsApp', cancelText: "Don't show again" }
+                        );
+                        if (keep === false) { try { localStorage.setItem('mm_bill_attach_hint_off', '1'); } catch (e) {} }
+                    }
                     _openWhatsapp(bill, null, phone);
-                    _toast('📱 WhatsApp opened', 'Chat opened for that number. Invoice image also saved — attach it if you like.');
+                    _toast('📱 WhatsApp opened', 'Chat opened for that number.');
                 } else if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     // No specific number → let the user pick a recipient, image attached.
                     await navigator.share({
