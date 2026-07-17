@@ -3243,19 +3243,44 @@
             btn.innerHTML = '⏳ Backing up...';
 
             try {
-                // Fetch ALL data (no date filter) for this user
-                const [bills, purchases] = await Promise.all([
-                    dbGetBills(),
-                    dbGetPurchases()
+                // Fetch the WHOLE shop from the cloud (no date filter) so the backup
+                // is a complete disaster-recovery snapshot, not just transactions.
+                // Feature-detect each helper so a missing one can't break the backup.
+                const _grab = fn => (typeof fn === 'function' ? fn() : Promise.resolve(null));
+                const [
+                    bills, purchases, customers, doctors, medicines,
+                    stockAdjustments, promiseOrders, scheduleHDrugs,
+                    scheduleHRegister, prescriptions, shopProfile
+                ] = await Promise.all([
+                    _grab(window.dbGetBills),
+                    _grab(window.dbGetPurchases),
+                    _grab(window.dbGetCustomers),
+                    _grab(window.dbGetDoctors),
+                    _grab(window.dbGetMedicines),
+                    _grab(window.dbGetStockAdjustments),
+                    _grab(window.dbGetPromiseOrders),
+                    _grab(window.dbGetScheduleHDrugs),
+                    _grab(window.dbGetScheduleHRegister),
+                    _grab(window.dbGetPrescriptions),
+                    _grab(window.dbGetShopProfile),
                 ]);
 
                 const session = mmCurrentUser();
                 const backup = {
-                    version:   '1.0',
-                    createdAt: new Date().toISOString(),
-                    user:      session ? session.username : 'unknown',
-                    bills:     bills     || [],
-                    purchases: purchases || []
+                    version:           '2.0',
+                    createdAt:         new Date().toISOString(),
+                    user:              session ? session.username : 'unknown',
+                    bills:             bills             || [],
+                    purchases:         purchases         || [],
+                    customers:         customers         || [],
+                    doctors:           doctors           || [],
+                    medicines:         medicines         || [],
+                    stockAdjustments:  stockAdjustments  || [],
+                    promiseOrders:     promiseOrders     || [],
+                    scheduleHDrugs:    scheduleHDrugs    || [],
+                    scheduleHRegister: scheduleHRegister || [],
+                    prescriptions:     prescriptions     || [],
+                    shopProfile:       shopProfile       || null,
                 };
 
                 const json = JSON.stringify(backup, null, 2);
@@ -3287,21 +3312,37 @@
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
-                    if (!data.bills || !data.purchases) throw new Error('Invalid backup file format.');
+                    // Accept any backup that carries at least one known data section
+                    // (v1.0 = bills+purchases only; v2.0 = the whole shop).
+                    const KNOWN = ['bills','purchases','customers','doctors','medicines',
+                        'stockAdjustments','promiseOrders','scheduleHDrugs','scheduleHRegister','prescriptions'];
+                    const hasData = data && typeof data === 'object' &&
+                        (KNOWN.some(k => Array.isArray(data[k])) || data.shopProfile);
+                    if (!hasData) throw new Error('Invalid backup file format.');
 
                     _restorePayload = data;
 
                     // Show modal with summary
                     const log = document.getElementById('restoreLog');
                     log.innerHTML = '';
-                    addRLog(`📅 Backup created: ${new Date(data.createdAt).toLocaleString('en-IN')}`, 'info');
+                    addRLog(`📅 Backup created: ${data.createdAt ? new Date(data.createdAt).toLocaleString('en-IN') : 'unknown'}`, 'info');
                     addRLog(`👤 User: ${data.user || 'unknown'}`, 'info');
                     addRLog(``, 'info');
-                    addRLog(`📦 Purchases: ${data.purchases.length} records`, 'ok');
-                    addRLog(`🧾 Sales Bills: ${data.bills.length} records`, 'ok');
+                    const _cnt = k => Array.isArray(data[k]) ? data[k].length : 0;
+                    if (_cnt('purchases'))         addRLog(`📦 Purchases: ${_cnt('purchases')} records`, 'ok');
+                    if (_cnt('bills'))             addRLog(`🧾 Sales Bills: ${_cnt('bills')} records`, 'ok');
+                    if (_cnt('customers'))         addRLog(`👥 Customers (incl. khata): ${_cnt('customers')} records`, 'ok');
+                    if (_cnt('doctors'))           addRLog(`🩺 Doctors: ${_cnt('doctors')} records`, 'ok');
+                    if (_cnt('medicines'))         addRLog(`💊 Medicines: ${_cnt('medicines')} records`, 'ok');
+                    if (_cnt('stockAdjustments'))  addRLog(`📊 Stock adjustments: ${_cnt('stockAdjustments')} records`, 'ok');
+                    if (_cnt('promiseOrders'))     addRLog(`📝 Promise orders: ${_cnt('promiseOrders')} records`, 'ok');
+                    if (_cnt('scheduleHDrugs'))    addRLog(`🅗 Schedule-H drugs: ${_cnt('scheduleHDrugs')} records`, 'ok');
+                    if (_cnt('scheduleHRegister')) addRLog(`🅗 Schedule-H register: ${_cnt('scheduleHRegister')} records`, 'ok');
+                    if (_cnt('prescriptions'))     addRLog(`📄 Prescriptions: ${_cnt('prescriptions')} records`, 'ok');
+                    if (data.shopProfile)          addRLog(`🏪 Shop profile: included`, 'ok');
                     addRLog(``, 'info');
                     addRLog(`⚠️  This will ADD these records back to the database.`, 'info');
-                    addRLog(`   Existing data will NOT be deleted.`, 'info');
+                    addRLog(`   Existing data will NOT be deleted or overwritten.`, 'info');
 
                     document.getElementById('restoreConfirmBtn').disabled = false;
                     document.getElementById('restoreOverlay').classList.add('open');
@@ -3331,7 +3372,7 @@
             btn.disabled = true;
             btn.textContent = 'Restoring...';
 
-            const { bills, purchases } = _restorePayload;
+            const { bills = [], purchases = [] } = _restorePayload;
             let okP = 0, failP = 0, okB = 0, failB = 0;
 
             // Restore purchases
@@ -3417,6 +3458,160 @@
                 }
             }
             addRLog(`  ✅ ${okB} bills restored${failB ? ', ❌ ' + failB + ' failed' : ''}`, okB > 0 ? 'ok' : 'err');
+
+            // ── Restore the rest of the shop (v2.0 backups). Each block is
+            // additive + dedup-guarded and never deletes/overwrites existing data,
+            // so a partial (v1.0) file simply skips these, and re-restoring a v2.0
+            // file onto a populated shop won't create duplicates. ──
+            const P = _restorePayload;
+            const _num = v => (v === undefined || v === null ? 0 : (Number(v) || 0));
+
+            // Customers (+ khata balances). Skip existing so a balance is never
+            // double-counted; new customers are recreated with their exact balance.
+            if (Array.isArray(P.customers) && P.customers.length && typeof dbAddCustomer === 'function') {
+                addRLog(`⏳ Restoring ${P.customers.length} customers...`, 'info');
+                let okC = 0;
+                let existingC = [];
+                try { existingC = (typeof dbGetCustomers === 'function') ? await dbGetCustomers() : []; } catch (e) {}
+                const cKey = (n, ph) => (String(n || '').trim().toLowerCase() + '|' + String(ph || '').trim());
+                const existingCSet = new Set(existingC.map(c => cKey(c.name, c.phone)));
+                for (const c of P.customers) {
+                    if (!String(c.name || '').trim()) continue;
+                    if (existingCSet.has(cKey(c.name, c.phone))) { okC++; continue; }
+                    const r = await dbAddCustomer(c.name || '', c.phone || '', c.address || '');
+                    if (r && r.success) {
+                        const bal = _num(c.balance);
+                        if (bal && typeof dbUpdateCustomerBalance === 'function') {
+                            await dbUpdateCustomerBalance(c.name || '', c.phone || '', c.address || '', bal);
+                        }
+                        okC++;
+                    }
+                }
+                addRLog(`  ✅ ${okC} customers restored`, 'ok');
+            }
+
+            // Doctors — dedupes internally on name+phone.
+            if (Array.isArray(P.doctors) && P.doctors.length && typeof dbAddDoctor === 'function') {
+                addRLog(`⏳ Restoring ${P.doctors.length} doctors...`, 'info');
+                let okD = 0;
+                for (const d of P.doctors) {
+                    if (!String(d.name || '').trim()) continue;
+                    const r = await dbAddDoctor(d.name || '', d.phone || '', d.clinic || '', d.address || '', d.reg_no || d.regNo || '');
+                    if (r && r.success) okD++;
+                }
+                addRLog(`  ✅ ${okD} doctors restored`, 'ok');
+            }
+
+            // Medicines — array of names; dbImportMedicines dedupes.
+            if (Array.isArray(P.medicines) && P.medicines.length && typeof dbImportMedicines === 'function') {
+                const names = P.medicines.map(m => (typeof m === 'string' ? m : (m && m.name) || '')).filter(Boolean);
+                addRLog(`⏳ Restoring ${names.length} medicines...`, 'info');
+                const ok = await dbImportMedicines(names);
+                addRLog(ok ? `  ✅ ${names.length} medicines restored` : `  ❌ medicines failed`, ok ? 'ok' : 'err');
+            }
+
+            // Stock adjustments — light dedup on product+batch+deltas.
+            if (Array.isArray(P.stockAdjustments) && P.stockAdjustments.length && typeof dbAddStockAdjustment === 'function') {
+                addRLog(`⏳ Restoring ${P.stockAdjustments.length} stock adjustments...`, 'info');
+                let okS = 0;
+                let existingS = [];
+                try { existingS = (typeof dbGetStockAdjustments === 'function') ? await dbGetStockAdjustments() : []; } catch (e) {}
+                const sKey = a => [a.product_name || a.productName || '', a.batch_no || a.batchNo || '',
+                    _num(a.qty_delta ?? a.qtyDelta), _num(a.qty_before ?? a.qtyBefore), _num(a.qty_after ?? a.qtyAfter)].join('|');
+                const existingSSet = new Set(existingS.map(sKey));
+                for (const a of P.stockAdjustments) {
+                    if (existingSSet.has(sKey(a))) { okS++; continue; }
+                    const r = await dbAddStockAdjustment({
+                        productName: a.product_name || a.productName || '',
+                        batchNo:     a.batch_no     || a.batchNo     || '',
+                        qtyBefore:   _num(a.qty_before ?? a.qtyBefore),
+                        qtyAfter:    _num(a.qty_after  ?? a.qtyAfter),
+                        qtyDelta:    _num(a.qty_delta  ?? a.qtyDelta),
+                        reason:      a.reason || 'other',
+                        note:        a.note   || '',
+                    });
+                    if (r && r.success) okS++;
+                }
+                addRLog(`  ✅ ${okS} stock adjustments restored`, 'ok');
+            }
+
+            // Promise orders — light dedup on customer+medicine+date+status.
+            if (Array.isArray(P.promiseOrders) && P.promiseOrders.length && typeof dbAddPromiseOrder === 'function') {
+                addRLog(`⏳ Restoring ${P.promiseOrders.length} promise orders...`, 'info');
+                let okPO = 0;
+                let existingPO = [];
+                try { existingPO = (typeof dbGetPromiseOrders === 'function') ? await dbGetPromiseOrders() : []; } catch (e) {}
+                const poKey = o => [o.customer_name || o.customerName || '', o.medicine_name || o.medicineName || '',
+                    o.promise_date || o.promiseDate || '', o.status || ''].join('|').toLowerCase();
+                const existingPOSet = new Set(existingPO.map(poKey));
+                for (const o of P.promiseOrders) {
+                    if (existingPOSet.has(poKey(o))) { okPO++; continue; }
+                    const r = await dbAddPromiseOrder({
+                        customerName:  o.customer_name  || o.customerName  || '',
+                        customerPhone: o.customer_phone || o.customerPhone || '',
+                        medicineName:  o.medicine_name  || o.medicineName  || '',
+                        quantity:      o.quantity,
+                        promiseDate:   o.promise_date   || o.promiseDate   || null,
+                        status:        o.status || 'pending',
+                    });
+                    if (r && r.success) okPO++;
+                }
+                addRLog(`  ✅ ${okPO} promise orders restored`, 'ok');
+            }
+
+            // Schedule-H drug list — array of names; upsert ignores duplicates.
+            if (Array.isArray(P.scheduleHDrugs) && P.scheduleHDrugs.length && typeof dbAddScheduleHDrugs === 'function') {
+                const names = P.scheduleHDrugs.map(m => (typeof m === 'string' ? m : (m && m.name) || '')).filter(Boolean);
+                addRLog(`⏳ Restoring ${names.length} Schedule-H drugs...`, 'info');
+                const r = await dbAddScheduleHDrugs(names);
+                const ok = r && r.success;
+                addRLog(ok ? `  ✅ ${names.length} Schedule-H drugs restored` : `  ❌ Schedule-H drugs failed`, ok ? 'ok' : 'err');
+            }
+
+            // Schedule-H register — idempotent on entry_id, so safe to replay.
+            if (Array.isArray(P.scheduleHRegister) && P.scheduleHRegister.length && typeof dbAddScheduleHEntry === 'function') {
+                addRLog(`⏳ Restoring ${P.scheduleHRegister.length} Schedule-H register entries...`, 'info');
+                let okR = 0;
+                for (const en of P.scheduleHRegister) {
+                    const r = await dbAddScheduleHEntry(en);
+                    if (r && r.success) okR++;
+                }
+                addRLog(`  ✅ ${okR} Schedule-H register entries restored`, 'ok');
+            }
+
+            // Prescriptions — idempotent on rx_id (includes the photo).
+            if (Array.isArray(P.prescriptions) && P.prescriptions.length && typeof dbAddPrescription === 'function') {
+                addRLog(`⏳ Restoring ${P.prescriptions.length} prescriptions...`, 'info');
+                let okRx = 0;
+                for (const rx of P.prescriptions) {
+                    const r = await dbAddPrescription(rx);
+                    if (r && r.success) okRx++;
+                }
+                addRLog(`  ✅ ${okRx} prescriptions restored`, 'ok');
+            }
+
+            // Shop profile — restore only when none exists, so current settings win.
+            if (P.shopProfile && typeof dbSaveShopProfile === 'function') {
+                let cur = null;
+                try { cur = (typeof dbGetShopProfile === 'function') ? await dbGetShopProfile() : null; } catch (e) {}
+                if (!cur) {
+                    const sp = P.shopProfile;
+                    const r = await dbSaveShopProfile({
+                        shopName:      sp.shop_name      || sp.shopName      || '',
+                        addressLine1:  sp.address_line1  || sp.addressLine1  || '',
+                        addressLine2:  sp.address_line2  || sp.addressLine2  || '',
+                        phone:         sp.phone          || '',
+                        dlNo:          sp.dl_no          || sp.dlNo          || '',
+                        gstin:         sp.gstin          || '',
+                        invoicePrefix: sp.invoice_prefix || sp.invoicePrefix || 'MM',
+                        terms:         sp.terms          || '',
+                        footerMsg:     sp.footer_msg     || sp.footerMsg     || '',
+                    });
+                    addRLog((r && r.success) ? `  ✅ Shop profile restored` : `  ❌ shop profile failed`, (r && r.success) ? 'ok' : 'err');
+                } else {
+                    addRLog(`  ⏩ Shop profile already set — kept existing`, 'info');
+                }
+            }
 
             addRLog(`\n🎉 Restore complete! Reloading report...`, 'ok');
             btn.textContent = '✅ Done!';
