@@ -431,9 +431,32 @@ Deno.serve(async (req) => {
 
       // Global check, excluding this user's own row so a no-op rename works.
       if (await usernameTaken(db, newName, row.id)) return json({ error: TAKEN_MSG }, 409);
+      // mm-login signs in with emailFor(CURRENT username), so a rename must move
+      // the linked Auth user's email too or the account becomes unreachable and
+      // the user is locked out for good. Do this FIRST: if it fails we abort
+      // with the rename un-done, rather than leaving the two out of sync.
+      if (row.auth_uid) {
+        const moved = await db.auth.admin.updateUserById(row.auth_uid, {
+          email: await emailFor(newName),
+          email_confirm: true,
+        });
+        if (moved.error) {
+          return json({ error: `Could not rename: ${moved.error.message}` }, 500);
+        }
+      }
+
       const { error } = await db.from("mm_users")
         .update({ username: newName, id: `${row.tenant_id || newName}:${newName}` }).eq("id", row.id);
-      if (error) return json({ error: error.message }, 400);
+      if (error) {
+        // Put the Auth email back so the user can still log in under the old name.
+        if (row.auth_uid) {
+          await db.auth.admin.updateUserById(row.auth_uid, {
+            email: await emailFor(row.username),
+            email_confirm: true,
+          }).catch(() => {});
+        }
+        return json({ error: error.message }, 400);
+      }
       await db.from("memberships").update({ username: newName }).eq("auth_uid", row.auth_uid || "");
       return json({ ok: true });
     }
