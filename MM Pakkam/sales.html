@@ -700,6 +700,8 @@
                         onkeydown="if(event.key==='Enter'){event.preventDefault();event.stopPropagation();handleBarcodeScan();}"
                         style="flex:1;min-width:0;border:1.5px solid #6ee7b7;border-radius:10px;padding:0.6rem 0.8rem;font-size:0.95rem;font-family:'Inter',sans-serif;outline:none;background:#fff;color:#0f172a;">
                     <span id="barcodeScanMsg" style="font-size:0.78rem;color:#059669;font-weight:700;white-space:nowrap;">Ready</span>
+                    <button type="button" onclick="openBarcodeManager()" title="View, edit or delete barcode links"
+                        style="background:#fff;border:1.5px solid #6ee7b7;color:#047857;border-radius:9px;padding:0.45rem 0.7rem;font-size:0.78rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;white-space:nowrap;">⚙️ Manage</button>
                 </div>
 
                 <div class="table-wrap">
@@ -1227,6 +1229,94 @@
             }
             await addScannedProduct(name);
             setTimeout(() => box.focus(), 30);
+        }
+
+        /* ─── BARCODE MANAGER (view / edit / delete barcode↔medicine links) ─── */
+        function openBarcodeManager() {
+            const ov = document.getElementById('barcodeManagerModal');
+            if (!ov) return;
+            ov.style.display = 'flex';
+            renderBarcodeManager();
+            setTimeout(() => document.getElementById('bcMgrSearch')?.focus(), 60);
+        }
+        function closeBarcodeManager() {
+            const ov = document.getElementById('barcodeManagerModal');
+            if (ov) ov.style.display = 'none';
+        }
+        async function renderBarcodeManager() {
+            const listEl  = document.getElementById('bcMgrList');
+            const countEl = document.getElementById('bcMgrCount');
+            if (!listEl) return;
+            listEl.textContent = 'Loading…';
+            let rows = [];
+            try { rows = (typeof dbGetBarcodes === 'function') ? await dbGetBarcodes() : []; } catch (e) {}
+            // Keep the local scan cache in step with what the manager shows.
+            try { const m = {}; rows.forEach(r => { if (r.barcode) m[String(r.barcode)] = r.product_name || ''; }); localStorage.setItem('mm_barcodes', JSON.stringify(m)); } catch (e) {}
+            if (countEl) countEl.textContent = rows.length + (rows.length === 1 ? ' link' : ' links');
+
+            const q = (document.getElementById('bcMgrSearch')?.value || '').trim().toLowerCase();
+            let list = rows.slice();
+            if (q) list = list.filter(r => String(r.barcode).toLowerCase().includes(q) || (r.product_name || '').toLowerCase().includes(q));
+            list.sort((a, b) => String(a.product_name || '').localeCompare(String(b.product_name || '')));
+
+            listEl.innerHTML = '';
+            if (!list.length) {
+                const d = document.createElement('div');
+                d.style.cssText = 'padding:22px;text-align:center;color:#94a3b8;font-size:0.85rem;';
+                d.textContent = rows.length ? 'No matches.' : 'No barcodes linked yet. Scan a product while billing, or add one below.';
+                listEl.appendChild(d);
+                return;
+            }
+            list.forEach(r => {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #f1f5f9;';
+                const info = document.createElement('div');
+                info.style.cssText = 'flex:1;min-width:0;';
+                const nm = document.createElement('div');
+                nm.style.cssText = 'font-weight:700;color:#0f172a;font-size:0.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                nm.textContent = r.product_name || '(no name)';
+                const bc = document.createElement('div');
+                bc.style.cssText = 'font-size:0.74rem;color:#64748b;font-family:monospace;';
+                bc.textContent = String(r.barcode);
+                info.appendChild(nm); info.appendChild(bc);
+                const edit = document.createElement('button');
+                edit.type = 'button'; edit.textContent = '✏️'; edit.title = 'Rename the linked medicine';
+                edit.style.cssText = 'background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:5px 9px;cursor:pointer;font-size:0.85rem;';
+                edit.onclick = () => editBarcode(String(r.barcode), r.product_name || '');
+                const del = document.createElement('button');
+                del.type = 'button'; del.textContent = '🗑️'; del.title = 'Delete this barcode link';
+                del.style.cssText = 'background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:5px 9px;cursor:pointer;font-size:0.85rem;';
+                del.onclick = () => deleteBarcodeMapping(String(r.barcode));
+                row.appendChild(info); row.appendChild(edit); row.appendChild(del);
+                listEl.appendChild(row);
+            });
+        }
+        async function editBarcode(code, currentName) {
+            const name = await mmPrompt('Edit the medicine linked to barcode:\n' + code, currentName || '',
+                { title: '✏️ Edit link', placeholder: 'Medicine name', okText: 'Save' });
+            if (name == null || !String(name).trim()) return;
+            if (typeof dbAddBarcode === 'function') { try { await dbAddBarcode(code, String(name).trim()); } catch (e) {} }
+            renderBarcodeManager();
+        }
+        async function deleteBarcodeMapping(code) {
+            const ok = await mmConfirm('Delete the barcode link for:\n' + code + '\n\nThe medicine and its stock are NOT deleted — only this scan shortcut.',
+                { title: '🗑️ Delete link', okText: 'Delete' });
+            if (!ok) return;
+            if (typeof dbDeleteBarcode === 'function') { try { await dbDeleteBarcode(code); } catch (e) {} }
+            renderBarcodeManager();
+        }
+        async function addBarcodeManual() {
+            const codeEl = document.getElementById('bcMgrNewCode');
+            const nameEl = document.getElementById('bcMgrNewName');
+            const code = (codeEl?.value || '').trim();
+            const name = (nameEl?.value || '').trim();
+            const msg  = document.getElementById('bcMgrAddMsg');
+            if (!code || !name) { if (msg) msg.textContent = 'Enter both a barcode and a medicine name.'; return; }
+            if (typeof dbAddBarcode === 'function') {
+                const r = await dbAddBarcode(code, name);
+                if (r && r.success) { codeEl.value = ''; nameEl.value = ''; if (msg) msg.textContent = '✓ Linked ' + name; renderBarcodeManager(); }
+                else if (msg) msg.textContent = 'Could not save (check your connection).';
+            }
         }
 
         /* -- Show exactly how a row's stock number was calculated (tap the
@@ -2605,6 +2695,37 @@
             }
         })();
     </script>
+
+    <!-- Barcode Manager Modal -->
+    <div id="barcodeManagerModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:1000; align-items:center; justify-content:center; padding:1rem;">
+        <div style="background:#fff; border-radius:18px; width:100%; max-width:520px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 24px 60px rgba(0,0,0,0.3); font-family:Inter,sans-serif; overflow:hidden;">
+            <div style="display:flex; align-items:center; gap:10px; padding:1.2rem 1.4rem 0.9rem; border-bottom:1px solid #f1f5f9;">
+                <span style="font-size:1.3rem;">🏷️</span>
+                <div style="flex:1;">
+                    <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#0f172a;">Barcode Manager</h3>
+                    <div style="font-size:0.75rem; color:#64748b;"><span id="bcMgrCount">0 links</span> — barcode ↔ medicine</div>
+                </div>
+                <button type="button" onclick="closeBarcodeManager()" style="background:#f1f5f9; border:none; border-radius:9px; width:32px; height:32px; font-size:1rem; cursor:pointer; color:#475569;">✕</button>
+            </div>
+            <div style="padding:0.9rem 1.4rem 0;">
+                <input id="bcMgrSearch" type="text" placeholder="Search by barcode or medicine…" oninput="renderBarcodeManager()"
+                    style="width:100%; padding:0.55rem 0.7rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:0.88rem; font-family:Inter,sans-serif; box-sizing:border-box;">
+            </div>
+            <div id="bcMgrList" style="flex:1; overflow-y:auto; margin:0.8rem 0.6rem; border:1px solid #f1f5f9; border-radius:12px; min-height:120px;"></div>
+            <div style="padding:0.9rem 1.4rem 1.2rem; border-top:1px solid #f1f5f9; background:#f8fafc;">
+                <div style="font-size:0.74rem; font-weight:700; color:#475569; margin-bottom:6px;">➕ Add a link manually</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <input id="bcMgrNewCode" type="text" placeholder="Barcode" autocomplete="off"
+                        style="flex:1; min-width:120px; padding:0.5rem 0.65rem; border:1.5px solid #e2e8f0; border-radius:9px; font-size:0.85rem; font-family:Inter,sans-serif;">
+                    <input id="bcMgrNewName" type="text" placeholder="Medicine name" list="globalMedicineList" autocomplete="off"
+                        style="flex:1.4; min-width:150px; padding:0.5rem 0.65rem; border:1.5px solid #e2e8f0; border-radius:9px; font-size:0.85rem; font-family:Inter,sans-serif;">
+                    <button type="button" onclick="addBarcodeManual()"
+                        style="background:linear-gradient(135deg,#10b981,#059669); color:#fff; border:none; border-radius:9px; padding:0.5rem 1rem; font-size:0.85rem; font-weight:700; cursor:pointer; font-family:Inter,sans-serif;">Add</button>
+                </div>
+                <div id="bcMgrAddMsg" style="font-size:0.75rem; color:#059669; font-weight:600; margin-top:6px; min-height:14px;"></div>
+            </div>
+        </div>
+    </div>
 
     <!-- Promise Order (backorder) Modal -->
     <div id="promiseOrderModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:1000; align-items:center; justify-content:center; padding:1rem;">

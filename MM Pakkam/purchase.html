@@ -679,6 +679,12 @@
                                placeholder="Type or select medicine…" autocomplete="off">
                     </div>
                 </div>
+                <div class="form-grid" style="margin-bottom:0.6rem;">
+                    <div class="form-group full-width">
+                        <label>Barcode <span style="font-weight:400;color:#94a3b8;">(optional — scan or type to link this medicine for billing)</span></label>
+                        <input type="text" class="li-barcode" placeholder="Scan or type the barcode…" autocomplete="off" inputmode="none">
+                    </div>
+                </div>
                 <div class="form-grid-3">
                     <div class="form-group">
                         <label>Batch No</label>
@@ -861,11 +867,14 @@
 
             // Gather all line items
             const records = [];
+            const barcodeLinks = []; // {barcode, productName} to save for scan billing
             let hasEmptyName = false;
             let hasMissingDetails = false;
 
             items.forEach(item => {
                 const productName = item.querySelector('.li-productName').value.trim();
+                const barcode     = (item.querySelector('.li-barcode')?.value || '').trim();
+                if (barcode && productName) barcodeLinks.push({ barcode, productName });
                 const batchNo     = item.querySelector('.li-batchNo').value.trim();
                 const expireDate  = item.querySelector('.li-expireDate').value;
                 const quantity    = item.querySelector('.li-quantity').value;
@@ -938,6 +947,13 @@
                 const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
                 purchases.push(record);
                 localStorage.setItem('mm_purchases', JSON.stringify(purchases));
+            }
+
+            // ── Link any scanned/typed barcodes to their product, so scanning
+            // this medicine in Sales fills it automatically from now on. ──
+            for (const bl of barcodeLinks) {
+                try { if (typeof dbAddBarcode === 'function') await dbAddBarcode(bl.barcode, bl.productName); }
+                catch (e) { console.warn('barcode link save failed:', e); }
             }
 
             // ── Promise Order automation: did any medicine we just purchased fulfill a customer backorder? ──
