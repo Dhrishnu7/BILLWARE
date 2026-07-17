@@ -2396,21 +2396,27 @@
                 const filename = `Invoice-${(bill.billNo || 'bill').replace(/[^\w-]/g, '')}.png`;
                 const file = new File([blob], filename, { type: 'image/png' });
 
-                // Mobile: native share sheet with the image file → WhatsApp directly.
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                // If we have a specific number (incl. a walk-in number the user just
+                // typed), we MUST target it with a wa.me deep link. The native share
+                // sheet (navigator.share) can't do that — it only opens WhatsApp's
+                // contact picker of SAVED contacts, so an unsaved walk-in number never
+                // shows up (the "it only shows people I know" bug). wa.me opens the
+                // exact chat (works for unsaved numbers) pre-filled with the full text
+                // bill; we also save the image so it can be attached if wanted.
+                if (phone) {
+                    _downloadBlob(blob, filename);
+                    _openWhatsapp(bill, null, phone);
+                    _toast('📱 WhatsApp opened', 'Chat opened for that number. Invoice image also saved — attach it if you like.');
+                } else if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    // No specific number → let the user pick a recipient, image attached.
                     await navigator.share({
                         files: [file],
                         title: 'Invoice ' + (bill.billNo || ''),
                         text: `Your bill from ${shopName}`,
                     });
                     _toast('✅ Shared', 'Bill softcopy sent.');
-                } else if (phone) {
-                    // Desktop with a number: download the image + open that WhatsApp chat.
-                    _downloadBlob(blob, filename);
-                    _openWhatsapp(bill, `Your bill *${bill.billNo || ''}* from ${shopName} — invoice image attached.`, phone);
-                    _toast('📱 WhatsApp opened', 'Invoice image downloaded — attach it in the chat.');
                 } else {
-                    // No number entered: just save the image for the customer/staff.
+                    // No number entered and no share support: just save the image.
                     _downloadBlob(blob, filename);
                     _toast('📥 Downloaded', 'Invoice image saved — no number entered.');
                 }
