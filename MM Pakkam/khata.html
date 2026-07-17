@@ -237,6 +237,18 @@
             box-shadow: 0 8px 22px rgba(16,185,129,0.35);
         }
 
+        /* ── WhatsApp payment-reminder button ── */
+        .btn-remind {
+            background: #fff; color: #059669; border: 1.5px solid #a7f3d0;
+            border-radius: 12px; padding: 0.72rem 0; width: 100%;
+            font-weight: 700; font-size: 0.85rem; font-family: 'Inter', sans-serif;
+            cursor: pointer; transition: all 0.2s; margin-bottom: 0.55rem;
+            display: flex; justify-content: center; align-items: center; gap: 7px;
+        }
+        .btn-remind:hover {
+            background: #ecfdf5; border-color: #6ee7b7; transform: translateY(-1px);
+        }
+
         /* ── Empty State ── */
         .empty-state {
             text-align: center; padding: 5rem 1rem;
@@ -573,12 +585,48 @@
                         <div class="c-bal-label">Pending Balance</div>
                         <div class="c-bal-value">₹${cust.balance.toFixed(2)}</div>
                     </div>
+                    <button class="btn-remind" onclick="sendKhataReminder('${escAttr(cust.name)}', '${escAttr(cust.phone)}', ${cust.balance})">
+                        <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M17.5 14.4c-.3-.15-1.77-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.49 0 1.47 1.07 2.89 1.22 3.09.15.2 2.11 3.22 5.11 4.52.71.31 1.27.49 1.7.63.72.23 1.37.2 1.88.12.57-.09 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.13-.27-.2-.57-.35zM12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.38 5.06L2 22l5.06-1.35A9.94 9.94 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2z"/></svg>
+                        Send Reminder
+                    </button>
                     <button class="btn-settle" onclick="openSettleModal(${realIdx}, '${escAttr(cust.name)}', ${cust.balance})">
                         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                         Mark as Settled
                     </button>`;
                 grid.appendChild(card);
             });
+        }
+
+        // ── WhatsApp payment reminder ──────────────────────────────────
+        // Opens WhatsApp pre-filled with a polite "you owe ₹X" message. Uses a
+        // free wa.me link (no paid API), matching the bill-share pattern in
+        // sales.html. India +91 is assumed for plain 10-digit numbers.
+        function _khataNormPhone(raw) {
+            let digits = String(raw || '').replace(/\D/g, '');
+            if (digits.length === 10) digits = '91' + digits;
+            return digits; // '' if unknown
+        }
+
+        async function sendKhataReminder(name, phone, balance) {
+            const p = _khataNormPhone(phone);
+            if (!p) {
+                await mmAlert(
+                    `No phone number is saved for ${name}.\n\nAdd their number in the Directory to send a WhatsApp reminder.`,
+                    { title: '📱 No phone number' }
+                );
+                return;
+            }
+            let shop = '';
+            try { shop = (document.getElementById('shopNameHeader')?.textContent || '').trim(); } catch (e) {}
+            if (!shop || shop === '...' || shop === 'My Shop') shop = 'our shop';
+
+            const amt = '₹' + (Number(balance) || 0).toFixed(2);
+            const msg =
+                `Dear ${name},\n\n` +
+                `This is a friendly reminder from ${shop}. ` +
+                `Your pending balance with us is *${amt}*.\n\n` +
+                `Kindly clear it at your convenience. Thank you! 🙏`;
+            window.open(`https://wa.me/${p}?text=${encodeURIComponent(msg)}`, '_blank');
         }
 
         function openSettleModal(index, name, currentBalance) {
