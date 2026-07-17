@@ -789,12 +789,15 @@
             const businessAlerts = MMNotifications.generateBusinessAlerts(bills);
             const systemAlerts   = MMNotifications.generateSystemAlerts(announcements);
             const promiseAlerts  = MMNotifications.generatePromiseAlerts(arrivedPromiseOrders);
+            // Only nag about backups when there's actually data to lose.
+            const backupAlerts   = MMNotifications.generateBackupAlerts((purchases.length + bills.length) > 0);
 
             _allNotifs = MMNotifications.sort([
                 ...promiseAlerts,
                 ...medicineAlerts,
                 ...requestAlerts,
                 ...businessAlerts,
+                ...backupAlerts,
                 ...systemAlerts
             ]);
 

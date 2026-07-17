@@ -354,6 +354,44 @@ const MMNotifications = (() => {
     }
 
     // ─────────────────────────────────────
+    // 6. BACKUP — remind the shop to take a data backup
+    // ─────────────────────────────────────
+    // The last-backup time is stamped per-tenant by report.html's backupData()
+    // as `mm_last_backup_<tenant>`. We only nag when there's data worth losing
+    // and it's been a week+ (or never). The id carries a weekly bucket so a
+    // still-overdue shop is reminded again at most once a week, not every day.
+    function generateBackupAlerts(hasData) {
+        if (!hasData) return [];               // nothing to back up yet — don't nag
+        const readIds = getReadIds();
+        const DAY = 24 * 60 * 60 * 1000;
+        let last = null;
+        try { last = localStorage.getItem(`mm_last_backup_${_tenant()}`); } catch {}
+
+        let daysSince = null;
+        if (last) {
+            const t = new Date(last).getTime();
+            if (!isNaN(t)) daysSince = Math.floor((Date.now() - t) / DAY);
+        }
+        if (daysSince !== null && daysSince < 7) return [];  // backed up recently — quiet
+
+        const weekBucket = Math.floor(Date.now() / (7 * DAY));
+        let title, message, time;
+        if (daysSince === null) {
+            title = '💾 Back up your shop data';
+            message = `You haven't taken a backup yet. Open <b>Report → Backup</b> to save a copy of your whole shop — customers &amp; khata balances, medicines, sales, purchases and more. Keep the file on your phone or Google Drive.`;
+            time = 'Recommended';
+        } else {
+            title = `💾 Backup reminder — ${daysSince} days ago`;
+            message = `Your last backup was <b>${daysSince} days ago</b>. Open <b>Report → Backup</b> to download a fresh copy so a lost phone or cleared browser can never wipe out your shop data.`;
+            time = 'Data safety';
+        }
+        return [ notif({
+            id: `backup_reminder_${weekBucket}`, category: 'business', type: 'backup_reminder', priority: 2, readIds,
+            title, message, time, icon: '💾', color: '#0891b2', bg: '#f0f9ff', border: '#bae6fd'
+        }) ];
+    }
+
+    // ─────────────────────────────────────
     // MASTER SORT — unread first, then priority
     // ─────────────────────────────────────
     function sort(arr) {
@@ -369,6 +407,7 @@ const MMNotifications = (() => {
         generateBusinessAlerts,
         generateSystemAlerts,
         generatePromiseAlerts,
+        generateBackupAlerts,
         sort,
         markRead,
         markAllRead,

@@ -3293,6 +3293,13 @@
                 a.click();
                 URL.revokeObjectURL(url);
 
+                // Stamp the last-backup time (per tenant) so the Inbox backup
+                // reminder goes quiet — matches _tenant() in js/notifications.js.
+                try {
+                    const _t = session ? (session.tenant_id || session.username) : 'anon';
+                    localStorage.setItem(`mm_last_backup_${_t}`, new Date().toISOString());
+                } catch (e) {}
+
                 btn.innerHTML = '✅ Saved!';
                 setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 2000);
             } catch (e) {
