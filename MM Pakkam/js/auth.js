@@ -79,7 +79,7 @@ const MM_REMEMBER_KEY = 'mm_auth_remember';
 const MM_DATA_KEYS = [
     'mm_purchases', 'mm_sales', 'mm_customers', 'mm_doctors',
     'mm_medicine_list', 'mm_medicines', 'mm_stock', 'mm_bills',
-    'mm_bill_counter', 'mm_inventory_adjust_log',
+    'mm_bill_counter', 'mm_inventory_adjust_log', 'mm_barcodes',
     'mm_pending_purchases', 'mm_pending_sales', 'report_bin',
     'mm_schedule_h_register', 'mm_schedule_h_drugs'
 ];

@@ -589,6 +589,69 @@ async function dbImportMedicines(nameArray) {
 }
 
 /* ─────────────────────────────────────────────────────
+   BARCODES  (scanned code → product name, per account)
+   Needs migrations/add_barcodes_table.sql run in Supabase.
+   Cached to localStorage 'mm_barcodes' as { barcode: name } for
+   instant, offline scanner lookups. Scoped by user_id like every
+   other table; RLS keeps it tenant-isolated.
+───────────────────────────────────────────────────── */
+async function dbGetBarcodes() {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetBarcodes: no user, aborting.'); return []; }
+    const { data, error } = await _supabase.from('barcodes')
+        .select('barcode,product_name').eq('user_id', user);
+    if (error) { console.error('barcodes fetch:', error); return []; }
+    return data || [];
+}
+window.dbGetBarcodes = dbGetBarcodes;
+
+// Fetch all barcodes and refresh the local cache. Returns the { code: name } map.
+async function dbSyncBarcodes() {
+    const rows = await dbGetBarcodes();
+    const map = {};
+    rows.forEach(r => { if (r.barcode) map[String(r.barcode)] = r.product_name || ''; });
+    try { localStorage.setItem('mm_barcodes', JSON.stringify(map)); } catch (e) {}
+    return map;
+}
+window.dbSyncBarcodes = dbSyncBarcodes;
+
+// Read-through helper for scan handlers: local cache first (instant/offline).
+function mmBarcodeLookup(code) {
+    const c = String(code || '').trim();
+    if (!c) return '';
+    try { return (JSON.parse(localStorage.getItem('mm_barcodes') || '{}'))[c] || ''; }
+    catch (e) { return ''; }
+}
+window.mmBarcodeLookup = mmBarcodeLookup;
+
+// Link a barcode to a product name (upsert) + update the local cache.
+async function dbAddBarcode(code, name) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbAddBarcode: no user, aborting.'); return { success: false, message: 'Not logged in.' }; }
+    const c = String(code || '').trim();
+    const n = String(name || '').trim();
+    if (!c || !n) return { success: false, message: 'Missing barcode or name.' };
+    const { error } = await _supabase.from('barcodes')
+        .upsert({ user_id: user, barcode: c, product_name: n, updated_at: new Date().toISOString() },
+                { onConflict: 'user_id,barcode' });
+    if (error) { console.error('barcode add:', error); return { success: false, message: error.message }; }
+    try { const m = JSON.parse(localStorage.getItem('mm_barcodes') || '{}'); m[c] = n; localStorage.setItem('mm_barcodes', JSON.stringify(m)); } catch (e) {}
+    return { success: true };
+}
+window.dbAddBarcode = dbAddBarcode;
+
+async function dbDeleteBarcode(code) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbDeleteBarcode: no user, aborting.'); return false; }
+    const c = String(code || '').trim();
+    const { error } = await _supabase.from('barcodes').delete().eq('user_id', user).eq('barcode', c);
+    if (error) { console.error('barcode delete:', error); return false; }
+    try { const m = JSON.parse(localStorage.getItem('mm_barcodes') || '{}'); delete m[c]; localStorage.setItem('mm_barcodes', JSON.stringify(m)); } catch (e) {}
+    return true;
+}
+window.dbDeleteBarcode = dbDeleteBarcode;
+
+/* ─────────────────────────────────────────────────────
    PURCHASES
 ───────────────────────────────────────────────────── */
 async function dbGetPurchases(fromDate, toDate) {

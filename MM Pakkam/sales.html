@@ -691,6 +691,17 @@
                     </div>
                 </div>
 
+                <!-- Barcode scan bar (USB scanner types the code + Enter here) -->
+                <div id="barcodeScanBar" style="display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:10px 14px;background:linear-gradient(135deg,#ecfdf5,#f0fdfa);border:1.5px solid #a7f3d0;border-radius:14px;">
+                    <span style="font-size:1.3rem;line-height:1;">📷</span>
+                    <input type="text" id="barcodeScan"
+                        placeholder="Scan a barcode here — the medicine is added to the bill automatically"
+                        autocomplete="off" inputmode="none"
+                        onkeydown="if(event.key==='Enter'){event.preventDefault();event.stopPropagation();handleBarcodeScan();}"
+                        style="flex:1;min-width:0;border:1.5px solid #6ee7b7;border-radius:10px;padding:0.6rem 0.8rem;font-size:0.95rem;font-family:'Inter',sans-serif;outline:none;background:#fff;color:#0f172a;">
+                    <span id="barcodeScanMsg" style="font-size:0.78rem;color:#059669;font-weight:700;white-space:nowrap;">Ready</span>
+                </div>
+
                 <div class="table-wrap">
                     <table id="medicineTable">
                         <thead>
@@ -1121,6 +1132,101 @@
                 checkStockOnQtyChange(id);
             }
             calcRowTotal(id);
+        }
+
+        /* ─── BARCODE SCANNING (USB scanner = keyboard) ───────────────────
+           A USB scanner types the barcode digits then Enter into #barcodeScan.
+           We resolve barcode → product name (mm_barcodes cache), then reuse the
+           normal fill chain (autoFillRow → selectBatch). Unknown codes are
+           "learned" on the spot: ask which medicine once, save the mapping, and
+           it fills instantly ever after. */
+        function _bcMsg(text, ok) {
+            const el = document.getElementById('barcodeScanMsg');
+            if (!el) return;
+            el.textContent = text;
+            el.style.color = ok === false ? '#dc2626' : '#059669';
+        }
+
+        // Pick the in-stock batch expiring soonest (FEFO) when a product has
+        // several batches and none was auto-selected — keeps scanning one-touch.
+        function _autoPickFefoBatch(rid, name) {
+            const bEl = document.getElementById('batch_' + rid);
+            if (!bEl) return;
+            const ranked = getBatchesForProduct(name).map(p => {
+                const b = p.batchNo || p.batch_no;
+                return { b, exp: (p.expireDate || p.expire_date || '9999-12'), stock: getStock(name, b) };
+            }).filter(x => x.b);
+            if (!ranked.length) return;
+            const inStock = ranked.filter(x => x.stock > 0).sort((a, b) => String(a.exp).localeCompare(String(b.exp)));
+            const pick = inStock[0] || ranked.sort((a, b) => String(a.exp).localeCompare(String(b.exp)))[0];
+            if (pick) { bEl.value = pick.b; selectBatch(rid); }
+        }
+
+        // Add one unit of `name` to the bill: bump an existing row's qty if it's
+        // already there with a batch, else fill the first empty row / a new one.
+        async function addScannedProduct(name) {
+            const rows = Array.from(document.querySelectorAll('#medicineRows tr'));
+            // Case 1 — same product already on the bill with a batch → just +1 qty.
+            for (let i = rows.length - 1; i >= 0; i--) {
+                const pEl = rows[i].querySelector('[id^="product_"]');
+                if (!pEl) continue;
+                const rid = pEl.id.replace('product_', '');
+                const bEl = document.getElementById('batch_' + rid);
+                if (pEl.value.trim().toLowerCase() === name.toLowerCase() && bEl && bEl.value.trim()) {
+                    const qEl = document.getElementById('qty_' + rid);
+                    if (qEl) {
+                        qEl.value = (parseInt(qEl.value, 10) || 0) + 1;
+                        flashCell(qEl); checkStockOnQtyChange(rid); calcRowTotal(rid);
+                        _bcMsg('✓ ' + name + ' ×' + qEl.value);
+                    }
+                    return;
+                }
+            }
+            // Case 2 — first empty product row, else a fresh row.
+            let rid = null;
+            for (const r of rows) {
+                const pEl = r.querySelector('[id^="product_"]');
+                if (pEl && !pEl.value.trim()) { rid = pEl.id.replace('product_', ''); break; }
+            }
+            if (rid == null) rid = addRow();
+            const pEl = document.getElementById('product_' + rid);
+            if (pEl) pEl.value = name;
+            const qEl = document.getElementById('qty_' + rid);
+            if (qEl && !qEl.value.trim()) qEl.value = 1;   // set before fill so totals compute right
+            await autoFillRow(rid);
+            const bEl = document.getElementById('batch_' + rid);
+            if (bEl && !bEl.value.trim() && bEl.options.length > 1) _autoPickFefoBatch(rid, name);
+            checkStockOnQtyChange(rid); calcRowTotal(rid);
+            _bcMsg('✓ ' + name + ' added');
+        }
+
+        async function handleBarcodeScan() {
+            const box = document.getElementById('barcodeScan');
+            if (!box) return;
+            const code = (box.value || '').trim();
+            box.value = '';
+            if (!code) { box.focus(); return; }
+
+            let name = (typeof mmBarcodeLookup === 'function') ? mmBarcodeLookup(code) : '';
+            if (!name) {
+                // Learn-as-you-go: ask which medicine this new barcode is.
+                const entered = await mmPrompt(
+                    'New barcode: ' + code + '\n\nType the medicine name to link it — it will be remembered next time.',
+                    '', { title: '🆕 New barcode', placeholder: 'Medicine name', okText: 'Link & add' }
+                );
+                if (entered == null || !String(entered).trim()) { box.focus(); return; }
+                name = String(entered).trim();
+                if (typeof dbAddBarcode === 'function') {
+                    try { const r = await dbAddBarcode(code, name); if (!(r && r.success)) _bcMsg('Saved locally (will sync)', true); }
+                    catch (e) {}
+                }
+                await addScannedProduct(name);
+                _bcMsg('🔗 ' + name + ' linked & added');
+                setTimeout(() => box.focus(), 30);
+                return;
+            }
+            await addScannedProduct(name);
+            setTimeout(() => box.focus(), 30);
         }
 
         /* -- Show exactly how a row's stock number was calculated (tap the
@@ -2473,6 +2579,8 @@
         window.mmCoreSyncPromise = (async function syncFromDatabase() {
             try {
                 await dbSyncCoreData();
+                // Load the barcode → product map so scans resolve instantly.
+                if (typeof dbSyncBarcodes === 'function') { try { await dbSyncBarcodes(); } catch (e) {} }
                 // Refresh all datalists now that data is ready
                 refreshNamesLists();
                 refreshGlobalMedicineList();
