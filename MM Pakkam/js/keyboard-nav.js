@@ -4,7 +4,8 @@
  * Makes every form page navigable without a mouse.
  *
  * Shortcuts:
- *  - Enter     → moves to next input field (never submits form by accident)
+ *  - Enter        → moves to next input field (never submits form by accident)
+ *  - Shift + Enter → moves to previous input field
  *  - F9        → jumps focus to the first [type=submit] button
  *  - Alt + S   → triggers the first [type=submit] button
  *  - F2        → fires window.__kbAddRow() if defined (sales page only)
@@ -23,7 +24,7 @@
         );
     }
 
-    /* ── Enter key → Tab through form ───────────────── */
+    /* ── Enter → next field · Shift+Enter → previous field ── */
     document.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter') return;
 
@@ -34,8 +35,8 @@
         const tag = e.target.tagName.toLowerCase();
         if (tag === 'button' || tag === 'a') return;
 
-        // Textareas: Enter should still create new lines
-        if (tag === 'textarea') return;
+        // Textareas: plain Enter should still create new lines (but Shift+Enter navigates back)
+        if (tag === 'textarea' && !e.shiftKey) return;
 
         // Don't intercept inside modals — modals handle their own Enter
         if (isModalOpen()) return;
@@ -55,7 +56,14 @@
         const idx = focusables.indexOf(e.target);
         if (idx === -1) return;
 
-        if (idx < focusables.length - 1) {
+        if (e.shiftKey) {
+            // Shift+Enter → go BACK to the previous field (mirror of Enter)
+            if (idx > 0) {
+                const prev = focusables[idx - 1];
+                prev.focus();
+                if (typeof prev.select === 'function') prev.select();
+            }
+        } else if (idx < focusables.length - 1) {
             const next = focusables[idx + 1];
             next.focus();
             if (typeof next.select === 'function') next.select();
