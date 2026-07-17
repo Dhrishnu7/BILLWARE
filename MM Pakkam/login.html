@@ -955,13 +955,13 @@
                 btn.disabled = true;
 
                 try {
-                    const res = await dbCreatePasswordResetRequest(user, reason);
-                    if (res) {
+                    const res = await mmAdminCall('reset_request', { username: user, reason });
+                    if (res.ok) {
                         alert('Reset request submitted successfully! Please contact your super admin to get your PIN.');
                         showFpPinSection();
                         document.getElementById('fpPinUsername').value = user;
                     } else {
-                        alert('Failed to submit request. Are you online?');
+                        alert('Failed to submit request: ' + res.message);
                     }
                 } catch(e) {
                     alert('Error: ' + e.message);
@@ -983,19 +983,15 @@
                 btn.disabled = true;
 
                 try {
-                    const isValid = await dbCheckResetPin(user, pin);
-                    if (!isValid) {
-                        alert('Invalid or expired PIN for this username.');
+                    // One server call verifies the PIN and sets the new password.
+                    // The PIN is never downloaded to the browser, and the row is
+                    // consumed on success so it can't be replayed.
+                    const res = await mmAdminCall('reset_complete', { username: user, pin, newPassword: newPwd });
+                    if (!res.ok) {
+                        alert(res.message || 'Invalid or expired PIN for this username.');
                         return;
                     }
 
-                    const changeRes = await mmResetPassword(user, newPwd);
-                    if (!changeRes.success) {
-                        alert('Failed to change password: ' + changeRes.message);
-                        return;
-                    }
-
-                    await dbMarkResetCompleted(user, pin);
                     alert('Password successfully changed! You can now log in.');
                     document.getElementById('forgotPwdModal').style.display = 'none';
                     document.getElementById('loginUsername').value = user;

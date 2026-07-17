@@ -638,38 +638,17 @@
             btn.disabled = true;
             btn.innerHTML = `<svg class="spinner" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg> Sending…`;
 
-            // Hash the password before storing the request
-            const hash = await mmHashPassword(password);
-            const session = mmGetSession();
-            const tenantId = session ? (session.tenant_id || session.username) : null;
-
-            const db = _supabase;
-            if (!db) {
-                errDiv.textContent = 'Database not connected. Please try again.';
-                errDiv.classList.add('show');
-                btn.disabled = false;
-                btn.innerHTML = `<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Send Request to Super Admin`;
-                return;
-            }
-
-            const { error } = await db.from('extra_user_requests').insert({
-                tenant_id: tenantId,
-                requested_username: username,
-                password_hash: hash,
-                reason: reason,
-                status: 'pending',
-                created_at: new Date().toISOString()
-            });
+            // The server hashes the password, stamps the tenant from the caller's
+            // membership, and forces status='pending'. The browser no longer has
+            // any write grant on extra_user_requests.
+            const res = await mmAdminCall('extra_user_request', { username, password, reason });
 
             btn.disabled = false;
             btn.innerHTML = `<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Send Request to Super Admin`;
 
-            if (error) {
-                console.error('[ExtraUserReq] Insert failed:', error);
-                let msg = error.message || 'Unknown error';
-                if (error.code === '42P01') msg = 'Table "extra_user_requests" does not exist in Supabase. Please create it first.';
-                else if (error.code === '42501') msg = 'Permission denied. Check Supabase RLS policies on extra_user_requests.';
-                errDiv.textContent = '❌ Failed to send request: ' + msg;
+            if (!res.ok) {
+                console.error('[ExtraUserReq] Failed:', res.message);
+                errDiv.textContent = '❌ Failed to send request: ' + res.message;
                 errDiv.classList.add('show');
                 return;
             }

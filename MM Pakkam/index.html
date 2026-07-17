@@ -764,7 +764,9 @@
             if (tenantId) {
                 const [er, eu, ann, ci] = await Promise.all([
                     _supabase.from('shop_edit_requests').select('*').eq('user_id', tenantId).in('status', ['approved','rejected']).order('reviewed_at', { ascending: false }).limit(10),
-                    _supabase.from('extra_user_requests').select('*').eq('tenant_id', tenantId).in('status', ['approved','rejected']).order('reviewed_at', { ascending: false }).limit(10),
+                    // Explicit columns, never '*': password_hash is not granted to
+                    // browsers, and a '*' expansion would 401 the whole query.
+                    _supabase.from('extra_user_requests').select('id,tenant_id,requested_username,reason,status,created_at,reviewed_at').eq('tenant_id', tenantId).in('status', ['approved','rejected']).order('reviewed_at', { ascending: false }).limit(10),
                     _supabase.from('mm_announcements').select('*').order('created_at', { ascending: false }).limit(10),
                     _supabase.from('customer_issues').select('*').eq('tenant_id', tenantId).eq('status', 'resolved').order('resolved_at', { ascending: false }).limit(10)
                 ]);

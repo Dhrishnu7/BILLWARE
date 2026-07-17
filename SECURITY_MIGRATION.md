@@ -90,6 +90,60 @@ When Phase 2 is verified and active users have logged in at least once:
 
 ---
 
+## Phase 5 — Close the account-takeover holes (mm-admin) · written 2026-07-17
+
+Phase 4 stopped browsers **reading** password hashes. It did not stop them
+**writing**. Three holes were found live on 2026-07-17, each usable by anyone
+with the publishable key that ships in `js/supabase.js` — no login required:
+
+1. `PATCH /rest/v1/mm_users?username=eq.<victim>` with a new `passwordHash`
+   → log in as anyone. (UPDATE was never revoked.)
+2. `POST /rest/v1/mm_users` with `tenant_id` of a real shop + `approval_status:
+   'approved'` → mm-login builds a membership from that tenant_id → full
+   RLS-blessed access to that shop's data.
+3. `password_reset_requests` was anon read **and** write, PIN column in
+   plaintext. Six live PINs were sitting in it (defused 2026-07-17: set to
+   `pin=null, status='rejected'`, after backing up the original rows).
+
+Fix = the same shape as Phase 4: the write moves to a service-role Edge
+Function (`supabase/functions/mm-admin/index.ts`), then the grants are revoked
+(`sql/03_lockdown.sql`).
+
+**ORDER MATTERS — do these in exactly this sequence.** The client calls the
+function, and the SQL revokes what the client used to do directly, so shipping
+them out of order breaks signup / password change / the superadmin page.
+
+1. **Deploy the function.** Dashboard → Edge Functions → Deploy a new function
+   → name it exactly `mm-admin` → paste all of
+   `supabase/functions/mm-admin/index.ts` → **turn Verify JWT OFF** (signup and
+   password reset happen before a user has a token; the function checks tokens
+   itself for the actions that need one).
+2. **Set the secret.** Dashboard → Edge Functions → Secrets → add
+   `SA_PASSWORD` = the superadmin password. This is the value that used to sit
+   in `superadmin.html` in plain sight; it now exists only here.
+   No other secret is needed — `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` /
+   `SUPABASE_ANON_KEY` are injected automatically (same as mm-login).
+3. **Verify the function** before any client goes out: `sa_login` with the wrong
+   password must return 401, with the right one `{ok:true}`.
+4. **Ship the client** (outer repo push → Firebase). Files: `js/auth.js`
+   (`mmAdminCall`), `login.html`, `superadmin.html`, `manage-users.html`,
+   `index.html`, `js/supabase.js`, `sw.js` → v138.
+5. **Smoke-test on the live site while the old grants are still in place**, so
+   any mistake is harmless: log in, change a password, run a forgot-password
+   reset end to end, open the superadmin page, approve something.
+6. **Only then run `sql/03_lockdown.sql`** in the SQL Editor. Verification
+   commands and a full rollback are in the file's own comments.
+
+Rollback at any point: revert the client commit (step 4) and/or run the
+rollback block at the bottom of `03_lockdown.sql`. No data is touched.
+
+**Known leftover after Phase 5:** the superadmin dashboard reads `bills` /
+`purchases` / `customers` / `medicines` with the anon key, which Phase 3's RLS
+already returns empty for. Those panels show nothing today and Phase 5 doesn't
+change that — worth a follow-up (route them through `sa_list` too).
+
+---
+
 ## Safety summary
 - No data is deleted or moved at any phase.
 - Phases 0–1 are invisible to users. Phase 2 is code-revertible. Phase 3 is one-command-revertible.

@@ -1317,81 +1317,9 @@ async function dbSyncDown() {
 // ==========================================
 // PASSWORD RESET REQUESTS
 // ==========================================
-
-async function dbCreatePasswordResetRequest(username, reason) {
-    
-    try {
-        const { data, error } = await _supabase
-            .from('password_reset_requests')
-            .insert([{ username: username.trim(), reason: reason.trim() }])
-            .select();
-        if (error) throw error;
-        return data;
-    } catch (e) {
-        console.error('Create Reset Req Error:', e);
-        return null;
-    }
-}
-
-async function dbGetPendingResetRequests() {
-    
-    try {
-        const { data, error } = await _supabase
-            .from('password_reset_requests')
-            .select('*')
-            .eq('status', 'pending');
-        if (error) throw error;
-        return data || [];
-    } catch (e) {
-        console.error('Get Reset Req Error:', e);
-        return [];
-    }
-}
-
-async function dbUpdateResetRequest(id, status, pin) {
-    
-    try {
-        const { error } = await _supabase
-            .from('password_reset_requests')
-            .update({ status, pin })
-            .eq('id', id);
-        if (error) throw error;
-        return true;
-    } catch (e) {
-        console.error('Update Reset Req Error:', e);
-        return false;
-    }
-}
-
-async function dbCheckResetPin(username, pin) {
-    
-    try {
-        const { data, error } = await _supabase
-            .from('password_reset_requests')
-            .select('*')
-            .eq('username', username.trim())
-            .eq('pin', pin.trim())
-            .eq('status', 'approved');
-        if (error) throw error;
-        return data && data.length > 0;
-    } catch (e) {
-        console.error('Check Reset PIN Error:', e);
-        return false;
-    }
-}
-
-async function dbMarkResetCompleted(username, pin) {
-    
-    try {
-        const { error } = await _supabase
-            .from('password_reset_requests')
-            .update({ status: 'completed' })
-            .eq('username', username.trim())
-            .eq('pin', pin.trim());
-        if (error) throw error;
-        return true;
-    } catch (e) {
-        console.error('Mark Reset Completed Error:', e);
-        return false;
-    }
-}
+// Handled entirely by the mm-admin Edge Function now — see mmAdminCall() in
+// js/auth.js ('reset_request' / 'reset_complete', and the sa_* actions for the
+// superadmin side). The old dbCreatePasswordResetRequest / dbGetPendingResetRequests /
+// dbUpdateResetRequest / dbCheckResetPin / dbMarkResetCompleted helpers were
+// removed: password_reset_requests holds plaintext PINs, so browsers no longer
+// have any grant on that table and these calls would only 401.

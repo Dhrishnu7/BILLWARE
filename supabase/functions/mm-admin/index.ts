@@ -1,0 +1,382 @@
+// ============================================================================
+// mm-admin  ·  Trusted write gate for mm_users + request tables  ·  Billware
+// ----------------------------------------------------------------------------
+// Companion to mm-login. Runs with the SERVICE ROLE key, so it is the only
+// place allowed to write password hashes, approve accounts, or touch reset
+// PINs. Once the accompanying SQL revokes those rights from anon/authenticated,
+// every path that used to let a browser rewrite mm_users goes through here.
+//
+// Three trust tiers, checked per action:
+//   public  — pre-login flows (reset request / reset complete). No caller
+//             identity exists yet, so these are self-authenticating: the reset
+//             PIN itself is the secret, and it never leaves the server.
+//   user    — requires a valid Supabase Auth JWT (from mm-login). The caller's
+//             tenant comes from `memberships`, never from the request body.
+//   super   — requires the superadmin password, verified against the SA_PASSWORD
+//             secret. It is NOT in client JS any more.
+//
+// Deploy with JWT verification DISABLED (public actions run pre-login; the
+// user-tier actions verify the token themselves).
+// Secret to set: SA_PASSWORD  (dashboard → Edge Functions → Secrets)
+// ============================================================================
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS, "Content-Type": "application/json" },
+  });
+}
+
+// Standard SHA-256 → lowercase hex, UTF-8 in. Matches the client's _sha256().
+async function sha256Hex(str: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Same synthetic email scheme mm-login uses, so the Auth user lines up.
+async function emailFor(username: string): Promise<string> {
+  const h = await sha256Hex(username.toLowerCase());
+  return `u${h.slice(0, 24)}@users.billware.app`;
+}
+
+// Constant-time-ish compare, so a wrong SA password can't be probed by timing.
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+const admin = () =>
+  createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+    auth: { persistSession: false },
+  });
+
+/** Resolve the caller's identity from their Bearer token. Never trust the body. */
+async function callerFromToken(db: any, req: Request) {
+  const auth = req.headers.get("Authorization") || "";
+  const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7) : "";
+  // The anon key is a JWT too — reject it explicitly, it identifies nobody.
+  if (!token || token === Deno.env.get("SUPABASE_ANON_KEY")) return null;
+  const { data, error } = await db.auth.getUser(token);
+  if (error || !data?.user) return null;
+  const { data: m } = await db
+    .from("memberships").select("tenant_id, role, username").eq("auth_uid", data.user.id).maybeSingle();
+  if (!m) return null;
+  return { auth_uid: data.user.id, tenant: m.tenant_id, role: m.role, username: m.username };
+}
+
+/** Write a password everywhere it lives: mm_users + the linked Auth user. */
+async function setPassword(db: any, row: any, newPassword: string) {
+  const hash = await sha256Hex(newPassword);
+  const { error } = await db.from("mm_users").update({ passwordHash: hash }).eq("id", row.id);
+  if (error) throw new Error(error.message);
+  // Keep the Auth user in sync so the next mm-login signInWithPassword succeeds.
+  if (row.auth_uid) {
+    await db.auth.admin.updateUserById(row.auth_uid, { password: newPassword }).catch(() => {});
+  }
+}
+
+async function findUser(db: any, username: string) {
+  const uname = String(username || "").trim();
+  if (!uname) return null;
+  const { data } = await db.from("mm_users").select("*").ilike("username", uname);
+  return (data || []).find((u: any) => (u.username || "").toLowerCase() === uname.toLowerCase()) || null;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  try {
+    const body = await req.json().catch(() => ({}));
+    const action = String(body.action || "");
+    const db = admin();
+
+    // ── Tier: super ─────────────────────────────────────────────────────────
+    // Every sa_* action carries the superadmin password; it is compared against
+    // a server secret. Nothing about it is inspectable from the browser.
+    if (action.startsWith("sa_")) {
+      const expected = Deno.env.get("SA_PASSWORD") || "";
+      if (!expected) return json({ error: "Superadmin not configured." }, 500);
+      if (!safeEqual(String(body.sa_password || ""), expected)) {
+        return json({ error: "Invalid superadmin credentials." }, 401);
+      }
+
+      switch (action) {
+        case "sa_login":
+          return json({ ok: true });
+
+        case "sa_list": {
+          const [users, extra, resets] = await Promise.all([
+            db.from("mm_users")
+              .select("id,username,role,tenant_id,createdAt,approval_status,payment_status,auth_uid"),
+            db.from("extra_user_requests")
+              .select("id,tenant_id,requested_username,reason,status,created_at,reviewed_at"),
+            db.from("password_reset_requests").select("id,username,reason,status,created_at"),
+          ]);
+          return json({
+            users: users.data || [], extra: extra.data || [], resets: resets.data || [],
+          });
+        }
+
+        case "sa_set_approval": {
+          const { error } = await db.from("mm_users")
+            .update({ approval_status: body.status }).eq("id", body.id);
+          return error ? json({ error: error.message }, 400) : json({ ok: true });
+        }
+
+        case "sa_set_payment": {
+          const { error } = await db.from("mm_users")
+            .update({ payment_status: body.status }).eq("id", body.id);
+          return error ? json({ error: error.message }, 400) : json({ ok: true });
+        }
+
+        case "sa_delete_user": {
+          const { data: row } = await db.from("mm_users").select("auth_uid").eq("id", body.id).maybeSingle();
+          if (row?.auth_uid) await db.auth.admin.deleteUser(row.auth_uid).catch(() => {});
+          const { error } = await db.from("mm_users").delete().eq("id", body.id);
+          return error ? json({ error: error.message }, 400) : json({ ok: true });
+        }
+
+        case "sa_approve_extra_user": {
+          // The hash stays server-side: read it here rather than round-tripping
+          // it through the superadmin's browser the way the old flow did.
+          const { data: rq } = await db.from("extra_user_requests")
+            .select("*").eq("id", body.id).maybeSingle();
+          if (!rq) return json({ error: "Request not found." }, 404);
+          if (rq.status !== "pending") return json({ error: "Already reviewed." }, 409);
+
+          const userId = `${rq.tenant_id}:${rq.requested_username}`;
+          const { error: uErr } = await db.from("mm_users").upsert({
+            id: userId,
+            username: rq.requested_username,
+            passwordHash: rq.password_hash,
+            role: "worker",
+            tenant_id: rq.tenant_id,
+            createdAt: Date.now(),
+            approval_status: "approved",
+          }, { onConflict: "id" });
+          if (uErr) return json({ error: uErr.message }, 400);
+
+          await db.from("extra_user_requests")
+            .update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", body.id);
+          return json({ ok: true });
+        }
+
+        case "sa_reject_extra_user": {
+          const { error } = await db.from("extra_user_requests")
+            .update({ status: "rejected", reviewed_at: new Date().toISOString() }).eq("id", body.id);
+          return error ? json({ error: error.message }, 400) : json({ ok: true });
+        }
+
+        case "sa_approve_reset": {
+          // PIN is generated server-side and returned ONLY to the authenticated
+          // superadmin, for out-of-band delivery. It is never readable from the
+          // table by anyone else.
+          const buf = new Uint32Array(1);
+          crypto.getRandomValues(buf);
+          const pin = (100000 + (buf[0] % 900000)).toString();
+          const { error } = await db.from("password_reset_requests")
+            .update({ status: "approved", pin }).eq("id", body.id).eq("status", "pending");
+          if (error) return json({ error: error.message }, 400);
+          return json({ ok: true, pin });
+        }
+
+        case "sa_reject_reset": {
+          const { error } = await db.from("password_reset_requests")
+            .update({ status: "rejected", pin: null }).eq("id", body.id);
+          return error ? json({ error: error.message }, 400) : json({ ok: true });
+        }
+      }
+      return json({ error: "Unknown action." }, 400);
+    }
+
+    // ── Tier: public (pre-login) ────────────────────────────────────────────
+    if (action === "signup") {
+      // Owner self-registration. Shape is fixed here rather than taken from the
+      // body: a signup can only ever create a PENDING owner of its own tenant,
+      // which is what stops someone registering themselves into another shop.
+      const uname = String(body.username || "").trim();
+      const password = String(body.password || "");
+      if (uname.length < 3 || password.length < 4) return json({ error: "Invalid username or password." }, 400);
+
+      const { data: all } = await db.from("mm_users").select("username");
+      if ((all || []).some((u: any) => (u.username || "").toLowerCase() === uname.toLowerCase())) {
+        return json({ error: "This username is already taken. Please choose a different one." }, 409);
+      }
+      const { error } = await db.from("mm_users").insert({
+        id: `${uname}:${uname}`,
+        username: uname,
+        passwordHash: await sha256Hex(password),
+        role: "owner",
+        tenant_id: uname,
+        createdAt: Date.now(),
+        approval_status: "pending",
+        payment_status: "unpaid",
+      });
+      if (error) return json({ error: error.message }, 400);
+
+      // shop_profiles is under RLS and the signer has no session yet, so this
+      // has to happen here with the service role.
+      const s = body.shopInfo;
+      if (s && s.shopName) {
+        await db.from("shop_profiles").upsert({
+          user_id: uname,
+          shop_name: s.shopName,
+          phone: s.phone || "",
+          address_line1: s.addressLine1 || "",
+          address_line2: s.addressLine2 || "",
+          dl_no: s.dlNo || "",
+          gstin: s.gstin || "",
+        });
+      }
+      return json({ ok: true, pending: true });
+    }
+
+    if (action === "reset_request") {
+      const uname = String(body.username || "").trim();
+      const reason = String(body.reason || "").trim();
+      if (!uname || !reason) return json({ error: "Missing username or reason." }, 400);
+      // Always report success: whether a username exists is not public info.
+      const row = await findUser(db, uname);
+      if (row) {
+        await db.from("password_reset_requests")
+          .insert({ username: row.username, reason, status: "pending" });
+      }
+      return json({ ok: true });
+    }
+
+    if (action === "reset_complete") {
+      const uname = String(body.username || "").trim();
+      const pin = String(body.pin || "").trim();
+      const newPassword = String(body.newPassword || "");
+      if (!uname || !pin || !newPassword) return json({ error: "Missing details." }, 400);
+      if (newPassword.length < 4) return json({ error: "Password too short." }, 400);
+
+      const { data: reqs } = await db.from("password_reset_requests")
+        .select("*").ilike("username", uname).eq("status", "approved");
+      const hit = (reqs || []).find((r: any) => r.pin && safeEqual(String(r.pin), pin));
+      if (!hit) return json({ error: "Invalid or expired PIN." }, 401);
+
+      // PINs are single-use and time-boxed; an approved row is not a standing key.
+      const ageMs = Date.now() - new Date(hit.created_at).getTime();
+      if (ageMs > 24 * 60 * 60 * 1000) {
+        await db.from("password_reset_requests")
+          .update({ status: "rejected", pin: null }).eq("id", hit.id);
+        return json({ error: "This PIN has expired. Please request a new reset." }, 401);
+      }
+
+      const row = await findUser(db, uname);
+      if (!row) return json({ error: "Invalid or expired PIN." }, 401);
+      await setPassword(db, row, newPassword);
+      await db.from("password_reset_requests")
+        .update({ status: "completed", pin: null }).eq("id", hit.id);
+      return json({ ok: true });
+    }
+
+    // ── Tier: user (valid Supabase Auth JWT required) ───────────────────────
+    const me = await callerFromToken(db, req);
+    if (!me) return json({ error: "Not authenticated." }, 401);
+
+    if (action === "change_password") {
+      const target = String(body.username || me.username).trim();
+      const row = await findUser(db, target);
+      if (!row) return json({ error: "User not found." }, 404);
+      // You may change your own password; an owner may change passwords inside
+      // their own tenant. Tenant comes from memberships, so it can't be spoofed.
+      const sameTenant = (row.tenant_id || row.username) === me.tenant;
+      const isSelf = row.username.toLowerCase() === me.username.toLowerCase();
+      if (!isSelf && !(me.role === "owner" && sameTenant)) {
+        return json({ error: "Not allowed." }, 403);
+      }
+      const newPassword = String(body.newPassword || "");
+      if (newPassword.length < 4) return json({ error: "Password too short." }, 400);
+      await setPassword(db, row, newPassword);
+      return json({ ok: true });
+    }
+
+    if (action === "create_user") {
+      if (me.role !== "owner") return json({ error: "Only owners can add users." }, 403);
+      const uname = String(body.username || "").trim();
+      const password = String(body.password || "");
+      const role = body.role === "owner" ? "owner" : "worker";
+      if (uname.length < 3 || password.length < 4) return json({ error: "Invalid username or password." }, 400);
+
+      // Scoped to the caller's own tenant — the body cannot name another shop.
+      const { data: existing } = await db.from("mm_users")
+        .select("id,username").eq("tenant_id", me.tenant);
+      if ((existing || []).some((u: any) => (u.username || "").toLowerCase() === uname.toLowerCase())) {
+        return json({ error: "This username already exists in your store." }, 409);
+      }
+      const { error } = await db.from("mm_users").insert({
+        id: `${me.tenant}:${uname}`,
+        username: uname,
+        passwordHash: await sha256Hex(password),
+        role,
+        tenant_id: me.tenant,
+        createdAt: Date.now(),
+        approval_status: "approved",
+      });
+      return error ? json({ error: error.message }, 400) : json({ ok: true });
+    }
+
+    if (action === "extra_user_request") {
+      const uname = String(body.username || "").trim();
+      const password = String(body.password || "");
+      const reason = String(body.reason || "").trim();
+      if (uname.length < 3 || password.length < 4 || !reason) return json({ error: "Invalid request." }, 400);
+      const { error } = await db.from("extra_user_requests").insert({
+        tenant_id: me.tenant,               // from memberships, not the body
+        requested_username: uname,
+        password_hash: await sha256Hex(password),
+        reason,
+        status: "pending",
+        created_at: new Date().toISOString(),
+      });
+      return error ? json({ error: error.message }, 400) : json({ ok: true });
+    }
+
+    if (action === "rename_user") {
+      const oldName = String(body.oldUsername || "").trim();
+      const newName = String(body.newUsername || "").trim();
+      if (newName.length < 3) return json({ error: "Username must be at least 3 characters." }, 400);
+      const row = await findUser(db, oldName);
+      if (!row) return json({ error: "User not found." }, 404);
+      const sameTenant = (row.tenant_id || row.username) === me.tenant;
+      const isSelf = row.username.toLowerCase() === me.username.toLowerCase();
+      if (!isSelf && !(me.role === "owner" && sameTenant)) return json({ error: "Not allowed." }, 403);
+
+      const { data: existing } = await db.from("mm_users").select("username").eq("tenant_id", me.tenant);
+      if ((existing || []).some((u: any) => (u.username || "").toLowerCase() === newName.toLowerCase())) {
+        return json({ error: "That username is already taken in your store." }, 409);
+      }
+      const { error } = await db.from("mm_users")
+        .update({ username: newName, id: `${row.tenant_id || newName}:${newName}` }).eq("id", row.id);
+      if (error) return json({ error: error.message }, 400);
+      await db.from("memberships").update({ username: newName }).eq("auth_uid", row.auth_uid || "");
+      return json({ ok: true });
+    }
+
+    if (action === "delete_user") {
+      if (me.role !== "owner") return json({ error: "Only owners can remove users." }, 403);
+      const row = await findUser(db, String(body.username || ""));
+      if (!row) return json({ ok: true });
+      if ((row.tenant_id || row.username) !== me.tenant) return json({ error: "Not allowed." }, 403);
+      if (row.auth_uid) await db.auth.admin.deleteUser(row.auth_uid).catch(() => {});
+      const { error } = await db.from("mm_users").delete().eq("id", row.id);
+      return error ? json({ error: error.message }, 400) : json({ ok: true });
+    }
+
+    return json({ error: "Unknown action." }, 400);
+  } catch (e) {
+    return json({ error: String(e) }, 500);
+  }
+});

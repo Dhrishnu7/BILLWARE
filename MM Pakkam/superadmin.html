@@ -380,11 +380,45 @@
 </div>
 
 <script>
+// The superadmin password is NOT here any more — it lives as the SA_PASSWORD
+// secret on the mm-admin Edge Function and is only ever checked on the server.
+// Every privileged read/write on this page goes through saCall(), because the
+// browser's key has no rights on mm_users / the request tables.
 const SA_USERNAME = 'Dhrishnu Darshan';
-const SA_PASSWORD = 'Lavanya@28121602';
 const SB_URL = 'https://jwyyjdwlbgjijmwillow.supabase.co';
 const SB_KEY = 'sb_publishable_sY9QwFEMckky9KDJoc1O_w_zN7qY0mo';
 const sb = supabase.createClient(SB_URL, SB_KEY);
+
+// Held for this tab only, so each privileged call can re-prove itself to the
+// server. Cleared on logout; never written to localStorage.
+function saPw() { return sessionStorage.getItem('sa_pw') || ''; }
+
+async function saCall(action, payload = {}) {
+    try {
+        const res = await fetch(`${SB_URL}/functions/v1/mm-admin`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SB_KEY,
+                'Authorization': `Bearer ${SB_KEY}`,
+            },
+            body: JSON.stringify({ action, sa_password: saPw(), ...payload }),
+        });
+        let body = null;
+        try { body = await res.json(); } catch (_) {}
+        if (res.status === 401 && action !== 'sa_login') {
+            sessionStorage.removeItem('sa_ok');
+            sessionStorage.removeItem('sa_pw');
+            alert('Your superadmin session is no longer valid. Please sign in again.');
+            location.reload();
+            return { ok: false, message: 'Unauthorized' };
+        }
+        if (res.ok && body && !body.error) return { ok: true, data: body };
+        return { ok: false, message: (body && body.error) || 'Server error.' };
+    } catch (e) {
+        return { ok: false, message: 'Network error — are you online?' };
+    }
+}
 
 // Escape untrusted text before it's placed into innerHTML (shop/user data is
 // entered by regular shop owners, so it must never be trusted as raw HTML here).
@@ -406,19 +440,26 @@ function escAttr(str) {
 }
 
 // ── AUTH ──
-function doLogin() {
+// The password is verified by the server, not by this file. A wrong password
+// now fails on Supabase's side, so reading this page's source reveals nothing.
+async function doLogin() {
     const u = document.getElementById('saU').value.trim();
     const p = document.getElementById('saP').value;
-    if (u === SA_USERNAME && p === SA_PASSWORD) {
-        sessionStorage.setItem('sa_ok','1');
-        boot();
-    } else {
+    const fail = () => {
+        sessionStorage.removeItem('sa_pw');
         const e = document.getElementById('lerr');
         e.style.display = 'block';
         setTimeout(()=>e.style.display='none', 3000);
-    }
+    };
+    if (u !== SA_USERNAME) return fail();
+
+    sessionStorage.setItem('sa_pw', p);
+    const res = await saCall('sa_login');
+    if (!res.ok) return fail();
+    sessionStorage.setItem('sa_ok','1');
+    boot();
 }
-function doLogout() { sessionStorage.removeItem('sa_ok'); location.reload(); }
+function doLogout() { sessionStorage.removeItem('sa_ok'); sessionStorage.removeItem('sa_pw'); location.reload(); }
 function boot() {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
@@ -452,16 +493,25 @@ function startClock() {
 // ── DATA ──
 let allUsers=[], allBills=[], allPurchases=[], allCustomers=[], allMedicines=[];
 
+// The mm_users list comes from the server now (the browser's key has no read
+// right on it). sa_list also returns the extra-user and password-reset queues,
+// so the render functions below read from this cache instead of the table.
+let saExtraReqs = [], saResets = [];
+
 async function loadAll() {
-    const [uR,bR,pR,cR,mR,sR] = await Promise.all([
-        sb.from('mm_users').select('id,username,role,tenant_id,createdAt,approval_status,payment_status,active_session_token,auth_uid'),
+    const [saR,bR,pR,cR,mR,sR] = await Promise.all([
+        saCall('sa_list'),
         sb.from('bills').select('*').order('saved_at',{ascending:false}),
         sb.from('purchases').select('*'),
         sb.from('customers').select('*'),
         sb.from('medicines').select('name,user_id'),
         sb.from('shop_profiles').select('*')
     ]);
-    allUsers=uR.data||[]; allBills=bR.data||[]; allPurchases=pR.data||[]; allCustomers=cR.data||[]; allMedicines=mR.data||[];
+    if (!saR.ok) { alert('Could not load accounts: ' + saR.message); return; }
+    allUsers = saR.data.users || [];
+    saExtraReqs = saR.data.extra || [];
+    saResets = saR.data.resets || [];
+    allBills=bR.data||[]; allPurchases=pR.data||[]; allCustomers=cR.data||[]; allMedicines=mR.data||[];
 
     window.currentShopProfiles = {};
     if (sR && sR.data) {
@@ -586,8 +636,8 @@ function filterAccounts() {
 // ── PAYMENT TOGGLE ──
 async function togglePayment(id, username, paid) {
     const status = paid ? 'paid' : 'unpaid';
-    const {error} = await sb.from('mm_users').update({payment_status: status}).eq('id', id);
-    if (error) { alert('Failed to update payment: '+error.message); return; }
+    const res = await saCall('sa_set_payment', { id, status });
+    if (!res.ok) { alert('Failed to update payment: '+res.message); return; }
     const u = allUsers.find(u=>u.id===id);
     if (u) u.payment_status = status;
     renderStats(); // update paid count
@@ -771,39 +821,10 @@ async function renderExtraUserRequests() {
     const grid = document.getElementById('extraUserReqGrid');
     const badge = document.getElementById('extraUserReqBadge');
     if (!grid) return;
-    grid.innerHTML = '<div class="ld"><div class="sp"></div>Loading...</div>';
+    // Served from the sa_list cache that loadAll() fetched — the browser has no
+    // read grant on this table, and the password_hash never reaches this page.
+    const reqs = [...saExtraReqs].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 
-    const { data: reqs, error } = await sb.from('extra_user_requests')
-        .select('*').order('created_at', { ascending: false });
-
-    if (error) {
-        const sql = `-- Run this SQL in Supabase SQL Editor to create the table:
-CREATE TABLE IF NOT EXISTS extra_user_requests (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  tenant_id text NOT NULL,
-  requested_username text NOT NULL,
-  password_hash text NOT NULL,
-  reason text,
-  status text DEFAULT 'pending',
-  created_at timestamptz DEFAULT now(),
-  reviewed_at timestamptz
-);
-ALTER TABLE extra_user_requests ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all" ON extra_user_requests FOR ALL USING (true) WITH CHECK (true);`;
-        grid.innerHTML = `<div class="no-pending" style="color:#f87171;text-align:left;max-width:600px;margin:0 auto;">
-            ⚠️ <strong>Table "extra_user_requests" not found in Supabase.</strong><br><br>
-            <span style="color:#94a3b8;font-size:.82rem;">Go to your Supabase Dashboard → SQL Editor and run this SQL:</span><br><br>
-            <pre style="background:#0f172a;color:#86efac;padding:12px;border-radius:8px;font-size:.72rem;overflow-x:auto;text-align:left;">${sql}</pre>
-            <button onclick="navigator.clipboard.writeText(\`${sql.replace(/`/g,'\\`')}\`).then(()=>this.textContent='✅ Copied!').catch(()=>this.textContent='Copy failed')"
-                style="margin-top:8px;padding:7px 16px;background:#0d9488;border:none;border-radius:8px;color:white;font-size:.82rem;font-weight:700;cursor:pointer;">
-                📋 Copy SQL
-            </button>
-            <button onclick="renderExtraUserRequests()" style="margin-top:8px;margin-left:8px;padding:7px 16px;background:#6366f1;border:none;border-radius:8px;color:white;font-size:.82rem;font-weight:700;cursor:pointer;">
-                🔄 Retry
-            </button>
-        </div>`;
-        return;
-    }
     if (!reqs || reqs.length === 0) {
         grid.innerHTML = '<div class="no-pending">✅ No extra worker requests</div>';
         badge.style.display = 'none';
@@ -843,42 +864,29 @@ CREATE POLICY "Allow all" ON extra_user_requests FOR ALL USING (true) WITH CHECK
             </div>
             ${isPending ? `
             <div class="pcard-actions" style="margin-top:12px;">
-                <button class="approve-btn" onclick="approveExtraUser('${escAttr(req.id)}','${escAttr(req.tenant_id)}','${escAttr(req.requested_username)}','${escAttr(req.password_hash)}')">✅ Approve & Create User</button>
+                <button class="approve-btn" onclick="approveExtraUser('${escAttr(req.id)}','${escAttr(req.tenant_id)}','${escAttr(req.requested_username)}')">✅ Approve & Create User</button>
                 <button class="reject-btn" onclick="rejectExtraUser('${escAttr(req.id)}')">❌ Reject</button>
             </div>` : ''}
         </div>`;
     }).join('');
 }
 
-async function approveExtraUser(id, tenantId, username, passwordHash) {
+async function approveExtraUser(id, tenantId, username) {
     if (!await mmConfirm(`Approve extra worker "${username}" for shop "${tenantId}"?`, { okText: 'Approve' })) return;
-
-    // Build composite id exactly like _saveUser does in auth.js
-    const userId = tenantId + ':' + username;
-
-    const { error: userErr } = await sb.from('mm_users').upsert({
-        id: userId,
-        username: username,
-        passwordHash: passwordHash,
-        role: 'worker',
-        tenant_id: tenantId,
-        createdAt: Date.now(),
-        approval_status: 'approved'
-    }, { onConflict: 'id' });
-
-    if (userErr) { alert('Failed to create user: ' + userErr.message); return; }
-    const { error } = await sb.from('extra_user_requests')
-        .update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', id);
-    if (error) { alert('Error updating request: ' + error.message); return; }
+    // The server reads the stored hash and creates the worker itself, so the
+    // hash never travels through this page the way it used to.
+    const res = await saCall('sa_approve_extra_user', { id });
+    if (!res.ok) { alert('Failed to create user: ' + res.message); return; }
     alert(`✅ Worker "${username}" created and added to "${tenantId}"!`);
+    await loadAll();
     renderExtraUserRequests();
 }
 
 async function rejectExtraUser(id) {
     if (!await mmConfirm('Reject this extra worker request?', { okText: 'Reject' })) return;
-    const { error } = await sb.from('extra_user_requests')
-        .update({ status: 'rejected', reviewed_at: new Date().toISOString() }).eq('id', id);
-    if (error) { alert('Error: ' + error.message); return; }
+    const res = await saCall('sa_reject_extra_user', { id });
+    if (!res.ok) { alert('Error: ' + res.message); return; }
+    await loadAll();
     renderExtraUserRequests();
 }
 
@@ -887,8 +895,10 @@ async function renderPasswordResets() {
     const badge = document.getElementById('tabPwdResetCount');
     const cntBadge = document.getElementById('pwdResetCnt');
     
-    const { data: resets } = await sb.from('password_reset_requests').select('*').eq('status', 'pending');
-    
+    // From the sa_list cache. That payload deliberately omits the pin column —
+    // PINs only ever exist server-side and in the one-time dialog below.
+    const resets = saResets.filter(r => r.status === 'pending');
+
     const count = resets ? resets.length : 0;
     badge.innerText = count;
     cntBadge.innerText = count;
@@ -925,26 +935,28 @@ async function renderPasswordResets() {
 
 async function approvePwdReset(id, username) {
     if (!await mmConfirm('Approve reset for ' + username + '? This will generate a PIN you must share with them.', { okText: 'Approve' })) return;
-    const pin = Math.floor(100000 + Math.random() * 900000).toString();
-    const { error } = await sb.from('password_reset_requests').update({ status: 'approved', pin: pin }).eq('id', id);
-    if (error) return alert('Error: ' + error.message);
-    
-    // Show PIN to admin in a way they can easily copy
-    await mmPrompt(`Password Reset Approved for ${username}!\n\nGive them this exact 6-digit PIN (tap to select & copy):`, pin, { title: 'PIN Generated', okText: 'Done' });
-    
+    // The PIN is generated with a CSPRNG on the server and returned once, here.
+    // It is not readable from the table afterwards, and it expires in 24 hours.
+    const res = await saCall('sa_approve_reset', { id });
+    if (!res.ok) return alert('Error: ' + res.message);
+
+    await mmPrompt(`Password Reset Approved for ${username}!\n\nGive them this exact 6-digit PIN (tap to select & copy).\nIt is shown only once and expires in 24 hours:`, res.data.pin, { title: 'PIN Generated', okText: 'Done' });
+
+    await loadAll();
     await renderPasswordResets();
 }
 
 async function rejectPwdReset(id) {
     if (!await mmConfirm('Reject this password reset request?', { okText: 'Reject' })) return;
-    const { error } = await sb.from('password_reset_requests').update({ status: 'rejected' }).eq('id', id);
-    if (error) return alert('Error: ' + error.message);
+    const res = await saCall('sa_reject_reset', { id });
+    if (!res.ok) return alert('Error: ' + res.message);
+    await loadAll();
     await renderPasswordResets();
 }
 
 async function approveAccount(id) {
-    const {error}=await sb.from('mm_users').update({approval_status:'approved'}).eq('id',id);
-    if(error){alert('Error: '+error.message);return;}
+    const res = await saCall('sa_set_approval', { id, status: 'approved' });
+    if(!res.ok){alert('Error: '+res.message);return;}
     const u=allUsers.find(u=>u.id===id);
     if(u) u.approval_status='approved';
     renderRequests(); renderAccounts(); renderStats();
@@ -952,8 +964,8 @@ async function approveAccount(id) {
 }
 async function rejectAccount(id) {
     if(!await mmConfirm('Reject this account? They will not be able to log in.', { danger: true, okText: 'Reject' })) return;
-    const {error}=await sb.from('mm_users').update({approval_status:'rejected'}).eq('id',id);
-    if(error){alert('Error: '+error.message);return;}
+    const res = await saCall('sa_set_approval', { id, status: 'rejected' });
+    if(!res.ok){alert('Error: '+res.message);return;}
     const u=allUsers.find(u=>u.id===id);
     if(u) u.approval_status='rejected';
     renderRequests(); renderAccounts();
@@ -1019,7 +1031,8 @@ async function deleteAccount(username,id) {
             sb.from('customers').delete().eq('user_id',scope),
             sb.from('medicines').delete().eq('user_id',scope),
         ]);
-        await sb.from('mm_users').delete().eq('id',id);
+        const delRes = await saCall('sa_delete_user', { id });
+        if (!delRes.ok) { alert('Delete error: ' + delRes.message); return; }
         alert(`✅ Account "${username}" fully deleted. Their access is now blocked.`);
         loadAll();
     } catch(e) { alert('Delete error: '+e.message); }
