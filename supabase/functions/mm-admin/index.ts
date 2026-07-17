@@ -143,15 +143,36 @@ Deno.serve(async (req) => {
           return json({ ok: true });
 
         case "sa_list": {
-          const [users, extra, resets] = await Promise.all([
-            db.from("mm_users")
-              .select("id,username,role,tenant_id,createdAt,approval_status,payment_status,auth_uid"),
-            db.from("extra_user_requests")
-              .select("id,tenant_id,requested_username,reason,status,created_at,reviewed_at"),
-            db.from("password_reset_requests").select("id,username,reason,status,created_at"),
-          ]);
+          // The superadmin dashboard spans every tenant, so all of this must be
+          // read with the service role: the browser's key is subject to RLS and
+          // returns nothing at all across shops. Only the columns the page
+          // actually renders are selected — never passwordHash, never pin.
+          const [users, extra, resets, bills, purchases, customers, medicines, shops] =
+            await Promise.all([
+              db.from("mm_users")
+                .select("id,username,role,tenant_id,createdAt,approval_status,payment_status,active_session_token,auth_uid"),
+              db.from("extra_user_requests")
+                .select("id,tenant_id,requested_username,reason,status,created_at,reviewed_at"),
+              db.from("password_reset_requests").select("id,username,reason,status,created_at"),
+              // Ordered newest-first: the activity feed slices the top 60 and
+              // does no sorting of its own.
+              db.from("bills")
+                .select("id,user_id,date,grand_total,bill_no,customer_name,doctor_name")
+                .order("saved_at", { ascending: false }),
+              db.from("purchases").select("user_id"),
+              db.from("customers").select("user_id"),
+              db.from("medicines").select("name,user_id"),
+              db.from("shop_profiles").select("*"),
+            ]);
           return json({
-            users: users.data || [], extra: extra.data || [], resets: resets.data || [],
+            users: users.data || [],
+            extra: extra.data || [],
+            resets: resets.data || [],
+            bills: bills.data || [],
+            purchases: purchases.data || [],
+            customers: customers.data || [],
+            medicines: medicines.data || [],
+            shops: shops.data || [],
           });
         }
 

@@ -499,24 +499,21 @@ let allUsers=[], allBills=[], allPurchases=[], allCustomers=[], allMedicines=[];
 let saExtraReqs = [], saResets = [];
 
 async function loadAll() {
-    const [saR,bR,pR,cR,mR,sR] = await Promise.all([
-        saCall('sa_list'),
-        sb.from('bills').select('*').order('saved_at',{ascending:false}),
-        sb.from('purchases').select('*'),
-        sb.from('customers').select('*'),
-        sb.from('medicines').select('name,user_id'),
-        sb.from('shop_profiles').select('*')
-    ]);
-    if (!saR.ok) { alert('Could not load accounts: ' + saR.message); return; }
+    // Everything here spans all tenants, so it all comes from sa_list. Reading
+    // these tables with the page's own key returns nothing: RLS scopes them to
+    // the caller's own shop, and the superadmin isn't a tenant.
+    const saR = await saCall('sa_list');
+    if (!saR.ok) { alert('Could not load dashboard: ' + saR.message); return; }
     allUsers = saR.data.users || [];
     saExtraReqs = saR.data.extra || [];
     saResets = saR.data.resets || [];
-    allBills=bR.data||[]; allPurchases=pR.data||[]; allCustomers=cR.data||[]; allMedicines=mR.data||[];
+    allBills = saR.data.bills || [];
+    allPurchases = saR.data.purchases || [];
+    allCustomers = saR.data.customers || [];
+    allMedicines = saR.data.medicines || [];
 
     window.currentShopProfiles = {};
-    if (sR && sR.data) {
-        sR.data.forEach(p => { window.currentShopProfiles[p.user_id] = p; });
-    }
+    (saR.data.shops || []).forEach(p => { window.currentShopProfiles[p.user_id] = p; });
 
     // Update tab badge counts
     const owners = allUsers.filter(u=>u.role==='owner');
