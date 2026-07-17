@@ -1,6 +1,6 @@
 ﻿// â”€â”€ Billware Service Worker â”€â”€
 // IMPORTANT: Change CACHE_NAME on every deploy so installed apps get the latest version
-const CACHE_NAME = 'mm-pakkam-v140';
+const CACHE_NAME = 'mm-pakkam-v141';
 
 // Pages and assets to cache for offline use + instant navigation
 const PRECACHE_URLS = [
@@ -106,7 +106,15 @@ self.addEventListener('fetch', event => {
                         }
                         return response;
                     })
-                    .catch(() => cached); // Offline: fall back to cache (may be undefined)
+                    // Offline: fall back to cache. On a cache miss there is
+                    // nothing to fall back to, and handing respondWith undefined
+                    // throws "Failed to convert value to 'Response'" instead of
+                    // failing the request cleanly.
+                    .catch(() => cached || new Response('Offline', {
+                        status: 503,
+                        statusText: 'Offline',
+                        headers: { 'Content-Type': 'text/plain' }
+                    }));
 
                 // Cache hit â†’ instant response; miss â†’ wait for network
                 return cached || networkFetch;

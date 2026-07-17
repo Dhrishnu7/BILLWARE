@@ -467,7 +467,11 @@ function boot() {
     startClock();
     setInterval(loadAll, 60000);
 }
-if (sessionStorage.getItem('sa_ok')==='1') boot();
+// Both flags are required. Sessions started on the pre-Phase-5 page set sa_ok
+// but no sa_pw, and booting on sa_ok alone would call the server with an empty
+// password and 401 on a loop.
+if (sessionStorage.getItem('sa_ok')==='1' && saPw()) boot();
+else { sessionStorage.removeItem('sa_ok'); sessionStorage.removeItem('sa_pw'); }
 document.addEventListener('keydown', e => { if (e.key==='Enter' && document.getElementById('saP')===document.activeElement) doLogin(); });
 
 // ── TABS ──
