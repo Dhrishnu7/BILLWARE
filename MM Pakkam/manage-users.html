@@ -671,15 +671,20 @@
         }
         async function confirmDelete() {
             if (!_deleteTarget) return;
+            const target = _deleteTarget;   // closeDeleteModal() clears _deleteTarget
             const btn = document.getElementById('deleteConfirmBtn');
             btn.disabled = true;
             btn.textContent = 'Removing…';
-            await mmDeleteUser(_deleteTarget);
-            closeDeleteModal();
-            await renderUsers();
-            showToast('User Removed 🗑️', `"${_deleteTarget}" has been removed from your store.`);
+            const res = await mmDeleteUser(target);
             btn.disabled = false;
             btn.textContent = 'Yes, Remove';
+            closeDeleteModal();
+            if (!res || !res.success) {
+                await mmAlert('Could not remove "' + target + '": ' + ((res && res.message) || 'Unknown error'));
+                return;
+            }
+            await renderUsers();
+            showToast('User Removed 🗑️', `"${target}" has been removed from your store.`);
         }
 
         function openRenameModal(username) {

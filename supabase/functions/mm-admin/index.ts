@@ -84,11 +84,39 @@ async function setPassword(db: any, row: any, newPassword: string) {
   }
 }
 
+/**
+ * Global lookup. Only safe where the username is genuinely global (login,
+ * signup collision checks) — usernames are unique per TENANT, not per system,
+ * so two shops can each have a "Sanjai".
+ */
 async function findUser(db: any, username: string) {
   const uname = String(username || "").trim();
   if (!uname) return null;
   const { data } = await db.from("mm_users").select("*").ilike("username", uname);
   return (data || []).find((u: any) => (u.username || "").toLowerCase() === uname.toLowerCase()) || null;
+}
+
+/**
+ * Tenant-scoped lookup — use this for anything acting ON a user. Resolving by
+ * bare username would pick whichever shop's row came back first and could act
+ * on a different shop entirely.
+ */
+async function findUserInTenant(db: any, username: string, tenant: string) {
+  const uname = String(username || "").trim();
+  if (!uname || !tenant) return null;
+  const { data } = await db.from("mm_users").select("*").eq("tenant_id", tenant);
+  const hit = (data || []).find((u: any) => (u.username || "").toLowerCase() === uname.toLowerCase());
+  if (hit) return hit;
+  // Legacy owner rows predate tenant_id being filled in: the owner's own
+  // username was the tenant.
+  if (uname.toLowerCase() === String(tenant).toLowerCase()) {
+    const { data: legacy } = await db.from("mm_users").select("*").ilike("username", uname);
+    return (legacy || []).find(
+      (u: any) => (u.username || "").toLowerCase() === uname.toLowerCase() &&
+                  (u.tenant_id === tenant || !u.tenant_id),
+    ) || null;
+  }
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -288,13 +316,14 @@ Deno.serve(async (req) => {
 
     if (action === "change_password") {
       const target = String(body.username || me.username).trim();
-      const row = await findUser(db, target);
+      // Scoped to the caller's tenant: another shop may have a user by the same
+      // name, and a bare-username lookup could land on theirs.
+      const row = await findUserInTenant(db, target, me.tenant);
       if (!row) return json({ error: "User not found." }, 404);
       // You may change your own password; an owner may change passwords inside
       // their own tenant. Tenant comes from memberships, so it can't be spoofed.
-      const sameTenant = (row.tenant_id || row.username) === me.tenant;
       const isSelf = row.username.toLowerCase() === me.username.toLowerCase();
-      if (!isSelf && !(me.role === "owner" && sameTenant)) {
+      if (!isSelf && me.role !== "owner") {
         return json({ error: "Not allowed." }, 403);
       }
       const newPassword = String(body.newPassword || "");
@@ -348,11 +377,10 @@ Deno.serve(async (req) => {
       const oldName = String(body.oldUsername || "").trim();
       const newName = String(body.newUsername || "").trim();
       if (newName.length < 3) return json({ error: "Username must be at least 3 characters." }, 400);
-      const row = await findUser(db, oldName);
+      const row = await findUserInTenant(db, oldName, me.tenant);
       if (!row) return json({ error: "User not found." }, 404);
-      const sameTenant = (row.tenant_id || row.username) === me.tenant;
       const isSelf = row.username.toLowerCase() === me.username.toLowerCase();
-      if (!isSelf && !(me.role === "owner" && sameTenant)) return json({ error: "Not allowed." }, 403);
+      if (!isSelf && me.role !== "owner") return json({ error: "Not allowed." }, 403);
 
       const { data: existing } = await db.from("mm_users").select("username").eq("tenant_id", me.tenant);
       if ((existing || []).some((u: any) => (u.username || "").toLowerCase() === newName.toLowerCase())) {
@@ -367,9 +395,13 @@ Deno.serve(async (req) => {
 
     if (action === "delete_user") {
       if (me.role !== "owner") return json({ error: "Only owners can remove users." }, 403);
-      const row = await findUser(db, String(body.username || ""));
-      if (!row) return json({ ok: true });
-      if ((row.tenant_id || row.username) !== me.tenant) return json({ error: "Not allowed." }, 403);
+      const row = await findUserInTenant(db, String(body.username || ""), me.tenant);
+      if (!row) return json({ error: "User not found in your store." }, 404);
+      // Deleting your own row is only valid as part of deleting the whole
+      // account (mmDeleteAccountPermanently), which says so explicitly.
+      if (row.username.toLowerCase() === me.username.toLowerCase() && !body.allowSelf) {
+        return json({ error: "You cannot remove yourself." }, 400);
+      }
       if (row.auth_uid) await db.auth.admin.deleteUser(row.auth_uid).catch(() => {});
       const { error } = await db.from("mm_users").delete().eq("id", row.id);
       return error ? json({ error: error.message }, 400) : json({ ok: true });

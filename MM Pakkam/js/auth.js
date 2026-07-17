@@ -139,15 +139,18 @@ async function mmHasUsers() {
 // anyone rewrite anyone's password. Every caller now goes through mmAdminCall()
 // and the mm-admin Edge Function; see sql/03_lockdown.sql.
 
-async function _deleteUser(username, tenantId) {
+async function _deleteUser(username, tenantId, allowSelf = false) {
     const tid = tenantId || username;
     const id  = tid + ':' + username;
     // Deletes go through mm-admin: browsers have no DELETE right on mm_users.
-    // The server confirms the caller owns the tenant the target belongs to, and
-    // removes the linked Supabase Auth user too (the old client path left those
-    // orphaned).
-    await mmAdminCall('delete_user', { username });
+    // The server resolves the target within the caller's own store and removes
+    // the linked Supabase Auth user too (the old client path orphaned those).
+    const res = await mmAdminCall('delete_user', { username, allowSelf });
+    // Only forget the row locally if the server actually deleted it — otherwise
+    // it vanishes from the list and reappears on the next reload.
+    if (!res.ok) return { success: false, message: res.message };
     _localSaveUsers(_localGetUsers().filter(u => u.id !== id && u.username.toLowerCase() !== username.toLowerCase()));
+    return { success: true };
 }
 
 /* ─────────────────────────────────────────
@@ -605,7 +608,7 @@ async function mmAddOwner(username, password) {
 async function mmDeleteUser(username) {
     const session  = mmGetSession();
     const tenantId = session ? (session.tenant_id || session.username) : username;
-    await _deleteUser(username, tenantId);
+    return await _deleteUser(username, tenantId);
 }
 
 /**
@@ -653,7 +656,8 @@ async function mmDeleteAccountPermanently() {
             u.username  === tenantId  // owner record (old format)
         );
         for (const u of tenantUsers) {
-            await _deleteUser(u.username, tenantId);
+            // allowSelf: this flow intentionally removes the owner's own record.
+            await _deleteUser(u.username, tenantId, true);
         }
 
         // ── 3. Clear all localStorage keys for this tenant ──
