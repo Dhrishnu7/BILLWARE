@@ -600,11 +600,15 @@
         // ── WhatsApp payment reminder ──────────────────────────────────
         // Opens WhatsApp pre-filled with a polite "you owe ₹X" message. Uses a
         // free wa.me link (no paid API), matching the bill-share pattern in
-        // sales.html. India +91 is assumed for plain 10-digit numbers.
+        // sales.html. wa.me needs the FULL international number (country code +
+        // number), which is why it also works for people NOT in your contacts —
+        // as long as the number is well-formed. So we normalise common Indian
+        // formats to 91XXXXXXXXXX, otherwise WhatsApp rejects it as "invalid".
         function _khataNormPhone(raw) {
-            let digits = String(raw || '').replace(/\D/g, '');
-            if (digits.length === 10) digits = '91' + digits;
-            return digits; // '' if unknown
+            let d = String(raw || '').replace(/\D/g, '');      // digits only
+            if (d.length === 11 && d[0] === '0') d = d.slice(1); // 0XXXXXXXXXX -> XXXXXXXXXX
+            if (d.length === 10) d = '91' + d;                  // bare 10-digit mobile -> +91
+            return d; // '' if none; already 91XXXXXXXXXX / other intl numbers pass through
         }
 
         async function sendKhataReminder(name, phone, balance) {
@@ -613,6 +617,15 @@
                 await mmAlert(
                     `No phone number is saved for ${name}.\n\nAdd their number in the Directory to send a WhatsApp reminder.`,
                     { title: '📱 No phone number' }
+                );
+                return;
+            }
+            // A valid WhatsApp number needs a country code + number (11+ digits).
+            // Warn instead of opening a chat WhatsApp will just reject as invalid.
+            if (p.length < 11) {
+                await mmAlert(
+                    `${name}'s number (${phone}) looks incomplete for WhatsApp.\n\nPlease edit it in the Directory as a full 10-digit mobile number, then try again.`,
+                    { title: '📱 Check the number' }
                 );
                 return;
             }
