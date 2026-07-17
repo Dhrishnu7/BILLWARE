@@ -71,6 +71,27 @@ const _AUTH_SUPABASE_KEY = 'sb_publishable_sY9QwFEMckky9KDJoc1O_w_zN7qY0mo';
 const MM_SESSION_KEY  = 'mm_auth_session';
 const MM_REMEMBER_KEY = 'mm_auth_remember';
 
+// Every localStorage key that caches a TENANT's business data. On a shared
+// computer these must be wiped when switching accounts, or one shop briefly
+// sees another shop's cached data before the cloud sync overwrites it.
+// Keep this list complete — it is the single source of truth used by both
+// mmClearSession() (logout) and the cross-account guard in mmLogin() (login).
+const MM_DATA_KEYS = [
+    'mm_purchases', 'mm_sales', 'mm_customers', 'mm_doctors',
+    'mm_medicine_list', 'mm_medicines', 'mm_stock', 'mm_bills',
+    'mm_bill_counter', 'mm_inventory_adjust_log',
+    'mm_pending_purchases', 'mm_pending_sales', 'report_bin',
+    'mm_schedule_h_register', 'mm_schedule_h_drugs'
+];
+// Marks which tenant the cached MM_DATA_KEYS currently belong to.
+const MM_DATA_OWNER_KEY = 'mm_data_owner';
+
+// Wipe all cached tenant business data (used on logout and account switch).
+function _mmClearBusinessData() {
+    MM_DATA_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+    try { localStorage.removeItem(MM_DATA_OWNER_KEY); } catch {}
+}
+
 // Lazy Supabase client — returns existing _supabase global or creates a new one
 function _authDB() {
     if (typeof _supabase !== 'undefined' && _supabase) return _supabase;
@@ -190,12 +211,7 @@ function mmClearSession() {
     localStorage.removeItem(MM_REMEMBER_KEY);
 
     // Clear all offline business data to prevent data leakage across accounts
-    const keysToClear = [
-        'mm_purchases', 'mm_sales', 'mm_customers', 'mm_doctors', 
-        'mm_pending_purchases', 'mm_pending_sales', 'report_bin', 
-        'mm_schedule_h_register', 'mm_schedule_h_drugs', 'mm_medicines'
-    ];
-    keysToClear.forEach(k => localStorage.removeItem(k));
+    _mmClearBusinessData();
 }
 
 /* ─────────────────────────────────────────
@@ -480,6 +496,17 @@ async function mmLogin(username, password, remember, force = false) {
         const infoUsername = info.username || uname;
         const tenant = info.tenant || infoUsername;
 
+        // --- Cross-account guard (shared computer). If this browser still holds
+        // cached business data belonging to a DIFFERENT tenant — e.g. the previous
+        // user closed the tab without logging out, or was kicked by single-device
+        // lockout — wipe it now so the incoming user never sees the other shop's
+        // medicines/customers before the cloud sync runs. Only fires when a marker
+        // exists and differs, so an existing user's own cached data is preserved. ---
+        try {
+            const cachedOwner = localStorage.getItem(MM_DATA_OWNER_KEY);
+            if (cachedOwner && cachedOwner !== tenant) _mmClearBusinessData();
+        } catch (e) {}
+
         // --- STEP 2: Single-device lockout. Read/claim the device token with the
         // publishable key (non-secret columns stay readable; the password column
         // is server-only). Done BEFORE switching to the auth session so the write
@@ -524,6 +551,8 @@ async function mmLogin(username, password, remember, force = false) {
             token:                newToken,
         };
         mmSaveSession(user, remember);
+        // Stamp who the cached business data now belongs to (see MM_DATA_OWNER_KEY).
+        try { localStorage.setItem(MM_DATA_OWNER_KEY, tenant); } catch (e) {}
 
         // Auto-migrate legacy data in background without blocking login
         _autoMigrateLocalDataToSupabase(user);
