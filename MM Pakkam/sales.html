@@ -2266,8 +2266,13 @@
            WhatsApp text bill so the feature never dead-ends.
         ══════════════════════════════════════════════════════════════════ */
         function _normPhone(raw) {
-            // Normalise to international digits for wa.me (assume India +91 for 10-digit numbers).
+            // Normalise to full international digits for wa.me. wa.me needs the
+            // country code (that's why it reaches people NOT in your contacts) —
+            // a bare/oddly-formatted number produces a link WhatsApp rejects as
+            // invalid. Strip a leading 0 (0XXXXXXXXXX), then assume India +91 for
+            // a 10-digit mobile; already-91 / other intl numbers pass through.
             let digits = String(raw || '').replace(/\D/g, '');
+            if (digits.length === 11 && digits[0] === '0') digits = digits.slice(1);
             if (digits.length === 10) digits = '91' + digits;
             return digits; // '' if unknown
         }
