@@ -676,6 +676,18 @@
                     && /^H/i.test(DrugMaster.scheduleOf(nm))) return true;
             return false;
         }
+        // Schedule class: 'H1' (stricter subset) | 'H' | '' — from the Drug Master,
+        // falling back to the shop's H list.
+        function _scheduleClassOfP(name) {
+            const nm = (name || '').trim();
+            if (!nm) return '';
+            if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf) {
+                const s = (DrugMaster.scheduleOf(nm) || '').toUpperCase();
+                if (s === 'H1') return 'H1';
+                if (s.charAt(0) === 'H') return 'H';
+            }
+            return _isScheduleHNameP(nm) ? 'H' : '';
+        }
         function _styleHTogP(b, on) {
             b.setAttribute('data-on', on ? '1' : '0');
             b.textContent = on ? '💊 H' : 'H?';
@@ -1079,6 +1091,7 @@
                                 rate:          rate,
                                 gst:           gst,
                                 total:         total,
+                                scheduleClass: _scheduleClassOfP(rec.productName) || 'H',
                                 savedAt:       new Date().toISOString(),
                                 autoLogged:    true
                             };

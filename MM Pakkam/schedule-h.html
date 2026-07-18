@@ -1099,6 +1099,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
     <script src="js/keyboard-nav.js"></script>
+    <script src="js/drug-master.js"></script>
 </head>
 <body>
     <script>
@@ -1292,6 +1293,10 @@
                             <span class="sc-label">⚠️ Missing Rx</span>
                             <span class="sc-value" id="statWarn">0</span>
                         </div>
+                        <div class="stat-chip">
+                            <span class="sc-label">⛔ Schedule H1</span>
+                            <span class="sc-value" id="statH1">0</span>
+                        </div>
                     </div>
 
                     <!-- Advanced Filter Bar -->
@@ -1313,6 +1318,7 @@
                             <button class="type-pill active" id="typePillAll"  onclick="setTypeFilter('all')" title="Show All">&#x1F4CB; All</button>
                             <button class="type-pill" id="typePillIn"   onclick="setTypeFilter('in')"  title="Show Stock IN only">&#x1F7E2; IN</button>
                             <button class="type-pill" id="typePillOut"  onclick="setTypeFilter('out')" title="Show Sales OUT only">&#x1F534; OUT</button>
+                            <button class="type-pill" id="typePillH1"   onclick="toggleH1Filter()"     title="Show Schedule H1 drugs only (stricter subset)">&#x26D4; H1 only</button>
                         </div>
                         <button class="btn-export" onclick="window.print()" title="Print filtered Register">
                             &#x1F5A8;&#xFE0F; Print Report
@@ -2485,6 +2491,7 @@
                     rate:             rate,
                     gst:              gst,
                     total:            base + (base * gst / 100),
+                    scheduleClass:    _scheduleClassOf(drugName) || 'H',
                     savedAt:          new Date().toISOString()
                 });
             }
@@ -2516,6 +2523,7 @@
 
         /* ── Type Filter State ── */
         let _activeTypeFilter = 'all'; // 'all' | 'in' | 'out'
+        let _h1Only = false;           // Schedule H1 filter toggle
 
         function setTypeFilter(type) {
             _activeTypeFilter = type;
@@ -2523,6 +2531,35 @@
             const map = { all: 'typePillAll', in: 'typePillIn', out: 'typePillOut' };
             document.getElementById(map[type]).classList.add('active');
             renderRegisterLog();
+        }
+        function toggleH1Filter() {
+            _h1Only = !_h1Only;
+            const pill = document.getElementById('typePillH1');
+            if (pill) pill.classList.toggle('active', _h1Only);
+            renderRegisterLog();
+        }
+
+        /* ── Schedule class detection (H vs H1) ───────────────────────────────
+           H1 is a stricter subset of Schedule H (separate register, kept 3 years,
+           mandatory patient + prescriber). We derive the class from the built-in
+           Drug Master's schedule tag, falling back to the shop's H list. */
+        function _scheduleClassOf(name) {
+            const nm = (name || '').trim();
+            if (!nm) return '';
+            if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf) {
+                const s = (DrugMaster.scheduleOf(nm) || '').toUpperCase();
+                if (s === 'H1') return 'H1';
+                if (s.charAt(0) === 'H') return 'H';
+            }
+            try {
+                const h = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
+                if (h.some(d => (d || '').trim().toLowerCase() === nm.toLowerCase())) return 'H';
+            } catch (e) {}
+            return '';
+        }
+        // An entry's class: use the stored tag, else detect live (covers old rows).
+        function _entryClass(e) {
+            return (e && e.scheduleClass) || _scheduleClassOf(e && e.drugName) || 'H';
         }
 
         /* ── Render Register Log ── */
@@ -2594,6 +2631,7 @@
                 // IN / OUT type filter
                 if (_activeTypeFilter === 'in'  && entry.entryType !== 'in')  return false;
                 if (_activeTypeFilter === 'out' && (entry.entryType || 'out') !== 'out') return false;
+                if (_h1Only && _entryClass(entry) !== 'H1') return false;
                 if (!searchTerm) return true;
                 return (entry.patientName || '').toLowerCase().includes(searchTerm)
                     || (entry.doctorName  || '').toLowerCase().includes(searchTerm)
@@ -2609,10 +2647,12 @@
             const totalOut  = register.filter(e => (e.entryType||'out') === 'out').length;
             const totalIn   = register.filter(e => e.entryType === 'in').length;
             const totalWarn = register.filter(e => (e.entryType||'out') === 'out' && !e.doctorName).length;
+            const totalH1   = register.filter(e => _entryClass(e) === 'H1').length;
             document.getElementById('statTotal').textContent = totalAll;
             document.getElementById('statOut').textContent   = totalOut;
             document.getElementById('statIn').textContent    = totalIn;
             document.getElementById('statWarn').textContent  = totalWarn;
+            const _statH1El = document.getElementById('statH1'); if (_statH1El) _statH1El.textContent = totalH1;
 
             document.getElementById('logCount').textContent = `${filtered.length} of ${register.length}`;
 
@@ -2649,7 +2689,7 @@
                 return `
                 <tr style="animation: rowSlideIn 0.3s ease forwards;${isMissingRx ? 'background:rgba(254,249,195,0.4);' : ''}">
                     <td>${typeBadge}</td>
-                    <td style="font-weight:700; color:#991b1b;">${esc(entry.drugName)}</td>
+                    <td style="font-weight:700; color:#991b1b;">${esc(entry.drugName)}${_entryClass(entry) === 'H1' ? ' <span style="display:inline-block;font-size:0.6rem;font-weight:800;background:#7f1d1d;color:#fff;border-radius:6px;padding:1px 5px;vertical-align:middle;letter-spacing:0.03em;">H1</span>' : ''}</td>
                     <td style="white-space:nowrap; font-weight:600; font-size:0.82rem;">${dateStr}${timeStr ? `<div style="font-size:0.72rem; color:#94a3b8; font-weight:500;">🕒 ${timeStr}</div>` : ''}</td>
                     <td style="font-size:0.84rem; font-weight:600;">${esc(entry.billNo || '—')}</td>
                     <td>
@@ -2738,7 +2778,8 @@
                 { t:'Doctor Reg No', w:100 }, { t:'Doctor Address', w:130 }, { t:'Drug Name', w:185 },
                 { t:'Batch No', w:95 }, { t:'Expire Date', w:92 }, { t:'Pack', w:58 },
                 { t:'Qty', w:55, num:true }, { t:'MRP (Rs)', w:78, num:true }, { t:'Rate (Rs)', w:78, num:true },
-                { t:'GST %', w:58, num:true }, { t:'Total (Rs)', w:98, num:true }, { t:'Firm / Supplier', w:135 }
+                { t:'GST %', w:58, num:true }, { t:'Total (Rs)', w:98, num:true }, { t:'Firm / Supplier', w:135 },
+                { t:'Schedule', w:70 }
             ];
             const N = COLS.length;
             const QTY_I = 12, TOT_I = 16;
@@ -2797,7 +2838,8 @@
                     nc(e.rate, 'dN'),
                     ic(e.gst, 'dI'),
                     nc(e.total, 'dN'),
-                    sc(e.firmName || '', 'dL')
+                    sc(e.firmName || '', 'dL'),
+                    sc(_entryClass(e), 'dL')
                 ];
             }
 

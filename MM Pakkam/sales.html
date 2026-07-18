@@ -1467,6 +1467,18 @@
                     && /^H/i.test(DrugMaster.scheduleOf(nm))) return true;
             return false;
         }
+        // Schedule class: 'H1' (stricter subset) | 'H' | '' — from the Drug Master,
+        // falling back to the shop's H list. H1 legally needs patient + prescriber.
+        function _scheduleClassOf(name) {
+            const nm = (name || '').trim();
+            if (!nm) return '';
+            if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf) {
+                const s = (DrugMaster.scheduleOf(nm) || '').toUpperCase();
+                if (s === 'H1') return 'H1';
+                if (s.charAt(0) === 'H') return 'H';
+            }
+            return _isScheduleHName(nm) ? 'H' : '';
+        }
         function _styleHToggle(b, on) {
             b.setAttribute('data-on', on ? '1' : '0');
             b.textContent = on ? '💊 H' : 'H?';
@@ -1509,14 +1521,40 @@
             }
             return false;
         }
+        // Does the bill contain a Schedule H1 drug? (H1 = stricter — needs patient + doctor)
+        function _billHasScheduleH1() {
+            const rows = document.querySelectorAll('#medicineRows tr');
+            for (const row of rows) {
+                const pEl = row.querySelector('[id^="product_"]');
+                if (!pEl) continue;
+                const name = (pEl.value || '').trim();
+                if (name && _scheduleClassOf(name) === 'H1') return true;
+            }
+            return false;
+        }
         function updateRxDoctorWarning() {
             const doc  = document.getElementById('doctorName');
+            const cust = document.getElementById('customerName');
             const warn = document.getElementById('rxDoctorWarn');
             if (!doc || !warn) return;
-            const need = _billHasScheduleH() && !doc.value.trim();
-            doc.style.borderColor = need ? '#dc2626' : '';
-            doc.style.background  = need ? '#fef2f2' : '';
-            warn.style.display    = need ? 'block' : 'none';
+            const hasH  = _billHasScheduleH();
+            const hasH1 = _billHasScheduleH1();
+            const docNeeded = hasH && !doc.value.trim();
+            const patNeeded = hasH1 && cust && !cust.value.trim();   // H1 also needs the patient
+            doc.style.borderColor = docNeeded ? '#dc2626' : '';
+            doc.style.background  = docNeeded ? '#fef2f2' : '';
+            if (cust) {
+                cust.style.borderColor = patNeeded ? '#dc2626' : '';
+                cust.style.background  = patNeeded ? '#fef2f2' : '';
+            }
+            if (docNeeded || patNeeded) {
+                warn.style.display = 'block';
+                warn.innerHTML = hasH1
+                    ? '⛔ This bill has a <b>Schedule H1</b> drug — H1 legally needs <b>both patient name and doctor</b>. Fill them to avoid a "Missing Rx".'
+                    : '⚠️ This bill has a Schedule H drug — enter the doctor to avoid a "Missing Rx" in the register.';
+            } else {
+                warn.style.display = 'none';
+            }
         }
 
         function addRow() {
@@ -1731,16 +1769,29 @@
                 return;
             }
 
-            // Schedule H compliance: an H drug billed with no doctor becomes a
-            // "Missing Rx" in the register — give the user a chance to add it first.
-            const _docVal = document.getElementById('doctorName').value.trim();
-            if (!_docVal && _billHasScheduleH()) {
-                const goBack = await mmConfirm(
-                    'This bill has a Schedule H drug but no doctor is entered.\n\nWithout a doctor it will show as "Missing Rx" in the Schedule H register.',
-                    { title: '⚠️ Missing doctor for Schedule H', okText: 'Go back & add doctor', cancelText: 'Save anyway' }
-                );
+            // Schedule H / H1 compliance: an H drug billed with no doctor (or an H1
+            // drug missing patient or doctor) becomes a "Missing Rx" in the register.
+            const _docVal  = document.getElementById('doctorName').value.trim();
+            const _custVal = document.getElementById('customerName').value.trim();
+            const _hasH1   = _billHasScheduleH1();
+            const _missingForH  = _billHasScheduleH() && !_docVal;
+            const _missingForH1 = _hasH1 && (!_docVal || !_custVal);
+            if (_missingForH || _missingForH1) {
+                const msg = _hasH1
+                    ? 'This bill has a Schedule H1 drug, which legally needs BOTH patient name and doctor.\n\n'
+                        + (!_custVal ? '• Patient name missing\n' : '')
+                        + (!_docVal  ? '• Doctor missing\n' : '')
+                        + '\nWithout them it will show as "Missing Rx" in the register.'
+                    : 'This bill has a Schedule H drug but no doctor is entered.\n\nWithout a doctor it will show as "Missing Rx" in the Schedule H register.';
+                const goBack = await mmConfirm(msg, {
+                    title: _hasH1 ? '⛔ Schedule H1 needs patient + doctor' : '⚠️ Missing doctor for Schedule H',
+                    okText: 'Go back & add', cancelText: 'Save anyway'
+                });
                 if (goBack) {
-                    document.getElementById('doctorName').focus();
+                    const focusEl = (_hasH1 && !_custVal)
+                        ? document.getElementById('customerName')
+                        : document.getElementById('doctorName');
+                    if (focusEl) focusEl.focus();
                     updateRxDoctorWarning();
                     return;
                 }
@@ -1847,6 +1898,7 @@
                         rate:          med.rate || 0,
                         gst:           med.gst || 0,
                         total:         med.total || 0,
+                        scheduleClass: _scheduleClassOf(nm) || 'H',
                         savedAt:       new Date().toISOString(),
                         autoLogged:    true
                     };
