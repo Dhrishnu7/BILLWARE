@@ -1206,6 +1206,18 @@
                     </div>
 
                     <div class="section-label">💊 Drug Details</div>
+
+                    <!-- Barcode scan bar (USB scanner types the code + Enter here) -->
+                    <div id="shBarcodeScanBar" style="display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:10px 14px;background:linear-gradient(135deg,#eff6ff,#ecfeff);border:1.5px solid #bae6fd;border-radius:14px;">
+                        <span style="font-size:1.3rem;line-height:1;">📷</span>
+                        <input type="text" id="shBarcodeScan"
+                            placeholder="Scan a barcode — the Schedule H drug fills in automatically"
+                            autocomplete="off" inputmode="none"
+                            onkeydown="if(event.key==='Enter'){event.preventDefault();event.stopPropagation();handleShBarcodeScan();}"
+                            style="flex:1;min-width:0;border:1.5px solid #7dd3fc;border-radius:10px;padding:0.6rem 0.8rem;font-size:0.95rem;font-family:'Inter',sans-serif;outline:none;background:#fff;color:#0f172a;">
+                        <span id="shBarcodeScanMsg" style="font-size:0.78rem;color:#0369a1;font-weight:700;white-space:nowrap;">Ready</span>
+                    </div>
+
                     <datalist id="drugList"></datalist>
                     <div id="shDrugRows"></div>
                     <button type="button" id="shAddItemBtn" onclick="addShDrugRow(true)"
@@ -1973,6 +1985,64 @@
             setupShDrugDropdown(document.getElementById('drug_' + id), id);
             if (focusIt) setTimeout(() => document.getElementById('drug_' + id)?.focus(), 50);
             return id;
+        }
+
+        /* ─── BARCODE SCANNING (USB scanner = keyboard) ───────────────────
+           A USB scanner types the barcode digits then Enter into #shBarcodeScan.
+           We resolve barcode → drug name (mm_barcodes cache, shared with the
+           Sales page) and drop it into the next empty drug row. Unknown codes
+           are learned once via a prompt, then remembered everywhere. */
+        function _shBcMsg(text, ok) {
+            const el = document.getElementById('shBarcodeScanMsg');
+            if (!el) return;
+            el.textContent = text;
+            el.style.color = ok === false ? '#dc2626' : '#0369a1';
+        }
+
+        function addScannedShDrug(name) {
+            const rows = Array.from(document.querySelectorAll('#shDrugRows .sh-drug-row'));
+            // Fill the first empty drug row, else spin up a fresh one.
+            let id = null;
+            for (const r of rows) {
+                const d = r.querySelector('[id^="drug_"]');
+                if (d && !d.value.trim()) { id = d.id.replace('drug_', ''); break; }
+            }
+            if (id == null) id = addShDrugRow(false);
+            const dEl = document.getElementById('drug_' + id);
+            if (dEl) dEl.value = name;
+            // Jump focus to Batch so the rest of the row can be typed in fast.
+            const bEl = document.getElementById('batch_' + id);
+            if (bEl) setTimeout(() => bEl.focus(), 30);
+            _shBcMsg('✓ ' + name + ' added');
+        }
+
+        async function handleShBarcodeScan() {
+            const box = document.getElementById('shBarcodeScan');
+            if (!box) return;
+            const code = (box.value || '').trim();
+            box.value = '';
+            if (!code) { box.focus(); return; }
+
+            let name = (typeof mmBarcodeLookup === 'function') ? mmBarcodeLookup(code) : '';
+            if (!name) {
+                // Learn-as-you-go: ask which drug this new barcode is.
+                const entered = await mmPrompt(
+                    'New barcode: ' + code + '\n\nType the drug name to link it — it will be remembered next time.',
+                    '', { title: '🆕 New barcode', placeholder: 'Drug name', okText: 'Link & add' }
+                );
+                if (entered == null || !String(entered).trim()) { box.focus(); return; }
+                name = String(entered).trim();
+                if (typeof dbAddBarcode === 'function') {
+                    try { const r = await dbAddBarcode(code, name); if (!(r && r.success)) _shBcMsg('Saved locally (will sync)', true); }
+                    catch (e) {}
+                }
+                addScannedShDrug(name);
+                _shBcMsg('🔗 ' + name + ' linked & added');
+                setTimeout(() => box.focus(), 30);
+                return;
+            }
+            addScannedShDrug(name);
+            setTimeout(() => box.focus(), 30);
         }
 
         function removeShDrugRow(id) {
@@ -3170,6 +3240,9 @@
             renderRegisterLog();
             renderDrugList();
             updateShBinBadge();
+
+            // Load barcode → drug map so scans resolve instantly (shared with Sales).
+            if (typeof dbSyncBarcodes === 'function') { try { dbSyncBarcodes(); } catch (e) {} }
 
             const rxDateEl = document.getElementById('rxDate');
             if (rxDateEl) rxDateEl.value = new Date().toISOString().slice(0, 10);
