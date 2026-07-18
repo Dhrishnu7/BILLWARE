@@ -18,106 +18,99 @@
 
         :root {
             --blue:   #0ea5e9;
-            --green:  #10b981;
-            --purple: #8b5cf6;
+            --cyan:   #22d3ee;
+            --bg:     #060a14;
+            --card:   rgba(19, 27, 45, 0.6);
+            --line:   rgba(255,255,255,0.09);
+            --txt:    #f1f5f9;
+            --txt-dim: rgba(148,163,184,0.82);
         }
 
         html, body {
             height: 100%;
             font-family: 'Inter', sans-serif;
-            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
         }
 
         body {
+            min-height: 100vh;
             display: flex;
-            background: #080e1a;
-            color: white;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            color: var(--txt);
+            position: relative;
+            overflow: hidden;
+            background:
+                radial-gradient(1100px 720px at 12% -8%, rgba(14,165,233,0.18), transparent 58%),
+                radial-gradient(950px 640px at 105% 108%, rgba(34,211,238,0.12), transparent 55%),
+                linear-gradient(160deg, #070d1a 0%, #060a14 55%, #081120 100%);
+        }
+
+        /* Ambient floating glow orbs */
+        .bg-orb {
+            position: absolute; border-radius: 50%;
+            filter: blur(100px); pointer-events: none;
+        }
+        .orb-a {
+            width: 480px; height: 480px;
+            background: radial-gradient(circle, #0ea5e9, transparent 70%);
+            top: -180px; left: -140px; opacity: 0.35;
+            animation: float1 13s ease-in-out infinite;
+        }
+        .orb-b {
+            width: 420px; height: 420px;
+            background: radial-gradient(circle, #22d3ee, transparent 70%);
+            bottom: -180px; right: -140px; opacity: 0.22;
+            animation: float2 16s ease-in-out infinite;
+        }
+        @keyframes float1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(32px,26px)} }
+        @keyframes float2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-30px,-22px)} }
+
+        /* Faint grid, faded at the edges */
+        body::before {
+            content: ''; position: absolute; inset: 0; pointer-events: none;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
+            background-size: 50px 50px;
+            -webkit-mask-image: radial-gradient(circle at 50% 42%, #000 0%, transparent 72%);
+                    mask-image: radial-gradient(circle at 50% 42%, #000 0%, transparent 72%);
         }
 
         /* ════════════════════════════════════
-           LEFT BRANDING PANEL
+           AUTH CARD
         ════════════════════════════════════ */
-        .brand-panel {
-            width: 50%;
-            min-height: 100vh;
-            background: linear-gradient(160deg, #0c1829 0%, #071223 50%, #0a1f35 100%);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            padding: 3.5rem;
-            position: relative;
-            overflow: hidden;
-            flex-shrink: 0;
-            gap: 2rem;
+        .auth-wrap { position: relative; z-index: 2; width: 100%; max-width: 430px; }
+
+        .auth-card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            padding: 2.6rem 2.4rem 2rem;
+            backdrop-filter: blur(24px) saturate(140%);
+            -webkit-backdrop-filter: blur(24px) saturate(140%);
+            box-shadow:
+                inset 0 1px 0 rgba(255,255,255,0.07),
+                0 30px 70px -22px rgba(0,0,0,0.75);
+            animation: cardIn 0.6s cubic-bezier(0.175,0.885,0.32,1.275) forwards;
+        }
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(22px) scale(0.985); }
+            to   { opacity: 1; transform: none; }
         }
 
-        /* Animated gradient orbs (FIXED - no transform conflict) */
-        .orb {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(70px);
-            pointer-events: none;
-            opacity: 0.22;
-        }
-        .orb-1 {
-            width: 420px; height: 420px;
-            background: radial-gradient(circle, #0ea5e9, #0284c7);
-            top: -120px; left: -100px;
-            animation: orbFloat1 9s ease-in-out infinite;
-        }
-        .orb-2 {
-            width: 340px; height: 340px;
-            background: radial-gradient(circle, #10b981, #059669);
-            bottom: -80px; right: -60px;
-            animation: orbFloat2 11s ease-in-out infinite;
-        }
-        .orb-3 {
-            width: 260px; height: 260px;
-            background: radial-gradient(circle, #8b5cf6, #6d28d9);
-            /* FIX: position with margin instead of transform to avoid animation conflict */
-            top: 42%;
-            right: 12%;
-            animation: orbFloat3 7s ease-in-out infinite;
-            opacity: 0.14;
-        }
-
-        @keyframes orbFloat1 {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            50%       { transform: translate(18px, 22px) scale(1.07); }
-        }
-        @keyframes orbFloat2 {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            50%       { transform: translate(-20px, -18px) scale(1.05); }
-        }
-        @keyframes orbFloat3 {
-            0%, 100% { transform: translate(0, 0); }
-            50%       { transform: translate(12px, -14px); }
-        }
-
-        /* Grid texture */
-        .brand-panel::before {
-            content: '';
-            position: absolute; inset: 0;
-            background-image:
-                linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
-            background-size: 44px 44px;
-            pointer-events: none;
-        }
-
-        /* Brand top */
-        .brand-top { position: relative; z-index: 2; }
-
-        .brand-logo-row {
-            display: flex; align-items: center; gap: 14px;
-            margin-bottom: 3.5rem;
+        /* Brand */
+        .brand {
+            display: flex; align-items: center; justify-content: center; gap: 12px;
+            margin-bottom: 2rem;
         }
         .brand-logo-icon {
-            width: 52px; height: 52px; border-radius: 16px;
-            background: linear-gradient(135deg, #0284c7, #0ea5e9, #10b981);
+            width: 46px; height: 46px; border-radius: 14px;
+            background: linear-gradient(135deg, #0284c7, #0ea5e9, #22d3ee);
             display: flex; align-items: center; justify-content: center;
-            color: white; font-weight: 900; font-size: 1.2rem;
-            box-shadow: 0 8px 28px rgba(14,165,233,0.45), inset 0 1px 3px rgba(255,255,255,0.3);
+            box-shadow: 0 8px 24px rgba(14,165,233,0.4), inset 0 1px 2px rgba(255,255,255,0.35);
             border: 1px solid rgba(255,255,255,0.2);
             position: relative; overflow: hidden; flex-shrink: 0;
         }
@@ -126,152 +119,59 @@
             top: 0; left: -100%; width: 50%; height: 100%;
             background: linear-gradient(to right, transparent, rgba(255,255,255,0.35), transparent);
             transform: skewX(-18deg);
-            animation: shimmer 3.5s infinite;
+            animation: shimmer 3.8s infinite;
         }
-        @keyframes shimmer { 0%{left:-100%} 25%{left:200%} 100%{left:200%} }
-
-        .brand-logo-name {
-            font-size: 1rem; font-weight: 800; color: white;
-            line-height: 1.3; letter-spacing: -0.01em;
-        }
-        .brand-logo-sub {
-            font-size: 0.72rem; color: rgba(148,163,184,0.8); margin-top: 1px; font-weight: 500;
+        @keyframes shimmer { 0%{left:-100%} 30%{left:220%} 100%{left:220%} }
+        .brand-name {
+            font-size: 1.2rem; font-weight: 800; letter-spacing: -0.02em; color: #fff;
         }
 
-        /* Main tagline */
-        .brand-tagline {
-            margin-bottom: 2.8rem;
-        }
-        .brand-tagline h1 {
-            font-size: 2.4rem; font-weight: 900; line-height: 1.15;
-            letter-spacing: -0.03em; color: white;
-            margin-bottom: 1rem;
-        }
-        .brand-tagline h1 span {
-            background: linear-gradient(90deg, #38bdf8, #34d399);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        }
-        .brand-tagline p {
-            font-size: 0.92rem; color: rgba(148,163,184,0.9);
-            line-height: 1.7; max-width: 340px;
-        }
-
-        /* Feature list */
-        .feature-list {
-            display: flex; flex-direction: column; gap: 0.85rem;
-        }
-        .feature-item {
-            display: flex; align-items: center; gap: 12px;
-            animation: fadeSlide 0.5s ease forwards;
-            opacity: 0;
-        }
-        .feature-item:nth-child(1) { animation-delay: 0.1s; }
-        .feature-item:nth-child(2) { animation-delay: 0.2s; }
-        .feature-item:nth-child(3) { animation-delay: 0.3s; }
-        .feature-item:nth-child(4) { animation-delay: 0.4s; }
-        @keyframes fadeSlide {
-            from { opacity: 0; transform: translateX(-10px); }
-            to   { opacity: 1; transform: translateX(0); }
-        }
-
-        .feature-dot {
-            width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .feature-dot.blue   { background: rgba(14,165,233,0.2); border: 1px solid rgba(14,165,233,0.3); }
-        .feature-dot.green  { background: rgba(16,185,129,0.2); border: 1px solid rgba(16,185,129,0.3); }
-        .feature-dot.purple { background: rgba(139,92,246,0.2); border: 1px solid rgba(139,92,246,0.3); }
-        .feature-dot.amber  { background: rgba(245,158,11,0.2); border: 1px solid rgba(245,158,11,0.3); }
-
-        .feature-text { font-size: 0.88rem; color: rgba(203,213,225,0.9); font-weight: 500; }
-        .feature-text strong { color: white; font-weight: 700; }
-
-        /* Brand bottom */
-        .brand-bottom {
-            position: relative; z-index: 2;
-            font-size: 0.73rem; color: rgba(100,116,139,0.7);
-        }
-
-        /* ════════════════════════════════════
-           RIGHT LOGIN PANEL
-        ════════════════════════════════════ */
-        .login-panel {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: #0f172a;
-            padding: 2rem 2.5rem;
-            overflow-y: auto;
-            border-left: 1px solid rgba(255,255,255,0.06);
-            box-shadow: -30px 0 60px rgba(0,0,0,0.25);
-        }
-
-        .login-box {
-            width: 100%;
-            max-width: 400px;
-            margin: auto;
-            flex-shrink: 0;
-            animation: boxIn 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-        @keyframes boxIn {
-            from { opacity: 0; transform: translateY(24px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Login header */
-        .login-header { margin-bottom: 1.75rem; text-align: left; }
+        /* Header */
+        .login-header { text-align: center; margin-bottom: 2rem; }
         .login-header h2 {
-            font-size: 1.7rem; font-weight: 900; color: white;
-            letter-spacing: -0.03em; margin-bottom: 0.45rem;
+            font-size: 1.55rem; font-weight: 800; letter-spacing: -0.03em;
+            margin-bottom: 0.4rem;
+            background: linear-gradient(180deg, #ffffff, #c7d2e0);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
-        .login-header p { font-size: 0.9rem; color: rgba(148,163,184,0.85); line-height: 1.5; }
-
-        /* Divider */
-        .login-divider {
-            height: 1px;
-            background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02) 60%, transparent);
-            margin-bottom: 1.75rem;
-        }
+        .login-header p { font-size: 0.9rem; color: var(--txt-dim); }
 
         /* Form groups */
         .form-group { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.1rem; }
         .form-group label {
             font-size: 0.7rem; font-weight: 700; letter-spacing: 0.09em;
-            text-transform: uppercase; color: rgba(148,163,184,0.75);
+            text-transform: uppercase; color: rgba(148,163,184,0.7);
         }
 
         .input-wrap { position: relative; }
-
         .input-icon {
             position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
-            opacity: 0.4; pointer-events: none;
+            opacity: 0.45; pointer-events: none;
             display: flex; align-items: center;
         }
 
         .form-group input {
             font-family: 'Inter', sans-serif;
-            font-size: 0.95rem; color: white;
-            background: rgba(255,255,255,0.04);
+            font-size: 0.95rem; color: #fff;
+            background: rgba(255,255,255,0.045);
             border: 1.5px solid rgba(255,255,255,0.09);
-            border-radius: 11px;
-            /* FIX: Add right padding so text doesn't overlap the eye toggle */
-            padding: 0.8rem 3rem 0.8rem 3rem;
+            border-radius: 12px;
+            padding: 0.85rem 3rem 0.85rem 3rem;
             outline: none; width: 100%;
             transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
             -webkit-appearance: none;
         }
-        /* Username input doesn't need right padding */
         #loginUsername { padding-right: 1rem; }
-
-        .form-group input::placeholder { color: rgba(100,116,139,0.6); }
+        .form-group input::placeholder { color: rgba(148,163,184,0.5); }
         .form-group input:hover {
-            background: rgba(255,255,255,0.08);
-            border-color: rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.07);
+            border-color: rgba(255,255,255,0.16);
         }
         .form-group input:focus {
             background: rgba(14,165,233,0.08);
             border-color: var(--blue);
-            box-shadow: 0 0 0 3px rgba(14,165,233,0.15);
+            box-shadow: 0 0 0 3px rgba(14,165,233,0.16);
         }
         .form-group input.input-error {
             border-color: #ef4444;
@@ -282,24 +182,26 @@
         .pw-toggle {
             position: absolute; right: 13px; top: 50%; transform: translateY(-50%);
             background: none; border: none; cursor: pointer;
-            color: rgba(100,116,139,0.6);
+            color: rgba(148,163,184,0.55);
             padding: 5px; border-radius: 6px;
             display: flex; align-items: center;
-            transition: color 0.2s;
-            line-height: 0;
+            transition: color 0.2s; line-height: 0;
         }
-        .pw-toggle:hover { color: rgba(148,163,184,1); }
+        .pw-toggle:hover { color: rgba(203,213,225,1); }
 
-        /* Remember me */
+        /* Meta row: remember + forgot */
+        .form-meta {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; margin: 0.5rem 0 1.5rem;
+        }
         .remember-row {
             display: flex; align-items: center; gap: 10px;
-            margin: 0.35rem 0 1.5rem; cursor: pointer;
-            user-select: none;
+            cursor: pointer; user-select: none;
         }
         .remember-row input[type="checkbox"] { display: none; }
         .custom-check {
-            width: 20px; height: 20px; border-radius: 6px;
-            border: 1.5px solid rgba(255,255,255,0.15);
+            width: 19px; height: 19px; border-radius: 6px;
+            border: 1.5px solid rgba(255,255,255,0.16);
             background: rgba(255,255,255,0.05);
             display: flex; align-items: center; justify-content: center;
             flex-shrink: 0; transition: all 0.2s ease;
@@ -308,102 +210,77 @@
         .remember-row input[type="checkbox"]:checked ~ .custom-check {
             background: var(--blue); border-color: var(--blue);
         }
-        .remember-row input[type="checkbox"]:checked ~ .custom-check .custom-check-icon {
-            opacity: 1;
+        .remember-row input[type="checkbox"]:checked ~ .custom-check .custom-check-icon { opacity: 1; }
+        .remember-label { font-size: 0.82rem; color: rgba(148,163,184,0.9); }
+
+        .forgot-link {
+            font-size: 0.82rem; font-weight: 600; color: #38bdf8;
+            text-decoration: none; white-space: nowrap;
+            transition: color 0.2s;
         }
-        .remember-label { font-size: 0.85rem; color: rgba(148,163,184,0.9); }
+        .forgot-link:hover { color: #7dd3fc; }
 
         /* Sign in button */
         .login-btn {
-            width: 100%; padding: 0.9rem 1.5rem;
-            border-radius: 11px; border: none; cursor: pointer;
+            width: 100%; padding: 0.95rem 1.5rem;
+            border-radius: 12px; border: none; cursor: pointer;
             font-family: 'Inter', sans-serif;
-            font-size: 1rem; font-weight: 800;
-            background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
-            color: white;
-            box-shadow: 0 6px 16px rgba(14,165,233,0.28);
+            font-size: 1rem; font-weight: 800; letter-spacing: 0.01em;
+            background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 45%, #0369a1 100%);
+            color: #fff;
+            box-shadow: 0 8px 20px -4px rgba(14,165,233,0.5);
             transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s;
             display: flex; align-items: center; justify-content: center; gap: 9px;
             position: relative; overflow: hidden;
         }
         .login-btn::after {
-            content: '';
-            position: absolute; inset: 0;
-            background: linear-gradient(135deg, rgba(255,255,255,0.14), transparent 60%);
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent 55%);
             border-radius: inherit;
         }
         .login-btn:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 10px 22px rgba(14,165,233,0.38);
+            box-shadow: 0 14px 28px -6px rgba(14,165,233,0.6);
         }
         .login-btn:active:not(:disabled) { transform: translateY(0); }
-        .login-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        /* Error box */
+        /* Error box (collapses when hidden — no reserved gap) */
         .error-box {
             display: none; align-items: flex-start; gap: 10px;
             background: rgba(239,68,68,0.1);
             border: 1.5px solid rgba(239,68,68,0.25);
-            border-radius: 10px; padding: 0.8rem 1rem;
-            margin-bottom: 1.4rem;
+            border-radius: 11px; padding: 0.8rem 1rem;
+            margin-bottom: 1.3rem;
         }
-        .error-box.visible {
-            display: flex;
-        }
-        .error-box.shake {
-            animation: shake 0.4s ease;
-        }
+        .error-box.visible { display: flex; }
+        .error-box.shake { animation: shake 0.4s ease; }
         @keyframes shake {
             0%,100% { transform: translateX(0); }
-            20%     { transform: translateX(-6px); }
-            40%     { transform: translateX(6px); }
-            60%     { transform: translateX(-4px); }
-            80%     { transform: translateX(4px); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
         }
         .error-icon { flex-shrink: 0; margin-top: 1px; }
         .error-text { font-size: 0.84rem; font-weight: 600; color: #fca5a5; line-height: 1.5; }
 
-        /* Help note */
-        .help-note {
-            margin-top: 1.4rem;
-            background: rgba(255,255,255,0.025);
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 11px;
-            padding: 0.85rem 1.1rem;
-            display: flex; align-items: center; gap: 10px;
+        /* Alt / footer */
+        .card-divider {
+            height: 1px; margin: 1.6rem 0 1.3rem;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
         }
-        .help-note-icon { flex-shrink: 0; margin-top: 1px; }
-        .help-note p {
-            font-size: 0.8rem; color: rgba(100,116,139,0.9); line-height: 1.6;
+        .alt-row { text-align: center; }
+        .alt-row span { font-size: 0.84rem; color: rgba(148,163,184,0.8); }
+        .alt-link {
+            font-size: 0.84rem; font-weight: 700; color: #38bdf8;
+            text-decoration: none; margin-left: 6px; transition: color 0.2s;
         }
-        .help-note p strong { color: rgba(148,163,184,1); }
+        .alt-link:hover { color: #7dd3fc; }
 
-        /* Footer */
         .login-footer-txt {
-            margin-top: 1.2rem; text-align: center;
-            font-size: 0.72rem; color: rgba(71,85,105,0.8);
-        }
-
-        /* Create account row */
-        .create-account-row {
-            margin-top: 1.4rem;
-            display: flex; align-items: center; justify-content: center; gap: 8px;
-        }
-        .create-account-row span {
-            font-size: 0.85rem; color: rgba(100,116,139,0.8);
-        }
-        .create-account-link {
-            display: inline-flex; align-items: center; gap: 5px;
-            font-size: 0.85rem; font-weight: 700;
-            color: #38bdf8;
-            text-decoration: none;
-            border-bottom: 1.5px solid rgba(56,189,248,0.35);
-            padding-bottom: 1px;
-            transition: color 0.2s, border-color 0.2s;
-        }
-        .create-account-link:hover {
-            color: #7dd3fc;
-            border-color: rgba(125,211,252,0.6);
+            margin-top: 1.4rem; text-align: center;
+            font-size: 0.72rem; color: rgba(100,116,139,0.7);
         }
 
         /* Spinner */
@@ -413,25 +290,10 @@
         /* ════════════════════════════════════
            RESPONSIVE
         ════════════════════════════════════ */
-        @media (max-width: 800px) {
-            body { flex-direction: column; overflow: auto; }
-            .brand-panel {
-                width: 100%; min-height: auto;
-                padding: 2rem 1.8rem 2.2rem;
-            }
-            .brand-tagline h1 { font-size: 1.7rem; }
-            .feature-list { flex-direction: row; flex-wrap: wrap; gap: 0.6rem; }
-            .feature-item { width: calc(50% - 0.3rem); }
-            .brand-bottom { display: none; }
-            .login-panel { padding: 2rem 1.5rem 3rem; border-left: none; box-shadow: none; }
-            .login-header { text-align: center; }
-        }
         @media (max-width: 480px) {
-            .brand-panel { padding: 1.6rem; }
-            .brand-tagline h1 { font-size: 1.45rem; }
-            .feature-list { gap: 0.5rem; }
-            .feature-item { width: 100%; }
-            .login-panel { padding: 1.5rem 1.2rem 2.5rem; }
+            body { padding: 1rem; }
+            .auth-card { padding: 2rem 1.5rem 1.7rem; border-radius: 20px; }
+            .login-header h2 { font-size: 1.4rem; }
         }
     </style>
     <!-- PWA -->
@@ -444,83 +306,27 @@
     <meta name="mobile-web-app-capable" content="yes"></head>
 <body>
 
-    <!-- ═══════════════ LEFT PANEL ═══════════════ -->
-    <div class="brand-panel">
-        <!-- Background orbs -->
-        <div class="orb orb-1"></div>
-        <div class="orb orb-2"></div>
-        <div class="orb orb-3"></div>
+    <!-- Ambient background -->
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
 
-        <div class="brand-top">
-            <!-- Logo -->
-            <div class="brand-logo-row">
-                <div class="brand-logo-icon"><svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="z-index: 2; position: relative; transform: scale(0.85);"><defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.2" /></filter><mask id="crossMask"><rect width="100" height="100" fill="white" /><rect x="42" y="32" width="16" height="36" rx="4" fill="black" /><rect x="32" y="42" width="36" height="16" rx="4" fill="black" /><line x1="15" y1="15" x2="85" y2="85" stroke="black" stroke-width="2.5" stroke-linecap="round" /><line x1="15" y1="85" x2="85" y2="15" stroke="black" stroke-width="2.5" stroke-linecap="round" /></mask><g id="leaf"><path d="M 50 50 C 35 45, 30 30, 30 20 C 30 10, 45 10, 50 20 C 55 10, 70 10, 70 20 C 70 30, 65 45, 50 50 Z" fill="#ffffff" /></g></defs><g mask="url(#crossMask)" filter="url(#shadow)"><use href="#leaf" /><use href="#leaf" transform="rotate(90 50 50)" /><use href="#leaf" transform="rotate(180 50 50)" /><use href="#leaf" transform="rotate(270 50 50)" /></g></svg></div>
-                <div>
-                    <div class="brand-logo-name">Billware</div>
-                    <div class="brand-logo-sub">Smart Billing for Every Pharmacy</div>
-                </div>
+    <!-- ═══════════════ AUTH CARD ═══════════════ -->
+    <main class="auth-wrap">
+        <div class="auth-card">
+
+            <!-- Brand -->
+            <div class="brand">
+                <div class="brand-logo-icon"><svg viewBox="0 0 100 100" width="30" height="30" xmlns="http://www.w3.org/2000/svg" style="position:relative;"><defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.2" /></filter><mask id="crossMask"><rect width="100" height="100" fill="white" /><rect x="42" y="32" width="16" height="36" rx="4" fill="black" /><rect x="32" y="42" width="36" height="16" rx="4" fill="black" /><line x1="15" y1="15" x2="85" y2="85" stroke="black" stroke-width="2.5" stroke-linecap="round" /><line x1="15" y1="85" x2="85" y2="15" stroke="black" stroke-width="2.5" stroke-linecap="round" /></mask><g id="leaf"><path d="M 50 50 C 35 45, 30 30, 30 20 C 30 10, 45 10, 50 20 C 55 10, 70 10, 70 20 C 70 30, 65 45, 50 50 Z" fill="#ffffff" /></g></defs><g mask="url(#crossMask)" filter="url(#shadow)"><use href="#leaf" /><use href="#leaf" transform="rotate(90 50 50)" /><use href="#leaf" transform="rotate(180 50 50)" /><use href="#leaf" transform="rotate(270 50 50)" /></g></svg></div>
+                <div class="brand-name">Billware</div>
             </div>
 
-            <!-- Tagline -->
-            <div class="brand-tagline">
-                <h1>Your pharmacy,<br><span>managed smart.</span></h1>
-                <p>A complete billing and inventory system built for your pharmacy. Fast, simple, and secure.</p>
-            </div>
-
-            <!-- Features -->
-            <div class="feature-list">
-                <div class="feature-item">
-                    <div class="feature-dot blue">
-                        <svg width="15" height="15" fill="none" stroke="#38bdf8" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                        </svg>
-                    </div>
-                    <span class="feature-text"><strong>Smart Billing</strong> — Generate bills instantly</span>
-                </div>
-                <div class="feature-item">
-                    <div class="feature-dot green">
-                        <svg width="15" height="15" fill="none" stroke="#34d399" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/>
-                        </svg>
-                    </div>
-                    <span class="feature-text"><strong>Stock & Purchase</strong> — Track every item</span>
-                </div>
-                <div class="feature-item">
-                    <div class="feature-dot amber">
-                        <svg width="15" height="15" fill="none" stroke="#fbbf24" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                    </div>
-                    <span class="feature-text"><strong>Expiry Alerts</strong> — Never miss a date</span>
-                </div>
-                <div class="feature-item">
-                    <div class="feature-dot purple">
-                        <svg width="15" height="15" fill="none" stroke="#a78bfa" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                        </svg>
-                    </div>
-                    <span class="feature-text"><strong>Reports</strong> — Daily & monthly insights</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="brand-bottom">
-            &copy; 2026 Billware. All rights reserved.
-        </div>
-    </div>
-
-    <!-- ═══════════════ RIGHT PANEL ═══════════════ -->
-    <div class="login-panel">
-        <div class="login-box">
-
+            <!-- Header -->
             <div class="login-header">
-                <h2>Welcome back 👋</h2>
-                <p>Sign in to access your pharmacy dashboard</p>
+                <h2>Welcome back</h2>
+                <p>Sign in to continue to your dashboard</p>
             </div>
 
-            <div class="login-divider"></div>
-
-            <!-- Error box (fixed: uses visibility instead of display-none for re-animation) -->
+            <!-- Error box -->
             <div class="error-box" id="errorBox" role="alert">
                 <span class="error-icon">
                     <svg width="16" height="16" fill="none" stroke="#f87171" stroke-width="2.5" viewBox="0 0 24 24">
@@ -564,12 +370,10 @@
                                autocomplete="current-password" required>
                         <button type="button" class="pw-toggle" id="pwToggle"
                                 onclick="togglePw()" aria-label="Toggle password visibility">
-                            <!-- Eye open -->
                             <svg id="eyeOpen" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                             </svg>
-                            <!-- Eye closed -->
                             <svg id="eyeClosed" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="display:none">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
                             </svg>
@@ -577,16 +381,19 @@
                     </div>
                 </div>
 
-                <!-- Remember Me (FIX: sibling selector approach — checkbox before the check box div) -->
-                <label class="remember-row" id="rememberLabel">
-                    <input type="checkbox" id="rememberMe">
-                    <div class="custom-check">
-                        <svg class="custom-check-icon" width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-                        </svg>
-                    </div>
-                    <span class="remember-label">Keep me signed in on this device</span>
-                </label>
+                <!-- Remember + Forgot -->
+                <div class="form-meta">
+                    <label class="remember-row" id="rememberLabel">
+                        <input type="checkbox" id="rememberMe">
+                        <div class="custom-check">
+                            <svg class="custom-check-icon" width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </div>
+                        <span class="remember-label">Keep me signed in</span>
+                    </label>
+                    <a href="#" class="forgot-link" onclick="showForgotPassword(); return false;">Forgot password?</a>
+                </div>
 
                 <!-- Submit -->
                 <button type="submit" class="login-btn" id="loginBtn">
@@ -597,25 +404,17 @@
                 </button>
             </form>
 
-            <!-- Help note -->
-            <div class="help-note">
-                <span class="help-note-icon">
-                    <svg width="15" height="15" fill="none" stroke="#475569" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                </span>
-                <p>Forgot your password? <a href="#" onclick="showForgotPassword(); return false;" style="color:#0ea5e9; text-decoration:none; font-weight:600;">Click here to reset it</a>.</p>
-            </div>
+            <div class="card-divider"></div>
 
-            <!-- New store sign-up link -->
-            <div style="text-align:center; margin-top:1.8rem; padding-top:1.5rem; border-top:1px solid rgba(255,255,255,0.07);">
-                <span style="font-size:0.82rem; color:rgba(100,116,139,0.8);">New store owner?</span>
-                <a href="setup.html" style="font-size:0.82rem; font-weight:700; color:#38bdf8; text-decoration:none; margin-left:6px; transition:color 0.2s;" onmouseover="this.style.color='#7dd3fc'" onmouseout="this.style.color='#38bdf8'">Create an account →</a>
+            <!-- New store owner -->
+            <div class="alt-row">
+                <span>New store owner?</span>
+                <a href="setup.html" class="alt-link">Create an account →</a>
             </div>
 
             <p class="login-footer-txt">&copy; 2026 Billware &mdash; Secured Access</p>
         </div>
-    </div>
+    </main>
 
     <script>
         // ── Redirect if already logged in ──
@@ -627,7 +426,7 @@
             } catch(e) { /* continue to show login */ }
         })();
 
-        // ── Password visibility toggle (FIX: swap two separate SVGs, no innerHTML replacement) ──
+        // ── Password visibility toggle ──
         function togglePw() {
             const inp    = document.getElementById('loginPassword');
             const open   = document.getElementById('eyeOpen');
@@ -638,14 +437,14 @@
             closed.style.display = isHidden ? ''      : 'none';
         }
 
-        // ── Error display (FIX: remove+re-add shake class so it fires every time) ──
+        // ── Error display ──
         function showError(msg) {
             const box  = document.getElementById('errorBox');
             const text = document.getElementById('errorText');
             text.textContent = msg;
-            box.classList.remove('shake');      // reset
+            box.classList.remove('shake');
             box.classList.add('visible');
-            void box.offsetWidth;               // force reflow to re-trigger animation
+            void box.offsetWidth;
             box.classList.add('shake');
         }
         function hideError() {
@@ -667,7 +466,7 @@
             document.getElementById('btnIcon').outerHTML = `<svg id="btnIcon" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`;
             btnText.textContent = `Welcome, ${name}!`;
             loginBtn.style.background = 'linear-gradient(135deg,#10b981,#059669)';
-            loginBtn.style.boxShadow  = '0 4px 24px rgba(16,185,129,0.45)';
+            loginBtn.style.boxShadow  = '0 8px 20px -4px rgba(16,185,129,0.5)';
         }
 
         function setBtnDefault() {
@@ -870,7 +669,7 @@
             <div class="modal" style="background:#fff; width:90%; max-width:400px; border-radius:20px; padding:2rem; box-shadow:0 20px 40px rgba(0,0,0,0.2); position:relative; animation: fadeUp 0.3s ease;">
                 <button onclick="document.getElementById('forgotPwdModal').style.display='none'" style="position:absolute; top:1rem; right:1.5rem; background:none; border:none; font-size:1.8rem; cursor:pointer; color:#64748b;">&times;</button>
                 <h2 style="margin-top:0; color:#0f172a; font-weight:800; margin-bottom:1.5rem;" id="fpTitle">Reset Password</h2>
-                
+
                 <!-- Section 1: Request Reset -->
                 <div id="fpRequestSection">
                     <p style="font-size:0.9rem; color:#475569; margin-bottom:1rem; line-height:1.5;">Enter your username and the reason for your reset. Your super admin will review it.</p>
@@ -950,7 +749,7 @@
                 const user = document.getElementById('fpReqUsername').value.trim();
                 const reason = document.getElementById('fpReqReason').value.trim();
                 if(!user || !reason) return alert('Please enter both username and reason.');
-                
+
                 const origText = btn.innerText;
                 btn.innerText = 'Submitting...';
                 btn.disabled = true;
@@ -1007,4 +806,3 @@
         </script>
     </body>
 </html>
-
