@@ -608,7 +608,11 @@ window.dbGetBarcodes = dbGetBarcodes;
 // Fetch all barcodes and refresh the local cache. Returns the { code: name } map.
 async function dbSyncBarcodes() {
     const rows = await dbGetBarcodes();
-    const map = {};
+    // MERGE cloud rows on top of any local-only links (union) instead of
+    // overwriting. This keeps links made while the cloud table was missing or
+    // offline — a plain overwrite would wipe them the moment another page loads.
+    let map = {};
+    try { map = JSON.parse(localStorage.getItem('mm_barcodes') || '{}'); } catch (e) { map = {}; }
     rows.forEach(r => { if (r.barcode) map[String(r.barcode)] = r.product_name || ''; });
     try { localStorage.setItem('mm_barcodes', JSON.stringify(map)); } catch (e) {}
     return map;
@@ -626,16 +630,21 @@ window.mmBarcodeLookup = mmBarcodeLookup;
 
 // Link a barcode to a product name (upsert) + update the local cache.
 async function dbAddBarcode(code, name) {
-    const user = _currentUser();
-    if (!user) { console.warn('[db] dbAddBarcode: no user, aborting.'); return { success: false, message: 'Not logged in.' }; }
     const c = String(code || '').trim();
     const n = String(name || '').trim();
     if (!c || !n) return { success: false, message: 'Missing barcode or name.' };
-    const { error } = await _supabase.from('barcodes')
-        .upsert({ user_id: user, barcode: c, product_name: n, updated_at: new Date().toISOString() },
-                { onConflict: 'user_id,barcode' });
-    if (error) { console.error('barcode add:', error); return { success: false, message: error.message }; }
+    // Cache locally FIRST so the scan works instantly on this device even if the
+    // cloud write fails (table missing / offline). A prior version returned early
+    // on cloud error and never cached — losing the link entirely.
     try { const m = JSON.parse(localStorage.getItem('mm_barcodes') || '{}'); m[c] = n; localStorage.setItem('mm_barcodes', JSON.stringify(m)); } catch (e) {}
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbAddBarcode: no user, aborting cloud save.'); return { success: false, message: 'Not logged in.' }; }
+    try {
+        const { error } = await _supabase.from('barcodes')
+            .upsert({ user_id: user, barcode: c, product_name: n, updated_at: new Date().toISOString() },
+                    { onConflict: 'user_id,barcode' });
+        if (error) { console.error('barcode add:', error); return { success: false, message: error.message }; }
+    } catch (e) { console.error('barcode add:', e); return { success: false, message: String((e && e.message) || e) }; }
     return { success: true };
 }
 window.dbAddBarcode = dbAddBarcode;
