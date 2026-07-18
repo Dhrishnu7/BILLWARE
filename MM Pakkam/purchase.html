@@ -659,6 +659,42 @@
         let lineItemCounter = 0;
 
         // ── Create a single line item HTML ──
+        /* ─── Per-row Schedule H toggle (mirrors the Sales page) ──────────────
+           The "H?" chip auto-lights (red) for known Schedule H drugs (shop list or
+           the built-in Drug Master) and can be tapped to override — so a misspelled
+           H drug that name-matching misses can still be marked and logged to the H
+           register. A hand-set chip wins over auto-detection at save. */
+        function _isScheduleHNameP(name) {
+            const nm = (name || '').trim();
+            if (!nm) return false;
+            const key = nm.toLowerCase();
+            try {
+                const list = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
+                if (list.some(d => (d || '').trim().toLowerCase() === key)) return true;
+            } catch (e) {}
+            if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf
+                    && /^H/i.test(DrugMaster.scheduleOf(nm))) return true;
+            return false;
+        }
+        function _styleHTogP(b, on) {
+            b.setAttribute('data-on', on ? '1' : '0');
+            b.textContent = on ? '💊 H' : 'H?';
+            b.style.background  = on ? '#fee2e2' : '#f1f5f9';
+            b.style.borderColor = on ? '#fca5a5' : '#cbd5e1';
+            b.style.color       = on ? '#b91c1c' : '#64748b';
+        }
+        function togglePurchaseH(b) {
+            if (!b) return;
+            b.setAttribute('data-manual', '1');
+            _styleHTogP(b, b.getAttribute('data-on') !== '1');
+        }
+        function updatePurchaseHBadge(lineEl) {
+            if (!lineEl) return;
+            const b = lineEl.querySelector('.li-htog');
+            if (!b || b.getAttribute('data-manual') === '1') return;
+            _styleHTogP(b, _isScheduleHNameP(lineEl.querySelector('.li-productName')?.value));
+        }
+
         function createLineItemHTML(index) {
             const id = `item_${index}`;
             return `
@@ -676,7 +712,12 @@
                     <div class="form-group full-width">
                         <label>Product Name</label>
                         <input type="text" class="li-productName" list="productNameList"
-                               placeholder="Type or select medicine…" autocomplete="off">
+                               placeholder="Type or select medicine…" autocomplete="off"
+                               oninput="updatePurchaseHBadge(this.closest('.line-item'))"
+                               onchange="updatePurchaseHBadge(this.closest('.line-item'))">
+                        <button type="button" class="li-htog" data-on="0" onclick="togglePurchaseH(this)"
+                            title="Schedule H drug? Auto-lights for known H drugs — tap to override. Confirmed H items are logged to the H register."
+                            style="margin-top:6px;font-size:0.66rem;font-weight:800;padding:3px 10px;border-radius:8px;border:1.5px solid #cbd5e1;background:#f1f5f9;color:#64748b;cursor:pointer;letter-spacing:0.03em;">H?</button>
                     </div>
                 </div>
                 <div class="form-grid" style="margin-bottom:0.6rem;">
@@ -890,6 +931,12 @@
                     }
                 }
 
+                // H toggle: only authoritative when the user set it by hand; otherwise
+                // leave undefined so the save-time auto-detection (list + Drug Master) runs.
+                const htog = item.querySelector('.li-htog');
+                const scheduleH = (htog && htog.getAttribute('data-manual') === '1')
+                    ? (htog.getAttribute('data-on') === '1') : undefined;
+
                 records.push({
                     billNo,
                     firm,
@@ -903,6 +950,7 @@
                     rate,
                     gst:        item.querySelector('.li-gst').value,
                     hsn:        item.querySelector('.li-hsn')?.value || '',
+                    scheduleH,
                     savedAt:    new Date().toISOString()
                 });
             });
@@ -979,11 +1027,19 @@
                     const nm = (rec.productName || '').trim();
                     if (!nm) return;
                     const key = nm.toLowerCase();
-                    let isH = shDrugSet.has(key);
-                    if (!isH && typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf
-                            && /^H/i.test(DrugMaster.scheduleOf(nm))) {
-                        isH = true;
-                        learnedNames.push(nm);
+                    let isH;
+                    if (typeof rec.scheduleH === 'boolean') {
+                        // User set the row's H toggle by hand — that wins. This is how a
+                        // misspelled H drug that name-matching misses still gets registered.
+                        isH = rec.scheduleH;
+                        if (isH && !shDrugSet.has(key)) learnedNames.push(nm);
+                    } else {
+                        isH = shDrugSet.has(key);
+                        if (!isH && typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf
+                                && /^H/i.test(DrugMaster.scheduleOf(nm))) {
+                            isH = true;
+                            learnedNames.push(nm);
+                        }
                     }
                     if (isH) shMatches.push(rec);
                 });
@@ -2175,6 +2231,9 @@
             });
 
             if(lineItemCounter===0) addLineItem(); // safety: always have 1 row
+            // Light the "H?" chip on any imported row that's a known Schedule H drug.
+            document.querySelectorAll('#lineItemsContainer .line-item')
+                .forEach(el => updatePurchaseHBadge(el));
             renumberItems();
             updateGrandTotal();
             closeInvoiceImportModal();

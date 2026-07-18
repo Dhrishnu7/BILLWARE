@@ -981,6 +981,7 @@
             const batchSelect  = document.getElementById('batch_' + id);
             if (!productInput || !batchSelect) return;
             const productVal = productInput.value.trim();
+            updateRowHBadge(id);   // light the "H?" chip if this is a known H drug
 
             // Clear batch dropdown and dependent fields
             batchSelect.innerHTML = '<option value="">— Select Batch —</option>';
@@ -1445,6 +1446,45 @@
             calcRowTotal(rowId);
         }
         /* -- Add Row -- */
+        /* ─── Per-row Schedule H toggle ──────────────────────────────────────
+           The "H?" chip on each row marks whether the item is a Schedule H drug.
+           It AUTO-lights (red) when the name is a known H drug (shop list or the
+           built-in Drug Master), and the user can tap to override it — this is how
+           a misspelled H drug that name-matching would miss still gets registered.
+           The chip's state is the source of truth for the OUT auto-log at save. */
+        function _isScheduleHName(name) {
+            const nm = (name || '').trim();
+            if (!nm) return false;
+            const key = nm.toLowerCase();
+            try {
+                const list = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
+                if (list.some(d => (d || '').trim().toLowerCase() === key)) return true;
+            } catch (e) {}
+            if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf
+                    && /^H/i.test(DrugMaster.scheduleOf(nm))) return true;
+            return false;
+        }
+        function _styleHToggle(b, on) {
+            b.setAttribute('data-on', on ? '1' : '0');
+            b.textContent = on ? '💊 H' : 'H?';
+            b.style.background  = on ? '#fee2e2' : '#f1f5f9';
+            b.style.borderColor = on ? '#fca5a5' : '#cbd5e1';
+            b.style.color       = on ? '#b91c1c' : '#64748b';
+        }
+        // Refresh a row's chip from auto-detection, unless the user set it by hand.
+        function updateRowHBadge(id) {
+            const b = document.getElementById('htog_' + id);
+            if (!b || b.getAttribute('data-manual') === '1') return;
+            _styleHToggle(b, _isScheduleHName(document.getElementById('product_' + id)?.value));
+        }
+        // User tapped the chip — flip it and lock it against auto-detection.
+        function toggleHRow(id) {
+            const b = document.getElementById('htog_' + id);
+            if (!b) return;
+            b.setAttribute('data-manual', '1');
+            _styleHToggle(b, b.getAttribute('data-on') !== '1');
+        }
+
         function addRow() {
             rowCount++;
             globalRowCounter++;
@@ -1461,6 +1501,9 @@
                         list="globalMedicineList" placeholder="Medicine name"
                         autocomplete="off" style="min-width:150px;"
                         onchange="autoFillRow(${id})">
+                    <button type="button" id="htog_${id}" data-on="0" onclick="toggleHRow(${id})"
+                        title="Schedule H drug? Tap to mark it — it will be logged to the H register when sold. Auto-lights for known H drugs."
+                        style="margin-top:4px;font-size:0.62rem;font-weight:800;padding:2px 8px;border-radius:8px;border:1.5px solid #cbd5e1;background:#f1f5f9;color:#64748b;cursor:pointer;letter-spacing:0.03em;">H?</button>
                 </td>
                 <td><select class="t-input" id="batch_${id}" style="min-width:210px; max-width:210px; text-overflow: ellipsis;" onchange="selectBatch(${id})"><option value="">— Select Batch —</option></select></td>
                 <td><input class="t-input" id="exp_${id}"   type="month" style="min-width:120px;"></td>
@@ -1618,8 +1661,14 @@
                 const discount = parseFloat(document.getElementById('discount_' + rid)?.value) || 0;
                 const total    = parseFloat(document.getElementById('total_'    + rid)?.value) || 0;
                 const hsn      = (document.getElementById('hsn_'      + rid)?.value || '').trim();
+                // H toggle is authoritative only when the user set it by hand; otherwise
+                // leave undefined so save-time auto-detection (list + Drug Master) runs —
+                // this avoids missing a known H drug whose chip never got a chance to light.
+                const _htog = document.getElementById('htog_' + rid);
+                const scheduleH = (_htog && _htog.getAttribute('data-manual') === '1')
+                    ? (_htog.getAttribute('data-on') === '1') : undefined;
                 if (product && qty > 0) {
-                    medicines.push({ product, batch, exp, pack, qty, mrp, rate, gst, discount, total, hsn });
+                    medicines.push({ product, batch, exp, pack, qty, mrp, rate, gst, discount, total, hsn, scheduleH });
                 }
             });
             return medicines;
@@ -1708,16 +1757,19 @@
                     const nm = (med.product || '').trim();
                     if (!nm) return;
                     const key = nm.toLowerCase();
-                    // Schedule H if it's in the shop's own list OR the built-in Drug
-                    // Master flags it — the safety net so an H drug that dodged
-                    // purchase-time detection still logs an OUT entry when sold.
-                    let isH = shDrugSet.has(key);
-                    if (!isH && typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf
-                            && /^H/i.test(DrugMaster.scheduleOf(nm))) {
-                        isH = true;
-                        learnedNames.push(nm);
-                        shDrugSet.add(key);
+                    // The row's "H?" toggle is the source of truth (it's auto-lit from
+                    // the shop list + Drug Master, and the user can override it — this
+                    // is how a misspelled H drug that name-matching misses still gets
+                    // registered). Fall back to name/master detection for any bill
+                    // built without the toggle (older data, programmatic paths).
+                    let isH;
+                    if (typeof med.scheduleH === 'boolean') {
+                        isH = med.scheduleH;
+                    } else {
+                        isH = shDrugSet.has(key) || (typeof DrugMaster !== 'undefined'
+                            && DrugMaster.scheduleOf && /^H/i.test(DrugMaster.scheduleOf(nm)));
                     }
+                    if (isH && !shDrugSet.has(key)) { learnedNames.push(nm); shDrugSet.add(key); }
                     if (!isH) return;
                     const shEntry = {
                         id:            'auto_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
