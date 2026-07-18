@@ -2268,7 +2268,14 @@
             const btns = Array.from(document.querySelectorAll('button[type="submit"]'));
             return btns.find(b => b.offsetParent !== null && !b.disabled) || document.getElementById('saveBtn');
         }
+        function toggleShortcutsHelp(show) {
+            const m = document.getElementById('shortcutsModal');
+            if (!m) return;
+            if (show === false) m.classList.remove('open'); else m.classList.add('open');
+        }
         document.addEventListener('keydown', function (e) {
+            // F1 → open the shortcuts cheat-sheet (no on-screen button; F1 only)
+            if (e.key === 'F1') { e.preventDefault(); toggleShortcutsHelp(true); return; }
             if (e.ctrlKey && e.key === 'Enter') {
                 e.preventDefault();
                 const btn = _kbSaveBtn();
@@ -2443,5 +2450,39 @@
                 });
             });
         }
-    </script></body>
+    </script>
+
+    <!-- -- Keyboard Shortcuts helper (F1 only — no on-screen button) -- -->
+    <style>
+        #shortcutsModal kbd { display:inline-block; padding:2px 7px; border-radius:6px; border:1.5px solid #cbd5e1; border-bottom-width:3px; background:#f8fafc; font-family:'Inter',monospace; font-size:0.76rem; font-weight:800; color:#0f172a; white-space:nowrap; }
+        #shortcutsModal .sc-item { display:flex; align-items:center; gap:12px; padding:7px 2px; border-bottom:1px solid #f1f5f9; }
+        #shortcutsModal .sc-item:last-child { border-bottom:none; }
+        #shortcutsModal .sc-key { flex:0 0 100px; display:flex; gap:5px; flex-wrap:wrap; }
+        #shortcutsModal .sc-desc { flex:1; color:#475569; font-size:0.86rem; line-height:1.35; }
+    </style>
+    <div class="modal-overlay" id="shortcutsModal">
+        <div class="modal-card" style="max-width:430px;">
+            <div class="modal-hd">
+                <h3>⌨️ Keyboard Shortcuts</h3>
+                <button class="modal-x" type="button" onclick="toggleShortcutsHelp(false)">×</button>
+            </div>
+            <div class="modal-bd">
+                <p style="color:#64748b;font-size:0.82rem;margin-bottom:0.9rem;">Enter a purchase without touching the mouse — tab through with Enter and save with Alt + S.</p>
+                <div class="sc-list">
+                    <div class="sc-item"><span class="sc-key"><kbd>Enter</kbd></span><span class="sc-desc">Next field &mdash; adds a new item on the last field</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Shift</kbd><kbd>Enter</kbd></span><span class="sc-desc">Previous field &mdash; go back to fix an earlier entry</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>F2</kbd></span><span class="sc-desc">Add a new item</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>R</kbd></span><span class="sc-desc">Remove the item you're editing</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>Q</kbd></span><span class="sc-desc">Jump to the Quantity box</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>M</kbd></span><span class="sc-desc">Open the full-invoice import</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>F9</kbd></span><span class="sc-desc">Focus the Save button</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>S</kbd></span><span class="sc-desc">Save all purchases</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Ctrl</kbd><kbd>Enter</kbd></span><span class="sc-desc">Save all purchases</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>Esc</kbd></span><span class="sc-desc">Close a popup, or go Back</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>F1</kbd></span><span class="sc-desc">Show this shortcuts list</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
 </html>
