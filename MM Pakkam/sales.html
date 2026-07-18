@@ -2201,14 +2201,16 @@
             setTimeout(() => document.getElementById('toast').classList.remove('show'), 2500);
         }
 
-        // Close modal when clicking the overlay background
-        document.getElementById('qaModal').addEventListener('click', function(e) {
-            if (e.target === this) closeQuickAdd();
-        });
-
-        // Allow Enter key in qaName to move to next field
-        document.getElementById('qaModal')?.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') closeQuickAdd();
+        // Close modal when clicking the overlay / pressing Escape.
+        // NOTE: #qaModal is defined LATER in the DOM than this script, so binding
+        // immediately used to hit a null element and throw — which halted the rest
+        // of page startup (incl. the cloud data + barcode sync below). Bind after
+        // DOMContentLoaded so the element exists and nothing can crash.
+        document.addEventListener('DOMContentLoaded', function() {
+            const qm = document.getElementById('qaModal');
+            if (!qm) return;
+            qm.addEventListener('click', function(e) { if (e.target === this) closeQuickAdd(); });
+            qm.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeQuickAdd(); });
         });
 
         /* -- Success Modal & Print -- */
