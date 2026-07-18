@@ -969,8 +969,24 @@
             try {
                 const shDrugs = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
                 const shDrugSet = new Set(shDrugs.map(d => d.trim().toLowerCase()));
-                const shMatches = records.filter(rec =>
-                    rec.productName && shDrugSet.has(rec.productName.trim().toLowerCase()));
+                // A purchased item is a Schedule H candidate if it's in the shop's own
+                // H list OR the built-in Drug Master flags it as Schedule H (schedule
+                // starting with "H"). Master-detected names are collected so we can
+                // "learn" them into the shop's H list once the user confirms.
+                const shMatches = [];
+                const learnedNames = [];
+                records.forEach(rec => {
+                    const nm = (rec.productName || '').trim();
+                    if (!nm) return;
+                    const key = nm.toLowerCase();
+                    let isH = shDrugSet.has(key);
+                    if (!isH && typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf
+                            && /^H/i.test(DrugMaster.scheduleOf(nm))) {
+                        isH = true;
+                        learnedNames.push(nm);
+                    }
+                    if (isH) shMatches.push(rec);
+                });
                 if (shMatches.length) {
                     const uniqueNames = [...new Set(shMatches.map(r => r.productName))];
                     const addToRegister = await mmConfirm(
@@ -1016,6 +1032,17 @@
                             }
                         });
                         localStorage.setItem('mm_schedule_h_register', JSON.stringify(shRegister));
+                        // Learn master-detected drugs into the shop's own H list so
+                        // they're recognised instantly next time (and by the H page).
+                        const freshLearn = [...new Set(learnedNames)]
+                            .filter(n => !shDrugSet.has(n.trim().toLowerCase()));
+                        if (freshLearn.length) {
+                            localStorage.setItem('mm_schedule_h_drugs',
+                                JSON.stringify([...shDrugs, ...freshLearn]));
+                            if (typeof dbAddScheduleHDrugs === 'function') {
+                                dbAddScheduleHDrugs(freshLearn).catch(e => console.warn('[SH] learn H drug failed:', e));
+                            }
+                        }
                         console.log(`[SH] Logged ${shMatches.length} Schedule H drug(s) from Purchase ${records[0]?.billNo || ''}`);
                     }
                 }

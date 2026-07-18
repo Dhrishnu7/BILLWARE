@@ -367,5 +367,12 @@
         });
     }
 
-    window.DrugMaster={search,getByName,init};
+    // Sync, seed-only schedule lookup (no network) — returns 'OTC' | 'H' | 'H1' | ''.
+    // Used to flag Schedule H drugs during bulk purchase/import without a query storm.
+    function scheduleOf(name){
+        const m = _seedMap.get((name||'').trim().toLowerCase());
+        return m ? (m.schedule || '') : '';
+    }
+
+    window.DrugMaster={search,getByName,scheduleOf,init};
 })();
