@@ -753,6 +753,51 @@
         </div>
 
         <!-- Forgot Password Modal -->
+        <style>
+            /* Ocean-glass theming for the Forgot Password modal */
+            #forgotPwdModal { background: rgba(4,20,34,0.72) !important; backdrop-filter: blur(8px) !important; -webkit-backdrop-filter: blur(8px) !important; }
+            #forgotPwdModal .modal {
+                background: rgba(9,40,63,0.94) !important;
+                border: 1px solid rgba(120,220,255,0.16);
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 30px 70px -20px rgba(0,0,0,0.8) !important;
+                backdrop-filter: blur(22px) saturate(140%); -webkit-backdrop-filter: blur(22px) saturate(140%);
+            }
+            #forgotPwdModal h2 { color: #eaf6fb !important; letter-spacing: -0.02em; }
+            #forgotPwdModal p  { color: rgba(150,192,214,0.85) !important; }
+            #forgotPwdModal label {
+                color: rgba(150,192,214,0.72) !important;
+                text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.68rem !important; font-weight: 700 !important;
+            }
+            #forgotPwdModal .form-control {
+                width: 100%;
+                background: rgba(255,255,255,0.05) !important;
+                border: 1.5px solid rgba(255,255,255,0.1) !important;
+                border-radius: 12px;
+                padding: 0.72rem 1rem; color: #eaf6fb !important;
+                font-family: 'Inter', sans-serif; font-size: 0.93rem;
+                outline: none; -webkit-appearance: none; transition: all 0.2s ease;
+            }
+            #forgotPwdModal .form-control::placeholder { color: rgba(150,192,214,0.45) !important; }
+            #forgotPwdModal .form-control:hover { background: rgba(255,255,255,0.08) !important; border-color: rgba(255,255,255,0.18) !important; }
+            #forgotPwdModal .form-control:focus {
+                background: rgba(14,165,233,0.08) !important;
+                border-color: #0ea5e9 !important;
+                box-shadow: 0 0 0 3px rgba(14,165,233,0.18);
+            }
+            #forgotPwdModal .btn {
+                border: none; border-radius: 12px; cursor: pointer;
+                font-family: 'Inter', sans-serif; font-weight: 800; font-size: 0.95rem;
+                padding: 0.85rem 1.5rem;
+                background: linear-gradient(135deg, #22d3ee 0%, #0ea5e9 48%, #0369a1 100%) !important;
+                color: #fff !important;
+                box-shadow: 0 8px 22px -4px rgba(34,211,238,0.5);
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+            #forgotPwdModal .btn:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -6px rgba(34,211,238,0.62); }
+            #forgotPwdModal a { color: #38bdf8 !important; }
+            #forgotPwdModal a:hover { color: #7dd3fc !important; }
+            #forgotPwdModal button:not(.btn) { color: #94a3b8 !important; }
+        </style>
         <div class="modal-overlay" id="forgotPwdModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); backdrop-filter:blur(4px); z-index:9999; align-items:center; justify-content:center;">
             <div class="modal" style="background:#fff; width:90%; max-width:400px; border-radius:20px; padding:2rem; box-shadow:0 20px 40px rgba(0,0,0,0.2); position:relative; animation: fadeUp 0.3s ease;">
                 <button onclick="document.getElementById('forgotPwdModal').style.display='none'" style="position:absolute; top:1rem; right:1.5rem; background:none; border:none; font-size:1.8rem; cursor:pointer; color:#64748b;">&times;</button>
