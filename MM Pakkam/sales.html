@@ -674,8 +674,9 @@
                                 + New Doctor
                             </button>
                         </div>
-                        <input type="text" id="doctorName" list="doctorList" placeholder="Select or type…" autocomplete="off">
+                        <input type="text" id="doctorName" list="doctorList" placeholder="Select or type…" autocomplete="off" oninput="updateRxDoctorWarning()">
                         <datalist id="doctorList"></datalist>
+                        <div id="rxDoctorWarn" style="display:none; margin-top:6px; font-size:0.76rem; font-weight:700; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:6px 10px;">⚠️ This bill has a Schedule H drug — enter the doctor to avoid a "Missing Rx" in the register.</div>
                     </div>
                 </div>
 
@@ -982,6 +983,7 @@
             if (!productInput || !batchSelect) return;
             const productVal = productInput.value.trim();
             updateRowHBadge(id);   // light the "H?" chip if this is a known H drug
+            updateRxDoctorWarning();
 
             // Clear batch dropdown and dependent fields
             batchSelect.innerHTML = '<option value="">— Select Batch —</option>';
@@ -1421,6 +1423,7 @@
                         r.querySelector('.row-num').textContent = i++;
                     });
                     updateUI();
+                    updateRxDoctorWarning();
                 }, 200);
             }
         }
@@ -1483,6 +1486,37 @@
             if (!b) return;
             b.setAttribute('data-manual', '1');
             _styleHToggle(b, b.getAttribute('data-on') !== '1');
+            updateRxDoctorWarning();
+        }
+
+        /* ── Schedule H prescription reminder ─────────────────────────────────
+           If the bill has a Schedule H drug but no doctor is entered, flag the
+           Doctor field — an H sale with no doctor becomes a "Missing Rx" in the
+           register. Purely a reminder; it never blocks the sale. */
+        function _billHasScheduleH() {
+            const rows = document.querySelectorAll('#medicineRows tr');
+            for (const row of rows) {
+                const pEl = row.querySelector('[id^="product_"]');
+                if (!pEl) continue;
+                const name = (pEl.value || '').trim();
+                if (!name) continue;
+                const rid = pEl.id.replace('product_', '');
+                const b = document.getElementById('htog_' + rid);
+                const isH = (b && b.getAttribute('data-manual') === '1')
+                    ? (b.getAttribute('data-on') === '1')
+                    : _isScheduleHName(name);
+                if (isH) return true;
+            }
+            return false;
+        }
+        function updateRxDoctorWarning() {
+            const doc  = document.getElementById('doctorName');
+            const warn = document.getElementById('rxDoctorWarn');
+            if (!doc || !warn) return;
+            const need = _billHasScheduleH() && !doc.value.trim();
+            doc.style.borderColor = need ? '#dc2626' : '';
+            doc.style.background  = need ? '#fef2f2' : '';
+            warn.style.display    = need ? 'block' : 'none';
         }
 
         function addRow() {
@@ -1695,6 +1729,21 @@
                 document.getElementById('customerName').focus();
                 _isSaving = false;
                 return;
+            }
+
+            // Schedule H compliance: an H drug billed with no doctor becomes a
+            // "Missing Rx" in the register — give the user a chance to add it first.
+            const _docVal = document.getElementById('doctorName').value.trim();
+            if (!_docVal && _billHasScheduleH()) {
+                const goBack = await mmConfirm(
+                    'This bill has a Schedule H drug but no doctor is entered.\n\nWithout a doctor it will show as "Missing Rx" in the Schedule H register.',
+                    { title: '⚠️ Missing doctor for Schedule H', okText: 'Go back & add doctor', cancelText: 'Save anyway' }
+                );
+                if (goBack) {
+                    document.getElementById('doctorName').focus();
+                    updateRxDoctorWarning();
+                    return;
+                }
             }
 
             _isSaving = true;
