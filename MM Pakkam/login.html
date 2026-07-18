@@ -200,13 +200,15 @@
             display: flex;
             flex-direction: column;
             background: #0f172a;
-            padding: 2rem;
+            padding: 2rem 2.5rem;
             overflow-y: auto;
+            border-left: 1px solid rgba(255,255,255,0.06);
+            box-shadow: -30px 0 60px rgba(0,0,0,0.25);
         }
 
         .login-box {
             width: 100%;
-            max-width: 420px;
+            max-width: 400px;
             margin: auto;
             flex-shrink: 0;
             animation: boxIn 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
@@ -217,25 +219,25 @@
         }
 
         /* Login header */
-        .login-header { margin-bottom: 2.2rem; text-align: center; }
+        .login-header { margin-bottom: 1.75rem; text-align: left; }
         .login-header h2 {
-            font-size: 1.8rem; font-weight: 900; color: white;
-            letter-spacing: -0.03em; margin-bottom: 0.4rem;
+            font-size: 1.7rem; font-weight: 900; color: white;
+            letter-spacing: -0.03em; margin-bottom: 0.45rem;
         }
-        .login-header p { font-size: 0.88rem; color: rgba(100,116,139,1); }
+        .login-header p { font-size: 0.9rem; color: rgba(148,163,184,0.85); line-height: 1.5; }
 
         /* Divider */
         .login-divider {
             height: 1px;
-            background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent);
-            margin-bottom: 2rem;
+            background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02) 60%, transparent);
+            margin-bottom: 1.75rem;
         }
 
         /* Form groups */
-        .form-group { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; }
+        .form-group { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.1rem; }
         .form-group label {
-            font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em;
-            text-transform: uppercase; color: rgba(100,116,139,1);
+            font-size: 0.7rem; font-weight: 700; letter-spacing: 0.09em;
+            text-transform: uppercase; color: rgba(148,163,184,0.75);
         }
 
         .input-wrap { position: relative; }
@@ -249,11 +251,11 @@
         .form-group input {
             font-family: 'Inter', sans-serif;
             font-size: 0.95rem; color: white;
-            background: rgba(255,255,255,0.05);
-            border: 1.5px solid rgba(255,255,255,0.1);
-            border-radius: 12px;
+            background: rgba(255,255,255,0.04);
+            border: 1.5px solid rgba(255,255,255,0.09);
+            border-radius: 11px;
             /* FIX: Add right padding so text doesn't overlap the eye toggle */
-            padding: 0.85rem 3rem 0.85rem 3rem;
+            padding: 0.8rem 3rem 0.8rem 3rem;
             outline: none; width: 100%;
             transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
             -webkit-appearance: none;
@@ -291,7 +293,7 @@
         /* Remember me */
         .remember-row {
             display: flex; align-items: center; gap: 10px;
-            margin-bottom: 1.8rem; cursor: pointer;
+            margin: 0.35rem 0 1.5rem; cursor: pointer;
             user-select: none;
         }
         .remember-row input[type="checkbox"] { display: none; }
@@ -314,12 +316,12 @@
         /* Sign in button */
         .login-btn {
             width: 100%; padding: 0.9rem 1.5rem;
-            border-radius: 12px; border: none; cursor: pointer;
+            border-radius: 11px; border: none; cursor: pointer;
             font-family: 'Inter', sans-serif;
             font-size: 1rem; font-weight: 800;
             background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
             color: white;
-            box-shadow: 0 4px 24px rgba(14,165,233,0.4);
+            box-shadow: 0 6px 16px rgba(14,165,233,0.28);
             transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s;
             display: flex; align-items: center; justify-content: center; gap: 9px;
             position: relative; overflow: hidden;
@@ -327,12 +329,12 @@
         .login-btn::after {
             content: '';
             position: absolute; inset: 0;
-            background: linear-gradient(135deg, rgba(255,255,255,0.12), transparent);
+            background: linear-gradient(135deg, rgba(255,255,255,0.14), transparent 60%);
             border-radius: inherit;
         }
         .login-btn:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(14,165,233,0.55);
+            box-shadow: 0 10px 22px rgba(14,165,233,0.38);
         }
         .login-btn:active:not(:disabled) { transform: translateY(0); }
         .login-btn:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -365,12 +367,12 @@
 
         /* Help note */
         .help-note {
-            margin-top: 1.8rem;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 12px;
-            padding: 1rem 1.2rem;
-            display: flex; align-items: flex-start; gap: 10px;
+            margin-top: 1.4rem;
+            background: rgba(255,255,255,0.025);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 11px;
+            padding: 0.85rem 1.1rem;
+            display: flex; align-items: center; gap: 10px;
         }
         .help-note-icon { flex-shrink: 0; margin-top: 1px; }
         .help-note p {
@@ -423,7 +425,8 @@
             .feature-list { flex-direction: row; flex-wrap: wrap; gap: 0.6rem; }
             .feature-item { width: calc(50% - 0.3rem); }
             .brand-bottom { display: none; }
-            .login-panel { padding: 2rem 1.5rem 3rem; }
+            .login-panel { padding: 2rem 1.5rem 3rem; border-left: none; box-shadow: none; }
+            .login-header { text-align: center; }
         }
         @media (max-width: 480px) {
             .brand-panel { padding: 1.6rem; }
