@@ -255,13 +255,11 @@
 
         /* â”€â”€ Error box â”€â”€ */
         .error-box {
-            display: flex; align-items: flex-start; gap: 10px;
+            display: none; align-items: flex-start; gap: 10px;
             background: rgba(239,68,68,0.1); border: 1.5px solid rgba(239,68,68,0.25);
             border-radius: 10px; padding: 0.8rem 1rem; margin-bottom: 1.2rem;
-            visibility: hidden; opacity: 0;
-            transition: opacity 0.2s, visibility 0.2s;
         }
-        .error-box.visible { visibility: visible; opacity: 1; }
+        .error-box.visible { display: flex; }
         .error-box.shake   { animation: shake 0.4s ease; }
         @keyframes shake {
             0%,100%{ transform:translateX(0) }
