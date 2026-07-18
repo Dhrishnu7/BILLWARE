@@ -290,6 +290,49 @@
         .spinner { animation: spin 0.7s linear infinite; display: inline-block; }
 
         /* ════════════════════════════════════
+           PHARMACY ICON FIELD (background)
+        ════════════════════════════════════ */
+        .rx-field {
+            position: absolute; inset: 0; z-index: 1;
+            pointer-events: none; overflow: hidden;
+        }
+        .rx-ico {
+            --r: 0deg;
+            position: absolute;
+            color: #d4af37;
+            stroke: currentColor; fill: none;
+            stroke-width: 1.6;
+            stroke-linecap: round; stroke-linejoin: round;
+            animation: floaty 16s ease-in-out infinite;
+            will-change: transform;
+        }
+        .rx-ico.solid { fill: currentColor; stroke: none; }
+        @keyframes floaty {
+            0%, 100% { transform: translateY(0) rotate(var(--r)); }
+            50%      { transform: translateY(-18px) rotate(calc(var(--r) + 5deg)); }
+        }
+
+        .i1  { top: 11%; left: 7%;  width: 48px; opacity: 0.11; --r: -18deg; animation-duration: 15s; }
+        .i2  { top: 22%; left: 84%; width: 42px; opacity: 0.10; --r: 12deg;  animation-duration: 18s; animation-delay: 1s; }
+        .i3  { top: 67%; left: 5%;  width: 54px; opacity: 0.09; --r: 8deg;   animation-duration: 17s; animation-delay: 0.5s; }
+        .i4  { top: 77%; left: 87%; width: 50px; opacity: 0.11; --r: -6deg;  animation-duration: 19s; animation-delay: 2s; }
+        .i5  { top: 45%; left: 91%; width: 66px; opacity: 0.08; --r: 0deg;   animation-duration: 14s; animation-delay: 1.5s; }
+        .i6  { top: 84%; left: 38%; width: 40px; opacity: 0.07; --r: 6deg;   animation-duration: 20s; animation-delay: 3s; }
+        .i7  { top: 7%;  left: 58%; width: 30px; opacity: 0.09; --r: 0deg;   animation-duration: 13s; animation-delay: 0.8s; }
+        .i8  { top: 58%; left: 72%; width: 38px; opacity: 0.08; --r: 38deg;  animation-duration: 21s; animation-delay: 2.5s; }
+        .i9  { top: 88%; left: 12%; width: 34px; opacity: 0.08; --r: -20deg; animation-duration: 16s; animation-delay: 1.2s; }
+        .i10 { top: 33%; left: 12%; width: 30px; opacity: 0.07; --r: -10deg; animation-duration: 18s; animation-delay: 3.5s; }
+        .i11 { top: 15%; left: 40%; width: 62px; opacity: 0.05; --r: 4deg;   animation-duration: 22s; animation-delay: 1.8s; }
+        .i12 { top: 62%; left: 30%; width: 26px; opacity: 0.06; --r: -14deg; animation-duration: 15s; animation-delay: 2.2s; }
+
+        @media (max-width: 620px) {
+            .i2, .i5, .i8, .i11, .i12 { display: none; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .rx-ico, .bg-orb, .brand-logo-icon::after { animation: none; }
+        }
+
+        /* ════════════════════════════════════
            RESPONSIVE
         ════════════════════════════════════ */
         @media (max-width: 480px) {
@@ -311,6 +354,34 @@
     <!-- Ambient background -->
     <div class="bg-orb orb-a"></div>
     <div class="bg-orb orb-b"></div>
+
+    <!-- ═══════════════ PHARMACY ICON FIELD ═══════════════ -->
+    <div class="rx-field" aria-hidden="true">
+        <!-- capsule -->
+        <svg class="rx-ico i1" viewBox="0 0 24 24"><rect x="2.5" y="8.5" width="19" height="7" rx="3.5"/><line x1="12" y1="8.5" x2="12" y2="15.5"/></svg>
+        <!-- tablet (split pill) -->
+        <svg class="rx-ico i2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
+        <!-- pharmacy cross -->
+        <svg class="rx-ico i3" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg>
+        <!-- Rx -->
+        <svg class="rx-ico i4 solid" viewBox="0 0 24 24"><text x="12" y="18" text-anchor="middle" font-family="Georgia, serif" font-size="19" font-weight="700">℞</text></svg>
+        <!-- heartbeat -->
+        <svg class="rx-ico i5" viewBox="0 0 24 24"><path d="M2 12h4l2.2-5.5 3.6 11 2.2-5.5H22"/></svg>
+        <!-- medicine bottle -->
+        <svg class="rx-ico i6" viewBox="0 0 24 24"><path d="M9 8V5h6v3"/><rect x="6.5" y="8" width="11" height="12.5" rx="2.5"/><line x1="9.5" y1="12.5" x2="14.5" y2="12.5"/></svg>
+        <!-- medical plus -->
+        <svg class="rx-ico i7" viewBox="0 0 24 24"><path d="M12 4.5v15M4.5 12h15"/></svg>
+        <!-- capsule -->
+        <svg class="rx-ico i8" viewBox="0 0 24 24"><rect x="2.5" y="8.5" width="19" height="7" rx="3.5"/><line x1="12" y1="8.5" x2="12" y2="15.5"/></svg>
+        <!-- tablet -->
+        <svg class="rx-ico i9" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
+        <!-- medical plus -->
+        <svg class="rx-ico i10" viewBox="0 0 24 24"><path d="M12 4.5v15M4.5 12h15"/></svg>
+        <!-- pharmacy cross -->
+        <svg class="rx-ico i11" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg>
+        <!-- heartbeat -->
+        <svg class="rx-ico i12" viewBox="0 0 24 24"><path d="M2 12h4l2.2-5.5 3.6 11 2.2-5.5H22"/></svg>
+    </div>
 
     <!-- ═══════════════ AUTH CARD ═══════════════ -->
     <main class="auth-wrap">
