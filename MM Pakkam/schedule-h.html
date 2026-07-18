@@ -457,6 +457,30 @@
         tbody tr:last-child td { border-bottom: none; }
         tbody td:last-child { text-align: center; }
 
+        /* ── Register log: bounded scroll box so the horizontal scrollbar is always
+              reachable, sticky header, and frozen Type + Drug columns (scoped to
+              .reg-wrap so the other tabs' tables are unaffected). ── */
+        .reg-wrap {
+            max-height: 65vh;
+            overflow: auto;
+            overflow-x: auto;
+            overflow-y: auto;
+        }
+        .reg-wrap thead th { position: sticky; top: 0; z-index: 2; }
+        .reg-wrap thead th:nth-child(1), .reg-wrap tbody td:nth-child(1) {
+            position: sticky; left: 0; width: 104px; min-width: 104px; z-index: 1;
+        }
+        .reg-wrap thead th:nth-child(2), .reg-wrap tbody td:nth-child(2) {
+            position: sticky; left: 104px; min-width: 130px; z-index: 1;
+            box-shadow: 3px 0 5px -2px rgba(0,0,0,0.10);
+        }
+        .reg-wrap thead th:nth-child(1), .reg-wrap thead th:nth-child(2) { z-index: 3; }
+        .reg-wrap tbody td:nth-child(1), .reg-wrap tbody td:nth-child(2) { background: #fffdfd; }
+        @media print {
+            .reg-wrap { max-height: none; overflow: visible; }
+            .reg-wrap thead th, .reg-wrap tbody td { position: static; box-shadow: none; }
+        }
+
         .empty-state {
             text-align: center;
             padding: 3rem 1rem;
@@ -1297,17 +1321,17 @@
                         <span class="filter-count" id="logCount"></span>
                     </div>
 
-                    <div class="table-wrap">
+                    <div class="table-wrap reg-wrap">
                         <table>
                             <thead>
                                 <tr>
                                     <th>Type</th>
+                                    <th>Drug</th>
                                     <th>Date</th>
                                     <th>Bill No</th>
                                     <th>Patient / Source</th>
                                     <th>Doctor</th>
                                     <th>Reg. No</th>
-                                    <th>Drug</th>
                                     <th>Batch</th>
                                     <th>Exp</th>
                                     <th>Pack</th>
@@ -2620,6 +2644,7 @@
                 return `
                 <tr style="animation: rowSlideIn 0.3s ease forwards;${isMissingRx ? 'background:rgba(254,249,195,0.4);' : ''}">
                     <td>${typeBadge}</td>
+                    <td style="font-weight:700; color:#991b1b;">${esc(entry.drugName)}</td>
                     <td style="white-space:nowrap; font-weight:600; font-size:0.82rem;">${dateStr}${timeStr ? `<div style="font-size:0.72rem; color:#94a3b8; font-weight:500;">🕒 ${timeStr}</div>` : ''}</td>
                     <td style="font-size:0.84rem; font-weight:600;">${esc(entry.billNo || '—')}</td>
                     <td>
@@ -2628,7 +2653,6 @@
                     </td>
                     <td>${docCell}</td>
                     <td style="font-size:0.82rem; color:#64748b;">${esc(entry.doctorRegNo || '—')}</td>
-                    <td style="font-weight:700; color:#991b1b;">${esc(entry.drugName)}</td>
                     <td style="font-size:0.84rem;">${esc(entry.batchNo || '—')}</td>
                     <td style="font-size:0.84rem;">${esc(entry.expireDate || '—')}</td>
                     <td style="font-size:0.84rem;">${esc(entry.pack || '—')}</td>
