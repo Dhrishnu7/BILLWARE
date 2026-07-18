@@ -18,7 +18,13 @@
         body {
             font-family: 'Inter', sans-serif;
             min-height: 100vh;
-            background: #0f172a;
+            color: #eaf6fb;
+            background:
+                radial-gradient(1100px 760px at 12% -8%, rgba(34,211,238,0.24), transparent 60%),
+                radial-gradient(980px 660px at 106% 110%, rgba(2,132,199,0.30), transparent 58%),
+                radial-gradient(720px 540px at 86% 2%, rgba(14,165,233,0.16), transparent 62%),
+                linear-gradient(160deg, #05263f 0%, #041f36 52%, #062b47 100%);
+            background-attachment: fixed;
             display: flex;
             justify-content: center;
             overflow-x: hidden;
@@ -26,35 +32,74 @@
             position: relative;
         }
 
-        /* Background orbs */
+        /* Background orbs (ocean) */
         .orb {
             position: fixed; border-radius: 50%;
-            filter: blur(80px); pointer-events: none;
+            filter: blur(110px); pointer-events: none;
         }
         .orb-1 {
-            width: 520px; height: 520px; opacity: 0.15;
-            background: radial-gradient(circle, #10b981, #059669);
+            width: 520px; height: 520px; opacity: 0.34;
+            background: radial-gradient(circle, #22d3ee, transparent 70%);
             top: -180px; right: -100px;
-            animation: orbFloat 11s ease-in-out infinite;
+            animation: orbFloat 15s ease-in-out infinite;
         }
         .orb-2 {
-            width: 440px; height: 440px; opacity: 0.13;
-            background: radial-gradient(circle, #0ea5e9, #0284c7);
+            width: 440px; height: 440px; opacity: 0.28;
+            background: radial-gradient(circle, #0284c7, transparent 70%);
             bottom: -120px; left: -80px;
-            animation: orbFloat 9s ease-in-out infinite reverse;
+            animation: orbFloat 18s ease-in-out infinite reverse;
         }
         @keyframes orbFloat {
             0%,100% { transform: translate(0,0); }
             50%      { transform: translate(16px, -18px); }
         }
 
-        /* Grid overlay */
+        /* Grid overlay (faded at edges) */
         body::before {
             content: ''; position: fixed; inset: 0;
             background-image:
-                linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
-            background-size: 44px 44px; pointer-events: none;
+                linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
+            background-size: 50px 50px; pointer-events: none;
+            -webkit-mask-image: radial-gradient(circle at 50% 42%, #000 0%, transparent 74%);
+                    mask-image: radial-gradient(circle at 50% 42%, #000 0%, transparent 74%);
+        }
+
+        /* ── Pharmacy / hospital icon field ── */
+        .rx-field { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+        .rx-ico {
+            --r: 0deg; position: absolute;
+            color: #5fe1f5; stroke: currentColor; fill: none;
+            stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
+            filter: drop-shadow(0 0 9px rgba(34,211,238,0.45));
+            animation: floaty 16s ease-in-out infinite; will-change: transform;
+        }
+        .rx-ico.solid { fill: currentColor; stroke: none; }
+        @keyframes floaty {
+            0%, 100% { transform: translateY(0) rotate(var(--r)); }
+            50%      { transform: translateY(-18px) rotate(calc(var(--r) + 5deg)); }
+        }
+        .i1  { top: 10%; left: 6%;  width: 54px; opacity: 0.22; --r: -18deg; animation-duration: 15s; }
+        .i2  { top: 20%; left: 85%; width: 48px; opacity: 0.20; --r: 12deg;  animation-duration: 18s; animation-delay: 1s; }
+        .i3  { top: 65%; left: 5%;  width: 58px; opacity: 0.19; --r: 8deg;   animation-duration: 17s; animation-delay: 0.5s; }
+        .i4  { top: 76%; left: 87%; width: 54px; opacity: 0.22; --r: -6deg;  animation-duration: 19s; animation-delay: 2s; }
+        .i5  { top: 44%; left: 90%; width: 66px; opacity: 0.18; --r: 0deg;   animation-duration: 14s; animation-delay: 1.5s; }
+        .i6  { top: 83%; left: 35%; width: 46px; opacity: 0.17; --r: 6deg;   animation-duration: 20s; animation-delay: 3s; }
+        .i7  { top: 6%;  left: 56%; width: 34px; opacity: 0.20; --r: 0deg;   animation-duration: 13s; animation-delay: 0.8s; }
+        .i8  { top: 55%; left: 73%; width: 48px; opacity: 0.18; --r: 10deg;  animation-duration: 21s; animation-delay: 2.5s; }
+        .i9  { top: 87%; left: 9%;  width: 40px; opacity: 0.18; --r: -20deg; animation-duration: 16s; animation-delay: 1.2s; }
+        .i10 { top: 30%; left: 10%; width: 44px; opacity: 0.17; --r: -10deg; animation-duration: 18s; animation-delay: 3.5s; }
+        .i11 { top: 12%; left: 37%; width: 58px; opacity: 0.14; --r: 4deg;   animation-duration: 22s; animation-delay: 1.8s; }
+        .i12 { top: 60%; left: 27%; width: 40px; opacity: 0.15; --r: -14deg; animation-duration: 15s; animation-delay: 2.2s; }
+        .i13 { top: 40%; left: 17%; width: 46px; opacity: 0.16; --r: 6deg;   animation-duration: 19s; animation-delay: 0.4s; }
+        .i14 { top: 8%;  left: 74%; width: 46px; opacity: 0.18; --r: -8deg;  animation-duration: 17s; animation-delay: 2.8s; }
+        .i15 { top: 70%; left: 55%; width: 50px; opacity: 0.15; --r: 12deg;  animation-duration: 20s; animation-delay: 1.1s; }
+        .i16 { top: 88%; left: 66%; width: 42px; opacity: 0.18; --r: -6deg;  animation-duration: 16s; animation-delay: 3.2s; }
+        @media (max-width: 620px) {
+            .i2, .i5, .i8, .i11, .i14, .i15 { display: none; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .rx-ico, .orb, .logo-icon::after { animation: none; }
         }
 
         /* â”€â”€ Wrap & Card â”€â”€ */
@@ -68,13 +113,12 @@
 
         .setup-card {
             width: 100%;
-            background: rgba(255,255,255,0.06);
-            backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
-            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(9, 40, 63, 0.58);
+            backdrop-filter: blur(24px) saturate(140%); -webkit-backdrop-filter: blur(24px) saturate(140%);
+            border: 1px solid rgba(120,220,255,0.15);
             border-radius: 28px; padding: 2.8rem;
-            box-shadow: 0 0 0 1px rgba(255,255,255,0.05),
-                        0 40px 80px rgba(0,0,0,0.5),
-                        inset 0 1px 0 rgba(255,255,255,0.1);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.08),
+                        0 40px 80px -20px rgba(0,0,0,0.7);
             animation: cardIn 0.55s cubic-bezier(0.175,0.885,0.32,1.275) forwards;
         }
         @keyframes cardIn {
@@ -89,7 +133,7 @@
         }
         .logo-icon {
             width: 48px; height: 48px; border-radius: 15px;
-            background: linear-gradient(135deg, #0284c7, #0ea5e9, #10b981);
+            background: linear-gradient(135deg, #0284c7, #0ea5e9, #38bdf8);
             display: flex; align-items: center; justify-content: center;
             color: white; font-weight: 900; font-size: 1.1rem;
             box-shadow: 0 6px 24px rgba(14,165,233,0.45);
@@ -113,8 +157,8 @@
             text-transform: uppercase; margin-bottom: 1.4rem;
         }
         .badge-owner  {
-            background: linear-gradient(135deg, rgba(245,158,11,0.18), rgba(245,158,11,0.08));
-            border: 1px solid rgba(245,158,11,0.35); color: #fbbf24;
+            background: linear-gradient(135deg, rgba(34,211,238,0.18), rgba(14,165,233,0.08));
+            border: 1px solid rgba(56,189,248,0.4); color: #67e8f9;
         }
         .badge-worker {
             background: linear-gradient(135deg, rgba(139,92,246,0.18), rgba(139,92,246,0.08));
@@ -238,8 +282,8 @@
             margin-top: 1.6rem; position: relative; overflow: hidden;
         }
         .submit-btn.owner-btn {
-            background: linear-gradient(135deg, #f59e0b, #d97706);
-            box-shadow: 0 4px 20px rgba(245,158,11,0.4);
+            background: linear-gradient(135deg, #22d3ee 0%, #0ea5e9 48%, #0369a1 100%);
+            box-shadow: 0 8px 22px -4px rgba(34,211,238,0.5);
         }
         .submit-btn.worker-btn {
             background: linear-gradient(135deg, #10b981, #059669);
@@ -254,7 +298,7 @@
             background: linear-gradient(135deg, rgba(255,255,255,0.12), transparent);
         }
         .submit-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(16,185,129,0.55); }
-        .submit-btn.owner-btn:hover:not(:disabled) { box-shadow: 0 8px 28px rgba(245,158,11,0.55); }
+        .submit-btn.owner-btn:hover:not(:disabled) { box-shadow: 0 14px 30px -6px rgba(34,211,238,0.62); }
         .submit-btn.danger-btn:hover:not(:disabled) { box-shadow: 0 8px 28px rgba(239,68,68,0.55); }
         .submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -316,7 +360,7 @@
     </style>
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#0d9488">
+    <meta name="theme-color" content="#041f36">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Billware">
@@ -325,6 +369,26 @@
 <body>
     <div class="orb orb-1"></div>
     <div class="orb orb-2"></div>
+
+    <!-- ═══════════════ PHARMACY / HOSPITAL ICON FIELD ═══════════════ -->
+    <div class="rx-field" aria-hidden="true">
+        <svg class="rx-ico i1" viewBox="0 0 24 24"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>
+        <svg class="rx-ico i2" viewBox="0 0 24 24"><path d="M6 3H5a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M9 15v2a6 6 0 0 0 12 0v-3"/><circle cx="21" cy="12" r="2"/></svg>
+        <svg class="rx-ico i3" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg>
+        <svg class="rx-ico i4 solid" viewBox="0 0 24 24"><text x="12" y="18" text-anchor="middle" font-family="Georgia, serif" font-size="19" font-weight="700">℞</text></svg>
+        <svg class="rx-ico i5" viewBox="0 0 24 24"><path d="M2 12h4l2.2-5.5 3.6 11 2.2-5.5H22"/></svg>
+        <svg class="rx-ico i6" viewBox="0 0 24 24"><path d="M9 8V5h6v3"/><rect x="6.5" y="8" width="11" height="12.5" rx="2.5"/><line x1="9.5" y1="12.5" x2="14.5" y2="12.5"/></svg>
+        <svg class="rx-ico i7" viewBox="0 0 24 24"><path d="M12 4.5v15M4.5 12h15"/></svg>
+        <svg class="rx-ico i8" viewBox="0 0 24 24"><path d="m18 2 4 4"/><path d="m17 7 3-3"/><path d="M19 9 8.7 19.3c-1 1-2.5 1-3.4 0l-.6-.6c-1-1-1-2.5 0-3.4L14 5"/><path d="m9 11 4 4"/><path d="m5 19-3 3"/><path d="m14 4 6 6"/></svg>
+        <svg class="rx-ico i9" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
+        <svg class="rx-ico i10" viewBox="0 0 24 24"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/><path d="M10 9h4"/></svg>
+        <svg class="rx-ico i11" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M12 9v4M10 11h4"/></svg>
+        <svg class="rx-ico i12" viewBox="0 0 24 24"><path d="M3 10h18"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v3"/><path d="M8 20h8"/><path d="M14.5 3 18 7"/></svg>
+        <svg class="rx-ico i13" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M12 11v5M9.5 13.5h5"/></svg>
+        <svg class="rx-ico i14" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/></svg>
+        <svg class="rx-ico i15" viewBox="0 0 24 24"><rect x="2.5" y="8.5" width="19" height="7" rx="3.5"/><line x1="12" y1="8.5" x2="12" y2="15.5"/></svg>
+        <svg class="rx-ico i16" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg>
+    </div>
 
     <div class="setup-wrap">
         <div class="setup-card" id="setupCard">
