@@ -1210,6 +1210,14 @@
             if (!code) { box.focus(); return; }
 
             let name = (typeof mmBarcodeLookup === 'function') ? mmBarcodeLookup(code) : '';
+            if (!name && typeof dbSyncBarcodes === 'function') {
+                // Not in local cache — pull the latest links from the cloud and
+                // re-check before treating it as new. Covers a code just linked on
+                // another page/device that hasn't synced to this tab yet.
+                _bcMsg('Checking…');
+                try { await dbSyncBarcodes(); } catch (e) {}
+                name = mmBarcodeLookup(code);
+            }
             if (!name) {
                 // Learn-as-you-go: ask which medicine this new barcode is.
                 const entered = await mmPrompt(
