@@ -472,10 +472,15 @@
         }
         .reg-wrap thead th:nth-child(2), .reg-wrap tbody td:nth-child(2) {
             position: sticky; left: 104px; min-width: 130px; z-index: 1;
-            box-shadow: 3px 0 5px -2px rgba(0,0,0,0.10);
+            border-right: 1.5px solid #f3d6d6;
         }
         .reg-wrap thead th:nth-child(1), .reg-wrap thead th:nth-child(2) { z-index: 3; }
-        .reg-wrap tbody td:nth-child(1), .reg-wrap tbody td:nth-child(2) { background: #fffdfd; }
+        /* Opaque, padding-box-clipped backgrounds stop the frozen cells leaving
+           repaint trails (e.g. the green "In" badge smearing) during side-scroll. */
+        .reg-wrap tbody td:nth-child(1), .reg-wrap tbody td:nth-child(2) {
+            background: #fffdfd; background-clip: padding-box;
+        }
+        .reg-wrap table { background: #ffffff; }
         @media print {
             .reg-wrap { max-height: none; overflow: visible; }
             .reg-wrap thead th, .reg-wrap tbody td { position: static; box-shadow: none; }
