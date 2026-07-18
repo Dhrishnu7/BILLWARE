@@ -2249,6 +2249,52 @@
         document.getElementById('billNo').addEventListener('input', saveDraft);
         document.getElementById('firm').addEventListener('input', saveDraft);
         document.getElementById('purchaseDate').addEventListener('change', saveDraft);
+
+        /* ── Keyboard shortcuts (same keys as the Sales page; NO on-screen cheat-sheet) ──
+           Enter/Shift+Enter/F9/Alt+S/Esc come from the shared js/keyboard-nav.js.
+           These add the page-specific ones:
+             F2 / Enter on the last field → add a new item
+             Ctrl+Enter               → save all purchases
+             Alt+R                    → remove the item you're editing
+             Alt+Q                    → jump to the Quantity box
+             Alt+M                    → open the full-invoice import */
+        window.__kbAddRow = function () {
+            addLineItem();
+            const items = document.querySelectorAll('#lineItemsContainer .line-item');
+            const inp = items.length ? items[items.length - 1].querySelector('.li-productName') : null;
+            if (inp) setTimeout(() => inp.focus(), 50);
+        };
+        function _kbSaveBtn() {
+            const btns = Array.from(document.querySelectorAll('button[type="submit"]'));
+            return btns.find(b => b.offsetParent !== null && !b.disabled) || document.getElementById('saveBtn');
+        }
+        document.addEventListener('keydown', function (e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                const btn = _kbSaveBtn();
+                if (btn && !btn.disabled) btn.click();
+                return;
+            }
+            if (!e.altKey) return;
+            const k = (e.key || '').toLowerCase();
+            const line = (document.activeElement && document.activeElement.closest)
+                ? document.activeElement.closest('.line-item') : null;
+            if (k === 'r') {
+                if (line && line.id) { e.preventDefault(); removeLineItem(line.id); }
+                return;
+            }
+            if (k === 'q') {
+                e.preventDefault();
+                const q = (line || document).querySelector('.li-quantity');
+                if (q) { q.focus(); if (q.select) q.select(); }
+                return;
+            }
+            if (k === 'm') {
+                e.preventDefault();
+                if (typeof openInvoiceImportModal === 'function') openInvoiceImportModal();
+                return;
+            }
+        });
     </script>
 
     <!-- Shared datalist for all product name inputs -->

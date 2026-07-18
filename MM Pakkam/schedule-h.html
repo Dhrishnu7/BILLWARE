@@ -3562,6 +3562,47 @@
                 }
             } catch (e) { console.warn('Prescription cloud sync failed:', e); }
         }
+
+        /* ── Keyboard shortcuts (same keys as the Sales page; NO on-screen cheat-sheet) ──
+           Enter/Shift+Enter/F9/Alt+S/Esc come from the shared js/keyboard-nav.js.
+           These add the page-specific ones:
+             F2 / Enter on the last field → add a new drug row
+             Ctrl+Enter               → save all entries
+             Alt+R                    → remove the row you're editing
+             Alt+Q                    → jump to the Quantity box
+             Alt+M                    → open the full-invoice import */
+        window.__kbAddRow = function () { addShDrugRow(true); };
+        function _kbSaveBtn() {
+            const btns = Array.from(document.querySelectorAll('button[type="submit"]'));
+            return btns.find(b => b.offsetParent !== null && !b.disabled) || document.getElementById('saveEntryBtn');
+        }
+        document.addEventListener('keydown', function (e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                const btn = _kbSaveBtn();
+                if (btn && !btn.disabled) btn.click();
+                return;
+            }
+            if (!e.altKey) return;
+            const k = (e.key || '').toLowerCase();
+            const a = document.activeElement;
+            const m = a && a.id && a.id.match(/_(\d+)$/);
+            if (k === 'r') {
+                if (m) { e.preventDefault(); removeShDrugRow(parseInt(m[1], 10)); }
+                return;
+            }
+            if (k === 'q') {
+                e.preventDefault();
+                const q = m ? document.getElementById('qty_' + m[1]) : document.querySelector('[id^="qty_"]');
+                if (q) { q.focus(); if (q.select) q.select(); }
+                return;
+            }
+            if (k === 'm') {
+                e.preventDefault();
+                if (typeof openInvoiceImportModal === 'function') openInvoiceImportModal();
+                return;
+            }
+        });
     </script>
 
     <script>
