@@ -1961,6 +1961,9 @@
                 <div class="form-grid" style="margin-bottom:1rem;">
                     <div class="form-group"><label>Drug Name</label>
                         <input type="text" id="drug_${id}" placeholder="Type or select Schedule H drug…" autocomplete="off"></div>
+                    <div class="form-group"><label>Barcode <span style="font-weight:400;color:#94a3b8;">(scan/type — links to this drug)</span></label>
+                        <input type="text" id="bc_${id}" placeholder="Scan or type the barcode" autocomplete="off"
+                            onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('batch_${id}')?.focus();}"></div>
                     <div class="form-group"><label>Batch No</label>
                         <input type="text" id="batch_${id}" placeholder="e.g. BT20240001"></div>
                     <div class="form-group"><label>Expire Date</label>
@@ -1999,7 +2002,7 @@
             el.style.color = ok === false ? '#dc2626' : '#0369a1';
         }
 
-        function addScannedShDrug(name) {
+        function addScannedShDrug(name, code) {
             const rows = Array.from(document.querySelectorAll('#shDrugRows .sh-drug-row'));
             // Fill the first empty drug row, else spin up a fresh one.
             let id = null;
@@ -2010,6 +2013,8 @@
             if (id == null) id = addShDrugRow(false);
             const dEl = document.getElementById('drug_' + id);
             if (dEl) dEl.value = name;
+            // Record the barcode on the row so it's visible and re-linked on save.
+            if (code) { const cEl = document.getElementById('bc_' + id); if (cEl) cEl.value = code; }
             // Jump focus to Batch so the rest of the row can be typed in fast.
             const bEl = document.getElementById('batch_' + id);
             if (bEl) setTimeout(() => bEl.focus(), 30);
@@ -2043,12 +2048,12 @@
                     try { const r = await dbAddBarcode(code, name); if (!(r && r.success)) _shBcMsg('Saved locally (will sync)', true); }
                     catch (e) {}
                 }
-                addScannedShDrug(name);
+                addScannedShDrug(name, code);
                 _shBcMsg('🔗 ' + name + ' linked & added');
                 setTimeout(() => box.focus(), 30);
                 return;
             }
-            addScannedShDrug(name);
+            addScannedShDrug(name, code);
             setTimeout(() => box.focus(), 30);
         }
 
@@ -2417,6 +2422,14 @@
                 const id = row.id.replace('shrow_', '');
                 const drugName = (document.getElementById('drug_' + id)?.value || '').trim();
                 if (!drugName) continue; // skip blank rows
+
+                // Barcode capture: link the scanned/typed barcode to this drug so it
+                // resolves instantly on the Sales page. Fire-and-forget; falls back to
+                // the local cache if the cloud save can't reach the barcodes table.
+                const barcode = (document.getElementById('bc_' + id)?.value || '').trim();
+                if (barcode && typeof dbAddBarcode === 'function') {
+                    dbAddBarcode(barcode, drugName).catch(err => console.warn('barcode link failed:', err));
+                }
 
                 const qty  = parseFloat(document.getElementById('qty_' + id)?.value)  || 0;
                 const rate = parseFloat(document.getElementById('rate_' + id)?.value) || 0;
