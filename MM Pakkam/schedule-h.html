@@ -2706,6 +2706,8 @@
                     ? `<span class="type-badge type-in">📥 In</span>`
                     : type === 'manual'
                     ? `<span class="type-badge type-manual">✍ Manual</span>`
+                    : type === 'return'
+                    ? `<span class="type-badge" style="background:#e0e7ff; color:#4338ca;">↩ Return</span>`
                     : `<span class="type-badge type-out">📤 Out</span>`;
 
                 // Compliance check: Out entry missing doctor
@@ -2735,7 +2737,8 @@
                     <td style="font-size:0.84rem;">${entry.gst || 0}%</td>
                     <td style="font-weight:700; color:#dc2626;">₹${(entry.total || 0).toFixed(2)}</td>
                     <td style="font-size:0.84rem;">${esc(entry.firmName || '—')}</td>
-                    <td>
+                    <td style="white-space:nowrap;">
+                        <button class="remove-row-btn" onclick="openEditEntry('${entry.id}')" title="Edit — add doctor / patient to fix Missing Rx" style="background:#dbeafe; color:#1d4ed8; margin-right:4px;">✎</button>
                         <button class="remove-row-btn" onclick="deleteEntry('${entry.id}')" title="Delete entry">✕</button>
                     </td>
                 </tr>`;
@@ -2977,6 +2980,43 @@
                 .replace(/'/g, "\\'");
         }
 
+        /* ── Edit a register entry (mainly to fix a "Missing Rx" by adding the
+              doctor/patient after the sale). Editable: patient, doctor, reg no. ── */
+        let _editEntryId = null;
+        function openEditEntry(id) {
+            const entry = getRegister().find(e => e.id === id);
+            if (!entry) { showToast('Not found', 'That entry could not be loaded.'); return; }
+            _editEntryId = id;
+            document.getElementById('editEntryDrug').textContent = entry.drugName || '—';
+            document.getElementById('editEntryMeta').textContent =
+                ((entry.entryType || 'out').toUpperCase()) + ' · ' + (entry.date || '') + ' · Bill ' + (entry.billNo || '—');
+            document.getElementById('editPatient').value  = entry.patientName || '';
+            document.getElementById('editDoctor').value   = entry.doctorName || '';
+            document.getElementById('editDoctorReg').value = entry.doctorRegNo || '';
+            document.getElementById('editEntryModal').classList.add('open');
+            setTimeout(() => document.getElementById('editDoctor').focus(), 60);
+        }
+        function closeEditEntry() {
+            document.getElementById('editEntryModal').classList.remove('open');
+            _editEntryId = null;
+        }
+        async function saveEditEntry() {
+            if (!_editEntryId) return;
+            const all = getRegister();
+            const entry = all.find(e => e.id === _editEntryId);
+            if (!entry) { closeEditEntry(); return; }
+            entry.patientName = document.getElementById('editPatient').value.trim();
+            entry.doctorName  = document.getElementById('editDoctor').value.trim();
+            entry.doctorRegNo = document.getElementById('editDoctorReg').value.trim();
+            setRegister(all);
+            if (typeof dbAddScheduleHEntry === 'function') {
+                dbAddScheduleHEntry(entry).catch(e => console.warn('cloud entry edit failed:', e));
+            }
+            closeEditEntry();
+            renderRegisterLog();
+            showToast('Entry updated', entry.doctorName ? 'Doctor added — Missing Rx cleared.' : 'Changes saved.');
+        }
+
         async function deleteEntry(id) {
             if (!await mmConfirm('Delete this register entry?\nYou can restore it from the Bin within 30 days.', { danger: true, okText: 'Delete' })) return;
             const all   = getRegister();
@@ -3088,7 +3128,7 @@
                             const e = it.entry || {};
                             const daysLeft = Math.max(0, SH_BIN_DAYS - Math.floor((now - new Date(it.deletedAt).getTime()) / 86400000));
                             const type = e.entryType || 'out';
-                            const typeLabel = type === 'in' ? '📥 In' : (type === 'manual' ? '✍ Manual' : '📤 Out');
+                            const typeLabel = type === 'in' ? '📥 In' : (type === 'manual' ? '✍ Manual' : (type === 'return' ? '↩ Return' : '📤 Out'));
                             const dateStr = e.date ? new Date(e.date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
                             const delStr = new Date(it.deletedAt).toLocaleDateString('en-IN');
                             return `<tr style="border-top:1px solid #fecaca;">
@@ -4075,6 +4115,31 @@
             });
         }
     </script>
+
+    <!-- -- Edit register entry (fix Missing Rx) -- -->
+    <div class="modal-overlay" id="editEntryModal">
+        <div class="modal-card" style="max-width:440px;">
+            <div class="modal-hd">
+                <h3>✎ Edit Register Entry</h3>
+                <button class="modal-x" type="button" onclick="closeEditEntry()">×</button>
+            </div>
+            <div class="modal-bd">
+                <div style="font-weight:800; color:#991b1b; font-size:1rem;" id="editEntryDrug">—</div>
+                <div style="font-size:0.78rem; color:#94a3b8; margin-bottom:1rem;" id="editEntryMeta"></div>
+                <p style="font-size:0.82rem; color:#64748b; margin-bottom:0.9rem;">Add the doctor to clear a "Missing Rx". Schedule H1 also needs the patient name.</p>
+                <div class="form-group" style="margin-bottom:0.8rem;"><label>Patient / Customer</label>
+                    <input type="text" id="editPatient" placeholder="Patient name"></div>
+                <div class="form-group" style="margin-bottom:0.8rem;"><label>Doctor Name</label>
+                    <input type="text" id="editDoctor" placeholder="Prescribing doctor"></div>
+                <div class="form-group" style="margin-bottom:0.2rem;"><label>Doctor Reg. No</label>
+                    <input type="text" id="editDoctorReg" placeholder="MCI / SMC reg no (optional)"></div>
+            </div>
+            <div style="display:flex; gap:0.6rem; justify-content:flex-end; padding:1rem 1.4rem 1.4rem;">
+                <button class="btn btn-cancel" type="button" onclick="closeEditEntry()">Cancel</button>
+                <button class="btn btn-save" type="button" onclick="saveEditEntry()">Save</button>
+            </div>
+        </div>
+    </div>
 
     <!-- -- Keyboard Shortcuts helper (F1 only — no on-screen button) -- -->
     <style>

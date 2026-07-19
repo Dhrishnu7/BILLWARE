@@ -1255,6 +1255,8 @@
         try {
             for (const r of rows) {
                 await _saveReturnAdjustment(r.product, r.batch, r.qty, 'sales_return', { ref: _srBill.billNo, cn: cnNo, party: _srBill.customerName || 'Walk-in', amount: r.amount, mode, reason, date: retToday() });
+                // If it's a Schedule H drug, reverse the OUT in the H register too.
+                _retLogHReturn(r.product, r.batch, r.qty, _srBill.customerName || '', _srBill.billNo, cnNo);
             }
             if (mode === 'khata') {
                 const cust = _retFindCustomer(_srBill.customerName);
@@ -1277,6 +1279,31 @@
         finally { btn.disabled = false; btn.textContent = 'Process Sales Return'; }
     }
     function cancelSaleReturn() { _srBill = null; document.getElementById('saleReturnCard').classList.add('ret-hidden'); }
+
+    // If a returned drug is Schedule H, log a 'return' entry in the H register so
+    // the dispensed OUT is reversed. entryType 'return' (not 'in') so it is NOT
+    // mirrored back into stock (the return's stock adjustment already handled that).
+    function _retLogHReturn(product, batch, qty, customer, origBill, cnNo) {
+        try {
+            const shDrugs = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
+            const isH = shDrugs.some(d => (d || '').trim().toLowerCase() === (product || '').trim().toLowerCase());
+            if (!isH) return;
+            const entry = {
+                id: 'ret_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+                entryType: 'return', date: new Date().toISOString().slice(0, 10),
+                billNo: cnNo, firmName: '', patientName: customer || '', patientAddress: '',
+                doctorName: '', doctorRegNo: '', doctorAddress: '',
+                drugName: product, batchNo: batch || '', expireDate: '', pack: '',
+                qty: qty, mrp: 0, rate: 0, gst: 0, total: 0,
+                isReturn: true, returnOf: origBill, autoLogged: true,
+                savedAt: new Date().toISOString()
+            };
+            const reg = JSON.parse(localStorage.getItem('mm_schedule_h_register') || '[]');
+            reg.push(entry);
+            localStorage.setItem('mm_schedule_h_register', JSON.stringify(reg));
+            if (typeof dbAddScheduleHEntry === 'function') dbAddScheduleHEntry(entry).catch(() => {});
+        } catch (e) { console.warn('H register reversal failed:', e); }
+    }
     function _retFindCustomer(name) {
         const n = (name || '').trim().toLowerCase();
         if (!n) return null;
