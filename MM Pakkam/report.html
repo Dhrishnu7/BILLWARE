@@ -735,6 +735,28 @@
                     <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 20V10m4 10V4m4 16V14m4 6v-8"/></svg>
                     Visual Analytics
                 </button>
+                <button class="view-btn" id="btnViewAudit" onclick="switchViewMode('audit')">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+                    Audit Trail
+                </button>
+            </div>
+        </div>
+
+        <!-- 🕵️ AUDIT TRAIL VIEW -->
+        <div id="auditView" style="display:none; width:100%;">
+            <div class="table-card">
+                <div class="table-header" style="flex-wrap:wrap; gap:0.6rem;">
+                    <div class="table-title">🕵️ Audit Trail &mdash; who did what</div>
+                    <input type="text" id="auditSearch" placeholder="Search user / action / bill…" oninput="renderAuditTable()"
+                        style="flex:1; min-width:180px; max-width:340px; padding:0.5rem 0.8rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:0.86rem; font-family:inherit;">
+                </div>
+                <p style="font-size:0.8rem; color:#94a3b8; margin:0.2rem 0 0.8rem;">Every sale, purchase, return, payment, edit and delete — newest first. Shows across all your devices.</p>
+                <div style="overflow-x:auto;">
+                    <table class="report-table" id="auditTable">
+                        <thead><tr><th>When</th><th>User</th><th>Action</th><th>Details</th><th>Ref</th></tr></thead>
+                        <tbody id="auditBody"><tr><td colspan="5" style="text-align:center; padding:1.6rem; color:#94a3b8;">Open this tab to load activity…</td></tr></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -1846,13 +1868,54 @@
             currentViewMode = mode;
             document.getElementById('btnViewTabular').classList.toggle('active', mode === 'tabular');
             document.getElementById('btnViewAnalytics').classList.toggle('active', mode === 'analytics');
-            
+            const auditBtn = document.getElementById('btnViewAudit');
+            if (auditBtn) auditBtn.classList.toggle('active', mode === 'audit');
+
             document.getElementById('tabularView').style.display = mode === 'tabular' ? 'flex' : 'none';
             document.getElementById('analyticsView').style.display = mode === 'analytics' ? 'block' : 'none';
+            const auditView = document.getElementById('auditView');
+            if (auditView) auditView.style.display = mode === 'audit' ? 'block' : 'none';
 
             if (mode === 'analytics') {
                 generateAnalytics(currentData);
             }
+            if (mode === 'audit') {
+                loadAudit();
+            }
+        }
+
+        /* ── Audit Trail ── */
+        let _auditData = [];
+        function _aEsc(s) { const d = document.createElement('div'); d.textContent = (s == null ? '' : s); return d.innerHTML; }
+        async function loadAudit() {
+            document.getElementById('auditBody').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.6rem;color:#94a3b8;">Loading activity…</td></tr>';
+            let local = []; try { local = JSON.parse(localStorage.getItem('mm_audit_log') || '[]'); } catch (e) {}
+            let cloud = [];
+            try { if (typeof dbGetAuditLog === 'function') cloud = await dbGetAuditLog(500); } catch (e) {}
+            const byId = new Map();
+            [...local, ...cloud].forEach(a => { if (a && a.id && !byId.has(a.id)) byId.set(a.id, a); });
+            _auditData = [...byId.values()].sort((a, b) => String(b.at).localeCompare(String(a.at)));
+            try { localStorage.setItem('mm_audit_log', JSON.stringify(_auditData.slice(0, 500))); } catch (e) {}
+            renderAuditTable();
+        }
+        function renderAuditTable() {
+            const body = document.getElementById('auditBody');
+            const q = (document.getElementById('auditSearch').value || '').trim().toLowerCase();
+            const rows = _auditData.filter(a => !q || (a.actor + ' ' + a.action + ' ' + a.detail + ' ' + a.ref).toLowerCase().includes(q));
+            if (!rows.length) {
+                body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.6rem;color:#94a3b8;">' +
+                    (_auditData.length ? 'No matches.' : 'No activity logged yet.') + '</td></tr>';
+                return;
+            }
+            body.innerHTML = rows.slice(0, 300).map(a => {
+                let when = '—';
+                try { when = a.at ? new Date(a.at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true }) : '—'; } catch (e) {}
+                return '<tr><td style="white-space:nowrap;">' + _aEsc(when) + '</td>'
+                    + '<td><b>' + _aEsc(a.actor || '—') + '</b></td>'
+                    + '<td style="font-weight:600;">' + _aEsc(a.action || '') + '</td>'
+                    + '<td style="color:#64748b;">' + _aEsc(a.detail || '') + '</td>'
+                    + '<td style="color:#94a3b8;">' + _aEsc(a.ref || '') + '</td></tr>';
+            }).join('');
         }
 
         function generateAnalytics(data) {

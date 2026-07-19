@@ -1157,6 +1157,7 @@
                 // Clear draft immediately so navigating away won't restore old data
                 clearDraft();
                 const _pn = document.getElementById('paidNowChk'); if (_pn) _pn.checked = false;
+                if (typeof mmAudit === 'function') mmAudit('Purchase saved', (firm || '—') + ' · ' + successCount + ' item(s)', billNo);
                 showToast(
                     `${successCount} Purchase(s) Saved!`,
                     `All ${successCount} item(s) added successfully.`

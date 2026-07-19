@@ -3020,6 +3020,7 @@
             if (typeof dbAddScheduleHEntry === 'function') {
                 dbAddScheduleHEntry(entry).catch(e => console.warn('cloud entry edit failed:', e));
             }
+            if (typeof mmAudit === 'function') mmAudit('H register entry edited', (entry.drugName || '') + (entry.doctorName ? ' · doctor added' : ''), entry.billNo || '');
             closeEditEntry();
             renderRegisterLog();
             showToast('Entry updated', entry.doctorName ? 'Doctor added — Missing Rx cleared.' : 'Changes saved.');
@@ -3037,6 +3038,7 @@
             saveShBin(bin);
 
             setRegister(all.filter(e => e.id !== id));
+            if (typeof mmAudit === 'function') mmAudit('H register entry deleted', (entry.drugName || '') + ' · ' + (entry.entryType || 'out'), entry.billNo || '');
             renderRegisterLog();
             updateShBinBadge();
             if (document.getElementById('shBinPanel').style.display !== 'none') renderShBin();

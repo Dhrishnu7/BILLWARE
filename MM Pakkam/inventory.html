@@ -1270,6 +1270,7 @@
                     if (typeof dbUpdateCustomerBalance === 'function') dbUpdateCustomerBalance(cust.name, cust.phone || '', cust.address || '', -total).catch(() => {});
                 }
             }
+            if (typeof mmAudit === 'function') mmAudit('Sales return', (_srBill.customerName || 'Walk-in') + ' · ' + retMoney(total), cnNo);
             retToast('Sales return done — ' + cnNo, retMoney(total) + ' refunded, stock restored.');
             cancelSaleReturn();
             document.getElementById('saleSearch').value = '';
@@ -1372,6 +1373,7 @@
         const dnNo = 'DN-' + Date.now().toString().slice(-8);
         try {
             await _saveReturnAdjustment(name, batch, -q, 'purchase_return', { ref: _prLot.billNo || '', dn: dnNo, party: firm, amount: value, reason, date: retToday() });
+            if (typeof mmAudit === 'function') mmAudit('Purchase return', firm + ' · ' + retMoney(value), dnNo);
             retToast('Purchase return done — ' + dnNo, retMoney(value) + ' debit note, stock removed.');
             cancelPurchaseReturn();
             document.getElementById('purSearch').value = '';

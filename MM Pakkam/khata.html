@@ -747,6 +747,7 @@
             if (!confirmed) return;
 
             cust.balance = willBeLeft;
+            if (typeof mmAudit === 'function') mmAudit('Customer payment', cust.name + ' · ₹' + amount.toFixed(2));
 
             // ─── Save to Supabase ──────────────────────────────────────────────
             try {
@@ -1046,6 +1047,7 @@
             _supPayments.push(rec);
             try { localStorage.setItem('mm_supplier_payments', JSON.stringify(_supPayments)); } catch (e) {}
             if (typeof dbAddSupplierPayment === 'function') dbAddSupplierPayment(rec).catch(() => {});
+            if (typeof mmAudit === 'function') mmAudit('Supplier payment', _supPayFirm + ' · ₹' + amt.toFixed(2));
             closeSupPayModal();
             computeSupplierData();
             renderSuppliers(document.getElementById('supSearch').value);

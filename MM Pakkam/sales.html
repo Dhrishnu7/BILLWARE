@@ -1843,6 +1843,7 @@
             const sales = JSON.parse(localStorage.getItem('mm_sales') || '[]');
             sales.push(bill);
             localStorage.setItem('mm_sales', JSON.stringify(sales));
+            if (typeof mmAudit === 'function') mmAudit('Sale billed', (bill.customerName || 'Walk-in') + ' · ₹' + String(bill.grandTotal).replace(/[^0-9.]/g, ''), bill.billNo);
 
             // ── Auto-log Schedule H drugs into the Schedule H Register ──
             // If any medicine in the bill is in the Schedule H drug list, silently

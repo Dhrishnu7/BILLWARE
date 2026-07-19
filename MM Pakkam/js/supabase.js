@@ -767,6 +767,51 @@ async function dbDeleteSupplierPayment(id) {
 window.dbDeleteSupplierPayment = dbDeleteSupplierPayment;
 
 /* ─────────────────────────────────────────────────────
+   AUDIT LOG — who did what, when. Fire-and-forget: callers
+   just do mmAudit('action', 'detail', 'ref'); it never throws
+   and never blocks. Viewed on the Report page.
+   Needs migrations/add_audit_log_table.sql.
+───────────────────────────────────────────────────── */
+function mmAudit(action, detail, ref) {
+    try {
+        const actor = (typeof mmCurrentUser === 'function' && mmCurrentUser())
+            ? (mmCurrentUser().username || 'unknown') : 'unknown';
+        const entry = {
+            id: 'au_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+            actor: actor, action: String(action || ''), detail: String(detail || ''),
+            ref: String(ref || ''), at: new Date().toISOString()
+        };
+        try {
+            let arr = JSON.parse(localStorage.getItem('mm_audit_log') || '[]');
+            arr.unshift(entry);
+            if (arr.length > 500) arr = arr.slice(0, 500);   // keep local light
+            localStorage.setItem('mm_audit_log', JSON.stringify(arr));
+        } catch (e) {}
+        const user = _currentUser();
+        if (user && typeof _supabase !== 'undefined') {
+            _supabase.from('audit_log').insert({
+                log_id: entry.id, user_id: user, actor: entry.actor,
+                action: entry.action, detail: entry.detail, ref: entry.ref, at: entry.at
+            }).then(function () {}, function () {});   // best-effort, ignore errors
+        }
+    } catch (e) { /* audit must never break the real action */ }
+}
+window.mmAudit = mmAudit;
+
+async function dbGetAuditLog(limit) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetAuditLog: no user, aborting.'); return []; }
+    const { data, error } = await _supabase.from('audit_log')
+        .select('*').eq('user_id', user).order('at', { ascending: false }).limit(limit || 500);
+    if (error) { console.error('audit log fetch:', error); return []; }
+    return (data || []).map(r => ({
+        id: r.log_id, actor: r.actor || '', action: r.action || '',
+        detail: r.detail || '', ref: r.ref || '', at: r.at || ''
+    }));
+}
+window.dbGetAuditLog = dbGetAuditLog;
+
+/* ─────────────────────────────────────────────────────
    STOCK ADJUSTMENTS
    Manual corrections for damaged/lost stock or physical
    count mismatches. Does not touch purchase/sales records —
