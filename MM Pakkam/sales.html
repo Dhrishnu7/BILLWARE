@@ -743,6 +743,7 @@
                         <div>
                             <div class="gt-label">Grand Total</div>
                             <div class="gt-value" id="grandTotal">₹ 0.00</div>
+                            <div id="roundOffLine" style="display:none; font-size:0.72rem; color:rgba(255,255,255,0.85); font-weight:500; margin-top:2px;"></div>
                         </div>
                         <svg width="28" height="28" fill="none" stroke="white" stroke-width="1.8" viewBox="0 0 24 24" opacity="0.5">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l6-6m0 0l-6 0m6 0l0 6M3 3h2l.4 2M7 13h10l4-8H5.4"/>
@@ -762,7 +763,9 @@
                     <div style="display:flex; align-items:center; gap: 0.5rem; background:white; padding: 0.5rem 1rem; border-radius: 12px; border: 1.5px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
                         <label style="font-size:0.85rem; font-weight:700; color:#475569;">Payment Mode:</label>
                         <select id="paymentMode" style="border:none; outline:none; font-size:0.9rem; font-weight:700; color:#0f172a; cursor:pointer; background:transparent;">
-                            <option value="cash">💵 Cash / UPI</option>
+                            <option value="cash">💵 Cash</option>
+                            <option value="upi">📱 UPI</option>
+                            <option value="card">💳 Card</option>
                             <option value="credit">📒 Credit (Accounts)</option>
                         </select>
                     </div>
@@ -1404,7 +1407,20 @@
             document.querySelectorAll('[id^="total_"]').forEach(el => {
                 sum += parseFloat(el.value) || 0;
             });
-            document.getElementById('grandTotal').textContent = '₹ ' + sum.toFixed(2);
+            // Round the total to the nearest rupee so the recorded amount matches the
+            // cash actually taken; show the round-off adjustment.
+            const rounded = Math.round(sum);
+            const roundOff = rounded - sum;
+            document.getElementById('grandTotal').textContent = '₹ ' + rounded.toFixed(2);
+            const roEl = document.getElementById('roundOffLine');
+            if (roEl) {
+                if (Math.abs(roundOff) >= 0.005) {
+                    roEl.style.display = '';
+                    roEl.textContent = 'Subtotal ₹' + sum.toFixed(2) + '  ·  Round off ' + (roundOff >= 0 ? '+' : '−') + '₹' + Math.abs(roundOff).toFixed(2);
+                } else {
+                    roEl.style.display = 'none';
+                }
+            }
         }
 
         /* -- Remove Row -- */
@@ -2610,6 +2626,14 @@
                                             <td style="padding: 6px 0; color: #64748b;">SGST</td>
                                             <td style="padding: 6px 0; text-align: right; font-weight: 500;">₹${totalSGST.toFixed(2)}</td>
                                         </tr>
+                                        ${(function(){
+                                            const _sub = (bill.medicines || []).reduce((s, m) => s + (parseFloat(m.total) || 0), 0);
+                                            const _net = parseFloat(String(bill.grandTotal || bill.total || 0).replace(/[^0-9.]/g, '')) || 0;
+                                            const _ro = _net - _sub;
+                                            return Math.abs(_ro) >= 0.005
+                                                ? `<tr><td style="padding: 6px 0; color: #64748b;">Round Off</td><td style="padding: 6px 0; text-align: right; font-weight: 500;">${_ro >= 0 ? '+' : '−'} ₹${Math.abs(_ro).toFixed(2)}</td></tr>`
+                                                : '';
+                                        })()}
                                         <tr>
                                             <td colspan="2" style="padding-top: 12px;">
                                                 <div style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; color: white; padding: 15px 20px; border-radius: 8px; -webkit-print-color-adjust: exact; print-color-adjust: exact;">

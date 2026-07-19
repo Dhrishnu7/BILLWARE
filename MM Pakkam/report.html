@@ -798,6 +798,15 @@
                 </div>
             </div>
 
+            <!-- Collections by payment mode — for day-end cash/bank reconciliation -->
+            <div class="analytics-card" style="margin-bottom:1.2rem;">
+                <div class="analytics-card-header">
+                    <div class="analytics-card-title"><span class="chart-icon">💵</span> Collections by Payment Mode</div>
+                    <span class="analytics-card-badge">Selected period</span>
+                </div>
+                <div id="paymentModeBreakdown" style="display:flex; flex-wrap:wrap; gap:0.8rem; padding-top:0.6rem;"></div>
+            </div>
+
             <div class="analytics-grid">
                 <!-- Top Sellers FIRST -->
                 <div class="analytics-card chart-top-sellers">
@@ -1922,8 +1931,40 @@
             }).join('');
         }
 
+        // Collections split by payment mode (Cash / UPI / Card / Credit) for the
+        // selected period — the numbers you reconcile at day-end (drawer vs bank).
+        function renderPaymentBreakdown() {
+            const el = document.getElementById('paymentModeBreakdown');
+            if (!el) return;
+            const from = document.getElementById('fromDate').value || '';
+            const to   = document.getElementById('toDate').value || '';
+            let bills = []; try { bills = JSON.parse(localStorage.getItem('mm_sales') || '[]'); } catch (e) {}
+            const tot = { cash: 0, upi: 0, card: 0, credit: 0 };
+            bills.forEach(b => {
+                if (b.isReturn) return;
+                const d = String(b.date || '').slice(0, 10);
+                if (from && d < from) return;
+                if (to && d > to) return;
+                const amt = parseFloat(String(b.grandTotal || b.total || 0).replace(/[^0-9.]/g, '')) || 0;
+                let m = (b.paymentMode || 'cash').toLowerCase();
+                if (!(m in tot)) m = 'cash';
+                tot[m] += amt;
+            });
+            const tiles = [
+                { k: 'cash',   label: '💵 Cash',   color: '#16a34a' },
+                { k: 'upi',    label: '📱 UPI',    color: '#7c3aed' },
+                { k: 'card',   label: '💳 Card',   color: '#0891b2' },
+                { k: 'credit', label: '📒 Credit', color: '#b45309' }
+            ];
+            el.innerHTML = tiles.map(t => `<div style="flex:1; min-width:130px; background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:0.8rem 1rem;">
+                <div style="font-size:0.78rem; color:#64748b; font-weight:600;">${t.label}</div>
+                <div style="font-size:1.25rem; font-weight:800; color:${t.color};">₹${tot[t.k].toFixed(2)}</div>
+            </div>`).join('');
+        }
+
         function generateAnalytics(data) {
             if (currentViewMode !== 'analytics') return; // Only render when visible
+            renderPaymentBreakdown();
 
             const sales = data.filter(r => r.type === 'sales');
             const purchases = Object.values(_rawPurchasesMap);
