@@ -682,6 +682,7 @@
             <button class="tab-btn" id="tabBtnDead" onclick="switchTab('dead')">&#x1F480; Dead Stock</button>
             <button class="tab-btn" id="tabBtnSubFinder" onclick="switchTab('subfinder')">&#x1F504; Substitute Finder</button>
             <button class="tab-btn" id="tabBtnAdjust" onclick="switchTab('adjust')">&#x2696;&#xFE0F; Adjust Stock</button>
+            <button class="tab-btn" id="tabBtnReturns" onclick="switchTab('returns')">&#x21A9;&#xFE0F; Returns</button>
             <button class="tab-btn" id="tabBtnPromise" onclick="switchTab('promise')">&#x1F4E6; Promise Orders</button>
         </div>
     </div>
@@ -945,7 +946,110 @@
             </div>
         </div>
 
+        <!-- ══ RETURNS ══ -->
+        <div class="tab-panel" id="tab-returns">
+            <style>
+              .ret-sub{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.1rem;}
+              .ret-sub button{padding:.55rem 1rem;border-radius:11px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:.85rem;cursor:pointer;color:#475569;}
+              .ret-sub button.active{background:linear-gradient(135deg,#0d9488,#0891b2);color:#fff;border-color:transparent;}
+              #tab-returns label{display:block;font-size:.72rem;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem;}
+              .ret-in{width:100%;padding:.6rem .75rem;border:1.5px solid #cbd5e1;border-radius:10px;font-size:.9rem;}
+              .ret-pick{padding:.65rem .85rem;border:1.5px solid #e2e8f0;border-radius:10px;margin-bottom:.45rem;cursor:pointer;display:flex;justify-content:space-between;gap:.6rem;align-items:center;}
+              .ret-pick:hover{border-color:#0d9488;background:#f0fdfa;}
+              .ret-tbl{width:100%;border-collapse:collapse;margin-top:.7rem;}
+              .ret-tbl th{text-align:left;font-size:.66rem;text-transform:uppercase;color:#64748b;font-weight:800;padding:.45rem .5rem;border-bottom:2px solid #e2e8f0;}
+              .ret-tbl td{padding:.5rem .5rem;border-bottom:1px solid #f1f5f9;font-size:.86rem;}
+              .ret-qty{max-width:82px;padding:.4rem;border:1.5px solid #cbd5e1;border-radius:8px;font-size:.9rem;}
+              .ret-btn{border:none;border-radius:10px;padding:.6rem 1.2rem;font-weight:700;cursor:pointer;font-size:.88rem;font-family:inherit;}
+              .ret-btn-primary{background:linear-gradient(135deg,#0d9488,#0891b2);color:#fff;}
+              .ret-btn-ghost{background:#f1f5f9;color:#334155;}
+              .ret-btn:disabled{opacity:.5;cursor:not-allowed;}
+              .ret-sum{background:#f0fdfa;border:1.5px solid #99f6e4;border-radius:11px;padding:.8rem 1rem;margin-top:.9rem;font-size:.9rem;}
+              .ret-sum .amt{font-size:1.25rem;font-weight:800;color:#0d9488;}
+              .ret-hidden{display:none!important;}
+              .ret-muted{color:#64748b;font-size:.83rem;}
+              .ret-empty{text-align:center;color:#94a3b8;padding:1.6rem;font-size:.9rem;}
+              .ret-badge{font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:7px;text-transform:uppercase;}
+              .ret-b-sale{background:#dcfce7;color:#166534;}.ret-b-pur{background:#fee2e2;color:#991b1b;}
+              .ret-radio{display:inline-flex;align-items:center;gap:5px;padding:.4rem .8rem;border:1.5px solid #cbd5e1;border-radius:9px;cursor:pointer;font-size:.85rem;font-weight:600;margin-right:.5rem;}
+              #retToast{position:fixed;bottom:1.4rem;left:50%;transform:translateX(-50%) translateY(140%);background:#0f172a;color:#fff;padding:.85rem 1.3rem;border-radius:12px;font-size:.9rem;font-weight:600;box-shadow:0 8px 30px rgba(0,0,0,.25);z-index:300;transition:transform .3s;max-width:90vw;}
+              #retToast.show{transform:translateX(-50%) translateY(0);}
+              #retToast b{display:block;margin-bottom:2px;}
+            </style>
+            <div class="panel-card">
+                <div class="ret-sub">
+                    <button class="active" id="retTabSales" onclick="retSwitch('sales')">&#x21A9;&#xFE0F; Sales Return</button>
+                    <button id="retTabPurchase" onclick="retSwitch('purchase')">&#x21AA;&#xFE0F; Purchase Return</button>
+                    <button id="retTabHistory" onclick="retSwitch('history')">&#x1F550; History</button>
+                </div>
+
+                <!-- Sales Return -->
+                <div id="retPanelSales">
+                    <p class="ret-muted" style="margin-bottom:.8rem;">Customer brings a medicine back. Find the bill, pick what's returned — stock goes back in.</p>
+                    <label>Find bill</label>
+                    <input type="text" class="ret-in" id="saleSearch" placeholder="Bill no or customer name…" oninput="findBills()">
+                    <div id="saleBillList" style="margin-top:.8rem;"></div>
+                    <div class="ret-hidden" id="saleReturnCard" style="margin-top:1rem;border-top:1px dashed #cbd5e1;padding-top:1rem;">
+                        <h3 style="font-weight:800;">Returning from Bill <span id="srBillNo"></span></h3>
+                        <p class="ret-muted" id="srBillMeta"></p>
+                        <table class="ret-tbl"><thead><tr><th>Medicine</th><th>Batch</th><th>Sold</th><th>Return qty</th><th>Refund &#8377;</th></tr></thead><tbody id="srItems"></tbody></table>
+                        <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:1rem;">
+                            <div><label>Reason</label>
+                                <select class="ret-in" id="srReason">
+                                    <option value="damaged">Damaged</option><option value="expired">Expired</option>
+                                    <option value="wrong">Wrong medicine</option><option value="changed">Customer changed mind</option><option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div style="flex:1;min-width:220px;"><label>Refund method</label>
+                                <div>
+                                    <label class="ret-radio"><input type="radio" name="srRefund" value="cash" checked onchange="renderSrSummary()"> &#x1F4B5; Cash</label>
+                                    <label class="ret-radio" id="srKhataOpt"><input type="radio" name="srRefund" value="khata" onchange="renderSrSummary()"> &#x1F4D2; Reduce Khata</label>
+                                </div>
+                                <div class="ret-muted" id="srKhataNote" style="margin-top:4px;"></div>
+                            </div>
+                        </div>
+                        <div class="ret-sum" id="srSummary"></div>
+                        <div style="margin-top:.9rem;display:flex;gap:.6rem;">
+                            <button class="ret-btn ret-btn-primary" id="srBtn" onclick="processSalesReturn()">Process Sales Return</button>
+                            <button class="ret-btn ret-btn-ghost" onclick="cancelSaleReturn()">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Purchase Return -->
+                <div id="retPanelPurchase" class="ret-hidden">
+                    <p class="ret-muted" style="margin-bottom:.8rem;">Return expired/damaged stock to a supplier. Find the medicine — stock is removed.</p>
+                    <label>Find purchase</label>
+                    <input type="text" class="ret-in" id="purSearch" placeholder="Medicine, batch, or supplier…" oninput="findPurchases()">
+                    <div id="purList" style="margin-top:.8rem;"></div>
+                    <div class="ret-hidden" id="purReturnCard" style="margin-top:1rem;border-top:1px dashed #cbd5e1;padding-top:1rem;">
+                        <h3 style="font-weight:800;">Returning to <span id="prFirm"></span></h3>
+                        <p class="ret-muted" id="prMeta"></p>
+                        <table class="ret-tbl"><thead><tr><th>Medicine</th><th>Batch</th><th>In stock</th><th>Return qty</th><th>Value &#8377;</th></tr></thead><tbody id="prItems"></tbody></table>
+                        <div style="margin-top:1rem;"><label>Reason</label>
+                            <select class="ret-in" id="prReason" style="max-width:240px;">
+                                <option value="expired">Expired</option><option value="near_expiry">Near expiry</option>
+                                <option value="damaged">Damaged</option><option value="wrong_supply">Wrong supply</option><option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="ret-sum" id="prSummary"></div>
+                        <div style="margin-top:.9rem;display:flex;gap:.6rem;">
+                            <button class="ret-btn ret-btn-primary" id="prBtn" onclick="processPurchaseReturn()">Process Purchase Return</button>
+                            <button class="ret-btn ret-btn-ghost" onclick="cancelPurchaseReturn()">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History -->
+                <div id="retPanelHistory" class="ret-hidden">
+                    <div id="historyBody"></div>
+                </div>
+            </div>
+        </div>
+
     </div><!-- /tab-content -->
+
+    <div id="retToast"></div>
 
     <footer style="text-align:center;padding:1.2rem;font-size:0.82rem;color:#94a3b8;border-top:1px solid rgba(0,0,0,0.05);">
         &copy; 2026 Billware. All rights reserved.
@@ -988,6 +1092,289 @@
         if (name === 'subfinder' && _dataLoaded) runSubstituteFinder('');
         if (name === 'adjust'    && _dataLoaded) { populateAdjustMedicineList(); renderAdjustLog(); }
         if (name === 'promise')  loadPromiseOrders(); // independent of stock data
+        if (name === 'returns')  retInit();
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       RETURNS — sales return (credit note) + purchase return
+       (debit note). Stored as stock adjustments (reason
+       sales_return / purchase_return) with the money detail as
+       JSON in the note, so every stock view stays correct.
+       All quantities are in loose units (same as mmComputeStock).
+    ═══════════════════════════════════════════════════════ */
+    const retEsc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const retMoney = n => '₹' + (Math.round((parseFloat(n) || 0) * 100) / 100).toFixed(2);
+    const retToday = () => new Date().toISOString().slice(0, 10);
+    function retSales()     { try { return JSON.parse(localStorage.getItem('mm_sales') || '[]'); } catch (e) { return []; } }
+    function retPurchases() { try { return JSON.parse(localStorage.getItem('mm_purchases') || '[]'); } catch (e) { return []; } }
+    function retCustomers() { try { return JSON.parse(localStorage.getItem('mm_customers') || '[]'); } catch (e) { return []; } }
+    function retAdjustments() { return (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : []; }
+
+    function retToast(title, msg) {
+        const t = document.getElementById('retToast');
+        t.innerHTML = '<b>' + retEsc(title) + '</b>' + retEsc(msg || '');
+        t.classList.add('show');
+        clearTimeout(window._retToastT);
+        window._retToastT = setTimeout(() => t.classList.remove('show'), 3200);
+    }
+
+    let _retInited = false;
+    function retInit() {
+        if (!_retInited) { _retInited = true; retSwitch('sales'); }
+    }
+    function retSwitch(which) {
+        ['sales', 'purchase', 'history'].forEach(w => {
+            const p = document.getElementById('retPanel' + w.charAt(0).toUpperCase() + w.slice(1));
+            const b = document.getElementById('retTab' + w.charAt(0).toUpperCase() + w.slice(1));
+            if (p) p.classList.toggle('ret-hidden', w !== which);
+            if (b) b.classList.toggle('active', w === which);
+        });
+        if (which === 'history') renderReturnsHistory();
+    }
+
+    async function _saveReturnAdjustment(productName, batchNo, qtyDelta, reason, noteObj) {
+        const before = (typeof mmComputeStock === 'function') ? mmComputeStock(productName, batchNo) : 0;
+        const after  = before + qtyDelta;
+        const note   = JSON.stringify(noteObj);
+        const record = { productName, batchNo, qtyBefore: before, qtyAfter: after, qtyDelta, reason, note };
+        let savedToCloud = false;
+        try {
+            if (typeof dbAddStockAdjustment === 'function') {
+                const res = await dbAddStockAdjustment(record);
+                if (res && res.success) savedToCloud = true;
+            }
+        } catch (e) { console.warn('return adj cloud save failed:', e); }
+        const localEntry = { product_name: productName, batch_no: batchNo, qty_before: before, qty_after: after, qty_delta: qtyDelta, reason, note, created_at: new Date().toISOString() };
+        try {
+            const local = retAdjustments();
+            local.unshift(localEntry);
+            if (typeof mmLsSet === 'function') mmLsSet('stockAdjustments', local);
+            _stockAdjustments.unshift(localEntry);
+        } catch (e) {}
+        if (!savedToCloud) {
+            try {
+                const pending = (typeof mmLsGet === 'function') ? (mmLsGet('pendingStockAdjustments') || []) : [];
+                pending.push(record);
+                if (typeof mmLsSet === 'function') mmLsSet('pendingStockAdjustments', pending);
+            } catch (e) {}
+        }
+        return savedToCloud;
+    }
+
+    /* ── Sales return ── */
+    let _srBill = null;
+    function findBills() {
+        const q = (document.getElementById('saleSearch').value || '').trim().toLowerCase();
+        const list = document.getElementById('saleBillList');
+        if (!q) { list.innerHTML = ''; return; }
+        const bills = retSales().filter(b => !b.isReturn && b.billNo)
+            .filter(b => String(b.billNo).toLowerCase().includes(q) || (b.customerName || '').toLowerCase().includes(q))
+            .sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 12);
+        if (!bills.length) { list.innerHTML = '<div class="ret-empty">No matching bills.</div>'; return; }
+        list.innerHTML = bills.map(b => {
+            const items = (b.medicines || []).length;
+            return '<div class="ret-pick" onclick="loadBillForReturn(' + JSON.stringify(String(b.billNo)).replace(/"/g, '&quot;') + ')">'
+                + '<div><b>' + retEsc(b.billNo) + '</b> &nbsp;<span class="ret-muted">' + retEsc(b.customerName || 'Walk-in') + '</span></div>'
+                + '<div class="ret-muted">' + retEsc(b.date || '') + ' · ' + items + ' item' + (items === 1 ? '' : 's') + '</div></div>';
+        }).join('');
+    }
+    function loadBillForReturn(billNo) {
+        const bill = retSales().find(b => !b.isReturn && String(b.billNo) === String(billNo));
+        if (!bill) { retToast('Not found', 'That bill could not be loaded.'); return; }
+        _srBill = bill;
+        document.getElementById('srBillNo').textContent = bill.billNo;
+        document.getElementById('srBillMeta').textContent = (bill.customerName || 'Walk-in') + ' · ' + (bill.date || '') + (bill.paymentMode ? ' · ' + bill.paymentMode : '');
+        const returnedByKey = {};
+        retAdjustments().filter(a => a.reason === 'sales_return').forEach(a => {
+            let n = {}; try { n = JSON.parse(a.note || '{}'); } catch (e) {}
+            if (String(n.ref) === String(bill.billNo)) {
+                const k = (a.product_name || '').toLowerCase() + '|' + (a.batch_no || '').toLowerCase();
+                returnedByKey[k] = (returnedByKey[k] || 0) + (parseFloat(a.qty_delta) || 0);
+            }
+        });
+        document.getElementById('srItems').innerHTML = (bill.medicines || []).map((m, i) => {
+            const sold = parseFloat(m.qty) || 0;
+            const k = (m.product || '').toLowerCase() + '|' + (m.batch || '').toLowerCase();
+            const already = returnedByKey[k] || 0;
+            const maxRet = Math.max(0, sold - already);
+            const unitRefund = sold > 0 ? (parseFloat(m.total) || 0) / sold : 0;
+            return '<tr data-i="' + i + '" data-unit="' + unitRefund + '" data-max="' + maxRet + '">'
+                + '<td><b>' + retEsc(m.product) + '</b></td><td>' + retEsc(m.batch || '—') + '</td>'
+                + '<td>' + sold + (already ? ' <span class="ret-muted">(-' + already + ')</span>' : '') + '</td>'
+                + '<td><input type="number" class="ret-qty sr-qty" min="0" max="' + maxRet + '" value="0" ' + (maxRet <= 0 ? 'disabled' : '') + ' oninput="renderSrSummary()"></td>'
+                + '<td class="sr-line">₹0.00</td></tr>';
+        }).join('');
+        const cust = _retFindCustomer(bill.customerName);
+        const khataOpt = document.getElementById('srKhataOpt');
+        const khataNote = document.getElementById('srKhataNote');
+        if (cust && (parseFloat(cust.balance) || 0) > 0) {
+            khataOpt.style.opacity = '1'; khataOpt.querySelector('input').disabled = false;
+            khataNote.textContent = retEsc(bill.customerName) + ' owes ' + retMoney(cust.balance) + ' — khata refund reduces it.';
+        } else {
+            khataOpt.style.opacity = '0.5'; khataOpt.querySelector('input').disabled = true;
+            khataNote.textContent = (bill.customerName ? retEsc(bill.customerName) + ' has no pending khata.' : 'Walk-in — cash refund only.');
+            document.querySelector('input[name="srRefund"][value="cash"]').checked = true;
+        }
+        document.getElementById('saleReturnCard').classList.remove('ret-hidden');
+        renderSrSummary();
+    }
+    function renderSrSummary() {
+        let total = 0, count = 0;
+        document.querySelectorAll('#srItems tr').forEach(tr => {
+            const unit = parseFloat(tr.dataset.unit) || 0, max = parseFloat(tr.dataset.max) || 0;
+            const inp = tr.querySelector('.sr-qty');
+            let q = parseFloat(inp.value) || 0;
+            if (q < 0) q = 0;
+            if (q > max) { q = max; inp.value = max; }
+            const line = q * unit;
+            tr.querySelector('.sr-line').textContent = retMoney(line);
+            total += line; count += q;
+        });
+        const mode = (document.querySelector('input[name="srRefund"]:checked') || {}).value || 'cash';
+        document.getElementById('srSummary').innerHTML = 'Returning <b>' + count + '</b> unit(s) · Refund <span class="amt">' + retMoney(total) + '</span> <span class="ret-muted">(' + (mode === 'khata' ? 'reduce khata' : 'cash') + ')</span>';
+        document.getElementById('srBtn').disabled = count <= 0;
+    }
+    async function processSalesReturn() {
+        if (!_srBill) return;
+        const btn = document.getElementById('srBtn');
+        const reason = document.getElementById('srReason').value;
+        const mode = (document.querySelector('input[name="srRefund"]:checked') || {}).value || 'cash';
+        const rows = []; let total = 0;
+        document.querySelectorAll('#srItems tr').forEach(tr => {
+            const q = parseFloat(tr.querySelector('.sr-qty').value) || 0;
+            if (q <= 0) return;
+            const m = _srBill.medicines[parseInt(tr.dataset.i, 10)];
+            const unit = parseFloat(tr.dataset.unit) || 0;
+            rows.push({ product: m.product, batch: m.batch || '', qty: q, amount: q * unit }); total += q * unit;
+        });
+        if (!rows.length) return;
+        const ok = await mmConfirm('Process this sales return?\n\n' + rows.length + ' item(s), ' + retMoney(total) + ' refunded (' + (mode === 'khata' ? 'khata' : 'cash') + ').\nStock will be added back.', { title: '↩️ Confirm Sales Return', okText: 'Yes, process' });
+        if (!ok) return;
+        btn.disabled = true; btn.textContent = 'Processing…';
+        const cnNo = 'CN-' + Date.now().toString().slice(-8);
+        try {
+            for (const r of rows) {
+                await _saveReturnAdjustment(r.product, r.batch, r.qty, 'sales_return', { ref: _srBill.billNo, cn: cnNo, party: _srBill.customerName || 'Walk-in', amount: r.amount, mode, reason, date: retToday() });
+            }
+            if (mode === 'khata') {
+                const cust = _retFindCustomer(_srBill.customerName);
+                if (cust) {
+                    const newBal = Math.max(0, (parseFloat(cust.balance) || 0) - total);
+                    try {
+                        const all = retCustomers();
+                        const idx = all.findIndex(c => (c.name || '').toLowerCase() === (cust.name || '').toLowerCase());
+                        if (idx >= 0) { all[idx].balance = newBal; localStorage.setItem('mm_customers', JSON.stringify(all)); }
+                    } catch (e) {}
+                    if (typeof dbUpdateCustomerBalance === 'function') dbUpdateCustomerBalance(cust.name, cust.phone || '', cust.address || '', -total).catch(() => {});
+                }
+            }
+            retToast('Sales return done — ' + cnNo, retMoney(total) + ' refunded, stock restored.');
+            cancelSaleReturn();
+            document.getElementById('saleSearch').value = '';
+            document.getElementById('saleBillList').innerHTML = '';
+            if (_dataLoaded) { buildStockData(); renderStockTable(document.getElementById('stockSearchInput').value); updateMetrics(); }
+        } catch (e) { console.error(e); retToast('Something went wrong', 'Please try again.'); }
+        finally { btn.disabled = false; btn.textContent = 'Process Sales Return'; }
+    }
+    function cancelSaleReturn() { _srBill = null; document.getElementById('saleReturnCard').classList.add('ret-hidden'); }
+    function _retFindCustomer(name) {
+        const n = (name || '').trim().toLowerCase();
+        if (!n) return null;
+        return retCustomers().find(c => (c.name || '').trim().toLowerCase() === n) || null;
+    }
+
+    /* ── Purchase return ── */
+    let _prLot = null, _purLots = [];
+    function findPurchases() {
+        const q = (document.getElementById('purSearch').value || '').trim().toLowerCase();
+        const list = document.getElementById('purList');
+        if (!q) { list.innerHTML = ''; _purLots = []; return; }
+        _purLots = retPurchases().filter(p => {
+            const name = (p.productName || p.product_name || ''), firm = (p.firm || ''), batch = (p.batchNo || p.batch_no || '');
+            return (name + ' ' + firm + ' ' + batch).toLowerCase().includes(q);
+        }).filter(p => {
+            const name = (p.productName || p.product_name || ''), batch = (p.batchNo || p.batch_no || '');
+            return (typeof mmComputeStock !== 'function') || mmComputeStock(name, batch) > 0;
+        }).sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 15);
+        if (!_purLots.length) { list.innerHTML = '<div class="ret-empty">No matching in-stock purchases.</div>'; return; }
+        list.innerHTML = _purLots.map((p, i) => {
+            const name = (p.productName || p.product_name || ''), batch = (p.batchNo || p.batch_no || ''), firm = p.firm || 'Supplier';
+            const stock = (typeof mmComputeStock === 'function') ? mmComputeStock(name, batch) : 0;
+            return '<div class="ret-pick" onclick="loadLotForReturn(' + i + ')"><div><b>' + retEsc(name) + '</b> <span class="ret-muted">' + retEsc(batch || '—') + '</span><br><span class="ret-muted">' + retEsc(firm) + ' · ' + retEsc(p.date || '') + '</span></div><div class="ret-muted">In stock: <b>' + stock + '</b></div></div>';
+        }).join('');
+    }
+    function loadLotForReturn(idx) {
+        const p = _purLots[idx];
+        if (!p) return;
+        _prLot = p;
+        const name = (p.productName || p.product_name || ''), batch = (p.batchNo || p.batch_no || ''), firm = p.firm || 'Supplier';
+        const stock = (typeof mmComputeStock === 'function') ? mmComputeStock(name, batch) : 0;
+        const pack = parseFloat(p.pack) || 1, rate = parseFloat(p.rate) || 0;
+        const perUnitCost = rate / (pack || 1);
+        document.getElementById('prFirm').textContent = firm;
+        document.getElementById('prMeta').textContent = 'Bill ' + (p.billNo || '—') + ' · ' + (p.date || '');
+        document.getElementById('prItems').innerHTML = '<tr data-unitcost="' + perUnitCost + '" data-max="' + stock + '"><td><b>' + retEsc(name) + '</b></td><td>' + retEsc(batch || '—') + '</td><td>' + stock + '</td><td><input type="number" class="ret-qty pr-qty" min="0" max="' + stock + '" value="0" oninput="renderPrSummary()"></td><td class="pr-line">₹0.00</td></tr>';
+        document.getElementById('purReturnCard').classList.remove('ret-hidden');
+        renderPrSummary();
+    }
+    function renderPrSummary() {
+        const tr = document.querySelector('#prItems tr');
+        if (!tr) return;
+        const unitCost = parseFloat(tr.dataset.unitcost) || 0, max = parseFloat(tr.dataset.max) || 0;
+        const inp = tr.querySelector('.pr-qty');
+        let q = parseFloat(inp.value) || 0;
+        if (q < 0) q = 0;
+        if (q > max) { q = max; inp.value = max; }
+        const val = q * unitCost;
+        tr.querySelector('.pr-line').textContent = retMoney(val);
+        document.getElementById('prSummary').innerHTML = 'Returning <b>' + q + '</b> unit(s) · Value <span class="amt">' + retMoney(val) + '</span>';
+        document.getElementById('prBtn').disabled = q <= 0;
+    }
+    async function processPurchaseReturn() {
+        if (!_prLot) return;
+        const tr = document.querySelector('#prItems tr');
+        const q = parseFloat(tr.querySelector('.pr-qty').value) || 0;
+        if (q <= 0) return;
+        const unitCost = parseFloat(tr.dataset.unitcost) || 0;
+        const name = (_prLot.productName || _prLot.product_name || ''), batch = (_prLot.batchNo || _prLot.batch_no || ''), firm = _prLot.firm || 'Supplier';
+        const reason = document.getElementById('prReason').value, value = q * unitCost;
+        const ok = await mmConfirm('Return ' + q + ' unit(s) of ' + name + ' to ' + firm + '?\n\n' + retMoney(value) + ' debit note. Stock will be removed.', { title: '↪️ Confirm Purchase Return', okText: 'Yes, process' });
+        if (!ok) return;
+        const btn = document.getElementById('prBtn');
+        btn.disabled = true; btn.textContent = 'Processing…';
+        const dnNo = 'DN-' + Date.now().toString().slice(-8);
+        try {
+            await _saveReturnAdjustment(name, batch, -q, 'purchase_return', { ref: _prLot.billNo || '', dn: dnNo, party: firm, amount: value, reason, date: retToday() });
+            retToast('Purchase return done — ' + dnNo, retMoney(value) + ' debit note, stock removed.');
+            cancelPurchaseReturn();
+            document.getElementById('purSearch').value = '';
+            document.getElementById('purList').innerHTML = '';
+            if (_dataLoaded) { buildStockData(); renderStockTable(document.getElementById('stockSearchInput').value); updateMetrics(); }
+        } catch (e) { console.error(e); retToast('Something went wrong', 'Please try again.'); }
+        finally { btn.disabled = false; btn.textContent = 'Process Purchase Return'; }
+    }
+    function cancelPurchaseReturn() { _prLot = null; document.getElementById('purReturnCard').classList.add('ret-hidden'); }
+
+    /* ── History ── */
+    function renderReturnsHistory() {
+        const rows = retAdjustments().filter(a => a.reason === 'sales_return' || a.reason === 'purchase_return')
+            .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+        const body = document.getElementById('historyBody');
+        if (!rows.length) { body.innerHTML = '<div class="ret-empty">No returns yet.</div>'; return; }
+        let html = '<table class="ret-tbl"><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Party</th><th>Medicine</th><th>Qty</th><th>Amount</th></tr></thead><tbody>';
+        rows.forEach(a => {
+            let n = {}; try { n = JSON.parse(a.note || '{}'); } catch (e) {}
+            const isSale = a.reason === 'sales_return';
+            const noteNo = isSale ? (n.cn || '') : (n.dn || '');
+            html += '<tr><td>' + retEsc(n.date || (a.created_at || '').slice(0, 10)) + '</td>'
+                + '<td><span class="ret-badge ' + (isSale ? 'ret-b-sale' : 'ret-b-pur') + '">' + (isSale ? 'Sales' : 'Purchase') + '</span></td>'
+                + '<td>' + retEsc(noteNo || '—') + (n.ref ? ' <span class="ret-muted">/ ' + retEsc(n.ref) + '</span>' : '') + '</td>'
+                + '<td>' + retEsc(n.party || '—') + '</td>'
+                + '<td>' + retEsc(a.product_name || '') + ' <span class="ret-muted">' + retEsc(a.batch_no || '') + '</span></td>'
+                + '<td>' + (parseFloat(a.qty_delta) > 0 ? '+' : '') + (parseFloat(a.qty_delta) || 0) + '</td>'
+                + '<td>' + retMoney(n.amount || 0) + '</td></tr>';
+        });
+        body.innerHTML = html + '</tbody></table>';
     }
 
     // ═══════════════════════════════════════════════════════
