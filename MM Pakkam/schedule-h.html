@@ -1703,6 +1703,33 @@
         const getRegister     = () => JSON.parse(localStorage.getItem(SH_REGISTER_KEY) || '[]');
         const setRegister     = list => localStorage.setItem(SH_REGISTER_KEY, JSON.stringify(list));
 
+        // One-time recovery: the old cloud round-trip dropped entry_type, so some
+        // IN (stock-received) entries came back labelled OUT. Only IN entries carry
+        // a firm/supplier name and have no patient — use that to put the type back,
+        // then re-push the corrected rows so the cloud gets entry_type too.
+        let _shTypesNormalized = false;
+        function _normalizeRegisterTypes() {
+            if (_shTypesNormalized) return;
+            _shTypesNormalized = true;
+            try {
+                const reg = getRegister();
+                const fixed = [];
+                reg.forEach(e => {
+                    if (e && e.firmName && !e.patientName && e.entryType !== 'in') {
+                        e.entryType = 'in';
+                        fixed.push(e);
+                    }
+                });
+                if (fixed.length) {
+                    setRegister(reg);
+                    if (typeof dbAddScheduleHEntry === 'function') {
+                        fixed.forEach(e => dbAddScheduleHEntry(e).catch(() => {}));
+                    }
+                    console.log('[SH] Recovered ' + fixed.length + ' IN entr(y/ies) mislabelled as OUT.');
+                }
+            } catch (e) { console.warn('register type normalize failed:', e); }
+        }
+
         function genId() {
             return Date.now() + '_' + Math.random().toString(36).substr(2, 5);
         }
@@ -2614,6 +2641,7 @@
         }
 
         function renderRegisterLog() {
+            _normalizeRegisterTypes();
             refreshShMetrics();
             const register = getRegister();
             const searchTerm = (document.getElementById('logSearch').value || '').trim().toLowerCase();
