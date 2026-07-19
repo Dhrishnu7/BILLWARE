@@ -745,12 +745,10 @@
         <!-- 🕵️ AUDIT TRAIL VIEW -->
         <div id="auditView" style="display:none; width:100%;">
             <div class="table-card">
-                <div class="table-header" style="flex-wrap:wrap; gap:0.6rem;">
-                    <div class="table-title">🕵️ Audit Trail &mdash; who did what</div>
-                    <input type="text" id="auditSearch" placeholder="Search user / action / bill…" oninput="renderAuditTable()"
-                        style="flex:1; min-width:180px; max-width:340px; padding:0.5rem 0.8rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:0.86rem; font-family:inherit;">
-                </div>
-                <p style="font-size:0.8rem; color:#94a3b8; margin:0.2rem 0 0.8rem;">Every sale, purchase, return, payment, edit and delete — newest first. Shows across all your devices.</p>
+                <div class="table-title" style="margin-bottom:0.3rem;">🕵️ Audit Trail &mdash; who did what</div>
+                <p style="font-size:0.8rem; color:#94a3b8; margin:0 0 0.9rem;">Every sale, purchase, return, payment, edit and delete &mdash; newest first. Shows across all your devices.</p>
+                <input type="text" id="auditSearch" placeholder="Search user / action / bill…" oninput="renderAuditTable()"
+                    style="display:block; width:100%; max-width:360px; padding:0.55rem 0.85rem; margin-bottom:1rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:0.86rem; font-family:inherit; box-sizing:border-box;">
                 <div style="overflow-x:auto;">
                     <table class="report-table" id="auditTable">
                         <thead><tr><th>When</th><th>User</th><th>Action</th><th>Details</th><th>Ref</th></tr></thead>
