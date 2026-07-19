@@ -362,6 +362,8 @@ const MMNotifications = (() => {
     // still-overdue shop is reminded again at most once a week, not every day.
     function generateBackupAlerts(hasData) {
         if (!hasData) return [];               // nothing to back up yet — don't nag
+        // Owner can switch backup reminders off site-wide (e.g. once on Supabase Pro).
+        if (typeof mmBackupRemindersOn === 'function' && !mmBackupRemindersOn()) return [];
         const readIds = getReadIds();
         const DAY = 24 * 60 * 60 * 1000;
         let last = null;

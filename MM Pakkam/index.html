@@ -733,6 +733,12 @@
             // Show a prominent "back up now" banner when it's been 7+ days / never.
             function showBackupBanner() {
                 try {
+                    // Owner can switch this off site-wide (e.g. once on Supabase Pro).
+                    if (typeof mmBackupRemindersOn === 'function' && !mmBackupRemindersOn()) {
+                        const b0 = document.getElementById('backupBanner');
+                        if (b0) b0.style.display = 'none';
+                        return;
+                    }
                     const session = JSON.parse(
                         localStorage.getItem('mm_auth_session') ||
                         sessionStorage.getItem('mm_auth_session') || 'null'
@@ -758,7 +764,15 @@
                     banner.style.display = 'flex';
                 } catch (e) {}
             }
-            function _initDash() { setWelcome(); showBackupBanner(); }
+            function _initDash() {
+                setWelcome();
+                showBackupBanner();
+                // Refresh the global config in the background so a flipped switch
+                // (e.g. reminders turned off on Pro) takes effect on the next load.
+                if (typeof dbSyncAppConfig === 'function') {
+                    dbSyncAppConfig().then(() => { try { showBackupBanner(); } catch (e) {} });
+                }
+            }
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', _initDash);
             } else {

@@ -808,6 +808,33 @@ window.dbDeleteSupplierPayment = dbDeleteSupplierPayment;
    and never blocks. Viewed on the Report page.
    Needs migrations/add_audit_log_table.sql.
 ───────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────
+   GLOBAL APP CONFIG — a few site-wide key/value switches the
+   owner flips from the Supabase Table Editor (no redeploy).
+   Cached to localStorage so reads are synchronous.
+   Needs migrations/add_app_config_table.sql.
+───────────────────────────────────────────────────── */
+async function dbSyncAppConfig() {
+    try {
+        const { data, error } = await _supabase.from('app_config').select('key,value');
+        if (error) return;
+        const map = {};
+        (data || []).forEach(r => { if (r.key) map[r.key] = r.value; });
+        localStorage.setItem('mm_app_config', JSON.stringify(map));
+    } catch (e) { /* config is optional — never break the app */ }
+}
+window.dbSyncAppConfig = dbSyncAppConfig;
+
+function mmConfig(key, dflt) {
+    try { const m = JSON.parse(localStorage.getItem('mm_app_config') || '{}'); return (key in m) ? m[key] : dflt; }
+    catch (e) { return dflt; }
+}
+window.mmConfig = mmConfig;
+
+// Backup reminders on unless the owner set backup_reminders = 'off' (i.e. on Pro).
+function mmBackupRemindersOn() { return String(mmConfig('backup_reminders', 'on')).toLowerCase() !== 'off'; }
+window.mmBackupRemindersOn = mmBackupRemindersOn;
+
 function mmAudit(action, detail, ref) {
     try {
         const actor = (typeof mmCurrentUser === 'function' && mmCurrentUser())
