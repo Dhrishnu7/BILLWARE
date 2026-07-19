@@ -796,6 +796,12 @@
                     <div class="kpi-sub">Bills generated in period</div>
                     <div class="kpi-icon">🧾</div>
                 </div>
+                <div class="analytics-kpi-card kpi-revenue">
+                    <div class="kpi-label">Stock Value (at cost)</div>
+                    <div class="kpi-value" id="kpiStockValue">₹0</div>
+                    <div class="kpi-sub">Capital in current stock right now</div>
+                    <div class="kpi-icon">📦</div>
+                </div>
             </div>
 
             <!-- Collections by payment mode — for day-end cash/bank reconciliation -->
@@ -805,6 +811,21 @@
                     <span class="analytics-card-badge">Selected period</span>
                 </div>
                 <div id="paymentModeBreakdown" style="display:flex; flex-wrap:wrap; gap:0.8rem; padding-top:0.6rem;"></div>
+            </div>
+
+            <!-- Full item-wise sales movement (every medicine, not just Top 5) -->
+            <div class="analytics-card" style="margin-bottom:1.2rem;">
+                <div class="analytics-card-header" style="flex-wrap:wrap; gap:0.6rem;">
+                    <div class="analytics-card-title"><span class="chart-icon icon-sellers">📋</span> All Medicines — Sales Movement</div>
+                    <input type="text" id="itemMoveSearch" placeholder="Search medicine…" oninput="renderItemMovement(this.value)"
+                        style="padding:0.45rem 0.75rem; border:1.5px solid #e2e8f0; border-radius:9px; font-size:0.82rem; font-family:inherit; max-width:220px;">
+                </div>
+                <div style="overflow-x:auto; max-height:360px; overflow-y:auto; margin-top:0.6rem;">
+                    <table class="report-table" style="min-width:420px;">
+                        <thead><tr><th>Medicine</th><th style="text-align:right;">Qty Sold</th><th style="text-align:right;">Revenue</th></tr></thead>
+                        <tbody id="itemMovementBody"><tr><td colspan="3" style="text-align:center; padding:1.4rem; color:#94a3b8;">Generate a report to see movement.</td></tr></tbody>
+                    </table>
+                </div>
             </div>
 
             <div class="analytics-grid">
@@ -1962,6 +1983,23 @@
             </div>`).join('');
         }
 
+        // Full item-wise sales movement — every medicine's qty sold + revenue, sortable.
+        function renderItemMovement(filter) {
+            const body = document.getElementById('itemMovementBody');
+            if (!body) return;
+            const q = (filter || '').trim().toLowerCase();
+            const rows = (window._itemMovementData || []).filter(r => !q || r.name.toLowerCase().includes(q));
+            if (!rows.length) {
+                body.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:1.4rem; color:#94a3b8;">'
+                    + ((window._itemMovementData || []).length ? 'No matches.' : 'No sales in the selected period.') + '</td></tr>';
+                return;
+            }
+            body.innerHTML = rows.map(r => '<tr>'
+                + '<td>' + _aEsc(r.name) + '</td>'
+                + '<td style="text-align:right; font-weight:700;">' + (Math.round(r.qty * 100) / 100) + '</td>'
+                + '<td style="text-align:right;">₹' + (Math.round(r.revenue * 100) / 100).toFixed(2) + '</td></tr>').join('');
+        }
+
         function generateAnalytics(data) {
             if (currentViewMode !== 'analytics') return; // Only render when visible
             renderPaymentBreakdown();
@@ -2027,6 +2065,34 @@
                     customerSales[cName].bills.add(s.billNo);
                 }
             });
+
+            // Stock valuation (at cost) — current stock units × latest purchase cost/unit
+            try {
+                const batchCost = {};
+                purchases.forEach(p => {
+                    const name = p.product_name || p.productName || '';
+                    if (!name) return;
+                    const batch = p.batch_no || p.batchNo || '';
+                    const key = name.toLowerCase() + '|' + batch.toLowerCase();
+                    const date = String(p.date || '');
+                    if (!batchCost[key] || date >= batchCost[key].date) {
+                        batchCost[key] = { name, batch, rate: parseFloat(p.rate) || 0, pack: parseFloat(p.pack) || 1, date };
+                    }
+                });
+                let stockValue = 0;
+                Object.values(batchCost).forEach(b => {
+                    const units = (typeof mmComputeStock === 'function') ? mmComputeStock(b.name, b.batch) : 0;
+                    if (units > 0) stockValue += units * (b.rate / (b.pack || 1));
+                });
+                const svEl = document.getElementById('kpiStockValue');
+                if (svEl) svEl.textContent = '₹' + Math.round(stockValue).toLocaleString('en-IN');
+            } catch (e) {}
+
+            // Full item-wise movement (all medicines, sorted by qty sold)
+            window._itemMovementData = Object.keys(productSales).map(name => ({
+                name, qty: productSales[name].qty, revenue: productSales[name].revenue
+            })).sort((a, b) => b.qty - a.qty);
+            renderItemMovement(document.getElementById('itemMoveSearch') ? document.getElementById('itemMoveSearch').value : '');
 
             // 2. Prepare Trend Data (Group by Date)
             const dateMap = {};
