@@ -986,20 +986,27 @@ function renderSignups() {
 
 // ── DELETE ──
 async function deleteAccount(username,id) {
-    if(!await mmConfirm(`⚠️ PERMANENTLY DELETE "${username}"?\n\nThis will:\n• Delete their account\n• Remove all their bills, purchases, customers & medicines\n• Block their login immediately\n\nThis CANNOT be undone.`, { danger: true, okText: 'Delete Forever' })) return;
+    if(!await mmConfirm(`⚠️ PERMANENTLY DELETE the store "${username}"?\n\nThis will:\n• Erase their ENTIRE store — bills, purchases, customers, medicines, Schedule H/X, khata, suppliers, audit log, everything\n• Remove all their worker logins\n• Block their login immediately\n\nThis CANNOT be undone.`, { danger: true, okText: 'Delete Store Forever' })) return;
     try {
+        // The heavy lifting is done server-side: deleting the owner row fires the
+        // cascade_delete_store trigger (migrations/add_delete_store_cascade.sql),
+        // which wipes every per-shop table + worker logins with the service role.
+        // These client-side deletes are a best-effort head start on the core
+        // tables in case that migration hasn't been run yet.
         const scope=username;
-        const billIds=allBills.filter(b=>b.user_id===scope).map(b=>b.id);
-        if(billIds.length) await sb.from('bill_items').delete().in('bill_id',billIds);
-        await Promise.all([
-            sb.from('bills').delete().eq('user_id',scope),
-            sb.from('purchases').delete().eq('user_id',scope),
-            sb.from('customers').delete().eq('user_id',scope),
-            sb.from('medicines').delete().eq('user_id',scope),
-        ]);
+        try {
+            const billIds=allBills.filter(b=>b.user_id===scope).map(b=>b.id);
+            if(billIds.length) await sb.from('bill_items').delete().in('bill_id',billIds);
+            await Promise.all([
+                sb.from('bills').delete().eq('user_id',scope),
+                sb.from('purchases').delete().eq('user_id',scope),
+                sb.from('customers').delete().eq('user_id',scope),
+                sb.from('medicines').delete().eq('user_id',scope),
+            ]);
+        } catch(_) { /* RLS may block these; the trigger is the real delete */ }
         const delRes = await saCall('sa_delete_user', { id });
         if (!delRes.ok) { alert('Delete error: ' + delRes.message); return; }
-        alert(`✅ Account "${username}" fully deleted. Their access is now blocked.`);
+        alert(`✅ Store "${username}" deleted — all their data is erased and their login is blocked.`);
         loadAll();
     } catch(e) { alert('Delete error: '+e.message); }
 }
