@@ -343,8 +343,8 @@
         <div class="sh"><span>📢</span><h2>Send a Message to Shops</h2></div>
         <div class="cw" style="padding:18px;margin-bottom:22px">
             <label class="lbl">Send to</label>
-            <select class="inp" id="annTarget">
-                <option value="">📣 All shops (broadcast)</option>
+            <select class="inp" id="annTarget" style="color-scheme:dark">
+                <option value="" style="color:#0f172a;background:#fff">📣 All shops (broadcast)</option>
             </select>
             <div style="display:flex;gap:12px;margin-top:12px">
                 <div style="flex:0 0 90px">
@@ -1022,11 +1022,11 @@ function _populateAnnTargets() {
     if (!sel) return;
     const owners = allUsers.filter(u => u.role === 'owner' || !u.role);
     const keep = sel.value;
-    sel.innerHTML = '<option value="">📣 All shops (broadcast)</option>' +
+    sel.innerHTML = '<option value="" style="color:#0f172a;background:#fff">📣 All shops (broadcast)</option>' +
         owners.map(u => {
             const prof = window.currentShopProfiles ? window.currentShopProfiles[u.username] : null;
             const label = (prof && prof.shop_name) ? (prof.shop_name + ' (' + u.username + ')') : u.username;
-            return '<option value="' + escAttr(u.username) + '">🏪 ' + escHtml(label) + '</option>';
+            return '<option value="' + escAttr(u.username) + '" style="color:#0f172a;background:#fff">🏪 ' + escHtml(label) + '</option>';
         }).join('');
     sel.value = keep;
 }
