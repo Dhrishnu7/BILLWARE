@@ -96,6 +96,40 @@ const MMNotifications = (() => {
         };
     }
 
+    // Per-item reorder level — MUST stay identical to the Inventory "To Buy" tab
+    // (inventory.html): a manual override in mm_reorder_levels if the owner set one,
+    // otherwise a smart default = ceil(30-day sales/day × 7). Keeping the two in
+    // sync means the 🔔 Low Stock alert fires for EXACTLY the medicines on the
+    // To Buy reorder list — no flat "10 units" cutoff that misses fast movers or
+    // nags about slow ones.
+    function _reorderCtx() {
+        const WIN = 30;
+        const cutoff = new Date(Date.now() - WIN * 86400000).toISOString().slice(0, 10);
+        const sold = {};
+        let bills = [];
+        try { bills = JSON.parse(localStorage.getItem('mm_sales') || '[]'); } catch {}
+        (bills || []).forEach(b => {
+            if (b.isReturn) return;
+            const d = String(b.date || '').slice(0, 10);
+            if (d < cutoff) return;
+            (b.medicines || []).forEach(m => {
+                const k = (m.product || '').trim().toLowerCase();
+                if (k) sold[k] = (sold[k] || 0) + (parseFloat(m.qty) || 0);
+            });
+        });
+        let overrides = {};
+        try { overrides = JSON.parse(localStorage.getItem('mm_reorder_levels') || '{}'); } catch {}
+        return { sold, overrides, win: WIN };
+    }
+
+    function _reorderLevelFor(name, ctx) {
+        const k = (name || '').trim().toLowerCase();
+        if (Object.prototype.hasOwnProperty.call(ctx.overrides, k)) {
+            return parseFloat(ctx.overrides[k]) || 0;
+        }
+        return Math.ceil(((ctx.sold[k] || 0) / ctx.win) * 7);
+    }
+
     // ─────────────────────────────────────
     // 1. MEDICINES — Expiry & Stock Alerts
     // ─────────────────────────────────────
@@ -104,6 +138,7 @@ const MMNotifications = (() => {
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const readIds = getReadIds();
         const results = [];
+        const roCtx = _reorderCtx();   // reorder levels — same source as the To Buy tab
 
         // Use the ONE shared stock formula (js/supabase.js) so alerts reflect
         // REAL current stock = purchased − sold + adjustments. Summing raw
@@ -178,18 +213,30 @@ const MMNotifications = (() => {
             // "only if it has a non-expired batch" gate silently hid low/out-of-
             // stock alerts for any medicine entered without an expiry date — the
             // "notifications sometimes miss low/out of stock" bug.)
+            //
+            // The Low-Stock trigger now uses each item's REORDER LEVEL — the exact
+            // same number the Inventory → To Buy tab uses — instead of a flat 10.
+            // So the bell flags precisely the medicines on your reorder list: it
+            // won't miss a fast-mover that's low, and won't nag about a slow item
+            // that's fine. Items with no reorder level (non-movers, level 0) aren't
+            // on the To Buy list, so they get no stock nag here either.
             const current = stockOf(name);
             const qty = (current !== null) ? current : info.fallbackQty;
-            if (qty <= 0) {
-                results.push(notif({ id: `stock_${name}_out`, category: 'medicines', type: 'out_of_stock', priority: 1, readIds,
-                    title: `${name} — Out of Stock`, icon: '🚫', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', time: 'Stock update',
-                    message: `Zero units remaining. Purchase more stock to avoid losing sales.`
-                }));
-            } else if (qty <= 10) {
-                results.push(notif({ id: `stock_${name}_low`, category: 'medicines', type: 'low_stock', priority: 2, readIds,
-                    title: `${name} — Low Stock`, icon: '⚠️', color: '#d97706', bg: '#fffbeb', border: '#fde68a', time: 'Stock update',
-                    message: `Only <b>${qty} unit${qty!==1?'s':''}</b> left. Consider reordering soon.`
-                }));
+            const level = _reorderLevelFor(name, roCtx);
+            if (level > 0) {
+                if (qty <= 0) {
+                    const buy = Math.max(1, Math.ceil(level * 2));
+                    results.push(notif({ id: `stock_${name}_out`, category: 'medicines', type: 'out_of_stock', priority: 1, readIds,
+                        title: `${name} — Out of Stock`, icon: '🚫', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', time: 'Reorder now',
+                        message: `Zero units remaining. Suggested buy: <b>${buy}</b>. Open <b>Inventory → To Buy</b> to reorder before you lose sales.`
+                    }));
+                } else if (qty <= level) {
+                    const buy = Math.max(1, Math.ceil((level * 2) - qty));
+                    results.push(notif({ id: `stock_${name}_low`, category: 'medicines', type: 'low_stock', priority: 2, readIds,
+                        title: `${name} — Low Stock`, icon: '⚠️', color: '#d97706', bg: '#fffbeb', border: '#fde68a', time: 'Reorder soon',
+                        message: `Only <b>${qty} unit${qty!==1?'s':''}</b> left (reorder level ${level}). Suggested buy: <b>${buy}</b>. See <b>Inventory → To Buy</b>.`
+                    }));
+                }
             }
         });
 
