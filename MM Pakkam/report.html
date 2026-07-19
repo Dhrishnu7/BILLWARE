@@ -750,7 +750,10 @@
                 <input type="text" id="auditSearch" placeholder="Search user / action / bill…" oninput="renderAuditTable()"
                     style="display:block; width:100%; max-width:360px; padding:0.55rem 0.85rem; margin-bottom:1rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:0.86rem; font-family:inherit; box-sizing:border-box;">
                 <div style="overflow-x:auto;">
-                    <table class="report-table" id="auditTable">
+                    <table class="report-table" id="auditTable" style="table-layout:fixed; min-width:640px;">
+                        <colgroup>
+                            <col style="width:16%"><col style="width:13%"><col style="width:22%"><col style="width:35%"><col style="width:14%">
+                        </colgroup>
                         <thead><tr><th>When</th><th>User</th><th>Action</th><th>Details</th><th>Ref</th></tr></thead>
                         <tbody id="auditBody"><tr><td colspan="5" style="text-align:center; padding:1.6rem; color:#94a3b8;">Open this tab to load activity…</td></tr></tbody>
                     </table>
