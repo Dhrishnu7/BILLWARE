@@ -589,6 +589,12 @@
                         <label>Date</label>
                         <input type="date" id="purchaseDate">
                     </div>
+                    <div class="form-group full-width">
+                        <label style="display:flex;align-items:center;gap:9px;cursor:pointer;text-transform:none;letter-spacing:normal;font-weight:600;color:#334155;">
+                            <input type="checkbox" id="paidNowChk" style="width:18px;height:18px;cursor:pointer;">
+                            💵 Paid now (cash purchase) — records a full payment so this bill won't show as owed in the Supplier Ledger
+                        </label>
+                    </div>
                 </div>
 
                 <!-- ═══ Medicine Import Actions ═══ -->
@@ -1118,9 +1124,39 @@
                 }
             } catch(shErr) { console.warn('[SH] Purchase H-register error:', shErr); }
 
+            // "Paid now" (cash purchase) → auto-record a full supplier payment so this
+            // bill never shows as owed in the Supplier Ledger. Amount = rate×qty+GST
+            // (what the supplier invoices — never MRP).
+            try {
+                const paidNow = document.getElementById('paidNowChk');
+                if (paidNow && paidNow.checked && firm && records.length) {
+                    let amt = 0;
+                    records.forEach(r => {
+                        const q = parseFloat(r.quantity) || 0, rt = parseFloat(r.rate) || 0, g = parseFloat(r.gst) || 0;
+                        amt += (q * rt) * (1 + g / 100);
+                    });
+                    if (amt > 0) {
+                        const pay = {
+                            id: 'sp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+                            firm: firm, amount: Math.round(amt * 100) / 100,
+                            date: date || new Date().toISOString().slice(0, 10),
+                            note: 'Cash purchase' + (billNo ? ' · Bill ' + billNo : ''),
+                            savedAt: new Date().toISOString()
+                        };
+                        try {
+                            const arr = JSON.parse(localStorage.getItem('mm_supplier_payments') || '[]');
+                            arr.push(pay);
+                            localStorage.setItem('mm_supplier_payments', JSON.stringify(arr));
+                        } catch (e) {}
+                        if (typeof dbAddSupplierPayment === 'function') dbAddSupplierPayment(pay).catch(() => {});
+                    }
+                }
+            } catch (payErr) { console.warn('paid-now supplier payment failed:', payErr); }
+
             if (failCount === 0) {
                 // Clear draft immediately so navigating away won't restore old data
                 clearDraft();
+                const _pn = document.getElementById('paidNowChk'); if (_pn) _pn.checked = false;
                 showToast(
                     `${successCount} Purchase(s) Saved!`,
                     `All ${successCount} item(s) added successfully.`
