@@ -194,6 +194,9 @@
             animation: fadeUp 0.5s ease 0.25s forwards; opacity: 0;
             overflow: hidden;
         }
+        /* Audit Trail is a wide 5-column table — let it use the full page width. */
+        #auditView { width: 100%; }
+        #auditView .table-card { max-width: 1400px; margin: 0 auto; }
         .table-header {
             display: flex; align-items: center; justify-content: space-between;
             margin-bottom: 1.4rem; flex-wrap: wrap; gap: 0.8rem;
