@@ -1105,7 +1105,7 @@
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('tab-' + name).classList.add('active');
         // Handle camelCase button IDs
-        const btnMap = { ledger:'tabBtnLedger', expiry:'tabBtnExpiry', dead:'tabBtnDead', subfinder:'tabBtnSubFinder' };
+        const btnMap = { ledger:'tabBtnLedger', expiry:'tabBtnExpiry', dead:'tabBtnDead', subfinder:'tabBtnSubFinder', tobuy:'tabBtnToBuy' };
         const btnId = btnMap[name] || ('tabBtn' + name.charAt(0).toUpperCase() + name.slice(1));
         const btn = document.getElementById(btnId);
         if (btn) btn.classList.add('active');
@@ -1179,9 +1179,13 @@
             return '<tr>'
                 + '<td><b>' + _tbEsc(r.name) + '</b></td>'
                 + '<td style="text-align:right; color:' + (r.stock <= 0 ? '#dc2626' : '#b45309') + '; font-weight:700;">' + r.stock + '</td>'
-                + '<td style="text-align:center;"><input type="number" min="0" value="' + r.level + '" onchange="saveReorderLevel(' + nameArg + ', this.value)" '
-                + 'style="width:78px; text-align:center; padding:0.3rem; border:1.5px solid ' + (r.hasOverride ? '#6366f1' : '#e2e8f0') + '; border-radius:8px; font-size:0.85rem;" '
-                + 'title="' + (r.hasOverride ? 'Your set level' : 'Auto from sales speed — type to set your own') + '"></td>'
+                + '<td style="text-align:center; white-space:nowrap;">'
+                + '<input type="number" min="0" value="' + r.level + '" '
+                + 'style="width:70px; text-align:center; padding:0.3rem; border:1.5px solid ' + (r.hasOverride ? '#6366f1' : '#e2e8f0') + '; border-radius:8px; font-size:0.85rem; vertical-align:middle;" '
+                + 'title="' + (r.hasOverride ? 'Your set level' : 'Auto from sales speed — set your own, then press ✓') + '">'
+                + '<button type="button" onclick="saveReorderLevel(' + nameArg + ', this.previousElementSibling.value)" title="Save this reorder level" '
+                + 'style="margin-left:5px; background:#059669; color:#fff; border:none; border-radius:7px; padding:0.32rem 0.55rem; font-weight:800; cursor:pointer; font-size:0.85rem; vertical-align:middle;">✓</button>'
+                + '</td>'
                 + '<td style="text-align:right; font-weight:800; color:#059669;">' + r.buy + '</td>'
                 + '</tr>';
         }).join('');
