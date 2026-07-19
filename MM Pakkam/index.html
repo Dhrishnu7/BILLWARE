@@ -562,11 +562,16 @@
         </div>
 
         <!-- Backup-overdue reminder (shown by JS when it's been 7+ days / never) -->
-        <a id="backupBanner" href="report.html" style="display:none; align-items:center; gap:0.8rem; max-width:1100px; margin:0 auto 1.4rem; padding:0.9rem 1.2rem; border-radius:14px; background:linear-gradient(135deg,#fef3c7,#fde68a); border:1.5px solid #fcd34d; text-decoration:none; color:#92400e; box-shadow:0 4px 14px rgba(245,158,11,0.18);">
+        <div id="backupBanner" style="display:none; position:relative; align-items:center; gap:0.8rem; max-width:1100px; margin:0 auto 1.4rem; padding:0.9rem 2.6rem 0.9rem 1.2rem; border-radius:14px; background:linear-gradient(135deg,#fef3c7,#fde68a); border:1.5px solid #fcd34d; color:#92400e; box-shadow:0 4px 14px rgba(245,158,11,0.18);">
             <span style="font-size:1.4rem;">💾</span>
-            <span style="flex:1; font-weight:600; font-size:0.9rem;" id="backupBannerText">Back up your shop data.</span>
-            <span style="background:#b45309; color:#fff; padding:0.5rem 1rem; border-radius:10px; font-weight:800; font-size:0.82rem; white-space:nowrap;">Back up now →</span>
-        </a>
+            <div style="flex:1;">
+                <div style="font-weight:600; font-size:0.9rem;" id="backupBannerText">Back up your shop data.</div>
+                <a href="#" onclick="dismissBackupForever(event)" style="font-size:0.74rem; color:#b45309; text-decoration:underline; cursor:pointer;">Don't show this again</a>
+            </div>
+            <a href="report.html" style="background:#b45309; color:#fff; padding:0.5rem 1rem; border-radius:10px; font-weight:800; font-size:0.82rem; white-space:nowrap; text-decoration:none;">Back up now →</a>
+            <button type="button" onclick="snoozeBackupBanner()" title="Not now — remind me later" aria-label="Close"
+                style="position:absolute; top:6px; right:8px; background:transparent; border:none; color:#92400e; font-size:1.05rem; cursor:pointer; line-height:1; padding:2px 6px;">&times;</button>
+        </div>
 
         <div class="dashboard">
 
@@ -745,6 +750,11 @@
                     );
                     if (!session) return;
                     const tenant = session.tenant_id || session.username || 'anon';
+                    // Per-shop "Don't show again" (permanent) — the weekly inbox reminder still nags.
+                    if (localStorage.getItem('mm_backup_banner_off_' + tenant) === '1') return;
+                    // "Not now" snooze — hide for 1 day, then it comes back.
+                    const snooze = parseInt(localStorage.getItem('mm_backup_snooze_' + tenant), 10);
+                    if (snooze && (Date.now() - snooze) < 86400000) return;
                     let hasData = false;
                     try {
                         hasData = (JSON.parse(localStorage.getItem('mm_sales') || '[]').length > 0)
@@ -764,6 +774,24 @@
                     banner.style.display = 'flex';
                 } catch (e) {}
             }
+            function _bkTenant() {
+                try {
+                    const s = JSON.parse(localStorage.getItem('mm_auth_session') || sessionStorage.getItem('mm_auth_session') || 'null');
+                    return s ? (s.tenant_id || s.username || 'anon') : 'anon';
+                } catch (e) { return 'anon'; }
+            }
+            // "Not now" — hide for a day, comes back later.
+            window.snoozeBackupBanner = function () {
+                try { localStorage.setItem('mm_backup_snooze_' + _bkTenant(), String(Date.now())); } catch (e) {}
+                const b = document.getElementById('backupBanner'); if (b) b.style.display = 'none';
+            };
+            // "Don't show again" — permanent for this shop (weekly inbox reminder still runs).
+            window.dismissBackupForever = function (ev) {
+                if (ev && ev.preventDefault) ev.preventDefault();
+                try { localStorage.setItem('mm_backup_banner_off_' + _bkTenant(), '1'); } catch (e) {}
+                const b = document.getElementById('backupBanner'); if (b) b.style.display = 'none';
+            };
+
             function _initDash() {
                 setWelcome();
                 showBackupBanner();
