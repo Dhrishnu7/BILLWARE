@@ -242,6 +242,7 @@
         <button class="tab" onclick="switchTab('requests',this)">📩 Requests <span class="badge" id="tabPendCount">0</span></button>
         <button class="tab" onclick="switchTab('pwdresets',this)">🔑 Resets <span class="badge" id="tabPwdResetCount" style="background:rgba(234,179,8,.2); border-color:rgba(234,179,8,.4); color:#fde047;">0</span></button>
         <button class="tab" onclick="switchTab('support',this)">🎧 Support <span class="badge" id="tabSupportCount" style="background:rgba(14,165,233,.2); border-color:rgba(14,165,233,.4); color:#38bdf8;">0</span></button>
+        <button class="tab" onclick="switchTab('broadcast',this)">📢 Broadcast</button>
     </div>
 
     <!-- TAB: OVERVIEW -->
@@ -335,6 +336,32 @@
         <div class="pending-grid" id="supportGrid">
             <div class="ld"><div class="sp"></div>Loading...</div>
         </div>
+    </div>
+
+    <!-- TAB: BROADCAST -->
+    <div class="tab-panel" id="tab-broadcast">
+        <div class="sh"><span>📢</span><h2>Send a Message to Shops</h2></div>
+        <div class="cw" style="padding:18px;margin-bottom:22px">
+            <label class="lbl">Send to</label>
+            <select class="inp" id="annTarget">
+                <option value="">📣 All shops (broadcast)</option>
+            </select>
+            <div style="display:flex;gap:12px;margin-top:12px">
+                <div style="flex:0 0 90px">
+                    <label class="lbl">Icon</label>
+                    <input class="inp" id="annIcon" value="📢" maxlength="4">
+                </div>
+                <div style="flex:1">
+                    <label class="lbl">Title</label>
+                    <input class="inp" id="annTitle" placeholder="e.g. Scheduled maintenance tonight">
+                </div>
+            </div>
+            <label class="lbl" style="margin-top:12px">Message</label>
+            <textarea class="inp" id="annMsg" rows="4" placeholder="Type the message shops will see in their Inbox…" style="resize:vertical"></textarea>
+            <button class="login-btn" style="margin-top:16px" onclick="sendAnnouncement()">📤 Send to Inbox</button>
+        </div>
+        <div class="sh"><span>🗂️</span><h2>Sent Messages</h2></div>
+        <div class="pending-grid" id="annList"><div class="ld"><div class="sp"></div>Loading…</div></div>
     </div>
 </div>
 
@@ -439,6 +466,7 @@ function switchTab(id, el) {
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
     document.getElementById('tab-'+id).classList.add('active');
     el.classList.add('active');
+    if (id === 'broadcast') renderAnnouncements();
 }
 
 // ── CLOCK ──
@@ -490,6 +518,7 @@ async function loadAll() {
     renderStats(); renderInfoRow(); renderOnline();
     renderAccounts(); renderRequests();
     renderShopEditRequests(); renderExtraUserRequests(); renderPasswordResets(); renderSupportIssues();
+    _populateAnnTargets();
 }
 
 // ── STATS ──
@@ -982,6 +1011,70 @@ function renderSignups() {
                 <div class="am">Joined: ${parseDate(u.createdAt)} · ${u.approval_status==='pending'?'⏳ Pending':u.approval_status==='rejected'?'❌ Rejected':'✅ Active'}</div>
             </div>
         </div>`).join('');
+}
+
+// ── BROADCAST / ANNOUNCEMENTS ──
+// Post a message into every shop's Inbox (target blank) or one shop's Inbox
+// (target = owner username). Shops read mm_announcements and show broadcast +
+// their own targeted rows. Needs migrations/add_announcement_targeting.sql.
+function _populateAnnTargets() {
+    const sel = document.getElementById('annTarget');
+    if (!sel) return;
+    const owners = allUsers.filter(u => u.role === 'owner' || !u.role);
+    const keep = sel.value;
+    sel.innerHTML = '<option value="">📣 All shops (broadcast)</option>' +
+        owners.map(u => {
+            const prof = window.currentShopProfiles ? window.currentShopProfiles[u.username] : null;
+            const label = (prof && prof.shop_name) ? (prof.shop_name + ' (' + u.username + ')') : u.username;
+            return '<option value="' + escAttr(u.username) + '">🏪 ' + escHtml(label) + '</option>';
+        }).join('');
+    sel.value = keep;
+}
+
+async function sendAnnouncement() {
+    const target  = document.getElementById('annTarget').value;   // '' = all shops
+    const icon    = (document.getElementById('annIcon').value || '📢').trim();
+    const title   = document.getElementById('annTitle').value.trim();
+    const message = document.getElementById('annMsg').value.trim();
+    if (!title && !message) { alert('Type a title or message first.'); return; }
+    const who = target ? ('the shop "' + target + '"') : 'ALL shops';
+    if (!await mmConfirm('Send this message to ' + who + '?\n\nIt will appear in their Inbox (📢 Updates).', { okText: 'Send' })) return;
+    const row = { title: title || 'Message', message: message, icon: icon || '📢' };
+    if (target) row.target_user = target;
+    const { error } = await sb.from('mm_announcements').insert(row);
+    if (error) {
+        alert('Could not send: ' + error.message + '\n\nIf this mentions "target_user" or a policy, run migrations/add_announcement_targeting.sql in Supabase.');
+        return;
+    }
+    document.getElementById('annTitle').value = '';
+    document.getElementById('annMsg').value = '';
+    alert('✅ Sent! It will show in ' + who + ' Inbox.');
+    renderAnnouncements();
+}
+
+async function renderAnnouncements() {
+    _populateAnnTargets();
+    const box = document.getElementById('annList');
+    if (!box) return;
+    const { data, error } = await sb.from('mm_announcements')
+        .select('*').order('created_at', { ascending: false }).limit(50);
+    if (error) { box.innerHTML = '<div class="no-pending">Could not load messages — run the targeting migration in Supabase.</div>'; return; }
+    if (!data || !data.length) { box.innerHTML = '<div class="no-pending">No messages sent yet.</div>'; return; }
+    box.innerHTML = data.map(a => {
+        const tgt = a.target_user ? ('🏪 ' + escHtml(a.target_user)) : '📣 All shops';
+        return '<div class="pcard"><div class="pcard-top"><div class="pcard-avatar">' + escHtml(a.icon || '📢') + '</div>'
+            + '<div style="flex:1"><div class="pcard-name">' + escHtml(a.title || '(no title)') + '</div>'
+            + '<div class="pcard-meta" style="margin:4px 0;white-space:pre-wrap">' + escHtml(a.message || '') + '</div>'
+            + '<div class="pcard-meta">' + tgt + ' • ' + parseDate(a.created_at) + '</div></div></div>'
+            + '<div class="pcard-actions"><button class="reject-btn" onclick="deleteAnnouncement(' + Number(a.id) + ')">🗑️ Delete</button></div></div>';
+    }).join('');
+}
+
+async function deleteAnnouncement(id) {
+    if (!await mmConfirm('Delete this message? It will disappear from shops\' inboxes.', { danger: true, okText: 'Delete' })) return;
+    const { error } = await sb.from('mm_announcements').delete().eq('id', id);
+    if (error) { alert('Delete failed: ' + error.message); return; }
+    renderAnnouncements();
 }
 
 // ── DELETE ──

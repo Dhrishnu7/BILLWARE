@@ -854,7 +854,8 @@
                 ]);
                 shopEditReqs = er.data || [];
                 extraUserReqs = eu.data || [];
-                announcements = ann.data || []; // gracefully empty if table doesn't exist
+                // Show broadcast messages (no target) + any addressed to this shop.
+                announcements = (ann.data || []).filter(a => !a.target_user || a.target_user === tenantId);
                 customerIssues = ci?.data || [];
             }
 
