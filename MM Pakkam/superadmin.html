@@ -239,10 +239,8 @@
     <div class="tab-bar">
         <button class="tab active" onclick="switchTab('overview',this)">👀 Overview</button>
         <button class="tab" onclick="switchTab('accounts',this)">👥 Accounts <span class="badge green" id="tabAcctCount">0</span></button>
-        <button class="tab" onclick="switchTab('shops',this)">🏪 Shops <span class="badge blue" id="tabShopCount" style="background:#3b82f6;">0</span></button>
         <button class="tab" onclick="switchTab('requests',this)">📩 Requests <span class="badge" id="tabPendCount">0</span></button>
         <button class="tab" onclick="switchTab('pwdresets',this)">🔑 Resets <span class="badge" id="tabPwdResetCount" style="background:rgba(234,179,8,.2); border-color:rgba(234,179,8,.4); color:#fde047;">0</span></button>
-        <button class="tab" onclick="switchTab('activity',this)">⚡ Activity</button>
         <button class="tab" onclick="switchTab('support',this)">🎧 Support <span class="badge" id="tabSupportCount" style="background:rgba(14,165,233,.2); border-color:rgba(14,165,233,.4); color:#38bdf8;">0</span></button>
     </div>
 
@@ -254,22 +252,11 @@
         <div class="sh"><span>🟢</span><h2>Currently Online</h2><span class="cnt" id="onCnt">0</span></div>
         <div class="online-wrap" id="onlineList"><div style="color:var(--text3);font-size:.82rem">Checking...</div></div>
 
-        <div class="two-col">
-            <div>
-                <div class="sh"><span>🏆</span><h2>Top Stores by Revenue</h2></div>
-                <div class="cw"><div class="ch"><span>Revenue Leaderboard</span></div><div id="revChart" style="padding:10px 0"><div class="ld"><div class="sp"></div></div></div></div>
-            </div>
-            <div>
-                <div class="sh"><span>👥</span><h2>Customer Count by Store</h2></div>
-                <div class="cw"><div class="ch"><span>Top Stores</span></div><div id="custChart" style="padding:10px 0"><div class="ld"><div class="sp"></div></div></div></div>
-            </div>
-        </div>
-
         <div class="sh"><span>⚙️</span><h2>System Info</h2></div>
         <div class="cw" style="margin-bottom:0">
             <div style="padding:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
                 <div><div style="font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Supabase Project</div><div style="font-size:.82rem;color:var(--cyan)">jwyyjdwlbgjijmwillow</div></div>
-                <div><div style="font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Firebase Hosting</div><div style="font-size:.82rem;color:var(--cyan)">mmpakkam.web.app</div></div>
+                <div><div style="font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Firebase Hosting</div><div style="font-size:.82rem;color:var(--cyan)">mybillware.web.app</div></div>
                 <div><div style="font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Local Time (IST)</div><div style="font-size:.82rem;color:var(--text)" id="sysTime">—</div></div>
                 <div><div style="font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Portal Version</div><div style="font-size:.82rem;color:var(--purple2)">v2.0 — Dhrishnu Darshan</div></div>
             </div>
@@ -310,24 +297,10 @@
         </div>
     </div>
 
-    <!-- TAB: SHOPS -->
-    <div class="tab-panel" id="tab-shops">
-        <div class="sh"><h2>All Registered Shops</h2></div>
-        <div class="pending-grid" id="shopsGrid">
-            <div class="ld"><div class="sp"></div>Loading shops...</div>
-        </div>
-    </div>
-
     <!-- TAB: REQUESTS -->
     <div class="tab-panel" id="tab-requests">
         <div class="sh"><span>⏳</span><h2>Pending Approval Requests</h2><span class="cnt red" id="pendCnt">0</span></div>
         <div class="pending-grid" id="pendingGrid"><div class="ld"><div class="sp"></div>Loading...</div></div>
-
-        <div class="sh" style="margin-top:8px"><span>❌</span><h2>Rejected Accounts</h2></div>
-        <div class="pending-grid" id="rejectedGrid"><div class="ld"><div class="sp"></div>Loading...</div></div>
-
-        <div class="sh" style="margin-top:8px"><span>✅</span><h2>Recently Approved</h2></div>
-        <div class="pending-grid" id="approvedGrid"><div class="ld"><div class="sp"></div>Loading...</div></div>
 
         <!-- Shop Edit Requests -->
         <div class="sh" style="margin-top:16px">
@@ -350,20 +323,6 @@
         <p style="font-size:0.85rem; color:var(--text3); margin-bottom:20px;">Approve requests to generate a 6-digit PIN. Provide this PIN to the owner so they can reset their password.</p>
         <div class="pending-grid" id="pwdResetGrid">
             <div class="ld"><div class="sp"></div>Loading...</div>
-        </div>
-    </div>
-
-    <!-- TAB: ACTIVITY -->
-    <div class="tab-panel" id="tab-activity">
-        <div class="two-col">
-            <div>
-                <div class="sh"><span>📋</span><h2>Recent Bills (All Stores)</h2><span class="cnt" id="billTotalCnt">0</span></div>
-                <div class="cw"><div class="ch"><span>Latest Transactions</span></div><div class="al" id="actFeed"><div class="ld"><div class="sp"></div></div></div></div>
-            </div>
-            <div>
-                <div class="sh"><span>🆕</span><h2>Recent Signups</h2></div>
-                <div class="cw"><div class="ch"><span>Latest 10 accounts</span></div><div class="al" id="signupFeed"><div class="ld"><div class="sp"></div></div></div></div>
-            </div>
         </div>
     </div>
 
@@ -528,8 +487,8 @@ async function loadAll() {
     const shopBadge = document.getElementById('tabShopCount');
     if (shopBadge) shopBadge.textContent = Object.keys(window.currentShopProfiles).length;
 
-    renderStats(); renderInfoRow(); renderOnline(); renderRevChart(); renderCustChart();
-    renderAccounts(); renderRequests(); renderShops(); renderActivity(); renderSignups();
+    renderStats(); renderInfoRow(); renderOnline();
+    renderAccounts(); renderRequests();
     renderShopEditRequests(); renderExtraUserRequests(); renderPasswordResets(); renderSupportIssues();
 }
 
@@ -661,7 +620,8 @@ async function renderRequests() {
     const pending=allUsers.filter(u=>u.approval_status==='pending');
     const rejected=allUsers.filter(u=>u.approval_status==='rejected');
     const approved=allUsers.filter(u=>!u.approval_status||u.approval_status==='approved').filter(u=>u.role==='owner').slice(-6).reverse();
-    document.getElementById('pendCnt').textContent=pending.length;
+    const pendCntEl=document.getElementById('pendCnt');
+    if(pendCntEl) pendCntEl.textContent=pending.length;
     updateTabPendBadge();
 
     const mkCard=(u,actions)=>`
@@ -680,7 +640,8 @@ async function renderRequests() {
             ${actions}
         </div>`;
 
-    document.getElementById('pendingGrid').innerHTML=pending.length
+    const pendingGridEl=document.getElementById('pendingGrid');
+    if(pendingGridEl) pendingGridEl.innerHTML=pending.length
         ?pending.map(u=>mkCard(u,`
             <div class="pcard-actions">
                 <button class="approve-btn" style="background:var(--card);color:var(--text);border-color:var(--border);" onclick="openShopModal('${u.username}')">🔍 View Full Shop Info</button>
@@ -691,14 +652,18 @@ async function renderRequests() {
             </div>`)).join('')
         :'<div class="no-pending">✨ No pending requests</div>';
 
-    document.getElementById('rejectedGrid').innerHTML=rejected.length
+    // Rejected + Recently-Approved grids were removed from the UI; guard in case
+    // they're gone so the render can't throw.
+    const rejectedGridEl=document.getElementById('rejectedGrid');
+    if(rejectedGridEl) rejectedGridEl.innerHTML=rejected.length
         ?rejected.map(u=>mkCard(u,`
             <div class="pcard-actions">
                 <button class="approve-btn" onclick="approveAccount('${u.id}')">↩️ Re-approve</button>
             </div>`)).join('')
         :'<div class="no-pending">No rejected accounts</div>';
 
-    document.getElementById('approvedGrid').innerHTML=approved.length
+    const approvedGridEl=document.getElementById('approvedGrid');
+    if(approvedGridEl) approvedGridEl.innerHTML=approved.length
         ?approved.map(u=>mkCard(u,'<div style="font-size:.78rem;color:#6ee7b7">✅ Approved & Active</div>')).join('')
         :'<div class="no-pending">No approved accounts yet</div>';
 }
