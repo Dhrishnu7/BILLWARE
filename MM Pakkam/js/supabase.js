@@ -844,29 +844,35 @@ async function dbSaveBill(bill) {
     if (!user) { console.warn('[db] dbSaveBill: no user, aborting.'); return { success: false, message: 'Not logged in.' }; }
     let billNo = bill.billNo || await dbNextBillNo();
 
-    // Use .select() array form — NOT .single() — to avoid PGRST116 false errors
-    // when RLS allows insert but restricts read-back.
-    let { data: billRows, error: billErr } = await _supabase.from('bills').insert({
-        bill_no:       billNo,
-        date:          bill.date,
-        customer_name: bill.customerName || '',
-        doctor_name:   bill.doctorName   || '',
-        grand_total:   parseFloat(String(bill.grandTotal).replace(/[^0-9.]/g,'')) || 0,
-        user_id:       user,
-    }).select();
-    let billRow = billRows?.[0] || null;
-
-    if (billErr || !billRow) {
-        // Fallback: If there's a unique constraint violation, auto-generate a fallback ID
-        billNo = 'MM-' + Date.now().toString().slice(-6) + '-' + Math.floor(Math.random()*1000);
-        let retry = await _supabase.from('bills').insert({
-            bill_no:       billNo,
+    // payment_mode preserves Cash/Credit across the cloud round-trip. Built as a
+    // helper so we can drop it and retry if the column isn't there yet (pre-migration).
+    const _billRow = (no, withPM) => {
+        const p = {
+            bill_no:       no,
             date:          bill.date,
             customer_name: bill.customerName || '',
             doctor_name:   bill.doctorName   || '',
             grand_total:   parseFloat(String(bill.grandTotal).replace(/[^0-9.]/g,'')) || 0,
             user_id:       user,
-        }).select();
+        };
+        if (withPM) p.payment_mode = bill.paymentMode || 'cash';
+        return p;
+    };
+    let _withPM = true;
+    // Use .select() array form — NOT .single() — to avoid PGRST116 false errors
+    // when RLS allows insert but restricts read-back.
+    let { data: billRows, error: billErr } = await _supabase.from('bills').insert(_billRow(billNo, _withPM)).select();
+    // Table may not have payment_mode yet (migration not run) — retry without it.
+    if (billErr && /column|schema cache|PGRST204/i.test(String(billErr.message || ''))) {
+        _withPM = false;
+        ({ data: billRows, error: billErr } = await _supabase.from('bills').insert(_billRow(billNo, _withPM)).select());
+    }
+    let billRow = billRows?.[0] || null;
+
+    if (billErr || !billRow) {
+        // Fallback: If there's a unique constraint violation, auto-generate a fallback ID
+        billNo = 'MM-' + Date.now().toString().slice(-6) + '-' + Math.floor(Math.random()*1000);
+        let retry = await _supabase.from('bills').insert(_billRow(billNo, _withPM)).select();
 
         if (retry.error || !retry.data?.[0]) {
             console.error('bill save retry failed:', retry.error);
@@ -882,6 +888,7 @@ async function dbSaveBill(bill) {
         product:  m.product  || '',
         batch:    m.batch    || '',
         exp:      m.exp      || '',
+        pack:     Number(m.pack)     || 0,
         qty:      Number(m.qty)      || 0,
         mrp:      Number(m.mrp)      || 0,
         rate:     Number(m.rate)     || 0,
@@ -892,7 +899,12 @@ async function dbSaveBill(bill) {
     }));
 
     if (items.length > 0) {
-        const { error: itemErr } = await _supabase.from('bill_items').insert(items);
+        let { error: itemErr } = await _supabase.from('bill_items').insert(items);
+        // bill_items may not have the pack column yet — retry without it.
+        if (itemErr && /column|schema cache|PGRST204/i.test(String(itemErr.message || ''))) {
+            const legacy = items.map(it => { const c = Object.assign({}, it); delete c.pack; return c; });
+            ({ error: itemErr } = await _supabase.from('bill_items').insert(legacy));
+        }
         if (itemErr) console.error('bill_items save:', itemErr);
     }
 
@@ -1004,16 +1016,19 @@ async function dbSyncCoreData() {
                 customerName: b.customer_name || '',
                 doctorName:   b.doctor_name   || '',
                 grandTotal:   b.grand_total,
+                paymentMode:  b.payment_mode || 'cash',
                 medicines:    (b.bill_items || []).map(m => ({
                     product:  m.product  || '',
                     batch:    m.batch    || '',
                     exp:      m.exp      || '',
+                    pack:     m.pack     || 0,
                     qty:      m.qty      || 0,
                     mrp:      m.mrp      || 0,
                     rate:     m.rate     || 0,
                     gst:      m.gst      || 0,
                     discount: m.discount || 0,
                     total:    m.total    || 0,
+                    hsn:      m.hsn      || '',
                 })),
                 savedAt: b.date
             }));
