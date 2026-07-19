@@ -1042,6 +1042,59 @@ function _getPendingCount() {
     } catch { return 0; }
 }
 
+/* ════════════════════════════════════════════════════════════
+   SITE-WIDE MOBILE POLISH
+   One injected stylesheet, active only on phones (<=640px), so
+   the desktop layout is never touched. Loaded on every shop page
+   via auth.js (in <head>, so it applies before first paint).
+   Fixes the common mobile mess: sideways page-scroll, crowded
+   headers, oversized cards/padding, tab bars, wide tables and
+   full-bleed modals.
+════════════════════════════════════════════════════════════ */
+(function _injectMobilePolish() {
+    if (typeof document === 'undefined') return;
+    if (document.getElementById('mm-mobile-css')) return;
+    var css = ''
+      + '@media (max-width:640px){'
+      // never let the page slide sideways; media stays inside its box
+      + 'html,body{max-width:100%;overflow-x:hidden;}'
+      + 'img,svg,video{max-width:100%;height:auto;}'
+      + 'input,select,textarea{max-width:100%;}'
+      // page shell: tighter gutters, calmer headings
+      + 'header{padding-left:14px !important;padding-right:14px !important;row-gap:8px;}'
+      + '.page-content,.page-wrap{padding-left:14px !important;padding-right:14px !important;}'
+      + '.page-header h1{font-size:1.55rem !important;line-height:1.15 !important;}'
+      + '.page-header p{font-size:.82rem !important;}'
+      // user bar + back button: compact so they stop crowding
+      + '.mm-user-bar{gap:6px;width:100%;justify-content:flex-start;}'
+      + '.mm-manage-btn,.mm-logout-btn{padding:6px 10px;font-size:.72rem;}'
+      + '.mm-user-name{font-size:.76rem;}'
+      + '.back-btn{margin-right:6px !important;padding:.42rem .7rem !important;font-size:.78rem !important;}'
+      // big hero / stat cards stack instead of overflowing
+      + '.stat-card{flex-direction:column !important;align-items:flex-start !important;gap:.9rem !important;padding:1.3rem !important;}'
+      + '.stat-value{font-size:2rem !important;}'
+      // toolbars, search bars and button clusters wrap cleanly
+      + '.search-bar,.toolbar,.filters,.btn-row,.actions,.ret-sub{flex-wrap:wrap !important;}'
+      + '.search-bar input{min-width:140px;}'
+      // tab bars wrap and shrink
+      + '.tab-nav,.tab-bar,.tab-nav-wrap{flex-wrap:wrap !important;gap:6px !important;}'
+      + '.tab-btn,.tab-pill,.ktab{font-size:.8rem !important;padding:.5rem .8rem !important;}'
+      // wide tables scroll inside their own frame (no page blow-out)
+      + '.tbl-wrap,.reg-wrap,.table-card,.table-scroll{overflow-x:auto !important;-webkit-overflow-scrolling:touch;max-width:100%;}'
+      + '.stock-table,.ret-tbl{display:block;overflow-x:auto;white-space:nowrap;max-width:100%;-webkit-overflow-scrolling:touch;}'
+      + 'table{max-width:100%;}'
+      // card grids collapse to a single column
+      + '.khata-grid,.card-grid,.cards,.contacts-grid{grid-template-columns:1fr !important;}'
+      // modals fill the small screen
+      + '.modal,.modal-card{width:94% !important;max-width:94% !important;padding:1.4rem !important;}'
+      + '.modal-actions{flex-wrap:wrap;}'
+      + '}';
+    var style = document.createElement('style');
+    style.id = 'mm-mobile-css';
+    style.textContent = css;
+    (document.head || document.documentElement).appendChild(style);
+})();
+
 function _injectOfflineBanner() {
     if (document.getElementById('mm-offline-banner')) return;
 
