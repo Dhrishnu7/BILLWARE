@@ -358,10 +358,16 @@
     <div class="page-content">
         <div class="page-header">
             <div class="page-tag">Accounts Ledger</div>
-            <h1>Credit Accounts</h1>
-            <p>Track and manage pending payments from your credit customers.</p>
+            <h1>Accounts</h1>
+            <p>Customer credit (money owed to you) and supplier dues (money you owe).</p>
         </div>
 
+        <div style="display:flex;gap:0.5rem;margin-bottom:1.3rem;flex-wrap:wrap;">
+            <button id="ktabCust" class="ktab" onclick="switchKhataTab('customers')" style="padding:0.6rem 1.2rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:0.88rem;cursor:pointer;color:#475569;font-family:inherit;">👤 Customers</button>
+            <button id="ktabSupp" class="ktab" onclick="switchKhataTab('suppliers')" style="padding:0.6rem 1.2rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:0.88rem;cursor:pointer;color:#475569;font-family:inherit;">🏭 Suppliers</button>
+        </div>
+
+        <div id="khataTabCustomers">
         <div class="stat-card">
             <div class="stat-left">
                 <div class="stat-label">Total Outstanding Dues</div>
@@ -383,6 +389,27 @@
         <div class="khata-grid" id="khataGrid">
             <div style="text-align:center;padding:3rem;color:#94a3b8;grid-column:1/-1;font-size:0.9rem;">Loading accounts…</div>
         </div>
+        </div><!-- /khataTabCustomers -->
+
+        <div id="khataTabSuppliers" style="display:none;">
+            <div class="stat-card">
+                <div class="stat-left">
+                    <div class="stat-label">Total You Owe Suppliers</div>
+                    <div class="stat-value" id="totalPayable">₹0.00</div>
+                    <div class="stat-sub">Purchases − returns − payments</div>
+                </div>
+                <div class="stat-icon">🏭</div>
+            </div>
+            <div class="search-bar">
+                <svg width="16" height="16" fill="none" stroke="#a5b4fc" stroke-width="2.5" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35"/>
+                </svg>
+                <input type="text" id="supSearch" placeholder="Search supplier name…" oninput="renderSuppliers(this.value)">
+            </div>
+            <div class="khata-grid" id="supplierGrid">
+                <div style="text-align:center;padding:3rem;color:#94a3b8;grid-column:1/-1;font-size:0.9rem;">Open this tab to load suppliers…</div>
+            </div>
+        </div>
     </div>
 
     <!-- Settle Modal -->
@@ -401,6 +428,29 @@
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
                 <button type="button" class="btn-confirm" onclick="confirmSettle()">✓ Save Payment</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supplier Payment Modal -->
+    <div class="modal-overlay" id="supPayModal">
+        <div class="modal">
+            <h2>Pay Supplier</h2>
+            <p id="supPaySub">Record a payment made to this supplier.</p>
+            <div id="supPayBanner" style="background:#eff6ff;border:1.5px solid #93c5fd;border-radius:10px;padding:0.75rem 1rem;margin-bottom:1.2rem;font-size:0.85rem;color:#1e40af;font-weight:600;">
+                You owe: <span id="supPayBannerAmt" style="color:#dc2626;font-size:1rem;"></span>
+            </div>
+            <div class="form-group">
+                <label>Amount Paid (₹)</label>
+                <input type="number" id="supPayAmount" step="0.01" min="0" placeholder="Enter amount paid">
+            </div>
+            <div class="form-group">
+                <label>Note (optional)</label>
+                <input type="text" id="supPayNote" placeholder="e.g. Bill BL-032, UPI">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="closeSupPayModal()">Cancel</button>
+                <button type="button" class="btn-confirm" onclick="confirmSupplierPay()">✓ Save Payment</button>
             </div>
         </div>
     </div>
@@ -841,7 +891,132 @@
                 await new Promise(r => setTimeout(r, 400));
             }
             await Promise.all([loadAndRenderKhata(), loadShopName()]);
+            switchKhataTab('customers');
         });
+
+        /* ═══════════════════════════════════════════════════════
+           SUPPLIER LEDGER (accounts payable) — mirror of customer
+           khata. Balance you owe a supplier = purchases − purchase
+           returns (debit notes) − payments made. Payments are stored
+           in mm_supplier_payments (local) + the supplier_payments table.
+        ═══════════════════════════════════════════════════════ */
+        let _supData = [];       // [{firm, purchased, returned, paid, balance}]
+        let _supPayments = [];   // payment records
+        let _supPayFirm = '';    // firm currently being paid
+
+        function _ktabStyle(btn, on) {
+            btn.style.background = on ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : '#fff';
+            btn.style.color = on ? '#fff' : '#475569';
+            btn.style.borderColor = on ? 'transparent' : '#cbd5e1';
+        }
+        async function switchKhataTab(which) {
+            _ktabStyle(document.getElementById('ktabCust'), which === 'customers');
+            _ktabStyle(document.getElementById('ktabSupp'), which === 'suppliers');
+            document.getElementById('khataTabCustomers').style.display = which === 'customers' ? '' : 'none';
+            document.getElementById('khataTabSuppliers').style.display = which === 'suppliers' ? '' : 'none';
+            if (which === 'suppliers') await loadSuppliers();
+        }
+
+        async function loadSuppliers() {
+            // Make sure purchases + adjustments are in localStorage, then load payments.
+            try { if (typeof dbSyncCoreData === 'function') await dbSyncCoreData(); } catch (e) {}
+            let cloud = [];
+            try { if (typeof dbGetSupplierPayments === 'function') cloud = await dbGetSupplierPayments(); } catch (e) {}
+            let local = []; try { local = JSON.parse(localStorage.getItem('mm_supplier_payments') || '[]'); } catch (e) {}
+            const byId = new Map();
+            [...local, ...cloud].forEach(p => { if (p && p.id && !byId.has(p.id)) byId.set(p.id, p); });
+            _supPayments = [...byId.values()];
+            try { localStorage.setItem('mm_supplier_payments', JSON.stringify(_supPayments)); } catch (e) {}
+            computeSupplierData();
+            renderSuppliers(document.getElementById('supSearch').value);
+        }
+
+        function computeSupplierData() {
+            let purchases = []; try { purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]'); } catch (e) {}
+            const adjustments = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
+            const map = {};
+            const slot = firm => {
+                const k = (firm || '').trim().toLowerCase();
+                if (!k) return null;
+                if (!map[k]) map[k] = { firm: (firm || '').trim(), purchased: 0, returned: 0, paid: 0 };
+                return map[k];
+            };
+            purchases.forEach(p => {
+                const s = slot(p.firm || p.supplierName || '');
+                if (!s) return;
+                const qty = parseFloat(p.quantity) || 0, rate = parseFloat(p.rate) || 0, gst = parseFloat(p.gst) || 0;
+                s.purchased += (qty * rate) * (1 + gst / 100);
+            });
+            adjustments.filter(a => a.reason === 'purchase_return').forEach(a => {
+                let n = {}; try { n = JSON.parse(a.note || '{}'); } catch (e) {}
+                const s = slot(n.party);
+                if (s) s.returned += parseFloat(n.amount) || 0;
+            });
+            _supPayments.forEach(p => {
+                const s = slot(p.firm);
+                if (s) s.paid += parseFloat(p.amount) || 0;
+            });
+            _supData = Object.values(map)
+                .map(s => Object.assign({}, s, { balance: s.purchased - s.returned - s.paid }))
+                .sort((a, b) => b.balance - a.balance);
+        }
+
+        function renderSuppliers(filter) {
+            const q = (filter || '').trim().toLowerCase();
+            const grid = document.getElementById('supplierGrid');
+            const totalPayable = _supData.reduce((s, x) => s + Math.max(0, x.balance), 0);
+            document.getElementById('totalPayable').textContent = '₹' + totalPayable.toFixed(2);
+            const list = _supData.filter(s => !q || s.firm.toLowerCase().includes(q));
+            if (!list.length) {
+                grid.innerHTML = '<div style="text-align:center;padding:3rem;color:#94a3b8;grid-column:1/-1;font-size:0.9rem;">' +
+                    (_supData.length ? 'No matching suppliers.' : 'No supplier data yet — add purchases with a supplier/firm name.') + '</div>';
+                return;
+            }
+            grid.innerHTML = list.map(s => {
+                const owe = s.balance;
+                const oweColor = owe > 0.005 ? '#dc2626' : (owe < -0.005 ? '#059669' : '#64748b');
+                const oweLabel = owe > 0.005 ? 'You owe' : (owe < -0.005 ? 'Supplier owes you' : 'Settled');
+                return '<div style="background:#fff;border:1.5px solid #e0e7ff;border-radius:18px;padding:1.1rem 1.2rem;box-shadow:0 2px 10px rgba(99,102,241,0.06);">'
+                    + '<div style="font-weight:800;font-size:1.05rem;color:#1e293b;margin-bottom:2px;">' + escHtml(s.firm) + '</div>'
+                    + '<div style="font-size:0.76rem;color:#94a3b8;margin-bottom:0.8rem;">Purchased ₹' + s.purchased.toFixed(2)
+                    + (s.returned ? ' · Returned ₹' + s.returned.toFixed(2) : '') + ' · Paid ₹' + s.paid.toFixed(2) + '</div>'
+                    + '<div style="display:flex;justify-content:space-between;align-items:flex-end;">'
+                    + '<div><div style="font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;">' + oweLabel + '</div>'
+                    + '<div style="font-size:1.35rem;font-weight:800;color:' + oweColor + ';">₹' + Math.abs(owe).toFixed(2) + '</div></div>'
+                    + '<button onclick="openSupPayModal(' + JSON.stringify(s.firm).replace(/"/g, '&quot;') + ',' + owe + ')" '
+                    + 'style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:10px;padding:0.5rem 1rem;font-weight:700;font-size:0.82rem;cursor:pointer;font-family:inherit;">💵 Pay</button>'
+                    + '</div></div>';
+            }).join('');
+        }
+
+        function openSupPayModal(firm, owe) {
+            _supPayFirm = firm;
+            document.getElementById('supPaySub').textContent = 'Record a payment made to ' + firm + '.';
+            document.getElementById('supPayBannerAmt').textContent = '₹' + (parseFloat(owe) || 0).toFixed(2);
+            document.getElementById('supPayAmount').value = '';
+            document.getElementById('supPayNote').value = '';
+            document.getElementById('supPayModal').classList.add('open');
+            setTimeout(() => document.getElementById('supPayAmount').focus(), 60);
+        }
+        function closeSupPayModal() { document.getElementById('supPayModal').classList.remove('open'); _supPayFirm = ''; }
+
+        async function confirmSupplierPay() {
+            const amt = parseFloat(document.getElementById('supPayAmount').value) || 0;
+            if (amt <= 0) { if (typeof mmAlert === 'function') mmAlert('Enter a valid amount.'); else alert('Enter a valid amount.'); return; }
+            const rec = {
+                id: 'sp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+                firm: _supPayFirm, amount: amt,
+                date: new Date().toISOString().slice(0, 10),
+                note: document.getElementById('supPayNote').value.trim(),
+                savedAt: new Date().toISOString()
+            };
+            _supPayments.push(rec);
+            try { localStorage.setItem('mm_supplier_payments', JSON.stringify(_supPayments)); } catch (e) {}
+            if (typeof dbAddSupplierPayment === 'function') dbAddSupplierPayment(rec).catch(() => {});
+            closeSupPayModal();
+            computeSupplierData();
+            renderSuppliers(document.getElementById('supSearch').value);
+        }
     </script>
 </body>
 </html>

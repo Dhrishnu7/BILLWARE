@@ -727,6 +727,46 @@ async function dbDeletePurchase(id) {
 }
 
 /* ─────────────────────────────────────────────────────
+   SUPPLIER PAYMENTS (accounts-payable ledger). A payment
+   made to a supplier/firm. The balance you still owe is
+   computed client-side: purchases − purchase-returns − payments.
+   Needs migrations/add_supplier_payments_table.sql.
+───────────────────────────────────────────────────── */
+async function dbGetSupplierPayments() {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetSupplierPayments: no user, aborting.'); return []; }
+    const { data, error } = await _supabase.from('supplier_payments')
+        .select('*').eq('user_id', user).order('pay_date', { ascending: false });
+    if (error) { console.error('supplier payments fetch:', error); return []; }
+    return (data || []).map(r => ({
+        id: r.payment_id, firm: r.firm || '', amount: Number(r.amount) || 0,
+        date: r.pay_date || '', note: r.note || '', savedAt: r.saved_at || ''
+    }));
+}
+window.dbGetSupplierPayments = dbGetSupplierPayments;
+
+async function dbAddSupplierPayment(p) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbAddSupplierPayment: no user, aborting.'); return { success: false }; }
+    const { error } = await _supabase.from('supplier_payments').upsert({
+        payment_id: p.id, user_id: user, firm: p.firm || '',
+        amount: Number(p.amount) || 0, pay_date: p.date || new Date().toISOString().slice(0, 10),
+        note: p.note || '', saved_at: p.savedAt || new Date().toISOString()
+    }, { onConflict: 'payment_id' });
+    if (error) { console.error('supplier payment add:', error); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbAddSupplierPayment = dbAddSupplierPayment;
+
+async function dbDeleteSupplierPayment(id) {
+    const user = _currentUser();
+    if (!user) return false;
+    const { error } = await _supabase.from('supplier_payments').delete().eq('payment_id', id).eq('user_id', user);
+    return !error;
+}
+window.dbDeleteSupplierPayment = dbDeleteSupplierPayment;
+
+/* ─────────────────────────────────────────────────────
    STOCK ADJUSTMENTS
    Manual corrections for damaged/lost stock or physical
    count mismatches. Does not touch purchase/sales records —
