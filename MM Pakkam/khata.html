@@ -1195,6 +1195,12 @@
             if (isNaN(dt)) return s || '—';
             return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
         }
+        function _fmtStmtTime(iso) {
+            if (!iso) return '';
+            const dt = new Date(iso);
+            if (isNaN(dt)) return '';
+            return dt.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+        }
 
         function _buildStatement(name, phone) {
             const key = String(name || '').trim().toLowerCase();
@@ -1203,16 +1209,23 @@
             if (found) currentBalance = parseFloat(found.balance) || 0;
 
             const txns = [];
-            // Debits — credit bills for this customer
+            // Debits — credit bills for this customer (with medicines + time)
             let bills = []; try { bills = JSON.parse(localStorage.getItem('mm_sales') || '[]'); } catch (e) {}
             bills.forEach(b => {
                 if (b.isReturn) return;
                 if ((b.paymentMode || '') !== 'credit') return;
                 if ((b.customerName || '').trim().toLowerCase() !== key) return;
+                const meds = (b.medicines || []).map(mm => {
+                    const nm = (mm.product || mm.name || '').trim();
+                    const q = parseFloat(mm.qty) || 0;
+                    return nm ? (nm + (q ? ' ×' + q : '')) : '';
+                }).filter(Boolean).join(', ');
                 txns.push({
                     date: String(b.date || b.savedAt || '').slice(0, 10),
+                    time: _fmtStmtTime(b.savedAt),
                     sortKey: b.savedAt || b.date || '',
                     label: 'Bill ' + (b.billNo || ''),
+                    meds: meds,
                     debit: _parseMoney(b.grandTotal), credit: 0
                 });
             });
@@ -1221,8 +1234,10 @@
                 if ((p.name || '').trim().toLowerCase() !== key) return;
                 txns.push({
                     date: String(p.date || p.savedAt || '').slice(0, 10),
+                    time: _fmtStmtTime(p.savedAt),
                     sortKey: p.savedAt || p.date || '',
                     label: 'Payment received' + (p.note ? ' (' + p.note + ')' : ''),
+                    meds: '',
                     debit: 0, credit: parseFloat(p.amount) || 0
                 });
             });
@@ -1233,21 +1248,27 @@
 
             const rows = [];
             if (Math.abs(opening) >= 0.01) {
-                rows.push({ date: '', label: 'Balance brought forward',
+                rows.push({ date: '', time: '', label: 'Balance brought forward', meds: 'Earlier bills (before detailed history)',
                     debit: opening > 0 ? opening : 0, credit: opening < 0 ? -opening : 0, balance: opening });
             }
             let run = opening;
-            txns.forEach(t => { run += t.debit - t.credit; rows.push({ date: t.date, label: t.label, debit: t.debit, credit: t.credit, balance: run }); });
+            txns.forEach(t => { run += t.debit - t.credit; rows.push({ date: t.date, time: t.time, label: t.label, meds: t.meds, debit: t.debit, credit: t.credit, balance: run }); });
 
             return { name: name, phone: phone, rows: rows, currentBalance: currentBalance };
         }
 
-        function openStatement(name, phone) {
-            _stmtData = _buildStatement(name, phone);
+        async function openStatement(name, phone) {
             document.getElementById('stmtTitle').textContent = 'Statement: ' + name;
             document.getElementById('stmtSub').textContent = (phone ? phone + ' · ' : '') + 'Credit bills and payments with running balance.';
-            renderStatement();
+            document.getElementById('stmtBody').innerHTML = '<div style="text-align:center;padding:2rem;color:#94a3b8;">Loading history…</div>';
             document.getElementById('stmtModal').classList.add('open');
+            // Pull the latest bills + payments from the cloud so each bill (with its
+            // medicines) shows as its own line — not everything folded into "brought
+            // forward" just because this device hadn't cached those bills.
+            try { if (typeof dbSyncCoreData === 'function') await dbSyncCoreData(); } catch (e) {}
+            try { await loadCustomerPayments(); } catch (e) {}
+            _stmtData = _buildStatement(name, phone);
+            renderStatement();
         }
         function closeStatement() { document.getElementById('stmtModal').classList.remove('open'); }
 
@@ -1265,12 +1286,14 @@
                 + '<th style="padding:0.5rem;text-align:right;">Credit (−)</th>'
                 + '<th style="padding:0.5rem;text-align:right;">Balance</th></tr></thead><tbody>';
             _stmtData.rows.forEach(r => {
-                html += '<tr style="border-top:1px solid #eef2ff;">'
-                    + '<td style="padding:0.5rem;white-space:nowrap;color:#64748b;">' + escHtml(_fmtStmtDate(r.date)) + '</td>'
-                    + '<td style="padding:0.5rem;">' + escHtml(r.label) + '</td>'
-                    + '<td style="padding:0.5rem;text-align:right;color:#dc2626;">' + (r.debit ? m(r.debit) : '') + '</td>'
-                    + '<td style="padding:0.5rem;text-align:right;color:#059669;">' + (r.credit ? m(r.credit) : '') + '</td>'
-                    + '<td style="padding:0.5rem;text-align:right;font-weight:700;">' + m(r.balance) + '</td></tr>';
+                html += '<tr style="border-top:1px solid #eef2ff;vertical-align:top;">'
+                    + '<td style="padding:0.5rem;white-space:nowrap;color:#334155;">' + escHtml(_fmtStmtDate(r.date))
+                    + (r.time ? '<div style="font-size:0.7rem;color:#94a3b8;font-weight:400;">' + escHtml(r.time) + '</div>' : '') + '</td>'
+                    + '<td style="padding:0.5rem;"><div style="font-weight:600;color:#1e293b;">' + escHtml(r.label) + '</div>'
+                    + (r.meds ? '<div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;line-height:1.35;">' + escHtml(r.meds) + '</div>' : '') + '</td>'
+                    + '<td style="padding:0.5rem;text-align:right;color:#dc2626;white-space:nowrap;">' + (r.debit ? m(r.debit) : '') + '</td>'
+                    + '<td style="padding:0.5rem;text-align:right;color:#059669;white-space:nowrap;">' + (r.credit ? m(r.credit) : '') + '</td>'
+                    + '<td style="padding:0.5rem;text-align:right;font-weight:700;white-space:nowrap;">' + m(r.balance) + '</td></tr>';
             });
             html += '</tbody></table>'
                 + '<div style="margin-top:1rem;padding:0.9rem 1.1rem;background:#fff1f2;border:1.5px solid #fecdd3;border-radius:12px;display:flex;justify-content:space-between;align-items:center;">'
@@ -1288,7 +1311,9 @@
             const lines = ['*' + shop + '* — Account Statement', 'Customer: ' + _stmtData.name, ''];
             _stmtData.rows.forEach(r => {
                 const amt = r.debit ? ('+' + m(r.debit)) : (r.credit ? ('-' + m(r.credit)) : '');
-                lines.push(_fmtStmtDate(r.date) + ' · ' + r.label + ' · ' + amt + ' · Bal ' + m(r.balance));
+                const when = _fmtStmtDate(r.date) + (r.time ? ' ' + r.time : '');
+                lines.push(when + ' · ' + r.label + ' · ' + amt + ' · Bal ' + m(r.balance));
+                if (r.meds) lines.push('   ' + r.meds);
             });
             lines.push('');
             lines.push('*Total Outstanding: ' + m(_stmtData.currentBalance) + '*');
@@ -1313,7 +1338,8 @@
             if (!shop || shop === '...') shop = 'My Shop';
             const m = n => '₹' + (Number(n) || 0).toFixed(2);
             const rowsHtml = _stmtData.rows.map(r =>
-                '<tr><td>' + escHtml(_fmtStmtDate(r.date)) + '</td><td>' + escHtml(r.label) + '</td>'
+                '<tr><td>' + escHtml(_fmtStmtDate(r.date)) + (r.time ? '<br><span style="color:#94a3b8;font-size:11px;">' + escHtml(r.time) + '</span>' : '') + '</td>'
+                + '<td>' + escHtml(r.label) + (r.meds ? '<br><span style="color:#64748b;font-size:11px;">' + escHtml(r.meds) + '</span>' : '') + '</td>'
                 + '<td style="text-align:right;">' + (r.debit ? m(r.debit) : '') + '</td>'
                 + '<td style="text-align:right;">' + (r.credit ? m(r.credit) : '') + '</td>'
                 + '<td style="text-align:right;">' + m(r.balance) + '</td></tr>'
