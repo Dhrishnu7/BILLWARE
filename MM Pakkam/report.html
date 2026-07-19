@@ -3354,17 +3354,23 @@
                 const blob = new Blob([json], { type: 'application/json' });
                 const url  = URL.createObjectURL(blob);
                 const a    = document.createElement('a');
-                const dateStr = new Date().toISOString().slice(0, 10);
+                const _t2  = session ? (session.tenant_id || session.username) : 'anon';
+                // Auto-number backups (Backup 1, 2, 3…) so the newest is obvious and
+                // users never overwrite or mislabel — the date+time is added too.
+                let bnum = 1;
+                try { bnum = (parseInt(localStorage.getItem(`mm_backup_counter_${_t2}`), 10) || 0) + 1; localStorage.setItem(`mm_backup_counter_${_t2}`, String(bnum)); } catch (e) {}
+                const nowB = new Date();
+                const dateStr = nowB.toISOString().slice(0, 10);
+                const timeStr = ('0' + nowB.getHours()).slice(-2) + ('0' + nowB.getMinutes()).slice(-2);
                 a.href     = url;
-                a.download = `mm-backup-${dateStr}.json`;
+                a.download = `Backup ${bnum} (${dateStr} ${timeStr}).json`;
                 a.click();
                 URL.revokeObjectURL(url);
 
-                // Stamp the last-backup time (per tenant) so the Inbox backup
-                // reminder goes quiet — matches _tenant() in js/notifications.js.
+                // Stamp the last-backup time (per tenant) so the Inbox reminder + the
+                // dashboard banner go quiet — matches _tenant() in js/notifications.js.
                 try {
-                    const _t = session ? (session.tenant_id || session.username) : 'anon';
-                    localStorage.setItem(`mm_last_backup_${_t}`, new Date().toISOString());
+                    localStorage.setItem(`mm_last_backup_${_t2}`, new Date().toISOString());
                 } catch (e) {}
 
                 btn.innerHTML = '✅ Saved!';
