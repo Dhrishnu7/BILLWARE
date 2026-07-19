@@ -405,6 +405,7 @@
                     <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35"/>
                 </svg>
                 <input type="text" id="supSearch" placeholder="Search supplier name…" oninput="renderSuppliers(this.value)">
+                <button onclick="openSupManage()" title="Merge duplicate suppliers / hide junk entries" style="background:#e2e8f0;color:#475569;border:none;border-radius:10px;padding:0.4rem 0.9rem;font-weight:700;font-size:0.8rem;font-family:Inter,sans-serif;cursor:pointer;white-space:nowrap;">🔧 Manage</button>
             </div>
             <div class="khata-grid" id="supplierGrid">
                 <div style="text-align:center;padding:3rem;color:#94a3b8;grid-column:1/-1;font-size:0.9rem;">Open this tab to load suppliers…</div>
@@ -451,6 +452,24 @@
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" onclick="closeSupPayModal()">Cancel</button>
                 <button type="button" class="btn-confirm" onclick="confirmSupplierPay()">✓ Save Payment</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Suppliers Modal (merge duplicates / hide junk) -->
+    <div class="modal-overlay" id="supManageModal">
+        <div class="modal" style="max-width:520px;">
+            <h2>Manage Suppliers</h2>
+            <p>Tick the names that are the <b>same supplier</b>, type the name to keep, then Merge. Use Hide for junk entries.</p>
+            <div id="supManageList" style="max-height:300px;overflow-y:auto;margin:0.8rem 0;border:1px solid #e2e8f0;border-radius:12px;padding:0.6rem;"></div>
+            <div class="form-group">
+                <label>Keep merged supplier as</label>
+                <input type="text" id="mergeKeepName" placeholder="e.g. Sun Pharma">
+            </div>
+            <div class="modal-actions" style="flex-wrap:wrap;gap:0.5rem;">
+                <button type="button" class="btn-cancel" onclick="resetSupMerges()" style="margin-right:auto;">↺ Reset all</button>
+                <button type="button" class="btn-cancel" onclick="closeSupManage()">Close</button>
+                <button type="button" class="btn-confirm" onclick="doMergeSuppliers()">🔗 Merge checked</button>
             </div>
         </div>
     </div>
@@ -931,14 +950,27 @@
             renderSuppliers(document.getElementById('supSearch').value);
         }
 
+        // Merge map: variant-name (lowercase) → canonical name, or '__HIDDEN__' to skip.
+        // Stored locally — it's a display preference, not money data.
+        function _loadSupMerges() { try { return JSON.parse(localStorage.getItem('mm_supplier_merges') || '{}'); } catch (e) { return {}; } }
+        function _saveSupMerges(m) { try { localStorage.setItem('mm_supplier_merges', JSON.stringify(m)); } catch (e) {} }
+        let _supRawNames = [];   // every distinct firm name seen (before merge) — for the manage list
+
         function computeSupplierData() {
             let purchases = []; try { purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]'); } catch (e) {}
             const adjustments = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
+            const merges = _loadSupMerges();
             const map = {};
+            const rawSet = new Set();
             const slot = firm => {
-                const k = (firm || '').trim().toLowerCase();
-                if (!k) return null;
-                if (!map[k]) map[k] = { firm: (firm || '').trim(), purchased: 0, returned: 0, paid: 0 };
+                const raw = (firm || '').trim();
+                if (!raw) return null;
+                rawSet.add(raw);
+                const mapped = merges[raw.toLowerCase()];
+                if (mapped === '__HIDDEN__') return null;          // junk entry — skip
+                const canonical = mapped || raw;                    // fold variants into canonical
+                const k = canonical.trim().toLowerCase();
+                if (!map[k]) map[k] = { firm: canonical.trim(), purchased: 0, returned: 0, paid: 0 };
                 return map[k];
             };
             purchases.forEach(p => {
@@ -956,6 +988,7 @@
                 const s = slot(p.firm);
                 if (s) s.paid += parseFloat(p.amount) || 0;
             });
+            _supRawNames = [...rawSet].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
             _supData = Object.values(map)
                 .map(s => Object.assign({}, s, { balance: s.purchased - s.returned - s.paid }))
                 .sort((a, b) => b.balance - a.balance);
@@ -1016,6 +1049,64 @@
             closeSupPayModal();
             computeSupplierData();
             renderSuppliers(document.getElementById('supSearch').value);
+        }
+
+        /* ── Merge duplicate suppliers / hide junk ── */
+        function openSupManage() {
+            computeSupplierData();
+            renderSupManage();
+            document.getElementById('mergeKeepName').value = _supData[0] ? _supData[0].firm : '';
+            document.getElementById('supManageModal').classList.add('open');
+        }
+        function closeSupManage() { document.getElementById('supManageModal').classList.remove('open'); }
+        function _supRefresh() {
+            computeSupplierData();
+            renderSuppliers(document.getElementById('supSearch').value);
+            renderSupManage();
+        }
+        function renderSupManage() {
+            const merges = _loadSupMerges();
+            const box = document.getElementById('supManageList');
+            if (!_supRawNames.length) { box.innerHTML = '<div style="padding:1rem;color:#94a3b8;text-align:center;">No suppliers found.</div>'; return; }
+            box.innerHTML = _supRawNames.map(name => {
+                const mapped = merges[name.toLowerCase()];
+                const hidden = mapped === '__HIDDEN__';
+                const foldedInto = (mapped && !hidden) ? mapped : '';
+                const nameArg = JSON.stringify(name).replace(/"/g, '&quot;');
+                return '<div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #f1f5f9;">'
+                    + '<input type="checkbox" class="supMergeChk" value="' + escAttr(name) + '" ' + (hidden ? 'disabled' : '') + '>'
+                    + '<div style="flex:1;font-size:0.88rem;' + (hidden ? 'color:#cbd5e1;text-decoration:line-through;' : '') + '">' + escHtml(name)
+                    + (foldedInto ? ' <span style="font-size:0.72rem;color:#6366f1;">&rarr; ' + escHtml(foldedInto) + '</span>' : '')
+                    + (hidden ? ' <span style="font-size:0.72rem;color:#94a3b8;">(hidden)</span>' : '')
+                    + '</div>'
+                    + (hidden
+                        ? '<button onclick="unhideSupplier(' + nameArg + ')" style="background:#e2e8f0;border:none;border-radius:8px;padding:3px 9px;font-size:0.75rem;font-weight:700;cursor:pointer;">Unhide</button>'
+                        : '<button onclick="hideSupplier(' + nameArg + ')" style="background:#fee2e2;color:#991b1b;border:none;border-radius:8px;padding:3px 9px;font-size:0.75rem;font-weight:700;cursor:pointer;">Hide</button>')
+                    + '</div>';
+            }).join('');
+        }
+        function doMergeSuppliers() {
+            const canonical = document.getElementById('mergeKeepName').value.trim();
+            if (!canonical) { alert('Type the supplier name to keep.'); return; }
+            const checked = [...document.querySelectorAll('.supMergeChk:checked')].map(c => c.value);
+            if (!checked.length) { alert('Tick the supplier names that are the same supplier.'); return; }
+            const m = _loadSupMerges();
+            const canonLower = canonical.toLowerCase();
+            checked.forEach(name => { if (name.trim().toLowerCase() !== canonLower) m[name.trim().toLowerCase()] = canonical; });
+            // Re-point any earlier mapping that aimed at a name we just merged away.
+            Object.keys(m).forEach(k => { if (m[k] !== '__HIDDEN__' && checked.some(n => n.trim().toLowerCase() === String(m[k]).trim().toLowerCase())) m[k] = canonical; });
+            _saveSupMerges(m);
+            _supRefresh();
+        }
+        function hideSupplier(name) {
+            const m = _loadSupMerges(); m[String(name).trim().toLowerCase()] = '__HIDDEN__'; _saveSupMerges(m); _supRefresh();
+        }
+        function unhideSupplier(name) {
+            const m = _loadSupMerges(); delete m[String(name).trim().toLowerCase()]; _saveSupMerges(m); _supRefresh();
+        }
+        async function resetSupMerges() {
+            if (typeof mmConfirm === 'function') { if (!await mmConfirm('Undo all merges and hides?')) return; }
+            _saveSupMerges({}); _supRefresh();
         }
     </script>
 </body>
