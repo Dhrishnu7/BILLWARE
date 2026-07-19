@@ -193,6 +193,10 @@
         .card-inventory::before { background: linear-gradient(90deg, #0d9488, #0891b2); }
         .card-inventory:hover { box-shadow: 0 20px 40px rgba(13,148,136,0.2); }
 
+        .card-returns { --c: #6366f1; }
+        .card-returns::before { background: linear-gradient(90deg, #6366f1, #818cf8); }
+        .card-returns:hover { box-shadow: 0 20px 40px rgba(99,102,241,0.2); }
+
         /* -- Icon -- */
         .icon-wrapper {
             width: 68px; height: 68px;
@@ -582,6 +586,18 @@
                 </div>
                 <h3>SALES / BILLING</h3>
                 <p>Process billing, generate receipts and checkout customers.</p>
+            </a>
+
+            <!-- RETURNS -->
+            <a class="section-card card-returns" href="returns.html">
+                <div class="icon-wrapper">
+                    <svg viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v6h6"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 17a9 9 0 0 0-15-6.7L3 13"/>
+                    </svg>
+                </div>
+                <h3>RETURNS</h3>
+                <p>Sales returns (credit note) and purchase returns (debit note).</p>
             </a>
 
             <!-- REPORT -->

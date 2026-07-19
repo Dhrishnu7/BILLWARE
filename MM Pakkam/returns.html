@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Returns — Billware</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; font-family:'Inter',sans-serif; }
+        body { background:linear-gradient(135deg,#f0fdfa,#ecfeff); color:#0f172a; min-height:100vh; }
+        header { background:#fff; border-bottom:1px solid #e2e8f0; padding:0.8rem 1.4rem; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:50; }
+        .logo { display:flex; align-items:center; gap:0.6rem; text-decoration:none; color:#0f172a; }
+        .logo-icon { width:38px; height:38px; border-radius:10px; background:linear-gradient(135deg,#0d9488,#0891b2); display:flex; align-items:center; justify-content:center; }
+        .logo-text { font-weight:800; font-size:1.1rem; }
+        .back-btn { display:flex; align-items:center; gap:6px; text-decoration:none; color:#0d9488; font-weight:700; font-size:0.85rem; background:#f0fdfa; padding:7px 13px; border-radius:9px; border:1px solid #99f6e4; }
+        .page-content { max-width:1000px; margin:0 auto; padding:1.6rem 1.2rem 4rem; }
+        .page-header h1 { font-size:1.7rem; font-weight:800; }
+        .page-header p { color:#64748b; font-size:0.9rem; margin-top:0.2rem; }
+        .breadcrumb { font-size:0.78rem; color:#94a3b8; margin-bottom:0.3rem; }
+        .breadcrumb a { color:#0d9488; text-decoration:none; }
+
+        .tab-bar { display:flex; gap:0.5rem; margin:1.4rem 0; flex-wrap:wrap; }
+        .tab-pill { padding:0.6rem 1.1rem; border-radius:12px; border:1.5px solid #cbd5e1; background:#fff; font-weight:700; font-size:0.86rem; cursor:pointer; color:#475569; transition:all .12s; }
+        .tab-pill.active { background:linear-gradient(135deg,#0d9488,#0891b2); color:#fff; border-color:transparent; box-shadow:0 4px 12px rgba(13,148,136,0.25); }
+
+        .card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:1.4rem 1.5rem; margin-bottom:1.2rem; box-shadow:0 2px 12px rgba(15,23,42,0.04); }
+        .card h2 { font-size:1.05rem; font-weight:800; margin-bottom:0.4rem; }
+        .muted { color:#64748b; font-size:0.83rem; }
+        label { display:block; font-size:0.75rem; font-weight:700; color:#334155; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.35rem; }
+        input[type=text], input[type=number], select { width:100%; padding:0.65rem 0.8rem; border:1.5px solid #cbd5e1; border-radius:10px; font-size:0.92rem; background:#fff; }
+        input:focus, select:focus { outline:none; border-color:#0d9488; box-shadow:0 0 0 3px rgba(13,148,136,0.12); }
+        .row { display:flex; gap:0.8rem; flex-wrap:wrap; align-items:flex-end; }
+        .row > div { flex:1; min-width:150px; }
+        .btn { border:none; border-radius:11px; padding:0.7rem 1.3rem; font-weight:700; font-size:0.9rem; cursor:pointer; font-family:inherit; }
+        .btn-primary { background:linear-gradient(135deg,#0d9488,#0891b2); color:#fff; box-shadow:0 4px 12px rgba(13,148,136,0.25); }
+        .btn-ghost { background:#f1f5f9; color:#334155; }
+        .btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+        table { width:100%; border-collapse:collapse; margin-top:0.8rem; }
+        th { text-align:left; font-size:0.68rem; text-transform:uppercase; letter-spacing:0.04em; color:#64748b; font-weight:800; padding:0.5rem 0.6rem; border-bottom:2px solid #e2e8f0; }
+        td { padding:0.55rem 0.6rem; border-bottom:1px solid #f1f5f9; font-size:0.87rem; }
+        .num-input { max-width:90px; }
+        .pick-row { padding:0.7rem 0.9rem; border:1.5px solid #e2e8f0; border-radius:11px; margin-bottom:0.5rem; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:0.6rem; }
+        .pick-row:hover { border-color:#0d9488; background:#f0fdfa; }
+        .pick-row b { color:#0f172a; }
+        .radio-group { display:flex; gap:0.8rem; flex-wrap:wrap; }
+        .radio-opt { display:flex; align-items:center; gap:6px; padding:0.5rem 0.9rem; border:1.5px solid #cbd5e1; border-radius:10px; cursor:pointer; font-size:0.86rem; font-weight:600; }
+        .radio-opt input { width:auto; }
+        .hidden { display:none !important; }
+        .empty { text-align:center; color:#94a3b8; padding:2rem 1rem; font-size:0.9rem; }
+        .summary-box { background:#f0fdfa; border:1.5px solid #99f6e4; border-radius:12px; padding:0.9rem 1.1rem; margin-top:1rem; font-size:0.9rem; }
+        .summary-box .amt { font-size:1.3rem; font-weight:800; color:#0d9488; }
+        .badge { display:inline-block; font-size:0.64rem; font-weight:800; padding:2px 8px; border-radius:8px; text-transform:uppercase; letter-spacing:0.03em; }
+        .badge-sale { background:#dcfce7; color:#166534; }
+        .badge-purchase { background:#fee2e2; color:#991b1b; }
+        #toast { position:fixed; bottom:1.4rem; left:50%; transform:translateX(-50%) translateY(120%); background:#0f172a; color:#fff; padding:0.9rem 1.4rem; border-radius:12px; font-size:0.9rem; font-weight:600; box-shadow:0 8px 30px rgba(0,0,0,0.25); z-index:200; transition:transform .3s; max-width:90vw; }
+        #toast.show { transform:translateX(-50%) translateY(0); }
+        #toast b { display:block; font-size:0.95rem; margin-bottom:2px; }
+    </style>
+    <script src="js/modal.js"></script>
+    <script src="js/auth.js?v=3"></script>
+    <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/keyboard-nav.js"></script>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0d9488">
+</head>
+<body>
+    <script>
+        mmRequireAuth();
+        document.addEventListener('DOMContentLoaded', () => { if (typeof mmInjectUserBar === 'function') mmInjectUserBar(); });
+    </script>
+
+    <header>
+        <a class="logo" href="index.html">
+            <div class="logo-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg></div>
+            <span class="logo-text">Billware</span>
+        </a>
+        <a class="back-btn" href="index.html">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            Back
+        </a>
+    </header>
+
+    <div class="page-content">
+        <div class="page-header">
+            <div class="breadcrumb"><a href="index.html">Home</a> &rsaquo; Returns</div>
+            <h1>Returns</h1>
+            <p>Sales returns (credit note) and purchase returns (debit note) — stock and totals adjust automatically.</p>
+        </div>
+
+        <div class="tab-bar">
+            <button class="tab-pill active" id="tab-sales" onclick="switchTab('sales')">↩️ Sales Return</button>
+            <button class="tab-pill" id="tab-purchase" onclick="switchTab('purchase')">↪️ Purchase Return</button>
+            <button class="tab-pill" id="tab-history" onclick="switchTab('history')">🕘 History</button>
+        </div>
+
+        <!-- ══ SALES RETURN ══ -->
+        <div id="panel-sales">
+            <div class="card">
+                <h2>Sales Return — Credit Note</h2>
+                <p class="muted">Customer brings back a medicine. Find the original bill, choose what's returned, and the stock goes back in.</p>
+                <div class="row" style="margin-top:1rem;">
+                    <div style="flex:3;">
+                        <label>Find bill</label>
+                        <input type="text" id="saleSearch" placeholder="Bill no or customer name…" oninput="findBills()">
+                    </div>
+                </div>
+                <div id="saleBillList" style="margin-top:0.9rem;"></div>
+            </div>
+
+            <div class="card hidden" id="saleReturnCard">
+                <h2>Returning from Bill <span id="srBillNo"></span></h2>
+                <p class="muted" id="srBillMeta"></p>
+                <table>
+                    <thead><tr><th>Medicine</th><th>Batch</th><th>Sold</th><th>Return qty</th><th>Refund ₹</th></tr></thead>
+                    <tbody id="srItems"></tbody>
+                </table>
+                <div class="row" style="margin-top:1.1rem;">
+                    <div>
+                        <label>Reason</label>
+                        <select id="srReason">
+                            <option value="damaged">Damaged</option>
+                            <option value="expired">Expired</option>
+                            <option value="wrong">Wrong medicine</option>
+                            <option value="changed">Customer changed mind</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div style="flex:2;">
+                        <label>Refund method</label>
+                        <div class="radio-group">
+                            <label class="radio-opt"><input type="radio" name="srRefund" value="cash" checked onchange="renderSrSummary()"> 💵 Cash refund</label>
+                            <label class="radio-opt" id="srKhataOpt"><input type="radio" name="srRefund" value="khata" onchange="renderSrSummary()"> 📒 Reduce Khata balance</label>
+                        </div>
+                        <div class="muted" id="srKhataNote" style="margin-top:4px;"></div>
+                    </div>
+                </div>
+                <div class="summary-box" id="srSummary"></div>
+                <div style="margin-top:1rem; display:flex; gap:0.6rem;">
+                    <button class="btn btn-primary" id="srBtn" onclick="processSalesReturn()">Process Sales Return</button>
+                    <button class="btn btn-ghost" onclick="cancelSaleReturn()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ PURCHASE RETURN ══ -->
+        <div id="panel-purchase" class="hidden">
+            <div class="card">
+                <h2>Purchase Return — Debit Note</h2>
+                <p class="muted">Return expired or damaged stock to a supplier. Find the medicine, choose the batch, and the stock is removed.</p>
+                <div class="row" style="margin-top:1rem;">
+                    <div style="flex:3;">
+                        <label>Find purchase</label>
+                        <input type="text" id="purSearch" placeholder="Medicine name, batch, or supplier…" oninput="findPurchases()">
+                    </div>
+                </div>
+                <div id="purList" style="margin-top:0.9rem;"></div>
+            </div>
+
+            <div class="card hidden" id="purReturnCard">
+                <h2>Returning to <span id="prFirm"></span></h2>
+                <p class="muted" id="prMeta"></p>
+                <table>
+                    <thead><tr><th>Medicine</th><th>Batch</th><th>In stock</th><th>Return qty</th><th>Value ₹</th></tr></thead>
+                    <tbody id="prItems"></tbody>
+                </table>
+                <div class="row" style="margin-top:1.1rem;">
+                    <div>
+                        <label>Reason</label>
+                        <select id="prReason">
+                            <option value="expired">Expired</option>
+                            <option value="near_expiry">Near expiry</option>
+                            <option value="damaged">Damaged</option>
+                            <option value="wrong_supply">Wrong supply</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="summary-box" id="prSummary"></div>
+                <div style="margin-top:1rem; display:flex; gap:0.6rem;">
+                    <button class="btn btn-primary" id="prBtn" onclick="processPurchaseReturn()">Process Purchase Return</button>
+                    <button class="btn btn-ghost" onclick="cancelPurchaseReturn()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ HISTORY ══ -->
+        <div id="panel-history" class="hidden">
+            <div class="card">
+                <h2>Returns History</h2>
+                <p class="muted">All sales and purchase returns, newest first.</p>
+                <div id="historyBody" style="margin-top:0.9rem;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script>
+        /* ─────────────────────────────────────────────────────────────
+           Returns: modelled as stock adjustments (reason sales_return /
+           purchase_return) so every stock view already reflects them, plus
+           the financial detail stored as JSON in the adjustment's note.
+           Sales return  → +qty back into stock.
+           Purchase return → -qty out of stock.
+           All quantities are in loose units (same unit mmComputeStock uses).
+        ───────────────────────────────────────────────────────────────── */
+        const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        const money = n => '₹' + (Math.round((parseFloat(n) || 0) * 100) / 100).toFixed(2);
+        const todayISO = () => new Date().toISOString().slice(0, 10);
+        function getSales()     { try { return JSON.parse(localStorage.getItem('mm_sales') || '[]'); } catch (e) { return []; } }
+        function getPurchases() { try { return JSON.parse(localStorage.getItem('mm_purchases') || '[]'); } catch (e) { return []; } }
+        function getCustomers() { try { return JSON.parse(localStorage.getItem('mm_customers') || '[]'); } catch (e) { return []; } }
+        function getAdjustments() { return (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : []; }
+
+        function showToast(title, msg) {
+            const t = document.getElementById('toast');
+            t.innerHTML = '<b>' + esc(title) + '</b>' + esc(msg || '');
+            t.classList.add('show');
+            clearTimeout(window._toastT);
+            window._toastT = setTimeout(() => t.classList.remove('show'), 3200);
+        }
+
+        function switchTab(tab) {
+            ['sales', 'purchase', 'history'].forEach(t => {
+                document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+                document.getElementById('panel-' + t).classList.toggle('hidden', t !== tab);
+            });
+            if (tab === 'history') renderHistory();
+        }
+
+        /* ── Shared: save a return as a stock adjustment (local + cloud + retry queue) ── */
+        async function _saveReturnAdjustment(productName, batchNo, qtyDelta, reason, noteObj) {
+            const before = (typeof mmComputeStock === 'function') ? mmComputeStock(productName, batchNo) : 0;
+            const after  = before + qtyDelta;
+            const note   = JSON.stringify(noteObj);
+            const record = { productName, batchNo, qtyBefore: before, qtyAfter: after, qtyDelta, reason, note };
+
+            let savedToCloud = false;
+            try {
+                if (typeof dbAddStockAdjustment === 'function') {
+                    const res = await dbAddStockAdjustment(record);
+                    if (res && res.success) savedToCloud = true;
+                }
+            } catch (e) { console.warn('return adj cloud save failed:', e); }
+
+            const localEntry = {
+                product_name: productName, batch_no: batchNo,
+                qty_before: before, qty_after: after, qty_delta: qtyDelta,
+                reason, note, created_at: new Date().toISOString()
+            };
+            try {
+                const local = getAdjustments();
+                local.unshift(localEntry);
+                if (typeof mmLsSet === 'function') mmLsSet('stockAdjustments', local);
+            } catch (e) { console.warn('return adj local save failed:', e); }
+
+            if (!savedToCloud) {
+                try {
+                    const pending = (typeof mmLsGet === 'function') ? (mmLsGet('pendingStockAdjustments') || []) : [];
+                    pending.push(record);
+                    if (typeof mmLsSet === 'function') mmLsSet('pendingStockAdjustments', pending);
+                } catch (e) {}
+            }
+            return savedToCloud;
+        }
+
+        /* ══════════════ SALES RETURN ══════════════ */
+        let _srBill = null;
+
+        function findBills() {
+            const q = (document.getElementById('saleSearch').value || '').trim().toLowerCase();
+            const list = document.getElementById('saleBillList');
+            if (!q) { list.innerHTML = ''; return; }
+            // Real sales only (skip anything already a return, just in case)
+            const bills = getSales().filter(b => !b.isReturn && b.billNo)
+                .filter(b => String(b.billNo).toLowerCase().includes(q) || (b.customerName || '').toLowerCase().includes(q))
+                .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+                .slice(0, 12);
+            if (!bills.length) { list.innerHTML = '<div class="empty">No matching bills.</div>'; return; }
+            list.innerHTML = bills.map(b => {
+                const items = (b.medicines || []).length;
+                return '<div class="pick-row" onclick="loadBillForReturn(' + JSON.stringify(String(b.billNo)).replace(/"/g, '&quot;') + ')">'
+                    + '<div><b>' + esc(b.billNo) + '</b> &nbsp; <span class="muted">' + esc(b.customerName || 'Walk-in') + '</span></div>'
+                    + '<div class="muted">' + esc(b.date || '') + ' · ' + items + ' item' + (items === 1 ? '' : 's') + ' · ' + money(String(b.grandTotal).replace(/[^0-9.]/g, '')) + '</div>'
+                    + '</div>';
+            }).join('');
+        }
+
+        function loadBillForReturn(billNo) {
+            const bill = getSales().find(b => !b.isReturn && String(b.billNo) === String(billNo));
+            if (!bill) { showToast('Not found', 'That bill could not be loaded.'); return; }
+            _srBill = bill;
+            document.getElementById('srBillNo').textContent = bill.billNo;
+            document.getElementById('srBillMeta').textContent =
+                (bill.customerName || 'Walk-in') + ' · ' + (bill.date || '') + (bill.paymentMode ? ' · ' + bill.paymentMode : '');
+
+            // Already-returned qty for this bill (so you can't return more than sold across multiple returns)
+            const returnedByKey = {};
+            getAdjustments().filter(a => a.reason === 'sales_return').forEach(a => {
+                let n = {}; try { n = JSON.parse(a.note || '{}'); } catch (e) {}
+                if (String(n.ref) === String(bill.billNo)) {
+                    const k = (a.product_name || '').toLowerCase() + '|' + (a.batch_no || '').toLowerCase();
+                    returnedByKey[k] = (returnedByKey[k] || 0) + (parseFloat(a.qty_delta) || 0);
+                }
+            });
+
+            const tbody = document.getElementById('srItems');
+            tbody.innerHTML = (bill.medicines || []).map((m, i) => {
+                const sold = parseFloat(m.qty) || 0;
+                const k = (m.product || '').toLowerCase() + '|' + (m.batch || '').toLowerCase();
+                const already = returnedByKey[k] || 0;
+                const maxRet = Math.max(0, sold - already);
+                const unitRefund = sold > 0 ? (parseFloat(m.total) || 0) / sold : 0;
+                return '<tr data-i="' + i + '" data-unit="' + unitRefund + '" data-max="' + maxRet + '">'
+                    + '<td><b>' + esc(m.product) + '</b></td>'
+                    + '<td>' + esc(m.batch || '—') + '</td>'
+                    + '<td>' + sold + (already ? ' <span class="muted">(-' + already + ' returned)</span>' : '') + '</td>'
+                    + '<td><input type="number" class="num-input sr-qty" min="0" max="' + maxRet + '" value="0" ' + (maxRet <= 0 ? 'disabled' : '') + ' oninput="renderSrSummary()"></td>'
+                    + '<td class="sr-line">₹0.00</td>'
+                    + '</tr>';
+            }).join('');
+
+            // Khata option availability
+            const cust = _findCustomer(bill.customerName);
+            const khataOpt = document.getElementById('srKhataOpt');
+            const khataNote = document.getElementById('srKhataNote');
+            if (cust && (parseFloat(cust.balance) || 0) > 0) {
+                khataOpt.style.opacity = '1';
+                khataOpt.querySelector('input').disabled = false;
+                khataNote.textContent = esc(bill.customerName) + ' has ' + money(cust.balance) + ' pending — a khata refund reduces it.';
+            } else {
+                khataOpt.style.opacity = '0.5';
+                khataOpt.querySelector('input').disabled = true;
+                khataNote.textContent = (bill.customerName ? esc(bill.customerName) + ' has no pending khata balance.' : 'Walk-in bill — cash refund only.');
+                document.querySelector('input[name="srRefund"][value="cash"]').checked = true;
+            }
+
+            document.getElementById('saleReturnCard').classList.remove('hidden');
+            renderSrSummary();
+            document.getElementById('saleReturnCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function renderSrSummary() {
+            let total = 0, count = 0;
+            document.querySelectorAll('#srItems tr').forEach(tr => {
+                const unit = parseFloat(tr.dataset.unit) || 0;
+                const max = parseFloat(tr.dataset.max) || 0;
+                const inp = tr.querySelector('.sr-qty');
+                let q = parseFloat(inp.value) || 0;
+                if (q < 0) q = 0;
+                if (q > max) { q = max; inp.value = max; }
+                const line = q * unit;
+                tr.querySelector('.sr-line').textContent = money(line);
+                total += line; count += q;
+            });
+            const mode = (document.querySelector('input[name="srRefund"]:checked') || {}).value || 'cash';
+            const box = document.getElementById('srSummary');
+            box.innerHTML = 'Returning <b>' + count + '</b> unit(s) · Refund <span class="amt">' + money(total) + '</span> '
+                + '<span class="muted">(' + (mode === 'khata' ? 'reduce khata balance' : 'cash refund') + ')</span>';
+            document.getElementById('srBtn').disabled = count <= 0;
+        }
+
+        async function processSalesReturn() {
+            if (!_srBill) return;
+            const btn = document.getElementById('srBtn');
+            const reason = document.getElementById('srReason').value;
+            const mode = (document.querySelector('input[name="srRefund"]:checked') || {}).value || 'cash';
+            const rows = [];
+            let total = 0;
+            document.querySelectorAll('#srItems tr').forEach(tr => {
+                const q = parseFloat(tr.querySelector('.sr-qty').value) || 0;
+                if (q <= 0) return;
+                const i = parseInt(tr.dataset.i, 10);
+                const m = _srBill.medicines[i];
+                const unit = parseFloat(tr.dataset.unit) || 0;
+                rows.push({ product: m.product, batch: m.batch || '', qty: q, amount: q * unit });
+                total += q * unit;
+            });
+            if (!rows.length) return;
+
+            const ok = await mmConfirm('Process this sales return?\n\n' + rows.length + ' item(s), ' +
+                money(total) + ' refunded (' + (mode === 'khata' ? 'khata' : 'cash') + ').\n\nStock will be added back.',
+                { title: '↩️ Confirm Sales Return', okText: 'Yes, process' });
+            if (!ok) return;
+
+            btn.disabled = true; btn.textContent = 'Processing…';
+            const cnNo = 'CN-' + Date.now().toString().slice(-8);
+            try {
+                for (const r of rows) {
+                    await _saveReturnAdjustment(r.product, r.batch, r.qty, 'sales_return', {
+                        ref: _srBill.billNo, cn: cnNo, party: _srBill.customerName || 'Walk-in',
+                        amount: r.amount, mode, reason, date: todayISO()
+                    });
+                }
+                // Khata refund → reduce the customer's outstanding balance
+                if (mode === 'khata') {
+                    const cust = _findCustomer(_srBill.customerName);
+                    if (cust) {
+                        const newBal = Math.max(0, (parseFloat(cust.balance) || 0) - total);
+                        cust.balance = newBal;
+                        try {
+                            const all = getCustomers();
+                            const idx = all.findIndex(c => (c.name || '').toLowerCase() === (cust.name || '').toLowerCase());
+                            if (idx >= 0) { all[idx].balance = newBal; localStorage.setItem('mm_customers', JSON.stringify(all)); }
+                        } catch (e) {}
+                        if (typeof dbUpdateCustomerBalance === 'function') {
+                            dbUpdateCustomerBalance(cust.name, cust.phone || '', cust.address || '', -total).catch(() => {});
+                        }
+                    }
+                }
+                showToast('Sales return done — ' + cnNo, money(total) + ' refunded, stock restored.');
+                cancelSaleReturn();
+                document.getElementById('saleSearch').value = '';
+                document.getElementById('saleBillList').innerHTML = '';
+            } catch (e) {
+                console.error(e);
+                showToast('Something went wrong', 'Please try again.');
+            } finally {
+                btn.disabled = false; btn.textContent = 'Process Sales Return';
+            }
+        }
+
+        function cancelSaleReturn() {
+            _srBill = null;
+            document.getElementById('saleReturnCard').classList.add('hidden');
+        }
+
+        function _findCustomer(name) {
+            const n = (name || '').trim().toLowerCase();
+            if (!n) return null;
+            return getCustomers().find(c => (c.name || '').trim().toLowerCase() === n) || null;
+        }
+
+        /* ══════════════ PURCHASE RETURN ══════════════ */
+        let _prLot = null;
+        let _purLots = [];   // current search results, referenced by index (avoids inline-JSON quoting bugs)
+
+        function findPurchases() {
+            const q = (document.getElementById('purSearch').value || '').trim().toLowerCase();
+            const list = document.getElementById('purList');
+            if (!q) { list.innerHTML = ''; _purLots = []; return; }
+            _purLots = getPurchases().filter(p => {
+                const name = (p.productName || p.product_name || '');
+                const firm = (p.firm || '');
+                const batch = (p.batchNo || p.batch_no || '');
+                return (name + ' ' + firm + ' ' + batch).toLowerCase().includes(q);
+            })
+            .filter(p => {
+                const name = (p.productName || p.product_name || '');
+                const batch = (p.batchNo || p.batch_no || '');
+                return (typeof mmComputeStock !== 'function') || mmComputeStock(name, batch) > 0; // only lots with stock left
+            })
+            .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+            .slice(0, 15);
+            if (!_purLots.length) { list.innerHTML = '<div class="empty">No matching in-stock purchases.</div>'; return; }
+            list.innerHTML = _purLots.map((p, i) => {
+                const name = (p.productName || p.product_name || '');
+                const batch = (p.batchNo || p.batch_no || '');
+                const firm = p.firm || 'Supplier';
+                const stock = (typeof mmComputeStock === 'function') ? mmComputeStock(name, batch) : 0;
+                return '<div class="pick-row" onclick="loadLotForReturn(' + i + ')">'
+                    + '<div><b>' + esc(name) + '</b> &nbsp;<span class="muted">' + esc(batch || '—') + '</span><br><span class="muted">' + esc(firm) + ' · ' + esc(p.date || '') + '</span></div>'
+                    + '<div class="muted">In stock: <b>' + stock + '</b></div>'
+                    + '</div>';
+            }).join('');
+        }
+
+        function loadLotForReturn(idx) {
+            const p = _purLots[idx];
+            if (!p) return;
+            _prLot = p;
+            const name = (p.productName || p.product_name || '');
+            const batch = (p.batchNo || p.batch_no || '');
+            const firm = p.firm || 'Supplier';
+            const stock = (typeof mmComputeStock === 'function') ? mmComputeStock(name, batch) : 0;
+            const pack = parseFloat(p.pack) || 1;
+            const rate = parseFloat(p.rate) || 0;
+            const perUnitCost = rate / (pack || 1);   // purchase rate is per pack-unit
+
+            document.getElementById('prFirm').textContent = firm;
+            document.getElementById('prMeta').textContent = 'Bill ' + (p.billNo || '—') + ' · ' + (p.date || '');
+            document.getElementById('prItems').innerHTML =
+                '<tr data-unitcost="' + perUnitCost + '" data-max="' + stock + '">'
+                + '<td><b>' + esc(name) + '</b></td>'
+                + '<td>' + esc(batch || '—') + '</td>'
+                + '<td>' + stock + '</td>'
+                + '<td><input type="number" class="num-input pr-qty" min="0" max="' + stock + '" value="0" oninput="renderPrSummary()"></td>'
+                + '<td class="pr-line">₹0.00</td>'
+                + '</tr>';
+            document.getElementById('purReturnCard').classList.remove('hidden');
+            renderPrSummary();
+            document.getElementById('purReturnCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function renderPrSummary() {
+            const tr = document.querySelector('#prItems tr');
+            if (!tr) return;
+            const unitCost = parseFloat(tr.dataset.unitcost) || 0;
+            const max = parseFloat(tr.dataset.max) || 0;
+            const inp = tr.querySelector('.pr-qty');
+            let q = parseFloat(inp.value) || 0;
+            if (q < 0) q = 0;
+            if (q > max) { q = max; inp.value = max; }
+            const val = q * unitCost;
+            tr.querySelector('.pr-line').textContent = money(val);
+            document.getElementById('prSummary').innerHTML =
+                'Returning <b>' + q + '</b> unit(s) to supplier · Value <span class="amt">' + money(val) + '</span>';
+            document.getElementById('prBtn').disabled = q <= 0;
+        }
+
+        async function processPurchaseReturn() {
+            if (!_prLot) return;
+            const tr = document.querySelector('#prItems tr');
+            const q = parseFloat(tr.querySelector('.pr-qty').value) || 0;
+            if (q <= 0) return;
+            const unitCost = parseFloat(tr.dataset.unitcost) || 0;
+            const name = (_prLot.productName || _prLot.product_name || '');
+            const batch = (_prLot.batchNo || _prLot.batch_no || '');
+            const firm = _prLot.firm || 'Supplier';
+            const reason = document.getElementById('prReason').value;
+            const value = q * unitCost;
+
+            const ok = await mmConfirm('Return ' + q + ' unit(s) of ' + name + ' to ' + firm + '?\n\n' +
+                money(value) + ' debit note. Stock will be removed.',
+                { title: '↪️ Confirm Purchase Return', okText: 'Yes, process' });
+            if (!ok) return;
+
+            const btn = document.getElementById('prBtn');
+            btn.disabled = true; btn.textContent = 'Processing…';
+            const dnNo = 'DN-' + Date.now().toString().slice(-8);
+            try {
+                await _saveReturnAdjustment(name, batch, -q, 'purchase_return', {
+                    ref: _prLot.billNo || '', dn: dnNo, party: firm, amount: value, reason, date: todayISO()
+                });
+                showToast('Purchase return done — ' + dnNo, money(value) + ' debit note, stock removed.');
+                cancelPurchaseReturn();
+                document.getElementById('purSearch').value = '';
+                document.getElementById('purList').innerHTML = '';
+            } catch (e) {
+                console.error(e);
+                showToast('Something went wrong', 'Please try again.');
+            } finally {
+                btn.disabled = false; btn.textContent = 'Process Purchase Return';
+            }
+        }
+
+        function cancelPurchaseReturn() {
+            _prLot = null;
+            document.getElementById('purReturnCard').classList.add('hidden');
+        }
+
+        /* ══════════════ HISTORY ══════════════ */
+        function renderHistory() {
+            const rows = getAdjustments()
+                .filter(a => a.reason === 'sales_return' || a.reason === 'purchase_return')
+                .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+            const body = document.getElementById('historyBody');
+            if (!rows.length) { body.innerHTML = '<div class="empty">No returns yet.</div>'; return; }
+            let html = '<table><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Party</th><th>Medicine</th><th>Qty</th><th>Amount</th></tr></thead><tbody>';
+            rows.forEach(a => {
+                let n = {}; try { n = JSON.parse(a.note || '{}'); } catch (e) {}
+                const isSale = a.reason === 'sales_return';
+                const noteNo = isSale ? (n.cn || '') : (n.dn || '');
+                html += '<tr>'
+                    + '<td>' + esc((n.date || (a.created_at || '').slice(0, 10))) + '</td>'
+                    + '<td><span class="badge ' + (isSale ? 'badge-sale' : 'badge-purchase') + '">' + (isSale ? 'Sales' : 'Purchase') + '</span></td>'
+                    + '<td>' + esc(noteNo || '—') + (n.ref ? ' <span class="muted">/ ' + esc(n.ref) + '</span>' : '') + '</td>'
+                    + '<td>' + esc(n.party || '—') + '</td>'
+                    + '<td>' + esc(a.product_name || '') + ' <span class="muted">' + esc(a.batch_no || '') + '</span></td>'
+                    + '<td>' + (parseFloat(a.qty_delta) > 0 ? '+' : '') + (parseFloat(a.qty_delta) || 0) + '</td>'
+                    + '<td>' + money(n.amount || 0) + '</td>'
+                    + '</tr>';
+            });
+            html += '</tbody></table>';
+            body.innerHTML = html;
+        }
+
+        // Make sure cloud data (bills/purchases/adjustments) is in localStorage before use.
+        (async function initReturns() {
+            try { if (typeof dbSyncCoreData === 'function') await dbSyncCoreData(); } catch (e) {}
+        })();
+    </script>
+</body>
+</html>
