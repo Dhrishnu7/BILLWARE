@@ -294,6 +294,42 @@ async function dbClearScheduleHDrugs() {
 }
 window.dbClearScheduleHDrugs = dbClearScheduleHDrugs;
 
+/* Schedule X (narcotic) drug names — the shop's own list, since X drugs are
+   few and the shop knows them. Mirrors the schedule_h_drugs helpers.
+   Needs migrations/add_schedule_x_drugs_table.sql. */
+async function dbGetScheduleXDrugs() {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetScheduleXDrugs: no user, aborting.'); return []; }
+    const { data, error } = await _supabase.from('schedule_x_drugs')
+        .select('name').eq('user_id', user).order('name');
+    if (error) { console.error('schedule_x drugs fetch:', error); return []; }
+    return (data || []).map(r => r.name).filter(Boolean);
+}
+window.dbGetScheduleXDrugs = dbGetScheduleXDrugs;
+
+async function dbAddScheduleXDrugs(names) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbAddScheduleXDrugs: no user, aborting.'); return { success: false }; }
+    const list = (Array.isArray(names) ? names : [names]).map(n => (n || '').trim()).filter(Boolean);
+    if (!list.length) return { success: true };
+    const rows = list.map(name => ({ user_id: user, name }));
+    const { error } = await _supabase.from('schedule_x_drugs')
+        .upsert(rows, { onConflict: 'user_id,name', ignoreDuplicates: true });
+    if (error) { console.error('schedule_x drugs add:', error); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbAddScheduleXDrugs = dbAddScheduleXDrugs;
+
+async function dbDeleteScheduleXDrug(name) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbDeleteScheduleXDrug: no user, aborting.'); return false; }
+    const { error } = await _supabase.from('schedule_x_drugs')
+        .delete().eq('user_id', user).eq('name', (name || '').trim());
+    if (error) { console.error('schedule_x drug delete:', error); return false; }
+    return true;
+}
+window.dbDeleteScheduleXDrug = dbDeleteScheduleXDrug;
+
 // Register entries. Maps the app's camelCase entry <-> the table's snake_case
 // columns. entry.id (the app-generated string) is the primary key so re-syncs
 // dedupe cleanly and never create doubles.

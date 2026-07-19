@@ -687,6 +687,10 @@
         function _scheduleClassOfP(name) {
             const nm = (name || '').trim();
             if (!nm) return '';
+            try {
+                const xl = JSON.parse(localStorage.getItem('mm_schedule_x_drugs') || '[]');
+                if (xl.some(d => (d || '').trim().toLowerCase() === nm.toLowerCase())) return 'X';
+            } catch (e) {}
             if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf) {
                 const s = (DrugMaster.scheduleOf(nm) || '').toUpperCase();
                 if (s === 'X') return 'X';

@@ -1329,6 +1329,9 @@
                         <button class="btn-export" id="shBinToggleBtn" onclick="toggleShBin()" title="View deleted entries — recoverable for 30 days">
                             &#x1F5D1;&#xFE0F; Bin<span id="shBinBadge" style="display:none; background:#dc2626; color:#fff; border-radius:10px; padding:1px 7px; font-size:0.72rem; margin-left:5px; font-weight:800;">0</span>
                         </button>
+                        <button class="btn-export" onclick="openScheduleXManage()" title="Mark your narcotic / Schedule X products so they're flagged everywhere">
+                            &#x26D4; Schedule X list
+                        </button>
                         <span class="filter-count" id="logCount"></span>
                     </div>
 
@@ -2573,6 +2576,11 @@
         function _scheduleClassOf(name) {
             const nm = (name || '').trim();
             if (!nm) return '';
+            // The shop's own Schedule X list wins (they know their narcotics).
+            try {
+                const xl = JSON.parse(localStorage.getItem('mm_schedule_x_drugs') || '[]');
+                if (xl.some(d => (d || '').trim().toLowerCase() === nm.toLowerCase())) return 'X';
+            } catch (e) {}
             if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf) {
                 const s = (DrugMaster.scheduleOf(nm) || '').toUpperCase();
                 if (s === 'X') return 'X';       // strictest — narcotic/psychotropic
@@ -2986,6 +2994,61 @@
                 .replace(/>/g, '&gt;')
                 .replace(/\\/g, '\\\\')
                 .replace(/'/g, "\\'");
+        }
+
+        /* ── My Schedule X drugs (narcotics) — the shop's own list. Detection
+              (_scheduleClassOf) checks it first so these are treated as class X. ── */
+        const SH_X_KEY = 'mm_schedule_x_drugs';
+        function _getXDrugs() { try { return JSON.parse(localStorage.getItem(SH_X_KEY) || '[]'); } catch (e) { return []; } }
+        function _setXDrugs(list) { try { localStorage.setItem(SH_X_KEY, JSON.stringify(list)); } catch (e) {} }
+        async function openScheduleXManage() {
+            document.getElementById('scheduleXModal').classList.add('open');
+            renderScheduleXList();
+            if (typeof dbGetScheduleXDrugs === 'function') {
+                try {
+                    const cloud = await dbGetScheduleXDrugs();
+                    if (cloud && cloud.length) {
+                        const set = new Set(_getXDrugs().map(d => d.trim().toLowerCase()));
+                        const merged = _getXDrugs().slice();
+                        cloud.forEach(n => { if (n && !set.has(n.trim().toLowerCase())) merged.push(n); });
+                        _setXDrugs(merged);
+                        renderScheduleXList();
+                    }
+                } catch (e) {}
+            }
+            setTimeout(() => document.getElementById('scheduleXInput').focus(), 60);
+        }
+        function closeScheduleXManage() {
+            document.getElementById('scheduleXModal').classList.remove('open');
+            renderRegisterLog();   // re-badge in case classes changed
+        }
+        function renderScheduleXList() {
+            const box = document.getElementById('scheduleXList');
+            const list = _getXDrugs().slice().sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+            if (!list.length) { box.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:1rem; font-size:0.85rem;">No Schedule X drugs added yet.</div>'; return; }
+            box.innerHTML = list.map(n => {
+                const arg = JSON.stringify(n).replace(/"/g, '&quot;');
+                return '<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 4px; border-bottom:1px solid #fef2f2;">'
+                    + '<span style="font-weight:600; font-size:0.9rem;">' + esc(n) + '</span>'
+                    + '<button class="remove-row-btn" onclick="removeScheduleXDrug(' + arg + ')" title="Remove">✕</button></div>';
+            }).join('');
+        }
+        function addScheduleXDrug() {
+            const inp = document.getElementById('scheduleXInput');
+            const name = (inp.value || '').trim();
+            if (!name) { inp.focus(); return; }
+            const list = _getXDrugs();
+            if (!list.some(d => d.trim().toLowerCase() === name.toLowerCase())) {
+                list.push(name); _setXDrugs(list);
+                if (typeof dbAddScheduleXDrugs === 'function') dbAddScheduleXDrugs([name]).catch(() => {});
+            }
+            inp.value = ''; inp.focus();
+            renderScheduleXList();
+        }
+        function removeScheduleXDrug(name) {
+            _setXDrugs(_getXDrugs().filter(d => d.trim().toLowerCase() !== String(name).trim().toLowerCase()));
+            if (typeof dbDeleteScheduleXDrug === 'function') dbDeleteScheduleXDrug(name).catch(() => {});
+            renderScheduleXList();
         }
 
         /* ── Edit a register entry (mainly to fix a "Missing Rx" by adding the
@@ -3469,6 +3532,23 @@
                     }
                 }
             } catch (e) { console.warn('Schedule H drug cloud sync failed:', e); }
+
+            // ── Schedule X drug list (union-merge cloud into local so detection works) ──
+            try {
+                if (typeof dbGetScheduleXDrugs === 'function') {
+                    const cloudX = await dbGetScheduleXDrugs();
+                    const localX = _getXDrugs();
+                    const seen = new Set(localX.map(n => (n || '').trim().toLowerCase()));
+                    const merged = localX.slice();
+                    cloudX.forEach(n => { const k = (n || '').trim().toLowerCase(); if (k && !seen.has(k)) { seen.add(k); merged.push(n.trim()); } });
+                    if (merged.length !== localX.length) _setXDrugs(merged);
+                    const cloudXSet = new Set(cloudX.map(n => (n || '').trim().toLowerCase()));
+                    const xLocalOnly = localX.filter(n => !cloudXSet.has((n || '').trim().toLowerCase()));
+                    if (xLocalOnly.length && typeof dbAddScheduleXDrugs === 'function') {
+                        dbAddScheduleXDrugs(xLocalOnly).catch(() => {});
+                    }
+                }
+            } catch (e) { console.warn('Schedule X drug cloud sync failed:', e); }
 
             // ── Register entries ──
             try {
@@ -4125,6 +4205,25 @@
             });
         }
     </script>
+
+    <!-- -- My Schedule X drugs (narcotics) list -- -->
+    <div class="modal-overlay" id="scheduleXModal">
+        <div class="modal-card" style="max-width:460px;">
+            <div class="modal-hd">
+                <h3>⛔ My Schedule X Drugs</h3>
+                <button class="modal-x" type="button" onclick="closeScheduleXManage()">×</button>
+            </div>
+            <div class="modal-bd">
+                <p style="font-size:0.82rem; color:#64748b; margin-bottom:0.9rem;">Add the narcotic / Schedule X products you stock (by the name you bill them as). Once listed, they're flagged as Schedule X everywhere — an <b>X</b> badge in the register, and <b>patient + doctor both required</b> at sale.</p>
+                <div style="display:flex; gap:0.5rem; margin-bottom:0.9rem;">
+                    <input type="text" id="scheduleXInput" placeholder="Drug / product name" style="flex:1;" autocomplete="off"
+                        onkeydown="if(event.key==='Enter'){event.preventDefault();addScheduleXDrug();}">
+                    <button class="btn btn-save" type="button" onclick="addScheduleXDrug()" style="white-space:nowrap;">+ Add</button>
+                </div>
+                <div id="scheduleXList" style="max-height:260px; overflow-y:auto;"></div>
+            </div>
+        </div>
+    </div>
 
     <!-- -- Edit register entry (fix Missing Rx) -- -->
     <div class="modal-overlay" id="editEntryModal">
