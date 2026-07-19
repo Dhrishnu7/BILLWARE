@@ -2724,6 +2724,10 @@
             let data = register.filter(entry => {
                 if (filterFrom && entry.date && entry.date < filterFrom) return false;
                 if (filterTo   && entry.date && entry.date > filterTo)   return false;
+                // Honor the on-screen pills so "H1 only" / IN / OUT export what you see.
+                if (_activeTypeFilter === 'in'  && entry.entryType !== 'in')  return false;
+                if (_activeTypeFilter === 'out' && (entry.entryType || 'out') !== 'out') return false;
+                if (_h1Only && _entryClass(entry) !== 'H1') return false;
                 if (searchTerm) {
                     return (entry.patientName||'').toLowerCase().includes(searchTerm)
                         || (entry.drugName   ||'').toLowerCase().includes(searchTerm)
@@ -2808,13 +2812,13 @@
               + '<Style ss:ID="gtN"><Font ss:Bold="1" ss:Size="9" ss:Color="#FFFFFF"/><Interior ss:Color="#1E40AF" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><NumberFormat ss:Format="#,##0.00"/></Style>\n'
               + '</Styles>\n';
 
-            X += '<Worksheet ss:Name="Schedule H Register">\n<Table>\n';
+            X += '<Worksheet ss:Name="Schedule ' + (_h1Only ? 'H1' : 'H') + ' Register">\n<Table>\n';
             COLS.forEach(c => { X += '<Column ss:Width="' + c.w + '"/>\n'; });
 
             function blankRow(sid) { const a = []; for (let i=0;i<N;i++) a.push(sc('', sid||'s0')); return a; }
 
             // ── Report header ──
-            let tr = blankRow('title'); tr[0] = sc('SCHEDULE H DRUG REGISTER  —  ' + storeName, 'title'); X += rowH(tr, 26);
+            let tr = blankRow('title'); tr[0] = sc('SCHEDULE ' + (_h1Only ? 'H1' : 'H') + ' DRUG REGISTER  —  ' + storeName, 'title'); X += rowH(tr, 26);
             let pr = blankRow('info'); pr[0] = sc('Period:   ' + (fmtDate(filterFrom) || 'All Time') + '   to   ' + (fmtDate(filterTo) || 'Today'), 'info'); X += row(pr);
             let gr = blankRow('info'); gr[0] = sc('Generated On:   ' + fmtDate(new Date().toISOString()) + '   ·   ' + data.length + ' entries', 'info'); X += row(gr);
             X += erow();
