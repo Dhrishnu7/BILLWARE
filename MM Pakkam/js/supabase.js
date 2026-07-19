@@ -301,12 +301,14 @@ function _shEntryToRow(e, user) {
     return {
         entry_id:        e.id,
         user_id:         user,
+        entry_type:      e.entryType || 'out',   // CRITICAL: IN/OUT must survive the round-trip
         date:            e.date || '',
         bill_no:         e.billNo || '',
         firm_name:       e.firmName || '',
         patient_name:    e.patientName || '',
         patient_address: e.patientAddress || '',
         doctor_name:     e.doctorName || '',
+        doctor_reg_no:   e.doctorRegNo || '',
         doctor_address:  e.doctorAddress || '',
         drug_name:       e.drugName || '',
         batch_no:        e.batchNo || '',
@@ -317,18 +319,26 @@ function _shEntryToRow(e, user) {
         rate:            Number(e.rate) || 0,
         gst:             Number(e.gst) || 0,
         total:           Number(e.total) || 0,
+        schedule_class:  e.scheduleClass || '',
         saved_at:        e.savedAt || new Date().toISOString(),
     };
 }
 function _shRowToEntry(r) {
+    // Recover the IN/OUT type: prefer the stored column; for older rows saved
+    // before entry_type existed, derive it — only IN (stock-received) entries
+    // carry a firm/supplier name and have no patient, so that's a reliable tell.
+    const entryType = r.entry_type
+        || ((r.firm_name && !r.patient_name) ? 'in' : 'out');
     return {
         id:             r.entry_id,
+        entryType:      entryType,
         date:           r.date || '',
         billNo:         r.bill_no || '',
         firmName:       r.firm_name || '',
         patientName:    r.patient_name || '',
         patientAddress: r.patient_address || '',
         doctorName:     r.doctor_name || '',
+        doctorRegNo:    r.doctor_reg_no || '',
         doctorAddress:  r.doctor_address || '',
         drugName:       r.drug_name || '',
         batchNo:        r.batch_no || '',
@@ -339,6 +349,7 @@ function _shRowToEntry(r) {
         rate:           Number(r.rate) || 0,
         gst:            Number(r.gst) || 0,
         total:          Number(r.total) || 0,
+        scheduleClass:  r.schedule_class || '',
         savedAt:        r.saved_at || '',
     };
 }
@@ -356,8 +367,18 @@ window.dbGetScheduleHRegister = dbGetScheduleHRegister;
 async function dbAddScheduleHEntry(entry) {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbAddScheduleHEntry: no user, aborting.'); return { success: false }; }
-    const { error } = await _supabase.from('schedule_h_register')
-        .upsert(_shEntryToRow(entry, user), { onConflict: 'entry_id' });
+    const row = _shEntryToRow(entry, user);
+    let { error } = await _supabase.from('schedule_h_register')
+        .upsert(row, { onConflict: 'entry_id' });
+    // If the table hasn't had the newer columns added yet (migration not run),
+    // Postgres/PostgREST reports a missing-column error — retry without them so
+    // saves never silently fail. Type is still recovered on read via firm_name.
+    if (error && /column|schema cache|PGRST204/i.test(String(error.message || ''))) {
+        const legacy = Object.assign({}, row);
+        delete legacy.entry_type; delete legacy.doctor_reg_no; delete legacy.schedule_class;
+        ({ error } = await _supabase.from('schedule_h_register')
+            .upsert(legacy, { onConflict: 'entry_id' }));
+    }
     if (error) { console.error('schedule_h entry add:', error); return { success: false, message: error.message }; }
     return { success: true };
 }
