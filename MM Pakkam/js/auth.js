@@ -82,7 +82,8 @@ const MM_DATA_KEYS = [
     'mm_bill_counter', 'mm_inventory_adjust_log', 'mm_barcodes',
     'mm_pending_purchases', 'mm_pending_sales', 'report_bin',
     'mm_schedule_h_register', 'mm_schedule_h_drugs', 'mm_schedule_x_drugs',
-    'mm_supplier_payments', 'mm_supplier_merges', 'mm_audit_log', 'mm_suppliers'
+    'mm_supplier_payments', 'mm_supplier_merges', 'mm_audit_log', 'mm_suppliers',
+    'mm_credit_limit'
 ];
 // Marks which tenant the cached MM_DATA_KEYS currently belong to.
 const MM_DATA_OWNER_KEY = 'mm_data_owner';

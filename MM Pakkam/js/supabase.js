@@ -1556,6 +1556,18 @@ async function dbGetShopProfile() {
     return data;
 }
 
+// Sets ONLY the khata credit limit (per-shop) without touching the rest of the
+// profile. Needs shop_profiles.credit_limit (migrations/add_credit_limit_column.sql).
+async function dbSetCreditLimit(limit) {
+    const user = _currentUser();
+    if (!user) return { success: false, message: 'Not logged in.' };
+    const { error } = await _supabase.from('shop_profiles')
+        .upsert({ user_id: user, credit_limit: Number(limit) || 0, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+    if (error) { console.error('credit limit save:', error); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbSetCreditLimit = dbSetCreditLimit;
+
 async function dbSaveShopProfile(profile) {
     const user = _currentUser();
     if (!user) return { success: false, message: 'Not logged in.' };

@@ -1790,6 +1790,32 @@
                 return;
             }
 
+            // Khata credit-limit guard: block a credit bill that would push this
+            // customer's pending balance over the shop's credit limit.
+            if (paymentMode === 'credit' && customerName) {
+                const limit = parseFloat(localStorage.getItem('mm_credit_limit')) || 0;
+                if (limit > 0) {
+                    let currentBal = 0;
+                    try {
+                        const cust = JSON.parse(localStorage.getItem('mm_customers') || '[]')
+                            .find(c => (c.name || '').trim().toLowerCase() === customerName.toLowerCase());
+                        currentBal = cust ? (parseFloat(cust.balance) || 0) : 0;
+                    } catch (e) {}
+                    const billAmt = parseFloat(String(document.getElementById('grandTotal').textContent).replace(/[^0-9.]/g, '')) || 0;
+                    if (currentBal + billAmt > limit + 0.005) {
+                        const notify = (typeof mmAlert === 'function') ? mmAlert : (m) => { alert(m); };
+                        await notify('⛔ Khata limit exceeded for ' + customerName + '.\n\n'
+                            + 'Current pending: ₹' + currentBal.toFixed(2) + '\n'
+                            + 'This bill: ₹' + billAmt.toFixed(2) + '\n'
+                            + 'Would become: ₹' + (currentBal + billAmt).toFixed(2) + '\n'
+                            + 'Credit limit: ₹' + limit.toFixed(2) + '\n\n'
+                            + 'Collect a payment first, or raise the limit in Accounts → Credit Limit.');
+                        _isSaving = false;
+                        return;
+                    }
+                }
+            }
+
             // Schedule H / H1 compliance: an H drug billed with no doctor (or an H1
             // drug missing patient or doctor) becomes a "Missing Rx" in the register.
             const _docVal  = document.getElementById('doctorName').value.trim();
@@ -2189,7 +2215,12 @@
 
         // Load shop profile for receipt header
         if (typeof dbGetShopProfile === 'function') {
-            dbGetShopProfile().then(p => { if (p) window.mmShopProfile = p; });
+            dbGetShopProfile().then(p => {
+                if (p) {
+                    window.mmShopProfile = p;
+                    try { localStorage.setItem('mm_credit_limit', String(p.credit_limit || 0)); } catch (e) {}
+                }
+            });
         }
 
         // Update status once printer module has had time to auto-reconnect

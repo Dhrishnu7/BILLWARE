@@ -382,6 +382,7 @@
                 <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35"/>
             </svg>
             <input type="text" id="searchInput" placeholder="Search customer name…" oninput="filterKhata(this.value)">
+            <button onclick="openCreditLimitModal()" title="Set the maximum khata a customer can owe" style="background:#eef2ff;color:#4f46e5;border:1.5px solid #c7d2fe;border-radius:10px;padding:0.4rem 0.9rem;font-weight:700;font-size:0.8rem;font-family:Inter,sans-serif;cursor:pointer;white-space:nowrap;">⚙️ Credit Limit</button>
             <button onclick="openAddBalanceModal()" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:10px;padding:0.4rem 0.9rem;font-weight:700;font-size:0.8rem;font-family:Inter,sans-serif;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(99,102,241,0.3);transition:all 0.2s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">+ Add Balance</button>
             <button onclick="khataDebug()" title="Diagnose missing accounts" style="background:#e2e8f0;color:#475569;border:none;border-radius:10px;padding:0.4rem 0.7rem;font-weight:700;font-size:0.8rem;font-family:Inter,sans-serif;cursor:pointer;white-space:nowrap;">🔍</button>
         </div>
@@ -912,7 +913,27 @@
             }
             await Promise.all([loadAndRenderKhata(), loadShopName()]);
             switchKhataTab('customers');
+            // Cache the shop's credit limit so Sales can enforce it.
+            try { if (typeof dbGetShopProfile === 'function') { const p = await dbGetShopProfile(); if (p) localStorage.setItem('mm_credit_limit', String(p.credit_limit || 0)); } } catch (e) {}
         });
+
+        /* ── Khata credit limit (per shop) ── */
+        async function openCreditLimitModal() {
+            let current = 0;
+            try { current = parseFloat(localStorage.getItem('mm_credit_limit')) || 0; } catch (e) {}
+            const val = await mmPrompt(
+                'Set the maximum khata (credit) a customer can owe.\nA credit bill that would cross this is blocked at billing.\n\nEnter 0 for NO limit (unlimited).',
+                (current > 0 ? String(current) : ''),
+                { title: '⚙️ Khata Credit Limit', placeholder: 'e.g. 5000', okText: 'Save' }
+            );
+            if (val === null) return;
+            const num = Math.max(0, parseFloat(String(val).replace(/[^0-9.]/g, '')) || 0);
+            try { localStorage.setItem('mm_credit_limit', String(num)); } catch (e) {}
+            if (typeof dbSetCreditLimit === 'function') { try { await dbSetCreditLimit(num); } catch (e) {} }
+            if (typeof mmAlert === 'function') {
+                mmAlert(num > 0 ? ('✅ Credit limit set to ₹' + num.toFixed(2) + ' per customer.') : '✅ Credit limit removed (unlimited).');
+            }
+        }
 
         /* ═══════════════════════════════════════════════════════
            SUPPLIER LEDGER (accounts payable) — mirror of customer
