@@ -6,7 +6,8 @@
     <title>Billware — Super Admin</title>
     <meta name="robots" content="noindex, nofollow">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Cinzel:wght@400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=UnifrakturCook:wght@700&display=swap" rel="stylesheet">
     <script src="js/modal.js"></script>
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -195,6 +196,87 @@
         .modal-body p { margin-bottom: 0.8rem; display: flex; flex-wrap: wrap; }
         .modal-body strong { color: #f8fafc; display: inline-block; width: 140px; flex-shrink: 0; }
         .modal-body span { flex: 1; word-break: break-word; }
+
+        /* ═══════════════════════════════════════════════════════════════
+           🏰 GOTHIC REVIVAL THEME — a Victorian-London control room:
+           oxblood & antique gold on near-black, blackletter title,
+           Cinzel engraved headers, Garamond body. Overrides the palette
+           via the same CSS variables, so every component re-skins at once.
+        ═══════════════════════════════════════════════════════════════ */
+        :root {
+            --bg:      #0a0805;   /* aged near-black */
+            --card:    rgba(201,162,39,0.05);   /* faint gilt */
+            --border:  rgba(201,162,39,0.24);   /* antique-gold hairline */
+            --purple:  #7f1d1d;   /* oxblood (primary accent slot) */
+            --purple2: #c9a227;   /* antique gold */
+            --blue:    #5b1717;   /* deep oxblood */
+            --cyan:    #b8860b;   /* dark goldenrod */
+            --green:   #5c7a52;   /* moss/verdigris */
+            --red:     #b21e1e;   /* crimson */
+            --orange:  #9c6b34;   /* aged bronze */
+            --gold:    #c9a227;
+            --text:    #ece3cf;   /* bone / parchment ink */
+            --text2:   #b7a985;   /* faded ink */
+            --text3:   #8a7c5c;   /* muted sepia */
+        }
+        body{
+            font-family:'EB Garamond','Space Grotesk',serif;
+            background:
+                radial-gradient(ellipse 70% 55% at 50% 0%, rgba(127,29,29,.18) 0, transparent 60%),
+                #0a0805;
+        }
+        /* Ambient candle-glow + faint gilt lattice instead of the neon grid */
+        body::before{
+            background:
+                radial-gradient(ellipse 60% 50% at 12% 18%, rgba(201,162,39,.10) 0, transparent 60%),
+                radial-gradient(ellipse 55% 45% at 88% 82%, rgba(127,29,29,.14) 0, transparent 62%);
+        }
+        .grid-bg{
+            background-image:
+                linear-gradient(rgba(201,162,39,.045) 1px,transparent 1px),
+                linear-gradient(90deg,rgba(201,162,39,.045) 1px,transparent 1px);
+            background-size:44px 44px;
+            opacity:.55;
+        }
+        /* Blackletter for the crest/title; Cinzel for headers & tabs */
+        .brand h1{
+            font-family:'UnifrakturCook','EB Garamond',serif;
+            font-weight:700; font-size:1.25rem; letter-spacing:.02em;
+            color:var(--gold);
+            text-shadow:0 0 14px rgba(201,162,39,.35);
+        }
+        .brand-dot{background:var(--gold);box-shadow:0 0 10px var(--gold)}
+        #loginScreen .login-card h1{
+            font-family:'UnifrakturCook','EB Garamond',serif;
+            font-size:2rem; color:var(--gold);
+            text-shadow:0 0 18px rgba(201,162,39,.4);
+        }
+        .login-card{
+            background:rgba(18,12,8,.96);
+            border:1px solid var(--border);
+            box-shadow:0 0 60px rgba(127,29,29,.22), inset 0 0 0 1px rgba(201,162,39,.06);
+        }
+        .sh h2, .tab{
+            font-family:'Cinzel','EB Garamond',serif;
+            letter-spacing:.08em;
+        }
+        .sh h2{color:var(--gold);font-weight:600}
+        .tab{font-size:.8rem}
+        .tab.active{color:var(--gold)}
+        .tab.active::after{background:linear-gradient(90deg,var(--gold),var(--red))}
+        .topbar,.tab-bar{background:rgba(10,8,5,.9)}
+        /* Cards get an engraved gilt edge */
+        .sc,.pcard,.cw,.tw{
+            box-shadow:inset 0 0 0 1px rgba(201,162,39,.05), 0 2px 18px rgba(0,0,0,.4);
+        }
+        .sc-val{font-family:'Cinzel',serif;color:var(--gold)}
+        .sc:hover{border-color:rgba(201,162,39,.5)}
+        /* Buttons in oxblood/gilt */
+        .login-btn{background:linear-gradient(135deg,var(--red),#5b1717);box-shadow:0 4px 18px rgba(127,29,29,.4)}
+        .rbtn{font-family:'Cinzel',serif;letter-spacing:.04em}
+        .del-btn{font-family:'Cinzel',serif}
+        /* Data tables — parchment ink on aged rows */
+        .tbl thead th{font-family:'Cinzel',serif;letter-spacing:.06em;color:var(--gold)}
     </style>
 </head>
 <body>
