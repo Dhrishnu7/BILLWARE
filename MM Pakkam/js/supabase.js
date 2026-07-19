@@ -802,6 +802,46 @@ async function dbDeleteSupplierPayment(id) {
 }
 window.dbDeleteSupplierPayment = dbDeleteSupplierPayment;
 
+/* ─────────────────────────────────────────────────────
+   CUSTOMER PAYMENTS (khata settlements). One row per payment
+   a customer makes against their credit balance. Feeds the
+   per-customer Statement (passbook) on the Accounts page.
+   Needs migrations/add_customer_payments_table.sql.
+───────────────────────────────────────────────────── */
+async function dbGetCustomerPayments() {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetCustomerPayments: no user, aborting.'); return []; }
+    const { data, error } = await _supabase.from('customer_payments')
+        .select('*').eq('user_id', user).order('pay_date', { ascending: false });
+    if (error) { console.error('customer payments fetch:', error); return []; }
+    return (data || []).map(r => ({
+        id: r.payment_id, name: r.name || '', amount: Number(r.amount) || 0,
+        date: r.pay_date || '', note: r.note || '', savedAt: r.saved_at || ''
+    }));
+}
+window.dbGetCustomerPayments = dbGetCustomerPayments;
+
+async function dbAddCustomerPayment(p) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbAddCustomerPayment: no user, aborting.'); return { success: false }; }
+    const { error } = await _supabase.from('customer_payments').upsert({
+        payment_id: p.id, user_id: user, name: p.name || '',
+        amount: Number(p.amount) || 0, pay_date: p.date || new Date().toISOString().slice(0, 10),
+        note: p.note || '', saved_at: p.savedAt || new Date().toISOString()
+    }, { onConflict: 'payment_id' });
+    if (error) { console.error('customer payment add:', error); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbAddCustomerPayment = dbAddCustomerPayment;
+
+async function dbDeleteCustomerPayment(id) {
+    const user = _currentUser();
+    if (!user) return false;
+    const { error } = await _supabase.from('customer_payments').delete().eq('payment_id', id).eq('user_id', user);
+    return !error;
+}
+window.dbDeleteCustomerPayment = dbDeleteCustomerPayment;
+
 /* SUPPLIER MASTER — the shop's supplier list (name, GSTIN, phone, address).
    Purchases pick from this; the Supplier Ledger groups by it.
    Needs migrations/add_suppliers_table.sql. */

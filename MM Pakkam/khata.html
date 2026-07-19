@@ -495,10 +495,37 @@
         </div>
     </div>
 
+    <!-- Customer Statement (passbook) Modal -->
+    <div class="modal-overlay" id="stmtModal">
+        <div class="modal" style="max-width:640px;">
+            <h2 id="stmtTitle">Statement</h2>
+            <p id="stmtSub">Full credit & payment history.</p>
+            <div id="stmtBody" style="max-height:60vh;overflow-y:auto;margin:0.4rem 0 1.2rem;"></div>
+            <div class="modal-actions" style="flex-wrap:wrap;gap:0.5rem;">
+                <button type="button" class="btn-cancel" onclick="closeStatement()" style="margin-right:auto;">Close</button>
+                <button type="button" class="btn-cancel" onclick="printStatement()" style="flex:0 0 auto;">🖨️ Print</button>
+                <button type="button" class="btn-confirm" onclick="shareStatementWhatsApp()" style="flex:0 0 auto;">💬 Share on WhatsApp</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentCustIndex = -1;
         let _allKhataCustomers = [];
         let _khataCustomers   = [];
+        let _custPayments     = [];   // per-customer payment records (statement credits)
+
+        // Load customer payments from local cache + cloud, de-duped by id.
+        async function loadCustomerPayments() {
+            let local = [];
+            try { local = JSON.parse(localStorage.getItem('mm_customer_payments') || '[]'); } catch (e) {}
+            let cloud = [];
+            try { if (typeof dbGetCustomerPayments === 'function') cloud = await dbGetCustomerPayments(); } catch (e) {}
+            const byId = new Map();
+            [...local, ...cloud].forEach(p => { if (p && p.id && !byId.has(p.id)) byId.set(p.id, p); });
+            _custPayments = [...byId.values()];
+            try { localStorage.setItem('mm_customer_payments', JSON.stringify(_custPayments)); } catch (e) {}
+        }
 
         // ── Load shop name from Supabase profile ──
         async function loadShopName() {
@@ -655,6 +682,9 @@
                         <div class="c-bal-label">Pending Balance</div>
                         <div class="c-bal-value">₹${cust.balance.toFixed(2)}</div>
                     </div>
+                    <button class="btn-remind" style="color:#4f46e5;border-color:#c7d2fe;" onclick="openStatement('${escAttr(cust.name)}', '${escAttr(cust.phone)}')">
+                        📜 View Statement
+                    </button>
                     <button class="btn-remind" onclick="sendKhataReminder('${escAttr(cust.name)}', '${escAttr(cust.phone)}', ${cust.balance})">
                         <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M17.5 14.4c-.3-.15-1.77-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.49 0 1.47 1.07 2.89 1.22 3.09.15.2 2.11 3.22 5.11 4.52.71.31 1.27.49 1.7.63.72.23 1.37.2 1.88.12.57-.09 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.13-.27-.2-.57-.35zM12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.38 5.06L2 22l5.06-1.35A9.94 9.94 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2z"/></svg>
                         Send Reminder
@@ -749,6 +779,21 @@
 
             cust.balance = willBeLeft;
             if (typeof mmAudit === 'function') mmAudit('Customer payment', cust.name + ' · ₹' + amount.toFixed(2));
+
+            // ─── Record the payment as its own line for the customer Statement ──
+            // (local mm_customer_payments + cloud). Debits come from credit bills;
+            // these rows are the credits, so the passbook builds up over time.
+            try {
+                const payRec = {
+                    id: 'cp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+                    name: cust.name, amount: amount,
+                    date: new Date().toISOString().slice(0, 10),
+                    note: '', savedAt: new Date().toISOString()
+                };
+                _custPayments.push(payRec);
+                localStorage.setItem('mm_customer_payments', JSON.stringify(_custPayments));
+                if (typeof dbAddCustomerPayment === 'function') dbAddCustomerPayment(payRec).catch(() => {});
+            } catch (e) {}
 
             // ─── Save to Supabase ──────────────────────────────────────────────
             try {
@@ -911,7 +956,7 @@
                 // fallback: small delay to let Supabase init
                 await new Promise(r => setTimeout(r, 400));
             }
-            await Promise.all([loadAndRenderKhata(), loadShopName()]);
+            await Promise.all([loadAndRenderKhata(), loadShopName(), loadCustomerPayments()]);
             switchKhataTab('customers');
             // Cache the shop's credit limit so Sales can enforce it.
             try { if (typeof dbGetShopProfile === 'function') { const p = await dbGetShopProfile(); if (p) localStorage.setItem('mm_credit_limit', String(p.credit_limit || 0)); } } catch (e) {}
@@ -1130,6 +1175,163 @@
         async function resetSupMerges() {
             if (typeof mmConfirm === 'function') { if (!await mmConfirm('Undo all merges and hides?')) return; }
             _saveSupMerges({}); _supRefresh();
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           CUSTOMER STATEMENT (passbook) — every credit bill (debit)
+           and payment (credit) with a running balance. Built from
+           data already on the device: credit bills in mm_sales +
+           payments in mm_customer_payments. Any older balance we
+           have no line-items for is folded into an opening "brought
+           forward" row so the running total always ends exactly at
+           the real current balance shown on the card.
+        ═══════════════════════════════════════════════════════ */
+        let _stmtData = null;
+
+        function _parseMoney(v) { return parseFloat(String(v == null ? '' : v).replace(/[^0-9.]/g, '')) || 0; }
+        function _fmtStmtDate(d) {
+            const s = String(d || '').slice(0, 10);
+            const dt = new Date(s);
+            if (isNaN(dt)) return s || '—';
+            return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
+        }
+
+        function _buildStatement(name, phone) {
+            const key = String(name || '').trim().toLowerCase();
+            let currentBalance = 0;
+            const found = _allKhataCustomers.find(c => (c.name || '').trim().toLowerCase() === key);
+            if (found) currentBalance = parseFloat(found.balance) || 0;
+
+            const txns = [];
+            // Debits — credit bills for this customer
+            let bills = []; try { bills = JSON.parse(localStorage.getItem('mm_sales') || '[]'); } catch (e) {}
+            bills.forEach(b => {
+                if (b.isReturn) return;
+                if ((b.paymentMode || '') !== 'credit') return;
+                if ((b.customerName || '').trim().toLowerCase() !== key) return;
+                txns.push({
+                    date: String(b.date || b.savedAt || '').slice(0, 10),
+                    sortKey: b.savedAt || b.date || '',
+                    label: 'Bill ' + (b.billNo || ''),
+                    debit: _parseMoney(b.grandTotal), credit: 0
+                });
+            });
+            // Credits — payments recorded against this customer
+            _custPayments.forEach(p => {
+                if ((p.name || '').trim().toLowerCase() !== key) return;
+                txns.push({
+                    date: String(p.date || p.savedAt || '').slice(0, 10),
+                    sortKey: p.savedAt || p.date || '',
+                    label: 'Payment received' + (p.note ? ' (' + p.note + ')' : ''),
+                    debit: 0, credit: parseFloat(p.amount) || 0
+                });
+            });
+            txns.sort((a, b) => String(a.sortKey).localeCompare(String(b.sortKey)));
+
+            const netFromTxns = txns.reduce((s, t) => s + t.debit - t.credit, 0);
+            const opening = currentBalance - netFromTxns;
+
+            const rows = [];
+            if (Math.abs(opening) >= 0.01) {
+                rows.push({ date: '', label: 'Balance brought forward',
+                    debit: opening > 0 ? opening : 0, credit: opening < 0 ? -opening : 0, balance: opening });
+            }
+            let run = opening;
+            txns.forEach(t => { run += t.debit - t.credit; rows.push({ date: t.date, label: t.label, debit: t.debit, credit: t.credit, balance: run }); });
+
+            return { name: name, phone: phone, rows: rows, currentBalance: currentBalance };
+        }
+
+        function openStatement(name, phone) {
+            _stmtData = _buildStatement(name, phone);
+            document.getElementById('stmtTitle').textContent = 'Statement: ' + name;
+            document.getElementById('stmtSub').textContent = (phone ? phone + ' · ' : '') + 'Credit bills and payments with running balance.';
+            renderStatement();
+            document.getElementById('stmtModal').classList.add('open');
+        }
+        function closeStatement() { document.getElementById('stmtModal').classList.remove('open'); }
+
+        function renderStatement() {
+            const box = document.getElementById('stmtBody');
+            const m = n => '₹' + (Number(n) || 0).toFixed(2);
+            if (!_stmtData || !_stmtData.rows.length) {
+                box.innerHTML = '<div style="text-align:center;padding:2rem;color:#94a3b8;">No credit history yet for this customer. Credit bills and recorded payments will appear here.</div>';
+                return;
+            }
+            let html = '<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">'
+                + '<thead><tr style="background:#f8faff;color:#64748b;">'
+                + '<th style="padding:0.5rem;text-align:left;">Date</th><th style="padding:0.5rem;text-align:left;">Details</th>'
+                + '<th style="padding:0.5rem;text-align:right;">Debit (+)</th>'
+                + '<th style="padding:0.5rem;text-align:right;">Credit (−)</th>'
+                + '<th style="padding:0.5rem;text-align:right;">Balance</th></tr></thead><tbody>';
+            _stmtData.rows.forEach(r => {
+                html += '<tr style="border-top:1px solid #eef2ff;">'
+                    + '<td style="padding:0.5rem;white-space:nowrap;color:#64748b;">' + escHtml(_fmtStmtDate(r.date)) + '</td>'
+                    + '<td style="padding:0.5rem;">' + escHtml(r.label) + '</td>'
+                    + '<td style="padding:0.5rem;text-align:right;color:#dc2626;">' + (r.debit ? m(r.debit) : '') + '</td>'
+                    + '<td style="padding:0.5rem;text-align:right;color:#059669;">' + (r.credit ? m(r.credit) : '') + '</td>'
+                    + '<td style="padding:0.5rem;text-align:right;font-weight:700;">' + m(r.balance) + '</td></tr>';
+            });
+            html += '</tbody></table>'
+                + '<div style="margin-top:1rem;padding:0.9rem 1.1rem;background:#fff1f2;border:1.5px solid #fecdd3;border-radius:12px;display:flex;justify-content:space-between;align-items:center;">'
+                + '<span style="font-weight:700;color:#334155;">Total Outstanding</span>'
+                + '<span style="font-weight:900;font-size:1.2rem;color:#e11d48;">' + m(_stmtData.currentBalance) + '</span></div>';
+            box.innerHTML = html;
+        }
+
+        function _statementText() {
+            if (!_stmtData) return '';
+            let shop = '';
+            try { shop = (document.getElementById('shopNameHeader')?.textContent || '').trim(); } catch (e) {}
+            if (!shop || shop === '...' || shop === 'My Shop') shop = 'our shop';
+            const m = n => '₹' + (Number(n) || 0).toFixed(2);
+            const lines = ['*' + shop + '* — Account Statement', 'Customer: ' + _stmtData.name, ''];
+            _stmtData.rows.forEach(r => {
+                const amt = r.debit ? ('+' + m(r.debit)) : (r.credit ? ('-' + m(r.credit)) : '');
+                lines.push(_fmtStmtDate(r.date) + ' · ' + r.label + ' · ' + amt + ' · Bal ' + m(r.balance));
+            });
+            lines.push('');
+            lines.push('*Total Outstanding: ' + m(_stmtData.currentBalance) + '*');
+            lines.push('Kindly clear it at your convenience. Thank you! 🙏');
+            return lines.join('\n');
+        }
+
+        async function shareStatementWhatsApp() {
+            if (!_stmtData) return;
+            const p = _khataNormPhone(_stmtData.phone);
+            if (!p || p.length < 11) {
+                await mmAlert('No valid phone number is saved for this customer.\n\nAdd their 10-digit mobile in the Directory to share the statement on WhatsApp.', { title: '📱 Check the number' });
+                return;
+            }
+            window.open('https://wa.me/' + p + '?text=' + encodeURIComponent(_statementText()), '_blank');
+        }
+
+        function printStatement() {
+            if (!_stmtData) return;
+            let shop = '';
+            try { shop = (document.getElementById('shopNameHeader')?.textContent || '').trim(); } catch (e) {}
+            if (!shop || shop === '...') shop = 'My Shop';
+            const m = n => '₹' + (Number(n) || 0).toFixed(2);
+            const rowsHtml = _stmtData.rows.map(r =>
+                '<tr><td>' + escHtml(_fmtStmtDate(r.date)) + '</td><td>' + escHtml(r.label) + '</td>'
+                + '<td style="text-align:right;">' + (r.debit ? m(r.debit) : '') + '</td>'
+                + '<td style="text-align:right;">' + (r.credit ? m(r.credit) : '') + '</td>'
+                + '<td style="text-align:right;">' + m(r.balance) + '</td></tr>'
+            ).join('');
+            const html = '<html><head><title>Statement - ' + escHtml(_stmtData.name) + '</title>'
+                + '<style>body{font-family:Arial,sans-serif;padding:24px;color:#0f172a;}h1{font-size:20px;margin:0 0 4px;}'
+                + '.sub{color:#64748b;font-size:13px;margin-bottom:16px;}table{width:100%;border-collapse:collapse;font-size:13px;}'
+                + 'th,td{padding:7px 8px;border-bottom:1px solid #e2e8f0;text-align:left;}th{background:#f1f5f9;}'
+                + '.total{margin-top:16px;font-size:16px;font-weight:bold;text-align:right;}</style></head><body>'
+                + '<h1>' + escHtml(shop) + '</h1><div class="sub">Account Statement · ' + escHtml(_stmtData.name)
+                + (_stmtData.phone ? ' · ' + escHtml(_stmtData.phone) : '') + '<br>Generated ' + _fmtStmtDate(new Date().toISOString()) + '</div>'
+                + '<table><thead><tr><th>Date</th><th>Details</th><th style="text-align:right;">Debit (+)</th><th style="text-align:right;">Credit (−)</th><th style="text-align:right;">Balance</th></tr></thead><tbody>'
+                + rowsHtml + '</tbody></table>'
+                + '<div class="total">Total Outstanding: ' + m(_stmtData.currentBalance) + '</div></body></html>';
+            const w = window.open('', '_blank');
+            if (!w) { if (typeof mmAlert === 'function') mmAlert('Please allow pop-ups to print the statement.'); return; }
+            w.document.write(html); w.document.close();
+            w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 300);
         }
     </script>
 </body>

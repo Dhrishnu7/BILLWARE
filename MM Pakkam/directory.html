@@ -219,6 +219,13 @@
             display: flex; align-items: center; justify-content: center;
         }
         .c-del-btn:hover { background: #fee2e2; color: #ef4444; }
+        .c-edit-btn {
+            background: none; border: none; cursor: pointer;
+            color: #cbd5e1; padding: 6px; border-radius: 8px;
+            transition: all 0.2s; flex-shrink: 0; font-size: 0.95rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .c-edit-btn:hover { background: #e0e7ff; color: #4f46e5; }
 
         /* ── Empty State ── */
         .empty-state {
@@ -493,6 +500,7 @@
         let _allDoctors   = [];
         let _allSuppliers = [];
         let _filtered     = [];
+        let _editOriginal = null;   // {type,name,phone} when editing; null in add mode
 
         // ── Load shop name ──
         async function loadShopName() {
@@ -643,6 +651,7 @@
                                 ${item.address ? `<span>📍 ${escHtml(item.address)}</span>` : ''}
                             </div>
                         </div>
+                        <button class="c-edit-btn" title="Edit" onclick="openEditModal('supplier', '${escAttr(item.name||'')}', '')" aria-label="Edit ${escAttr(item.name)}">✏️</button>
                         <button class="c-del-btn" title="Delete" onclick="deleteEntry('supplier', '${escAttr(item.name||'')}', '')" aria-label="Delete ${escAttr(item.name)}">
                             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -664,6 +673,7 @@
                             </div>
                         </div>
                         ${balShow}
+                        <button class="c-edit-btn" title="Edit" onclick="openEditModal('customer', '${escAttr(item.name||'')}', '${escAttr(item.phone||'')}')" aria-label="Edit ${escAttr(item.name)}">✏️</button>
                         <button class="c-del-btn" title="Delete" onclick="deleteEntry('customer', '${escAttr(item.name||'')}', '${escAttr(item.phone||'')}')" aria-label="Delete ${escAttr(item.name)}">
                             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -683,6 +693,7 @@
                                 ${item.address ? `<span>📍 ${escHtml(item.address)}</span>` : ''}
                             </div>
                         </div>
+                        <button class="c-edit-btn" title="Edit" onclick="openEditModal('doctor', '${escAttr(name)}', '${escAttr(item.phone||'')}')" aria-label="Edit ${escAttr(name)}">✏️</button>
                         <button class="c-del-btn" title="Delete" onclick="deleteEntry('doctor', '${escAttr(name)}', '${escAttr(item.phone||'')}')" aria-label="Delete ${escAttr(name)}">
                             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -695,6 +706,7 @@
 
         // ── Modal ──
         function openAddModal() {
+            _editOriginal = null;
             const tab = _activeTab;
             document.getElementById('modalTitle').textContent =
                 tab === 'customers' ? 'Add Customer' : (tab === 'doctors' ? 'Add Doctor' : 'Add Supplier');
@@ -716,11 +728,129 @@
 
         function closeModal() {
             document.getElementById('addModal').classList.remove('open');
+            _editOriginal = null;
+        }
+
+        // ── Edit an existing entry ── opens the same modal, pre-filled. Saving
+        //    updates in place (see the edit branch in saveEntry) instead of
+        //    forcing a delete-and-retype.
+        function openEditModal(type, name, phone) {
+            phone = phone || '';
+            const tab = type === 'customer' ? 'customers' : (type === 'doctor' ? 'doctors' : 'suppliers');
+            _activeTab = tab;
+            _editOriginal = { type: type, name: name, phone: phone };
+
+            let rec = null;
+            if (tab === 'customers')      rec = _allCustomers.find(c => (c.name||'').toLowerCase() === name.toLowerCase() && (c.phone||'') === phone);
+            else if (tab === 'doctors')   rec = _allDoctors.find(d => ((d.name||d.doctorName||'')).toLowerCase() === name.toLowerCase() && (d.phone||'') === phone);
+            else                          rec = _allSuppliers.find(s => (s.name||'').toLowerCase() === name.toLowerCase());
+            rec = rec || {};
+
+            document.getElementById('custFields').style.display = tab === 'customers' ? '' : 'none';
+            document.getElementById('docFields').style.display  = tab === 'doctors' ? '' : 'none';
+            const sf = document.getElementById('suppFields'); if (sf) sf.style.display = tab === 'suppliers' ? '' : 'none';
+
+            if (tab === 'customers') {
+                document.getElementById('cName').value    = rec.name || name || '';
+                document.getElementById('cPhone').value   = rec.phone || phone || '';
+                document.getElementById('cAddress').value = rec.address || '';
+            } else if (tab === 'doctors') {
+                document.getElementById('dName').value    = rec.name || rec.doctorName || name || '';
+                document.getElementById('dPhone').value   = rec.phone || phone || '';
+                document.getElementById('dClinic').value  = rec.clinic || '';
+                document.getElementById('dRegNo').value   = rec.regNo || rec.reg_no || '';
+                document.getElementById('dAddress').value = rec.address || '';
+            } else {
+                document.getElementById('sName').value    = rec.name || name || '';
+                document.getElementById('sGstin').value   = rec.gstin || '';
+                document.getElementById('sPhone').value   = rec.phone || '';
+                document.getElementById('sAddress').value = rec.address || '';
+            }
+
+            document.getElementById('modalTitle').textContent =
+                'Edit ' + (tab === 'customers' ? 'Customer' : (tab === 'doctors' ? 'Doctor' : 'Supplier'));
+            document.getElementById('modalSub').textContent = 'Update the details and save.';
+            const saveBtn = document.getElementById('saveBtn'); saveBtn.textContent = 'Save'; saveBtn.disabled = false;
+            document.getElementById('addModal').classList.add('open');
+            const focusId = tab === 'customers' ? 'cName' : (tab === 'doctors' ? 'dName' : 'sName');
+            setTimeout(() => { const el = document.getElementById(focusId); if (el) el.focus(); }, 150);
         }
 
         async function saveEntry() {
             const btn = document.getElementById('saveBtn');
             btn.textContent = 'Saving…'; btn.disabled = true;
+
+            // ── EDIT MODE ── update in place: remove the old record (local + cloud)
+            //    and save the new values, preserving a customer's khata balance.
+            //    Handles name/phone changes cleanly (no leftover duplicate).
+            if (_editOriginal) {
+                const orig = _editOriginal;
+                try {
+                    if (orig.type === 'customer') {
+                        const name = document.getElementById('cName').value.trim();
+                        const phone = document.getElementById('cPhone').value.trim();
+                        const address = document.getElementById('cAddress').value.trim();
+                        if (!name || !phone) { alert('Name and Phone are required.'); btn.textContent = 'Save'; btn.disabled = false; return; }
+                        let bal = 0;
+                        const prev = _allCustomers.find(c => (c.name||'').toLowerCase() === orig.name.toLowerCase() && (c.phone||'') === (orig.phone||''));
+                        if (prev) bal = parseFloat(prev.balance) || 0;
+                        const custs = JSON.parse(localStorage.getItem('mm_customers') || '[]')
+                            .filter(c => !((c.name||'').toLowerCase() === orig.name.toLowerCase() && (c.phone||'') === (orig.phone||'')));
+                        custs.push({ name, phone, address, balance: bal });
+                        localStorage.setItem('mm_customers', JSON.stringify(custs));
+                        try {
+                            if (typeof _supabase !== 'undefined' && _currentUser) {
+                                const user = _currentUser();
+                                if (user) {
+                                    await _supabase.from('customers').delete().eq('name', orig.name).eq('phone', orig.phone || '').eq('user_id', user);
+                                    await _supabase.from('customers').upsert({ name, phone, address, balance: bal, user_id: user }, { onConflict: 'name,phone' });
+                                }
+                            }
+                        } catch (e) { console.warn('customer edit cloud failed:', e); }
+                    } else if (orig.type === 'doctor') {
+                        const name = document.getElementById('dName').value.trim();
+                        const phone = document.getElementById('dPhone').value.trim();
+                        const clinic = document.getElementById('dClinic').value.trim();
+                        const regNo = document.getElementById('dRegNo').value.trim();
+                        const address = document.getElementById('dAddress').value.trim();
+                        if (!name || !phone) { alert('Name and Phone are required.'); btn.textContent = 'Save'; btn.disabled = false; return; }
+                        const docs = JSON.parse(localStorage.getItem('mm_doctors') || '[]')
+                            .filter(d => !((d.name||'').toLowerCase() === orig.name.toLowerCase() && (d.phone||'') === (orig.phone||'')));
+                        docs.push({ name, phone, clinic, regNo, address });
+                        localStorage.setItem('mm_doctors', JSON.stringify(docs));
+                        try {
+                            if (typeof _supabase !== 'undefined' && _currentUser) {
+                                const user = _currentUser();
+                                if (user) await _supabase.from('doctors').delete().eq('name', orig.name).eq('phone', orig.phone || '').eq('user_id', user);
+                            }
+                            if (typeof dbAddDoctor === 'function') await dbAddDoctor(name, phone, clinic, address, regNo);
+                        } catch (e) { console.warn('doctor edit cloud failed:', e); }
+                    } else {
+                        const name = document.getElementById('sName').value.trim();
+                        const gstin = document.getElementById('sGstin').value.trim().toUpperCase();
+                        const phone = document.getElementById('sPhone').value.trim();
+                        const address = document.getElementById('sAddress').value.trim();
+                        if (!name) { alert('Supplier name is required.'); btn.textContent = 'Save'; btn.disabled = false; return; }
+                        const sups = JSON.parse(localStorage.getItem('mm_suppliers') || '[]')
+                            .filter(s => (s.name||'').toLowerCase() !== orig.name.toLowerCase());
+                        sups.push({ name, gstin, phone, address });
+                        localStorage.setItem('mm_suppliers', JSON.stringify(sups));
+                        try {
+                            if (orig.name.toLowerCase() !== name.toLowerCase() && typeof dbDeleteSupplier === 'function') await dbDeleteSupplier(orig.name);
+                            if (typeof dbAddSupplier === 'function') await dbAddSupplier(name, gstin, phone, address);
+                        } catch (e) { console.warn('supplier edit cloud failed:', e); }
+                    }
+                    _editOriginal = null;
+                    closeModal();
+                    await loadAll();
+                    showToast('Changes saved!');
+                } catch (e) {
+                    console.warn('edit save failed:', e);
+                    alert('Could not save changes. Please try again.');
+                }
+                btn.textContent = 'Save'; btn.disabled = false;
+                return;
+            }
 
             if (_activeTab === 'suppliers') {
                 const name    = document.getElementById('sName').value.trim();
