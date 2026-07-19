@@ -367,10 +367,23 @@
         });
     }
 
-    // Sync, seed-only schedule lookup (no network) — returns 'OTC' | 'H' | 'H1' | ''.
-    // Used to flag Schedule H drugs during bulk purchase/import without a query storm.
+    // Well-established Schedule X (narcotic/psychotropic) molecules. Matched as a
+    // substring so "Methylphenidate 10mg" etc. are caught. Conservative on purpose —
+    // extend with the shop's actual products rather than risk mis-classifying.
+    // ('barbital' alone is deliberately excluded — phenobarbital is Schedule H, not X.)
+    var _SCHEDULE_X = [
+        'amobarbital','pentobarbital','secobarbital','cyclobarbital',
+        'methaqualone','meprobamate','glutethimide',
+        'methylphenidate','methamphetamine','dexamphetamine','amphetamine'
+    ];
+
+    // Sync, seed-only schedule lookup (no network) — returns 'X' | 'OTC' | 'H' | 'H1' | ''.
+    // Used to flag Schedule H/H1/X drugs during billing/purchase without a query storm.
     function scheduleOf(name){
-        const m = _seedMap.get((name||'').trim().toLowerCase());
+        var nm = (name||'').trim().toLowerCase();
+        if(!nm) return '';
+        for(var i=0;i<_SCHEDULE_X.length;i++){ if(nm.indexOf(_SCHEDULE_X[i]) >= 0) return 'X'; }
+        var m = _seedMap.get(nm);
         return m ? (m.schedule || '') : '';
     }
 

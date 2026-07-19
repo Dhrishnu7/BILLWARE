@@ -683,6 +683,7 @@
             if (!nm) return '';
             if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf) {
                 const s = (DrugMaster.scheduleOf(nm) || '').toUpperCase();
+                if (s === 'X') return 'X';
                 if (s === 'H1') return 'H1';
                 if (s.charAt(0) === 'H') return 'H';
             }

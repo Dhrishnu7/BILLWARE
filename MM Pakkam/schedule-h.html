@@ -1294,7 +1294,7 @@
                             <span class="sc-value" id="statWarn">0</span>
                         </div>
                         <div class="stat-chip">
-                            <span class="sc-label">⛔ Schedule H1</span>
+                            <span class="sc-label">⛔ Schedule H1 / X</span>
                             <span class="sc-value" id="statH1">0</span>
                         </div>
                     </div>
@@ -1318,7 +1318,7 @@
                             <button class="type-pill active" id="typePillAll"  onclick="setTypeFilter('all')" title="Show All">&#x1F4CB; All</button>
                             <button class="type-pill" id="typePillIn"   onclick="setTypeFilter('in')"  title="Show Stock IN only">&#x1F7E2; IN</button>
                             <button class="type-pill" id="typePillOut"  onclick="setTypeFilter('out')" title="Show Sales OUT only">&#x1F534; OUT</button>
-                            <button class="type-pill" id="typePillH1"   onclick="toggleH1Filter()"     title="Show Schedule H1 drugs only (stricter subset)">&#x26D4; H1 only</button>
+                            <button class="type-pill" id="typePillH1"   onclick="toggleH1Filter()"     title="Show Schedule H1 + X drugs only (stricter subsets)">&#x26D4; H1 / X only</button>
                         </div>
                         <button class="btn-export" onclick="window.print()" title="Print filtered Register">
                             &#x1F5A8;&#xFE0F; Print Report
@@ -2575,6 +2575,7 @@
             if (!nm) return '';
             if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf) {
                 const s = (DrugMaster.scheduleOf(nm) || '').toUpperCase();
+                if (s === 'X') return 'X';       // strictest — narcotic/psychotropic
                 if (s === 'H1') return 'H1';
                 if (s.charAt(0) === 'H') return 'H';
             }
@@ -2587,6 +2588,13 @@
         // An entry's class: use the stored tag, else detect live (covers old rows).
         function _entryClass(e) {
             return (e && e.scheduleClass) || _scheduleClassOf(e && e.drugName) || 'H';
+        }
+        // Small coloured badge shown next to the drug for the stricter classes.
+        function _classBadge(e) {
+            const c = _entryClass(e);
+            if (c === 'X')  return ' <span style="display:inline-block;font-size:0.6rem;font-weight:800;background:#450a0a;color:#fff;border-radius:6px;padding:1px 5px;vertical-align:middle;letter-spacing:0.03em;">X</span>';
+            if (c === 'H1') return ' <span style="display:inline-block;font-size:0.6rem;font-weight:800;background:#7f1d1d;color:#fff;border-radius:6px;padding:1px 5px;vertical-align:middle;letter-spacing:0.03em;">H1</span>';
+            return '';
         }
 
         /* ── Render Register Log ── */
@@ -2659,7 +2667,7 @@
                 // IN / OUT type filter
                 if (_activeTypeFilter === 'in'  && entry.entryType !== 'in')  return false;
                 if (_activeTypeFilter === 'out' && (entry.entryType || 'out') !== 'out') return false;
-                if (_h1Only && _entryClass(entry) !== 'H1') return false;
+                if (_h1Only && !['H1', 'X'].includes(_entryClass(entry))) return false;
                 if (!searchTerm) return true;
                 return (entry.patientName || '').toLowerCase().includes(searchTerm)
                     || (entry.doctorName  || '').toLowerCase().includes(searchTerm)
@@ -2675,7 +2683,7 @@
             const totalOut  = register.filter(e => (e.entryType||'out') === 'out').length;
             const totalIn   = register.filter(e => e.entryType === 'in').length;
             const totalWarn = register.filter(e => (e.entryType||'out') === 'out' && !e.doctorName).length;
-            const totalH1   = register.filter(e => _entryClass(e) === 'H1').length;
+            const totalH1   = register.filter(e => ['H1', 'X'].includes(_entryClass(e))).length;
             document.getElementById('statTotal').textContent = totalAll;
             document.getElementById('statOut').textContent   = totalOut;
             document.getElementById('statIn').textContent    = totalIn;
@@ -2719,7 +2727,7 @@
                 return `
                 <tr style="animation: rowSlideIn 0.3s ease forwards;${isMissingRx ? 'background:rgba(254,249,195,0.4);' : ''}">
                     <td>${typeBadge}</td>
-                    <td style="font-weight:700; color:#991b1b;">${esc(entry.drugName)}${_entryClass(entry) === 'H1' ? ' <span style="display:inline-block;font-size:0.6rem;font-weight:800;background:#7f1d1d;color:#fff;border-radius:6px;padding:1px 5px;vertical-align:middle;letter-spacing:0.03em;">H1</span>' : ''}</td>
+                    <td style="font-weight:700; color:#991b1b;">${esc(entry.drugName)}${_classBadge(entry)}</td>
                     <td style="white-space:nowrap; font-weight:600; font-size:0.82rem;">${dateStr}${timeStr ? `<div style="font-size:0.72rem; color:#94a3b8; font-weight:500;">🕒 ${timeStr}</div>` : ''}</td>
                     <td style="font-size:0.84rem; font-weight:600;">${esc(entry.billNo || '—')}</td>
                     <td>
@@ -2758,7 +2766,7 @@
                 // Honor the on-screen pills so "H1 only" / IN / OUT export what you see.
                 if (_activeTypeFilter === 'in'  && entry.entryType !== 'in')  return false;
                 if (_activeTypeFilter === 'out' && (entry.entryType || 'out') !== 'out') return false;
-                if (_h1Only && _entryClass(entry) !== 'H1') return false;
+                if (_h1Only && !['H1', 'X'].includes(_entryClass(entry))) return false;
                 if (searchTerm) {
                     return (entry.patientName||'').toLowerCase().includes(searchTerm)
                         || (entry.drugName   ||'').toLowerCase().includes(searchTerm)

@@ -1474,6 +1474,7 @@
             if (!nm) return '';
             if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf) {
                 const s = (DrugMaster.scheduleOf(nm) || '').toUpperCase();
+                if (s === 'X') return 'X';       // strictest — needs patient + doctor
                 if (s === 'H1') return 'H1';
                 if (s.charAt(0) === 'H') return 'H';
             }
@@ -1528,7 +1529,7 @@
                 const pEl = row.querySelector('[id^="product_"]');
                 if (!pEl) continue;
                 const name = (pEl.value || '').trim();
-                if (name && _scheduleClassOf(name) === 'H1') return true;
+                if (name) { const c = _scheduleClassOf(name); if (c === 'H1' || c === 'X') return true; }
             }
             return false;
         }
@@ -1550,7 +1551,7 @@
             if (docNeeded || patNeeded) {
                 warn.style.display = 'block';
                 warn.innerHTML = hasH1
-                    ? '⛔ This bill has a <b>Schedule H1</b> drug — H1 legally needs <b>both patient name and doctor</b>. Fill them to avoid a "Missing Rx".'
+                    ? '⛔ This bill has a <b>Schedule H1/X</b> drug — it legally needs <b>both patient name and doctor</b>. Fill them to avoid a "Missing Rx".'
                     : '⚠️ This bill has a Schedule H drug — enter the doctor to avoid a "Missing Rx" in the register.';
             } else {
                 warn.style.display = 'none';
@@ -1778,13 +1779,13 @@
             const _missingForH1 = _hasH1 && (!_docVal || !_custVal);
             if (_missingForH || _missingForH1) {
                 const msg = _hasH1
-                    ? 'This bill has a Schedule H1 drug, which legally needs BOTH patient name and doctor.\n\n'
+                    ? 'This bill has a Schedule H1/X drug, which legally needs BOTH patient name and doctor.\n\n'
                         + (!_custVal ? '• Patient name missing\n' : '')
                         + (!_docVal  ? '• Doctor missing\n' : '')
                         + '\nWithout them it will show as "Missing Rx" in the register.'
                     : 'This bill has a Schedule H drug but no doctor is entered.\n\nWithout a doctor it will show as "Missing Rx" in the Schedule H register.';
                 const goBack = await mmConfirm(msg, {
-                    title: _hasH1 ? '⛔ Schedule H1 needs patient + doctor' : '⚠️ Missing doctor for Schedule H',
+                    title: _hasH1 ? '⛔ Schedule H1/X needs patient + doctor' : '⚠️ Missing doctor for Schedule H',
                     okText: 'Go back & add', cancelText: 'Save anyway'
                 });
                 if (goBack) {
