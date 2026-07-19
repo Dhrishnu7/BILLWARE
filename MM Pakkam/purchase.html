@@ -770,6 +770,10 @@
                         <input type="number" class="li-quantity" placeholder="0" min="0" oninput="calcItemTotal('${id}')">
                     </div>
                     <div class="form-group">
+                        <label>Free Qty <span style="font-weight:400;color:#94a3b8;">(scheme — not charged)</span></label>
+                        <input type="number" class="li-free" placeholder="0" min="0" step="1">
+                    </div>
+                    <div class="form-group">
                         <label>MRP (₹)</label>
                         <input type="number" class="li-mrp" placeholder="0.00" min="0" step="0.01">
                     </div>
@@ -961,6 +965,8 @@
                 const scheduleH = (htog && htog.getAttribute('data-manual') === '1')
                     ? (htog.getAttribute('data-on') === '1') : undefined;
 
+                const freeQuantity = parseFloat(item.querySelector('.li-free')?.value) || 0;
+
                 records.push({
                     billNo,
                     firm,
@@ -970,6 +976,7 @@
                     expireDate,
                     pack:       item.querySelector('.li-pack').value,
                     quantity,
+                    freeQuantity,
                     mrp,
                     rate,
                     gst:        item.querySelector('.li-gst').value,
@@ -1141,6 +1148,35 @@
                     }
                 }
             } catch (e) {}
+
+            // Free / scheme goods → add the free units to stock via a stock adjustment
+            // (inventory already counts adjustments). The purchase's paid quantity and
+            // cost are untouched, so you're never charged for the free goods.
+            try {
+                for (const rec of records) {
+                    const freeQ = parseFloat(rec.freeQuantity) || 0;
+                    if (!rec.productName || freeQ <= 0) continue;
+                    const pack = parseFloat(rec.pack) || 1;
+                    const freeUnits = freeQ * (pack || 1);
+                    const before = (typeof mmComputeStock === 'function') ? mmComputeStock(rec.productName, rec.batchNo) : 0;
+                    const adj = {
+                        productName: rec.productName, batchNo: rec.batchNo || '',
+                        qtyBefore: before, qtyAfter: before + freeUnits, qtyDelta: freeUnits,
+                        reason: 'free_goods',
+                        note: JSON.stringify({ ref: rec.billNo || '', firm: rec.firm || '', freeQty: freeQ, pack: pack, date: rec.date || '' })
+                    };
+                    let savedCloud = false;
+                    try { if (typeof dbAddStockAdjustment === 'function') { const r = await dbAddStockAdjustment(adj); if (r && r.success) savedCloud = true; } } catch (e) {}
+                    try {
+                        const local = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
+                        local.unshift({ product_name: adj.productName, batch_no: adj.batchNo, qty_before: adj.qtyBefore, qty_after: adj.qtyAfter, qty_delta: adj.qtyDelta, reason: adj.reason, note: adj.note, created_at: new Date().toISOString() });
+                        if (typeof mmLsSet === 'function') mmLsSet('stockAdjustments', local);
+                    } catch (e) {}
+                    if (!savedCloud) {
+                        try { const p = (typeof mmLsGet === 'function') ? (mmLsGet('pendingStockAdjustments') || []) : []; p.push(adj); if (typeof mmLsSet === 'function') mmLsSet('pendingStockAdjustments', p); } catch (e) {}
+                    }
+                }
+            } catch (e) { console.warn('free-goods adjustment failed:', e); }
 
             // "Paid now" (cash purchase) → auto-record a full supplier payment so this
             // bill never shows as owed in the Supplier Ledger. Amount = rate×qty+GST
