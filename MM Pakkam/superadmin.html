@@ -241,6 +241,7 @@
         <button class="tab" onclick="switchTab('accounts',this)">👥 Accounts <span class="badge green" id="tabAcctCount">0</span></button>
         <button class="tab" onclick="switchTab('requests',this)">📩 Requests <span class="badge" id="tabPendCount">0</span></button>
         <button class="tab" onclick="switchTab('pwdresets',this)">🔑 Resets <span class="badge" id="tabPwdResetCount" style="background:rgba(234,179,8,.2); border-color:rgba(234,179,8,.4); color:#fde047;">0</span></button>
+        <button class="tab" onclick="switchTab('billing',this)">💳 Billing <span class="badge" id="tabOverdueCount" style="background:rgba(239,68,68,.2); border-color:rgba(239,68,68,.4); color:#fca5a5;">0</span></button>
         <button class="tab" onclick="switchTab('support',this)">🎧 Support <span class="badge" id="tabSupportCount" style="background:rgba(14,165,233,.2); border-color:rgba(14,165,233,.4); color:#38bdf8;">0</span></button>
         <button class="tab" onclick="switchTab('broadcast',this)">📢 Broadcast</button>
     </div>
@@ -363,6 +364,27 @@
         <div class="sh"><span>🗂️</span><h2>Sent Messages</h2></div>
         <div class="pending-grid" id="annList"><div class="ld"><div class="sp"></div>Loading…</div></div>
     </div>
+
+    <!-- TAB: BILLING -->
+    <div class="tab-panel" id="tab-billing">
+        <div class="stat-grid" id="billingStats" style="margin-bottom:18px"></div>
+        <div class="sh"><span>💳</span><h2>Subscriptions</h2>
+            <button class="rbtn" onclick="renderBilling()" style="margin-left:auto">↻ Refresh</button>
+        </div>
+        <p style="font-size:.8rem;color:var(--text3);margin-bottom:14px">Set each shop's monthly plan and paid-until date. <b>✓ Mark Paid</b> extends by one month. <b>Suspend</b> blocks their login (keeps their data); <b>Restore</b> lets them back in.</p>
+        <div style="overflow-x:auto">
+            <table class="tbl">
+                <thead><tr>
+                    <th>Shop</th>
+                    <th>Plan (₹/mo)</th>
+                    <th>Paid Until</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr></thead>
+                <tbody id="billingBody"><tr><td colspan="5"><div class="ld"><div class="sp"></div>Loading…</div></td></tr></tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -467,6 +489,7 @@ function switchTab(id, el) {
     document.getElementById('tab-'+id).classList.add('active');
     el.classList.add('active');
     if (id === 'broadcast') renderAnnouncements();
+    if (id === 'billing') renderBilling();
 }
 
 // ── CLOCK ──
@@ -519,6 +542,7 @@ async function loadAll() {
     renderAccounts(); renderRequests();
     renderShopEditRequests(); renderExtraUserRequests(); renderPasswordResets(); renderSupportIssues();
     _populateAnnTargets();
+    await loadBilling();
 }
 
 // ── STATS ──
@@ -1011,6 +1035,142 @@ function renderSignups() {
                 <div class="am">Joined: ${parseDate(u.createdAt)} · ${u.approval_status==='pending'?'⏳ Pending':u.approval_status==='rejected'?'❌ Rejected':'✅ Active'}</div>
             </div>
         </div>`).join('');
+}
+
+// ── BILLING / SUBSCRIPTIONS ──
+// Per-shop plan amount + paid-until date + suspend, stored in shop_billing
+// (migrations/add_shop_billing_table.sql). Suspending blocks login by setting
+// the owner's approval_status to 'rejected' via the existing sa_set_approval
+// action — restoring sets it back to 'approved'. No edge-function changes.
+let _billing = {};   // username -> { plan_amount, paid_until, suspended, note }
+
+async function loadBilling() {
+    _billing = {};
+    try {
+        const { data, error } = await sb.from('shop_billing').select('*');
+        if (!error && data) data.forEach(r => { _billing[r.username] = r; });
+    } catch (e) { /* table may not exist yet */ }
+    _updateOverdueBadge();
+}
+
+function _billOwners() { return allUsers.filter(u => u.role === 'owner' || !u.role); }
+function _todayStr() { return new Date().toISOString().slice(0, 10); }
+
+// Status for a shop: suspended > overdue > active > no plan.
+function _billStatus(username) {
+    const b = _billing[username] || {};
+    if (b.suspended) return { key: 'suspended', label: '⏸️ Suspended', color: '#fca5a5' };
+    if (b.paid_until && b.paid_until < _todayStr()) return { key: 'overdue', label: '🔴 Overdue', color: '#f87171' };
+    if (b.paid_until) return { key: 'active', label: '✅ Active', color: '#6ee7b7' };
+    return { key: 'none', label: '⚪ No plan', color: 'var(--text3)' };
+}
+
+function _updateOverdueBadge() {
+    let overdue = 0;
+    _billOwners().forEach(u => { const s = _billStatus(u.username).key; if (s === 'overdue' || s === 'suspended') overdue++; });
+    const badge = document.getElementById('tabOverdueCount');
+    if (badge) { badge.textContent = overdue; badge.style.display = overdue > 0 ? '' : 'none'; }
+}
+
+function renderBilling() {
+    const owners = _billOwners();
+    // Summary
+    let mrr = 0, overdue = 0, suspended = 0, active = 0;
+    owners.forEach(u => {
+        const b = _billing[u.username] || {};
+        const st = _billStatus(u.username).key;
+        if (st !== 'suspended') mrr += parseFloat(b.plan_amount) || 0;
+        if (st === 'overdue') overdue++;
+        if (st === 'suspended') suspended++;
+        if (st === 'active') active++;
+    });
+    const stats = document.getElementById('billingStats');
+    if (stats) {
+        const card = (icon, val, label, acc) => `<div class="sc" style="--acc:${acc}"><div class="sc-icon">${icon}</div><div class="sc-val">${val}</div><div class="sc-lbl">${label}</div></div>`;
+        stats.innerHTML =
+            card('💰', '₹' + fmt(mrr), 'Monthly Revenue', 'linear-gradient(90deg,#f59e0b,#f97316)') +
+            card('✅', active, 'Active', 'linear-gradient(90deg,#10b981,#06b6d4)') +
+            card('🔴', overdue, 'Overdue', 'linear-gradient(90deg,#ef4444,#f97316)') +
+            card('⏸️', suspended, 'Suspended', 'linear-gradient(90deg,#a855f7,#ec4899)');
+    }
+    _updateOverdueBadge();
+
+    const body = document.getElementById('billingBody');
+    if (!body) return;
+    if (!owners.length) { body.innerHTML = '<tr><td colspan="5" style="padding:20px;color:var(--text3)">No shops yet.</td></tr>'; return; }
+    body.innerHTML = owners.map(u => {
+        const b = _billing[u.username] || {};
+        const st = _billStatus(u.username);
+        const prof = window.currentShopProfiles ? window.currentShopProfiles[u.username] : null;
+        const shopName = (prof && prof.shop_name) ? prof.shop_name : u.username;
+        const uArg = "'" + escAttr(u.username) + "'";
+        const idArg = "'" + escAttr(u.id) + "'";
+        return `<tr>
+            <td><div style="font-weight:600">${escHtml(shopName)}</div><div style="font-size:.68rem;color:var(--text3)">${escHtml(u.username)}</div></td>
+            <td><input type="number" min="0" id="plan_${escAttr(u.username)}" value="${parseFloat(b.plan_amount)||0}" style="width:90px;padding:5px 8px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)"></td>
+            <td><input type="date" id="until_${escAttr(u.username)}" value="${b.paid_until||''}" style="padding:5px 8px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);color-scheme:dark"></td>
+            <td style="color:${st.color};font-weight:600;font-size:.8rem;white-space:nowrap">${st.label}</td>
+            <td style="white-space:nowrap">
+                <button class="rbtn" title="Save plan & date" onclick="saveBilling(${uArg})">💾</button>
+                <button class="rbtn" title="Mark paid — extend one month" onclick="markPaid(${uArg})" style="border-color:rgba(16,185,129,.5);color:#6ee7b7">✓ Paid</button>
+                ${b.suspended
+                    ? `<button class="rbtn" onclick="unsuspendShop(${uArg},${idArg})" style="border-color:rgba(16,185,129,.5);color:#6ee7b7">▶ Restore</button>`
+                    : `<button class="rbtn" onclick="suspendShop(${uArg},${idArg})" style="border-color:rgba(239,68,68,.5);color:#fca5a5">⏸ Suspend</button>`}
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+async function _upsertBilling(username, patch) {
+    const cur = _billing[username] || { username };
+    const row = Object.assign({ username, plan_amount: 0, suspended: false }, cur, patch, { updated_at: new Date().toISOString() });
+    delete row.id;
+    const { error } = await sb.from('shop_billing').upsert(row, { onConflict: 'username' });
+    if (error) { alert('Save failed: ' + error.message + '\n\nRun migrations/add_shop_billing_table.sql in Supabase if this mentions shop_billing.'); return false; }
+    _billing[username] = row;
+    return true;
+}
+
+async function saveBilling(username) {
+    const plan = parseFloat(document.getElementById('plan_' + username)?.value) || 0;
+    const until = document.getElementById('until_' + username)?.value || null;
+    if (await _upsertBilling(username, { plan_amount: plan, paid_until: until })) { renderBilling(); }
+}
+
+async function markPaid(username) {
+    const b = _billing[username] || {};
+    const plan = parseFloat(document.getElementById('plan_' + username)?.value) || parseFloat(b.plan_amount) || 0;
+    // Extend from the later of today or the current paid-until date.
+    const base = (b.paid_until && b.paid_until > _todayStr()) ? new Date(b.paid_until) : new Date();
+    base.setMonth(base.getMonth() + 1);
+    const until = base.toISOString().slice(0, 10);
+    if (!await mmConfirm(`Mark "${username}" paid?\n\nExtends their subscription to ${until}.`, { okText: 'Mark Paid' })) return;
+    if (await _upsertBilling(username, { plan_amount: plan, paid_until: until, suspended: false })) {
+        // If they were suspended for non-payment, paying restores their login.
+        if (b.suspended) { const u = allUsers.find(x => x.username === username); if (u) await saCall('sa_set_approval', { id: u.id, status: 'approved' }); if (u) u.approval_status = 'approved'; }
+        renderBilling();
+        alert(`✅ "${username}" marked paid until ${until}.`);
+    }
+}
+
+async function suspendShop(username, id) {
+    if (!await mmConfirm(`⏸️ Suspend "${username}"?\n\nThey will be UNABLE to log in until you restore them. Their data is kept safe.`, { danger: true, okText: 'Suspend' })) return;
+    const res = await saCall('sa_set_approval', { id, status: 'rejected' });
+    if (!res.ok) { alert('Could not block login: ' + res.message); return; }
+    const u = allUsers.find(x => x.id === id); if (u) u.approval_status = 'rejected';
+    await _upsertBilling(username, { suspended: true });
+    renderBilling(); renderAccounts();
+    alert(`⏸️ "${username}" suspended — their login is blocked.`);
+}
+
+async function unsuspendShop(username, id) {
+    if (!await mmConfirm(`▶ Restore "${username}"?\n\nThey will be able to log in again.`, { okText: 'Restore' })) return;
+    const res = await saCall('sa_set_approval', { id, status: 'approved' });
+    if (!res.ok) { alert('Could not restore login: ' + res.message); return; }
+    const u = allUsers.find(x => x.id === id); if (u) u.approval_status = 'approved';
+    await _upsertBilling(username, { suspended: false });
+    renderBilling(); renderAccounts();
+    alert(`▶ "${username}" restored — they can log in again.`);
 }
 
 // ── BROADCAST / ANNOUNCEMENTS ──
