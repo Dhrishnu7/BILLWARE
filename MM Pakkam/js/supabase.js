@@ -802,6 +802,40 @@ async function dbDeleteSupplierPayment(id) {
 }
 window.dbDeleteSupplierPayment = dbDeleteSupplierPayment;
 
+/* SUPPLIER MASTER — the shop's supplier list (name, GSTIN, phone, address).
+   Purchases pick from this; the Supplier Ledger groups by it.
+   Needs migrations/add_suppliers_table.sql. */
+async function dbGetSuppliers() {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetSuppliers: no user, aborting.'); return []; }
+    const { data, error } = await _supabase.from('suppliers').select('*').eq('user_id', user).order('name');
+    if (error) { console.error('suppliers fetch:', error); return []; }
+    return (data || []).map(r => ({ name: r.name || '', gstin: r.gstin || '', phone: r.phone || '', address: r.address || '' }));
+}
+window.dbGetSuppliers = dbGetSuppliers;
+
+async function dbAddSupplier(name, gstin, phone, address) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbAddSupplier: no user, aborting.'); return { success: false }; }
+    const nm = (name || '').trim();
+    if (!nm) return { success: false, message: 'Supplier name required.' };
+    const { error } = await _supabase.from('suppliers').upsert({
+        user_id: user, name: nm, gstin: (gstin || '').trim(),
+        phone: (phone || '').trim(), address: (address || '').trim()
+    }, { onConflict: 'user_id,name' });
+    if (error) { console.error('supplier add:', error); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbAddSupplier = dbAddSupplier;
+
+async function dbDeleteSupplier(name) {
+    const user = _currentUser();
+    if (!user) return false;
+    const { error } = await _supabase.from('suppliers').delete().eq('user_id', user).eq('name', (name || '').trim());
+    return !error;
+}
+window.dbDeleteSupplier = dbDeleteSupplier;
+
 /* ─────────────────────────────────────────────────────
    AUDIT LOG — who did what, when. Fire-and-forget: callers
    just do mmAudit('action', 'detail', 'ref'); it never throws

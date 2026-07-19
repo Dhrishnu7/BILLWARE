@@ -582,8 +582,9 @@
                         <input type="text" id="billNo" placeholder="e.g. BL-001">
                     </div>
                     <div class="form-group">
-                        <label>Firm</label>
-                        <input type="text" id="firm" placeholder="e.g. Sun Pharma">
+                        <label>Supplier / Firm</label>
+                        <input type="text" id="firm" list="supplierList" placeholder="Pick a supplier or type a new one…" autocomplete="off">
+                        <datalist id="supplierList"></datalist>
                     </div>
                     <div class="form-group full-width">
                         <label>Date</label>
@@ -1127,6 +1128,19 @@
                     }
                 }
             } catch(shErr) { console.warn('[SH] Purchase H-register error:', shErr); }
+
+            // Supplier master: remember any new supplier/firm name typed here so it's
+            // pickable next time and shows in the Directory + Supplier Ledger with details.
+            try {
+                if (firm) {
+                    const sups = JSON.parse(localStorage.getItem('mm_suppliers') || '[]');
+                    if (!sups.some(s => (s.name || '').trim().toLowerCase() === firm.trim().toLowerCase())) {
+                        sups.push({ name: firm.trim(), gstin: '', phone: '', address: '' });
+                        localStorage.setItem('mm_suppliers', JSON.stringify(sups));
+                        if (typeof dbAddSupplier === 'function') dbAddSupplier(firm.trim(), '', '', '').catch(() => {});
+                    }
+                }
+            } catch (e) {}
 
             // "Paid now" (cash purchase) → auto-record a full supplier payment so this
             // bill never shows as owed in the Supplier Ledger. Amount = rate×qty+GST
@@ -2298,6 +2312,28 @@
 
         // ── Initialize: restore draft if available, else start with one blank item ──
         if (!restoreDraft()) addLineItem();
+
+        // ── Supplier master: fill the Firm datalist + refresh it from the cloud ──
+        function _populateSupplierList() {
+            try {
+                const dl = document.getElementById('supplierList');
+                if (!dl) return;
+                const sups = JSON.parse(localStorage.getItem('mm_suppliers') || '[]');
+                dl.innerHTML = sups.map(s => `<option value="${(s.name || '').replace(/"/g, '&quot;')}">`).join('');
+            } catch (e) {}
+        }
+        _populateSupplierList();
+        (async function () {
+            try {
+                if (typeof dbGetSuppliers === 'function') {
+                    const cloud = await dbGetSuppliers();
+                    if (cloud && cloud.length) {
+                        localStorage.setItem('mm_suppliers', JSON.stringify(cloud));
+                        _populateSupplierList();
+                    }
+                }
+            } catch (e) {}
+        })();
 
         // ── Auto-save draft whenever the user edits any field ──
         document.getElementById('lineItemsContainer').addEventListener('input', saveDraft);

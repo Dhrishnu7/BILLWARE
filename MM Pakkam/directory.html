@@ -371,6 +371,13 @@
                 Doctors
                 <span class="tab-count" id="docCount">0</span>
             </button>
+            <button class="tab-btn" id="tabSuppliers" onclick="switchTab('suppliers')">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M3 7l1.5 12a2 2 0 002 1.7h7a2 2 0 002-1.7L21 7M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                </svg>
+                Suppliers
+                <span class="tab-count" id="suppCount">0</span>
+            </button>
         </div>
 
         <!-- Search + Add -->
@@ -444,6 +451,26 @@
                 </div>
             </div>
 
+            <!-- Supplier Fields -->
+            <div id="suppFields" style="display:none;">
+                <div class="form-group">
+                    <label>Supplier / Firm Name <span class="req">*</span></label>
+                    <input type="text" id="sName" placeholder="e.g. Sun Pharma Distributors">
+                </div>
+                <div class="form-group">
+                    <label>GSTIN <span style="color:#94a3b8;font-weight:400;font-size:0.85rem;">(optional)</span></label>
+                    <input type="text" id="sGstin" placeholder="e.g. 33ABCDE1234F1Z5" style="text-transform:uppercase;">
+                </div>
+                <div class="form-group">
+                    <label>Phone <span style="color:#94a3b8;font-weight:400;font-size:0.85rem;">(optional)</span></label>
+                    <input type="tel" id="sPhone" placeholder="e.g. 9876543210">
+                </div>
+                <div class="form-group">
+                    <label>Address / Place</label>
+                    <textarea id="sAddress" placeholder="Enter supplier address…"></textarea>
+                </div>
+            </div>
+
             <div class="modal-actions">
                 <button class="btn-cancel" onclick="closeModal()">Cancel</button>
                 <button class="btn-save" id="saveBtn" onclick="saveEntry()">Save</button>
@@ -464,6 +491,7 @@
         let _activeTab = 'customers';
         let _allCustomers = [];
         let _allDoctors   = [];
+        let _allSuppliers = [];
         let _filtered     = [];
 
         // ── Load shop name ──
@@ -538,6 +566,15 @@
                 _allDoctors = JSON.parse(localStorage.getItem('mm_doctors') || '[]');
             }
 
+            // Suppliers
+            try {
+                const rows = (typeof dbGetSuppliers === 'function') ? await dbGetSuppliers() : [];
+                _allSuppliers = (rows && rows.length > 0) ? rows : JSON.parse(localStorage.getItem('mm_suppliers') || '[]');
+            } catch (e) {
+                _allSuppliers = JSON.parse(localStorage.getItem('mm_suppliers') || '[]');
+            }
+            try { localStorage.setItem('mm_suppliers', JSON.stringify(_allSuppliers)); } catch (e) {}
+
             updateCounts();
             renderList();
         }
@@ -545,6 +582,7 @@
         function updateCounts() {
             document.getElementById('custCount').textContent = _allCustomers.length;
             document.getElementById('docCount').textContent  = _allDoctors.length;
+            const sc = document.getElementById('suppCount'); if (sc) sc.textContent = _allSuppliers.length;
         }
 
         // ── Tabs ──
@@ -553,7 +591,9 @@
             document.getElementById('searchInput').value = '';
             document.getElementById('tabCustomers').classList.toggle('active', tab === 'customers');
             document.getElementById('tabDoctors').classList.toggle('active', tab === 'doctors');
-            document.getElementById('addBtnLabel').textContent = tab === 'customers' ? 'Add Customer' : 'Add Doctor';
+            const st = document.getElementById('tabSuppliers'); if (st) st.classList.toggle('active', tab === 'suppliers');
+            document.getElementById('addBtnLabel').textContent =
+                tab === 'customers' ? 'Add Customer' : (tab === 'doctors' ? 'Add Doctor' : 'Add Supplier');
             renderList();
         }
 
@@ -565,29 +605,51 @@
         // ── Render ──
         function renderList(q = '') {
             const query = q.trim().toLowerCase();
-            const source = _activeTab === 'customers' ? _allCustomers : _allDoctors;
+            const source = _activeTab === 'customers' ? _allCustomers
+                : (_activeTab === 'doctors' ? _allDoctors : _allSuppliers);
             _filtered = query
                 ? source.filter(c => {
                     const name  = (c.name || c.doctorName || '').toLowerCase();
                     const phone = (c.phone || '').toLowerCase();
-                    return name.includes(query) || phone.includes(query);
+                    const gstin = (c.gstin || '').toLowerCase();
+                    return name.includes(query) || phone.includes(query) || gstin.includes(query);
                   })
                 : [...source];
 
             const grid = document.getElementById('cardsList');
 
             if (_filtered.length === 0) {
-                const isCustomer = _activeTab === 'customers';
+                const icon = _activeTab === 'customers' ? '👤' : (_activeTab === 'doctors' ? '🩺' : '🏭');
+                const noun = _activeTab === 'customers' ? 'customers' : (_activeTab === 'doctors' ? 'doctors' : 'suppliers');
                 grid.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-icon">${isCustomer ? '👤' : '🩺'}</div>
-                        <h3>${q ? 'No results found' : (isCustomer ? 'No customers saved yet' : 'No doctors saved yet')}</h3>
+                        <div class="empty-icon">${icon}</div>
+                        <h3>${q ? 'No results found' : 'No ' + noun + ' saved yet'}</h3>
                         <p>${q ? 'Try a different search term.' : 'Click "+ Add" to register the first one.'}</p>
                     </div>`;
                 return;
             }
 
             grid.innerHTML = _filtered.map((item, i) => {
+                if (_activeTab === 'suppliers') {
+                    const initials = getInitials(item.name);
+                    return `<div class="contact-card" style="animation:fadeUp 0.3s ease ${i*0.04}s both;">
+                        <div class="c-avatar" style="background:linear-gradient(135deg,#6366f1,#818cf8);">${escHtml(initials)}</div>
+                        <div class="c-info">
+                            <div class="c-name">${escHtml(item.name)}</div>
+                            <div class="c-sub">
+                                ${item.gstin ? `<span>🧾 ${escHtml(item.gstin)}</span>` : ''}
+                                ${item.phone ? `<span>📞 ${escHtml(item.phone)}</span>` : ''}
+                                ${item.address ? `<span>📍 ${escHtml(item.address)}</span>` : ''}
+                            </div>
+                        </div>
+                        <button class="c-del-btn" title="Delete" onclick="deleteEntry('supplier', '${escAttr(item.name||'')}', '')" aria-label="Delete ${escAttr(item.name)}">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                        </button>
+                    </div>`;
+                }
                 if (_activeTab === 'customers') {
                     const initials = getInitials(item.name);
                     const balShow  = parseFloat(item.balance || 0) > 0
@@ -633,20 +695,23 @@
 
         // ── Modal ──
         function openAddModal() {
-            const isCust = _activeTab === 'customers';
-            document.getElementById('modalTitle').textContent = isCust ? 'Add Customer' : 'Add Doctor';
+            const tab = _activeTab;
+            document.getElementById('modalTitle').textContent =
+                tab === 'customers' ? 'Add Customer' : (tab === 'doctors' ? 'Add Doctor' : 'Add Supplier');
             document.getElementById('modalSub').textContent   = 'Fill in the details and save.';
-            document.getElementById('custFields').style.display = isCust ? '' : 'none';
-            document.getElementById('docFields').style.display  = isCust ? 'none' : '';
+            document.getElementById('custFields').style.display = tab === 'customers' ? '' : 'none';
+            document.getElementById('docFields').style.display  = tab === 'doctors' ? '' : 'none';
+            const sf = document.getElementById('suppFields'); if (sf) sf.style.display = tab === 'suppliers' ? '' : 'none';
             // Clear inputs
-            ['cName','cPhone','cAddress','dName','dPhone','dClinic','dRegNo','dAddress'].forEach(id => {
+            ['cName','cPhone','cAddress','dName','dPhone','dClinic','dRegNo','dAddress','sName','sGstin','sPhone','sAddress'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
             const saveBtn = document.getElementById('saveBtn');
             saveBtn.textContent = 'Save'; saveBtn.disabled = false;
             document.getElementById('addModal').classList.add('open');
-            setTimeout(() => document.getElementById(isCust ? 'cName' : 'dName').focus(), 150);
+            const focusId = tab === 'customers' ? 'cName' : (tab === 'doctors' ? 'dName' : 'sName');
+            setTimeout(() => { const el = document.getElementById(focusId); if (el) el.focus(); }, 150);
         }
 
         function closeModal() {
@@ -656,6 +721,23 @@
         async function saveEntry() {
             const btn = document.getElementById('saveBtn');
             btn.textContent = 'Saving…'; btn.disabled = true;
+
+            if (_activeTab === 'suppliers') {
+                const name    = document.getElementById('sName').value.trim();
+                const gstin   = document.getElementById('sGstin').value.trim().toUpperCase();
+                const phone   = document.getElementById('sPhone').value.trim();
+                const address = document.getElementById('sAddress').value.trim();
+                if (!name) { alert('Supplier name is required.'); btn.textContent = 'Save'; btn.disabled = false; return; }
+                try { const r = await dbAddSupplier(name, gstin, phone, address); if (!(r && r.success)) console.warn('supplier cloud save failed'); }
+                catch (e) { console.warn('supplier save failed:', e); }
+                const sups = JSON.parse(localStorage.getItem('mm_suppliers') || '[]');
+                const idx = sups.findIndex(s => (s.name || '').toLowerCase() === name.toLowerCase());
+                if (idx >= 0) sups[idx] = { name, gstin, phone, address }; else sups.push({ name, gstin, phone, address });
+                localStorage.setItem('mm_suppliers', JSON.stringify(sups));
+                closeModal(); await loadAll(); showToast('Supplier saved successfully!');
+                btn.textContent = 'Save'; btn.disabled = false;
+                return;
+            }
 
             if (_activeTab === 'customers') {
                 const name    = document.getElementById('cName').value.trim();
@@ -729,11 +811,21 @@
         // Matches on name+phone (not name alone) so two entries sharing a name
         // aren't both wiped out / the wrong one deleted.
         async function deleteEntry(type, name, phone) {
-            const confirmed = await mmConfirm(`⚠️ Delete "${name}" from ${type === 'customer' ? 'Customers' : 'Doctors'}?\n\nThis cannot be undone.`, { danger: true, okText: 'Delete' });
+            const label = type === 'customer' ? 'Customers' : (type === 'doctor' ? 'Doctors' : 'Suppliers');
+            const confirmed = await mmConfirm(`⚠️ Delete "${name}" from ${label}?\n\nThis cannot be undone.`, { danger: true, okText: 'Delete' });
             if (!confirmed) return;
             phone = phone || '';
 
             const matches = (r) => (r.name||'').toLowerCase() === name.toLowerCase() && (r.phone||'') === phone;
+
+            if (type === 'supplier') {
+                const sups = JSON.parse(localStorage.getItem('mm_suppliers') || '[]');
+                localStorage.setItem('mm_suppliers', JSON.stringify(sups.filter(s => (s.name||'').toLowerCase() !== name.toLowerCase())));
+                try { if (typeof dbDeleteSupplier === 'function') await dbDeleteSupplier(name); } catch (e) { console.warn('supplier delete failed:', e); }
+                showToast('Supplier removed.');
+                await loadAll();
+                return;
+            }
 
             if (type === 'customer') {
                 // Remove from localStorage
