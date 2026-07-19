@@ -678,6 +678,7 @@
     <div class="tab-nav-wrap">
         <div class="tab-nav">
             <button class="tab-btn active" id="tabBtnLedger" onclick="switchTab('ledger')">&#x1F4E6; Master Ledger</button>
+            <button class="tab-btn" id="tabBtnToBuy" onclick="switchTab('tobuy')">&#x1F6D2; To Buy</button>
             <button class="tab-btn" id="tabBtnExpiry" onclick="switchTab('expiry')">&#x23F3; Expiry Checker</button>
             <button class="tab-btn" id="tabBtnDead" onclick="switchTab('dead')">&#x1F480; Dead Stock</button>
             <button class="tab-btn" id="tabBtnSubFinder" onclick="switchTab('subfinder')">&#x1F504; Substitute Finder</button>
@@ -946,6 +947,26 @@
             </div>
         </div>
 
+        <!-- ══ TO BUY (reorder suggestions) ══ -->
+        <div class="tab-panel" id="tab-tobuy">
+            <div class="panel-card">
+                <div style="display:flex; flex-wrap:wrap; gap:0.6rem; align-items:center; justify-content:space-between; margin-bottom:0.9rem;">
+                    <div>
+                        <h2 style="font-size:1.05rem; font-weight:800; margin:0;">🛒 To Buy — Reorder List</h2>
+                        <p style="font-size:0.82rem; color:#64748b; margin:0.25rem 0 0;">Everything at or below its reorder level. The level is auto-set from each item's recent sales speed (about 1 week's cover) — type in the box to set your own.</p>
+                    </div>
+                    <input type="text" id="toBuySearch" placeholder="Search medicine…" oninput="renderToBuy()"
+                        style="padding:0.5rem 0.8rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:0.85rem; font-family:inherit; max-width:220px;">
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="stock-table" id="toBuyTable" style="width:100%;">
+                        <thead><tr><th>Medicine</th><th style="text-align:right;">In Stock</th><th style="text-align:center;">Reorder Level</th><th style="text-align:right;">Suggested Buy</th></tr></thead>
+                        <tbody id="toBuyBody"><tr><td colspan="4" style="text-align:center; padding:2rem; color:#94a3b8;">Open this tab to load your reorder list…</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- ══ RETURNS ══ -->
         <div class="tab-panel" id="tab-returns">
             <style>
@@ -1093,6 +1114,85 @@
         if (name === 'adjust'    && _dataLoaded) { populateAdjustMedicineList(); renderAdjustLog(); }
         if (name === 'promise')  loadPromiseOrders(); // independent of stock data
         if (name === 'returns')  retInit();
+        if (name === 'tobuy')    renderToBuy();
+    }
+
+    /* ═══════════════ TO BUY — reorder list ═══════════════
+       Smart reorder level per medicine = ~1 week of recent sales; owner can
+       override any item inline. Items at/below their level become the buy list. */
+    function _tbEsc(s) { const d = document.createElement('div'); d.textContent = (s == null ? '' : s); return d.innerHTML; }
+    function getReorderLevels() { try { return JSON.parse(localStorage.getItem('mm_reorder_levels') || '{}'); } catch (e) { return {}; } }
+    function _setReorderLevelsLocal(map) { try { localStorage.setItem('mm_reorder_levels', JSON.stringify(map)); } catch (e) {} }
+
+    function _salesVelocity() {
+        const WIN = 30;
+        const cutoff = new Date(Date.now() - WIN * 86400000).toISOString().slice(0, 10);
+        const sold = {};
+        let bills = []; try { bills = JSON.parse(localStorage.getItem('mm_sales') || '[]'); } catch (e) {}
+        bills.forEach(b => {
+            if (b.isReturn) return;
+            const d = String(b.date || '').slice(0, 10);
+            if (d < cutoff) return;
+            (b.medicines || []).forEach(m => {
+                const k = (m.product || '').trim().toLowerCase();
+                if (k) sold[k] = (sold[k] || 0) + (parseFloat(m.qty) || 0);
+            });
+        });
+        const vel = {}; Object.keys(sold).forEach(k => { vel[k] = sold[k] / WIN; });
+        return vel;
+    }
+
+    function renderToBuy() {
+        const body = document.getElementById('toBuyBody');
+        if (!body) return;
+        if (!_stockData || !_stockData.length) {
+            body.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:2rem; color:#94a3b8;">No stock data yet.</td></tr>';
+            return;
+        }
+        const overrides = getReorderLevels();
+        const vel = _salesVelocity();
+        const rows = [];
+        _stockData.forEach(s => {
+            const name = s.name || '';
+            const k = name.trim().toLowerCase();
+            if (!k) return;
+            const stock = parseFloat(s.current) || 0;
+            const hasOverride = Object.prototype.hasOwnProperty.call(overrides, k);
+            const level = hasOverride ? (parseFloat(overrides[k]) || 0) : Math.ceil((vel[k] || 0) * 7);
+            if (level <= 0) return;        // non-mover with no manual level → skip
+            if (stock > level) return;     // enough stock
+            const buy = Math.max(1, Math.ceil((level * 2) - stock));   // top up to ~2 weeks
+            rows.push({ name, stock, level, buy, hasOverride });
+        });
+        rows.sort((a, b) => (a.stock / Math.max(1, a.level)) - (b.stock / Math.max(1, b.level)));
+        const q = (document.getElementById('toBuySearch').value || '').trim().toLowerCase();
+        const filtered = q ? rows.filter(r => r.name.toLowerCase().includes(q)) : rows;
+        if (!filtered.length) {
+            body.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:2rem; color:#94a3b8;">'
+                + (rows.length ? 'No matches.' : '✅ Nothing to reorder — all your moving stock is above its reorder level.') + '</td></tr>';
+            return;
+        }
+        body.innerHTML = filtered.map(r => {
+            const nameArg = JSON.stringify(r.name).replace(/"/g, '&quot;');
+            return '<tr>'
+                + '<td><b>' + _tbEsc(r.name) + '</b></td>'
+                + '<td style="text-align:right; color:' + (r.stock <= 0 ? '#dc2626' : '#b45309') + '; font-weight:700;">' + r.stock + '</td>'
+                + '<td style="text-align:center;"><input type="number" min="0" value="' + r.level + '" onchange="saveReorderLevel(' + nameArg + ', this.value)" '
+                + 'style="width:78px; text-align:center; padding:0.3rem; border:1.5px solid ' + (r.hasOverride ? '#6366f1' : '#e2e8f0') + '; border-radius:8px; font-size:0.85rem;" '
+                + 'title="' + (r.hasOverride ? 'Your set level' : 'Auto from sales speed — type to set your own') + '"></td>'
+                + '<td style="text-align:right; font-weight:800; color:#059669;">' + r.buy + '</td>'
+                + '</tr>';
+        }).join('');
+    }
+
+    async function saveReorderLevel(name, val) {
+        const k = String(name).trim().toLowerCase();
+        const level = Math.max(0, parseFloat(val) || 0);
+        const map = getReorderLevels();
+        map[k] = level;
+        _setReorderLevelsLocal(map);
+        if (typeof dbSetReorderLevel === 'function') { try { await dbSetReorderLevel(name, level); } catch (e) {} }
+        renderToBuy();
     }
 
     /* ═══════════════════════════════════════════════════════
@@ -1586,6 +1686,17 @@
             if (session && typeof dbGetStockAdjustments === 'function') {
                 const adj = await dbGetStockAdjustments();
                 if (Array.isArray(adj) && adj.length) _stockAdjustments = adj;
+            }
+            // Reorder-level overrides → cache locally for the To Buy tab.
+            if (session && typeof dbGetReorderLevels === 'function') {
+                try {
+                    const levels = await dbGetReorderLevels();
+                    if (Array.isArray(levels)) {
+                        const map = getReorderLevels();
+                        levels.forEach(l => { if (l.name) map[l.name.trim().toLowerCase()] = l.level; });
+                        _setReorderLevelsLocal(map);
+                    }
+                } catch (e) {}
             }
         } catch(e) { console.warn('Supabase load failed, using localStorage:', e); }
 

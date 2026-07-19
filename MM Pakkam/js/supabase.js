@@ -836,6 +836,38 @@ async function dbDeleteSupplier(name) {
 }
 window.dbDeleteSupplier = dbDeleteSupplier;
 
+/* REORDER LEVELS — per-medicine "buy more when stock drops below this" override.
+   Smart defaults are computed client-side from sales speed; this stores only the
+   manual overrides the owner sets. Needs migrations/add_reorder_levels_table.sql. */
+async function dbGetReorderLevels() {
+    const user = _currentUser();
+    if (!user) return [];
+    const { data, error } = await _supabase.from('reorder_levels').select('*').eq('user_id', user);
+    if (error) { console.error('reorder levels fetch:', error); return []; }
+    return (data || []).map(r => ({ name: r.product_name || '', level: Number(r.level) || 0 }));
+}
+window.dbGetReorderLevels = dbGetReorderLevels;
+
+async function dbSetReorderLevel(name, level) {
+    const user = _currentUser();
+    if (!user) return { success: false };
+    const nm = (name || '').trim();
+    if (!nm) return { success: false };
+    const { error } = await _supabase.from('reorder_levels')
+        .upsert({ user_id: user, product_name: nm, level: Number(level) || 0 }, { onConflict: 'user_id,product_name' });
+    if (error) { console.error('reorder level save:', error); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbSetReorderLevel = dbSetReorderLevel;
+
+async function dbDeleteReorderLevel(name) {
+    const user = _currentUser();
+    if (!user) return false;
+    const { error } = await _supabase.from('reorder_levels').delete().eq('user_id', user).eq('product_name', (name || '').trim());
+    return !error;
+}
+window.dbDeleteReorderLevel = dbDeleteReorderLevel;
+
 /* ─────────────────────────────────────────────────────
    AUDIT LOG — who did what, when. Fire-and-forget: callers
    just do mmAudit('action', 'detail', 'ref'); it never throws
