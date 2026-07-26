@@ -510,6 +510,12 @@ function unlockFormFirstTime() {
         el.style.color = '';
         el.style.borderColor = '';
     });
+    // If the owner already typed their details before approval (stashed locally when
+    // the pre-approval cloud save was refused), prefill them so they don't retype.
+    try {
+        const pend = JSON.parse(localStorage.getItem('mm_pending_shop_profile') || 'null');
+        if (pend) populateForm(pend);
+    } catch(_) {}
     const loadingEl = document.getElementById('permLoading');
     const btnWrapper = loadingEl ? loadingEl.parentElement : document.getElementById('submitBtn').parentElement;
     btnWrapper.innerHTML = `
@@ -841,11 +847,34 @@ async function saveAndContinue() {
     }, { onConflict: 'user_id' });
 
     if (error) {
+        // First-time setup runs BEFORE the admin approves the shop, so the new owner
+        // has no tenant membership yet and RLS (correctly) refuses this cloud write.
+        // That's expected — don't alarm them with a red failure. Stash the details
+        // locally so they survive, then continue to the "awaiting approval" screen.
+        // The profile saves to the cloud after approval, when the membership exists.
+        if (!isEditMode) {
+            try {
+                localStorage.setItem('mm_pending_shop_profile', JSON.stringify({
+                    shop_name: shopName, invoice_prefix: prefix, phone: phone,
+                    address_line1: addr1, address_line2: addr2, dl_no: dlNo,
+                    gstin: gstin, terms: terms, footer_msg: footer,
+                }));
+            } catch(_) {}
+            document.getElementById('setupCard').style.display = 'none';
+            document.getElementById('pendingScreen').style.display = 'block';
+            document.querySelector('.page-header h1').textContent = 'Almost Done!';
+            document.querySelector('.page-header p').textContent = 'Your shop is set up and waiting for approval';
+            return;
+        }
+        // Genuine failure while an approved owner is editing — surface it.
         showErr('Failed to save: ' + error.message);
         btn.disabled = false;
         btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Save Changes`;
         return;
     }
+
+    // Saved to cloud successfully — drop any locally-stashed pre-approval copy.
+    try { localStorage.removeItem('mm_pending_shop_profile'); } catch(_) {}
 
     // Mark the approved edit request as 'used' so they can't edit again without re-requesting
     if (isEditMode) {
