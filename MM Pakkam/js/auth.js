@@ -853,13 +853,50 @@ function mmInjectUserBar() {
 
     // Inject Support Modal
     if (!document.getElementById('mmSupportModal')) {
+        // ── EDIT HERE: helpline details shown in the support modal. ──
+        // Leave any value as '' to hide that row completely.
+        const MM_SUPPORT_CONTACT = {
+            phone:     '+91 87782 62018',      // tap-to-call
+            whatsapp:  '+91 87782 62018',      // opens WhatsApp chat
+            email:     'mybillware@gmail.com',
+            instagram: 'mybillware',           // username only
+            facebook:  '',                     // page name only, e.g. 'mybillware'
+            hours:     ''                      // e.g. 'Mon – Sat, 9 AM – 8 PM'
+        };
+
+        const _mmDigits = v => (v || '').replace(/\D/g, '');
+        const _mmRow = (href, icon, label, value) => `
+            <a href="${href}" target="_blank" rel="noopener" style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:11px; text-decoration:none; transition:all 0.18s;" onmouseover="this.style.borderColor='#0ea5e9';this.style.background='#f0f9ff'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'">
+                <span style="font-size:1.05rem; line-height:1;">${icon}</span>
+                <span style="min-width:0;">
+                    <span style="display:block; font-size:0.63rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8;">${label}</span>
+                    <span style="display:block; font-size:0.8rem; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${value}</span>
+                </span>
+            </a>`;
+
+        let mmContactRows = '';
+        if (MM_SUPPORT_CONTACT.phone)     mmContactRows += _mmRow('tel:' + MM_SUPPORT_CONTACT.phone.replace(/\s/g, ''), '&#128222;', 'Call us', MM_SUPPORT_CONTACT.phone);
+        if (MM_SUPPORT_CONTACT.whatsapp)  mmContactRows += _mmRow('https://wa.me/' + _mmDigits(MM_SUPPORT_CONTACT.whatsapp), '&#128172;', 'WhatsApp', MM_SUPPORT_CONTACT.whatsapp);
+        if (MM_SUPPORT_CONTACT.email)     mmContactRows += _mmRow('mailto:' + MM_SUPPORT_CONTACT.email, '&#9993;&#65039;', 'Email', MM_SUPPORT_CONTACT.email);
+        if (MM_SUPPORT_CONTACT.instagram) mmContactRows += _mmRow('https://instagram.com/' + MM_SUPPORT_CONTACT.instagram, '&#128248;', 'Instagram', '@' + MM_SUPPORT_CONTACT.instagram);
+        if (MM_SUPPORT_CONTACT.facebook)  mmContactRows += _mmRow('https://facebook.com/' + MM_SUPPORT_CONTACT.facebook, '&#128100;', 'Facebook', MM_SUPPORT_CONTACT.facebook);
+
+        const mmHelplineHtml = mmContactRows ? `
+                    <div style="margin-top:18px; padding-top:16px; border-top:1px dashed #e2e8f0;">
+                        <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                            <span style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:#0369a1;">Helpline</span>
+                            ${MM_SUPPORT_CONTACT.hours ? `<span style="font-size:0.7rem; color:#94a3b8;">${MM_SUPPORT_CONTACT.hours}</span>` : ''}
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px;">${mmContactRows}</div>
+                    </div>` : '';
+
         const supportModalHtml = `
         <style>
             @keyframes mmModalIn { from { opacity:0; transform:translateY(18px) scale(0.96); } to { opacity:1; transform:translateY(0) scale(1); } }
             @keyframes mmOverlayIn { from { opacity:0; } to { opacity:1; } }
         </style>
         <div class="modal-overlay" id="mmSupportModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.55); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); z-index:99999; align-items:center; justify-content:center; padding:16px; animation: mmOverlayIn 0.2s ease;">
-            <div style="background:#fff; border-radius:22px; width:100%; max-width:440px; box-shadow:0 30px 60px -15px rgba(2,132,199,0.4), 0 20px 40px -20px rgba(0,0,0,0.35); overflow:hidden; animation: mmModalIn 0.34s cubic-bezier(0.175, 0.885, 0.32, 1.275); font-family:'Inter', sans-serif;">
+            <div style="background:#fff; border-radius:22px; width:100%; max-width:440px; max-height:92vh; overflow-y:auto; box-shadow:0 30px 60px -15px rgba(2,132,199,0.4), 0 20px 40px -20px rgba(0,0,0,0.35); animation: mmModalIn 0.34s cubic-bezier(0.175, 0.885, 0.32, 1.275); font-family:'Inter', sans-serif;">
                 <div style="position:relative; background:linear-gradient(135deg,#0284c7 0%,#0ea5e9 55%,#38bdf8 100%); padding:24px 26px 28px; color:#fff; overflow:hidden;">
                     <div style="position:absolute; top:-45px; right:-30px; width:150px; height:150px; background:rgba(255,255,255,0.13); border-radius:50%;"></div>
                     <div style="position:absolute; bottom:-70px; right:50px; width:180px; height:180px; background:rgba(255,255,255,0.08); border-radius:50%;"></div>
@@ -883,6 +920,7 @@ function mmInjectUserBar() {
                         Submit Issue
                     </button>
                     <p style="margin:14px 0 0; text-align:center; font-size:0.74rem; color:#94a3b8;">&#128274; Your message goes straight to the Billware team</p>
+${mmHelplineHtml}
                 </div>
             </div>
         </div>`;
