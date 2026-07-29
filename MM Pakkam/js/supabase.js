@@ -467,14 +467,22 @@ function _rxRowToObj(r) {
 /* ── Prescription image Storage helpers ──
    Instead of stuffing the base64 photo into the `image_data` text
    column (heavy — bloats the DB and slows every sync), we upload the
-   photo to a Storage bucket and keep only its URL in image_data.
+   photo to a PRIVATE Storage bucket and keep only its path in image_data.
    Path is deterministic (`<tenant>/<rx_id>.jpg`) so re-saves overwrite
    cleanly and deletes are easy. Everything is best-effort: if the
    bucket isn't set up yet or the upload fails, callers fall back to the
-   old inline-base64 behaviour, so nothing ever breaks. */
+   old inline-base64 behaviour, so nothing ever breaks.
+
+   These are prescription photos — patient name, doctor, medicines. The
+   bucket must stay private: a public bucket serves objects to anyone who
+   has the URL, with no login and no expiry. Render via
+   dbPrescriptionImageSrc(), never getPublicUrl(). */
 const RX_BUCKET = 'prescriptions';
 
-// Upload a base64 JPEG data URL → returns a public URL, or null on any failure.
+// Upload a base64 JPEG data URL → returns the STORAGE PATH ("<tenant>/<rx>.jpg"),
+// or null on any failure. It used to return a permanent public URL; that URL
+// opened for anyone who had it, forever, with no login. We now store the path
+// and mint a short-lived signed URL at render time (dbPrescriptionImageSrc).
 async function dbUploadPrescriptionImage(rxId, dataUrl) {
     try {
         const user = _currentUser();
@@ -485,11 +493,53 @@ async function dbUploadPrescriptionImage(rxId, dataUrl) {
         const { error } = await _supabase.storage.from(RX_BUCKET)
             .upload(path, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '31536000' });
         if (error) { console.warn('[db] rx image upload failed:', error.message); return null; }
-        const { data } = _supabase.storage.from(RX_BUCKET).getPublicUrl(path);
-        return (data && data.publicUrl) || null;
+        return path;
     } catch (e) { console.warn('[db] rx image upload error:', e); return null; }
 }
 window.dbUploadPrescriptionImage = dbUploadPrescriptionImage;
+
+// Turn whatever is stored in a prescription's `imageData` into something an
+// <img> can actually display. Three historical shapes have to keep working:
+//   1. "data:image/jpeg;base64,…"  — oldest rows, inline photo. Used as-is.
+//   2. "https://…/object/public/prescriptions/<tenant>/<rx>.jpg" — rows written
+//      while the bucket was public. The path is extracted and re-signed, so
+//      those rows keep rendering after the bucket is made private.
+//   3. "<tenant>/<rx>.jpg" — current shape. Signed on demand.
+// Signed links expire (default 1 hour), so a copied link stops working instead
+// of being a permanent public handle on a patient's prescription.
+const RX_SIGNED_TTL = 3600;
+const _rxSignedCache = new Map();   // path -> { url, expires }
+
+function _rxStoragePath(imageData) {
+    const s = String(imageData || '');
+    if (!s || s.startsWith('data:')) return null;
+    const marker = `/${RX_BUCKET}/`;
+    const at = s.indexOf(marker);
+    if (at >= 0) return s.slice(at + marker.length).split('?')[0];
+    if (s.startsWith('http')) return null;            // some other URL — leave alone
+    return s.replace(/^\/+/, '');
+}
+
+async function dbPrescriptionImageSrc(imageData) {
+    const raw = String(imageData || '');
+    if (!raw || raw.startsWith('data:')) return raw;
+    const path = _rxStoragePath(raw);
+    if (!path || !_supabase) return raw;
+    const hit = _rxSignedCache.get(path);
+    if (hit && hit.expires > Date.now()) return hit.url;
+    try {
+        const { data, error } = await _supabase.storage.from(RX_BUCKET)
+            .createSignedUrl(path, RX_SIGNED_TTL);
+        if (error || !data || !data.signedUrl) {
+            console.warn('[db] rx signed url failed:', error && error.message);
+            return raw;                                // fall back; never blank the image
+        }
+        // Re-sign a minute early so a link can't expire mid-view.
+        _rxSignedCache.set(path, { url: data.signedUrl, expires: Date.now() + (RX_SIGNED_TTL - 60) * 1000 });
+        return data.signedUrl;
+    } catch (e) { console.warn('[db] rx signed url error:', e); return raw; }
+}
+window.dbPrescriptionImageSrc = dbPrescriptionImageSrc;
 
 // Best-effort removal of a prescription's photo from Storage (no-op if absent).
 async function dbDeletePrescriptionImage(rxId) {

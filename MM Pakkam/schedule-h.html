@@ -3656,20 +3656,21 @@
         }
 
         // Background: upload the photo to cloud Storage and keep only the light
-        // URL in localStorage + the DB (instead of the heavy base64). Falls back
-        // to the inline base64 copy if Storage isn't set up, so saving never fails.
+        // storage PATH in localStorage + the DB (instead of the heavy base64).
+        // The path is signed on demand at render time. Falls back to the inline
+        // base64 copy if Storage isn't set up, so saving never fails.
         async function _rxPersistCloud(rx) {
             let finalImage = rx.imageData;
             if (typeof dbUploadPrescriptionImage === 'function' &&
                 typeof finalImage === 'string' && finalImage.startsWith('data:')) {
                 try {
-                    const url = await dbUploadPrescriptionImage(rx.id, finalImage);
-                    if (url) {
-                        finalImage = url;
-                        // Swap the heavy base64 in localStorage for the light URL.
+                    const path = await dbUploadPrescriptionImage(rx.id, finalImage);
+                    if (path) {
+                        finalImage = path;
+                        // Swap the heavy base64 in localStorage for the light path.
                         const list = getRxList();
                         const idx = list.findIndex(r => r.id === rx.id);
-                        if (idx >= 0) { list[idx].imageData = url; setRxList(list); renderPrescriptions(); }
+                        if (idx >= 0) { list[idx].imageData = path; setRxList(list); renderPrescriptions(); }
                     }
                 } catch (e) { console.warn('rx image upload failed, keeping inline copy:', e); }
             }
@@ -3740,7 +3741,7 @@
                 const dateTxt = r.rxDate ? new Date(r.rxDate).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '—';
                 return `
                 <div class="rx-card">
-                    <img class="rx-thumb" src="${r.imageData}" alt="Prescription" onclick="openRxViewer('${r.id}')">
+                    <img class="rx-thumb" data-rx-src="${_rxEsc(r.imageData)}" alt="Prescription" onclick="openRxViewer('${r.id}')">
                     <div class="rx-body">
                         <div class="rx-patient">${_rxEsc(r.patientName) || 'Unknown patient'}</div>
                         ${r.doctorName ? `<div class="rx-meta">👨‍⚕️ ${_rxEsc(r.doctorName)}</div>` : ''}
@@ -3753,13 +3754,35 @@
                     </div>
                 </div>`;
             }).join('');
+
+            _rxResolveThumbs(grid);
         }
 
-        function openRxViewer(id) {
+        // Photos live in a PRIVATE bucket, so each <img> needs a freshly signed,
+        // short-lived URL. They are rendered with data-rx-src and filled in here;
+        // inline base64 rows resolve to themselves, so old records still show.
+        async function _rxResolveThumbs(scope) {
+            const imgs = scope.querySelectorAll('img[data-rx-src]');
+            for (const img of imgs) {
+                const stored = img.getAttribute('data-rx-src') || '';
+                if (!stored) continue;
+                try {
+                    img.src = (typeof dbPrescriptionImageSrc === 'function')
+                        ? await dbPrescriptionImageSrc(stored)
+                        : stored;
+                } catch (e) { img.src = stored; }
+            }
+        }
+
+        async function openRxViewer(id) {
             const rx = getRxList().find(r => r.id === id);
             if (!rx) return;
-            document.getElementById('rxViewerImg').src = rx.imageData;
+            const el = document.getElementById('rxViewerImg');
+            el.src = '';
             document.getElementById('rxViewer').classList.add('open');
+            el.src = (typeof dbPrescriptionImageSrc === 'function')
+                ? await dbPrescriptionImageSrc(rx.imageData)
+                : rx.imageData;
         }
         function closeRxViewer() {
             document.getElementById('rxViewer').classList.remove('open');
