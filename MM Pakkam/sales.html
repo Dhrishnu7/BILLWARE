@@ -611,6 +611,10 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
     <script src="js/keyboard-nav.js"></script>
+    <!-- Must load AFTER keyboard-nav.js: combo.js listens in the capture phase so
+         it commits the highlighted medicine before keyboard-nav's Enter handler
+         moves focus on — one Enter picks the drug and advances. -->
+    <script src="js/combo.js"></script>
     <script src="js/drug-master.js"></script>
     <script src="js/thermal-print.js"></script>
     <!-- xlsx (Excel import) and html2canvas (bill softcopy) are heavy and only
@@ -932,6 +936,10 @@
         function refreshGlobalMedicineList() {
             const dl = document.getElementById('globalMedicineList');
             if (dl) dl.innerHTML = getMedicineOptions();
+            // combo.js caches the option list and only notices a change when the
+            // COUNT changes; a rename or a reorder keeps the same count, so tell
+            // it explicitly rather than leaving a stale list behind the picker.
+            if (window.mmCombo) mmCombo.invalidate('globalMedicineList');
         }
 
         /* -- Refresh Customer & Doctor Datalists -- */
