@@ -2557,9 +2557,19 @@
 
         function setTypeFilter(type) {
             _activeTypeFilter = type;
-            document.querySelectorAll('.type-pill').forEach(btn => btn.classList.remove('active'));
             const map = { all: 'typePillAll', in: 'typePillIn', out: 'typePillOut' };
-            document.getElementById(map[type]).classList.add('active');
+            // Clear ONLY the All/IN/OUT pills. These three behave like radio
+            // buttons; "H1 / X only" is an independent modifier that combines
+            // with whichever one is chosen. Clearing every .type-pill (as this
+            // used to) switched the H1 pill's highlight off while _h1Only stayed
+            // true — so the register kept filtering to H1/X while the button
+            // looked off, and All/IN/OUT appeared dead until H1 was pressed again.
+            Object.values(map).forEach(id => {
+                const b = document.getElementById(id);
+                if (b) b.classList.remove('active');
+            });
+            const btn = document.getElementById(map[type]);
+            if (btn) btn.classList.add('active');
             renderRegisterLog();
         }
         function toggleH1Filter() {
