@@ -127,6 +127,13 @@
 
         var body = '';
         var counts = { sales: 0, purchases: 0, expenses: 0 };
+        // Structured copy of every voucher, so the shop can read the export in
+        // plain language before sending it. The XML is written for Tally; nobody
+        // should have to squint at angle brackets to check their own bills.
+        var rows = [];
+        function note(kind, date, num, party, total, lines) {
+            rows.push({ kind: kind, date: date, num: num, party: party, total: total, lines: lines });
+        }
 
         // ── Sales ──
         if (opts.sales) {
@@ -147,11 +154,16 @@
                 var party = b.party && b.party.trim() ? b.party.trim() : cfg.walkIn;
                 var lines = [entry(party, b.total, true)];             // party owes / cash in = debit
                 lines.push(entry(cfg.salesLedger, b.taxable, false));  // income = credit
+                var plain = [{ ledger: party, amount: b.total, debit: true },
+                             { ledger: cfg.salesLedger, amount: b.taxable, debit: false }];
                 if (b.tax > 0) {
                     lines.push(entry(cfg.cgstOut, b.tax / 2, false));
                     lines.push(entry(cfg.sgstOut, b.tax / 2, false));
+                    plain.push({ ledger: cfg.cgstOut, amount: b.tax / 2, debit: false });
+                    plain.push({ ledger: cfg.sgstOut, amount: b.tax / 2, debit: false });
                 }
                 body += voucher('Sales', b.date, b.billNo, party, lines);
+                note('Sales', b.date, b.billNo, party, b.total, plain);
                 counts.sales++;
             });
         }
@@ -171,12 +183,17 @@
             groupBills(pRows).forEach(function (b) {
                 var party = b.party && b.party.trim() ? b.party.trim() : 'Sundry Creditors';
                 var lines = [entry(cfg.purchLedger, b.taxable, true)];  // stock bought = debit
+                var plainP = [{ ledger: cfg.purchLedger, amount: b.taxable, debit: true }];
                 if (b.tax > 0) {
                     lines.push(entry(cfg.cgstIn, b.tax / 2, true));
                     lines.push(entry(cfg.sgstIn, b.tax / 2, true));
+                    plainP.push({ ledger: cfg.cgstIn, amount: b.tax / 2, debit: true });
+                    plainP.push({ ledger: cfg.sgstIn, amount: b.tax / 2, debit: true });
                 }
                 lines.push(entry(party, b.total, false));               // supplier owed = credit
+                plainP.push({ ledger: party, amount: b.total, debit: false });
                 body += voucher('Purchase', b.date, b.billNo, party, lines);
+                note('Purchase', b.date, b.billNo, party, b.total, plainP);
                 counts.purchases++;
             });
         }
@@ -190,6 +207,9 @@
                 var paidFrom = /bank|upi|card/i.test(e.paymentMode || '') ? cfg.bankLedger : cfg.cashLedger;
                 var lines = [entry(ledger, e.amount, true), entry(paidFrom, e.amount, false)];
                 body += voucher('Payment', e.date, 'EXP-' + (i + 1), paidFrom, lines);
+                note('Payment', e.date, 'EXP-' + (i + 1), ledger + (e.note ? ' — ' + e.note : ''), e.amount,
+                     [{ ledger: ledger, amount: e.amount, debit: true },
+                      { ledger: paidFrom, amount: e.amount, debit: false }]);
                 counts.expenses++;
             });
         }
@@ -212,7 +232,8 @@
             ' </BODY>\n' +
             '</ENVELOPE>\n';
 
-        return { xml: xml, counts: counts };
+        rows.sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+        return { xml: xml, counts: counts, rows: rows };
     }
 
     window.mmTally = {
