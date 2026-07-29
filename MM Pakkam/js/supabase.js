@@ -890,6 +890,50 @@ window.dbDeleteSupplierPayment = dbDeleteSupplierPayment;
    really gross margin, because nothing is subtracted for the
    cost of operating. Needs migrations/add_expenses_table.sql.
 ───────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────
+   GST SLABS
+   The rates that actually exist. Medicines are 0/5/12/18; the others are
+   listed so a shop selling non-medicine items is not wrongly flagged.
+   Anything outside this set — 7.5%, 2%, 1.5% typed by hand into the GST box —
+   is rejected by the GST portal, so a bill carrying one cannot be filed. It is
+   far cheaper to catch that at the till than at the filing deadline.
+───────────────────────────────────────────────────── */
+const MM_GST_SLABS = [0, 0.25, 3, 5, 12, 18, 28];
+function mmIsValidGstRate(r) {
+    if (r === '' || r === null || r === undefined) return true;   // blank is fine
+    const n = Number(r);
+    return !isNaN(n) && MM_GST_SLABS.indexOf(n) >= 0;
+}
+/* Attach to a GST input: marks it red and warns once when the rate is not a
+   real slab. Deliberately does NOT block typing — a half-typed "1" on the way
+   to "12" would fight the user — it flags on blur, when they have finished. */
+function mmWatchGstInput(el) {
+    if (!el || el.dataset.gstWatched) return;
+    el.dataset.gstWatched = '1';
+    el.setAttribute('list', 'mmGstSlabList');
+    el.addEventListener('blur', function () {
+        const bad = !mmIsValidGstRate(el.value);
+        el.style.borderColor = bad ? '#dc2626' : '';
+        el.style.background  = bad ? '#fef2f2' : '';
+        el.title = bad ? 'Not a real GST rate. Use 0, 5, 12 or 18 for medicines.' : '';
+        if (bad && typeof showToast === 'function') {
+            showToast('Check the GST rate', el.value + '% is not a GST slab. Medicines are 0, 5, 12 or 18%.');
+        }
+    });
+}
+/* One datalist for the whole page, so every GST box offers the real slabs. */
+function mmInstallGstSlabList() {
+    if (document.getElementById('mmGstSlabList')) return;
+    const dl = document.createElement('datalist');
+    dl.id = 'mmGstSlabList';
+    dl.innerHTML = MM_GST_SLABS.map(r => `<option value="${r}">`).join('');
+    document.body.appendChild(dl);
+}
+window.MM_GST_SLABS = MM_GST_SLABS;
+window.mmIsValidGstRate = mmIsValidGstRate;
+window.mmWatchGstInput = mmWatchGstInput;
+window.mmInstallGstSlabList = mmInstallGstSlabList;
+
 const MM_EXPENSE_CATEGORIES = [
     'Rent', 'Salary', 'Electricity', 'Freight / Transport', 'Phone / Internet',
     'Repairs & Maintenance', 'Licence & Fees', 'Bank Charges', 'GST / Tax Paid',

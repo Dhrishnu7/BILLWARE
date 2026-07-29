@@ -72,7 +72,15 @@
         try { bills = JSON.parse(localStorage.getItem('mm_sales') || '[]'); } catch (e) {}
         bills = bills.filter(function (b) { return monthOf(b.date) === month; });
 
+        /* GST slabs that actually exist. A pharmacy uses 0/5/12/18; the rest are
+           here so a shop selling non-medicine items is not wrongly flagged.
+           Anything outside this set (7.5%, 2%, 1.5% typed by hand) is rejected
+           by the portal, so it is worth catching before the file is built. */
+        var MM_GST_SLABS_SET = { 0: 1, 0.25: 1, 3: 1, 5: 1, 12: 1, 18: 1, 28: 1 };
+        var validRates = {}, badRates = {};
+
         var reg = gstinMap();
+        var noHsnProducts = [];
         var b2csMap = {};     // rate -> totals            (counter sales)
         var b2bMap  = {};     // ctin -> { inv: [...] }    (registered buyers)
         var hsnMap  = {};     // hsn|rate -> totals        (all sales, both kinds)
@@ -93,12 +101,17 @@
                 var rate  = Number(m.gst) || 0;
                 var total = Number(m.total) || 0;
                 if (!total) return;
-                // Back out the tax from the inclusive line total.
-                var txval = r2(total / (1 + rate / 100));
-                var tax   = r2(total - txval);
-                var half  = r2(tax / 2);
+                /* Back the tax out of the inclusive line total, and carry FULL
+                   precision into the running totals — rounding each line to
+                   paise first and then summing drifts by a rupee or two over a
+                   busy month, and the portal checks these figures against each
+                   other. Rounding happens once, on output. */
+                var txval = total / (1 + rate / 100);
+                var tax   = total - txval;
+                var half  = tax / 2;
                 lineCount++;
                 grand += total;
+                if (!validRates[rate] && !MM_GST_SLABS_SET[rate]) badRates[rate] = (badRates[rate] || 0) + 1;
 
                 var rk = String(rate);
                 if (ctin) {
@@ -116,7 +129,13 @@
                 }
 
                 var hsn = String(m.hsn || '').trim();
-                if (!hsn) missingHsn++;
+                if (!hsn) {
+                    missingHsn++;
+                    // Name the products, not just a count — "5 lines are missing
+                    // HSN" tells the shop nothing about which bills to go fix.
+                    var pn = String(m.product || '(unnamed)').trim();
+                    if (noHsnProducts.indexOf(pn) < 0 && noHsnProducts.length < 25) noHsnProducts.push(pn);
+                }
                 var hk = (hsn || 'UNSPECIFIED') + '|' + rate;
                 if (!hsnMap[hk]) {
                     hsnMap[hk] = { hsn_sc: hsn, desc: String(m.product || '').slice(0, 30),
@@ -213,6 +232,8 @@
                 rates:   b2cs.length,
                 hsnRows: hsn.length,
                 missingHsn: missingHsn,
+                noHsnProducts: noHsnProducts,
+                badRates: Object.keys(badRates).map(function (r) { return { rt: Number(r), lines: badRates[r] }; }),
                 b2bBuyers: b2b.length,
                 b2bInvoices: b2bInvCount,
                 b2bValue: r2(b2bValue),

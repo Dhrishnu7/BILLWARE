@@ -803,7 +803,9 @@
                     </div>
                     <div class="form-group">
                         <label>GST (%)</label>
-                        <input type="number" class="li-gst" placeholder="e.g. 12" min="0" max="100" step="0.01" oninput="calcItemTotal('${id}')">
+                        <input type="number" class="li-gst" placeholder="e.g. 12" min="0" max="100" step="0.01" oninput="calcItemTotal('${id}')"
+                               onfocus="if(window.mmWatchGstInput)mmWatchGstInput(this)"
+                               title="GST slab — medicines are 0, 5, 12 or 18%">
                     </div>
                     <div class="form-group">
                         <label>Total (₹)</label>
@@ -1365,6 +1367,7 @@
             const dl = document.getElementById('productNameList');
             if (dl) dl.innerHTML = getAllMedNames().map(n => `<option value="${n}">`).join('');
         }
+        window.addEventListener('DOMContentLoaded', () => { if (window.mmInstallGstSlabList) mmInstallGstSlabList(); });
         window.addEventListener('DOMContentLoaded', refreshProductDatalist); // populate on page load
 // Only offer the offline-scanner download when it hasn't been saved yet.
 window.addEventListener('DOMContentLoaded', () => {

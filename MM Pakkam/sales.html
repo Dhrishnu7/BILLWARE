@@ -1618,7 +1618,9 @@
                 <td><input class="t-input" id="rate_${id}"  type="number" placeholder="0.00" min="0" step="0.01" style="min-width:70px;"
                     oninput="calcRowTotal(${id})"></td>
                 <td><input class="t-input" id="gst_${id}"   type="number" placeholder="0" min="0" max="100" step="0.01" style="min-width:56px;"
-                    oninput="calcRowTotal(${id})"></td>
+                    oninput="calcRowTotal(${id})"
+                    onfocus="if(window.mmWatchGstInput)mmWatchGstInput(this)"
+                    title="GST slab — medicines are 0, 5, 12 or 18%"></td>
                 <td><input class="t-input" id="discount_${id}" type="number" placeholder="0" min="0" max="100" step="0.01" style="min-width:56px;"
                     oninput="calcRowTotal(${id})"></td>
                 <td><input class="t-input" id="total_${id}" type="text" readonly placeholder="—" style="min-width:80px;"></td>
@@ -2089,6 +2091,7 @@
            character — which breaks blind typing at the very first keystroke,
            the one place it hurts most. Skipped when a barcode scanner bar is
            showing, because that field wants the scanner's input instead. */
+        window.addEventListener('DOMContentLoaded', () => { if (window.mmInstallGstSlabList) mmInstallGstSlabList(); });
         window.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 if (document.activeElement && document.activeElement !== document.body) return;

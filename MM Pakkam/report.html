@@ -1173,7 +1173,7 @@
             </div>
             <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;">
                 <button class="search-btn" onclick="closeGstrModal()" style="background:#f1f5f9;color:#475569;">Cancel</button>
-                <button class="search-btn" onclick="downloadGstr1()">⬇ Download JSON</button>
+                <button class="search-btn" id="gstrDownloadBtn" onclick="downloadGstr1()">⬇ Download JSON</button>
             </div>
         </div>
     </div>
@@ -1386,10 +1386,24 @@
                 return;
             }
 
-            const warn = [];
-            if (!gstin || gstin.length !== 15) warn.push('Your GSTIN looks incomplete — the portal will reject the file.');
-            if (!mmGstr1.posOf(gstin))          warn.push('GSTIN must start with your 2-digit state code.');
-            if (s.missingHsn)                   warn.push(`${s.missingHsn} line(s) have no HSN code. HSN is mandatory in GSTR-1 — fix those bills or the summary will be short.`);
+            /* Blockers vs warnings.
+               A file the portal will certainly reject is worse than no file: the
+               shop believes filing is done, and finds out at the deadline. These
+               three are hard stops, not advice. */
+            const block = [];
+            const warn  = [];
+            if (!gstin || gstin.length !== 15) block.push('Your GSTIN must be 15 characters. Set it in your shop profile.');
+            else if (!mmGstr1.posOf(gstin))     block.push('Your GSTIN must start with a 2-digit state code.');
+            if (s.missingHsn) {
+                block.push(`${s.missingHsn} line(s) have no HSN code, and HSN is mandatory. Add HSN to: `
+                    + s.noHsnProducts.slice(0, 8).map(_te).join(', ')
+                    + (s.noHsnProducts.length > 8 ? ` and ${s.noHsnProducts.length - 8} more` : ''));
+            }
+            if (s.badRates && s.badRates.length) {
+                block.push('These GST rates do not exist and the portal will reject them: '
+                    + s.badRates.map(b => `<b>${b.rt}%</b> (${b.lines} line${b.lines === 1 ? '' : 's'})`).join(', ')
+                    + '. Medicines are 0%, 5%, 12% or 18% — correct those bills.');
+            }
 
             box.innerHTML = `
                 <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
@@ -1412,16 +1426,28 @@
                         ${res.b2cs.map(r => `<span style="display:inline-block;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;border-radius:20px;padding:3px 10px;font-size:0.74rem;font-weight:700;margin:3px 4px 0 0;">${r.rt}% · ${money(r.txval)}</span>`).join('')}
                     </div>
                 </div>
-                ${warn.length ? `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:10px 13px;font-size:0.78rem;line-height:1.5;margin-top:0.7rem;">
+                ${block.length ? `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:11px 13px;font-size:0.78rem;line-height:1.6;margin-top:0.7rem;">
+                    <b style="display:block;margin-bottom:5px;">Fix these before filing — the portal will reject the file:</b>
+                    ${block.map(w => '• ' + w).join('<br>')}</div>` : ''}
+                ${warn.length ? `<div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:10px 13px;font-size:0.78rem;line-height:1.5;margin-top:0.7rem;">
                     ${warn.map(w => '⚠️ ' + w).join('<br>')}</div>` : ''}`;
+
+            // Down-tools on the download button while the file cannot be filed.
+            const dl = document.getElementById('gstrDownloadBtn');
+            if (dl) {
+                dl.disabled = block.length > 0;
+                dl.style.opacity = block.length ? '.45' : '';
+                dl.style.cursor = block.length ? 'not-allowed' : '';
+                dl.title = block.length ? 'Fix the problems listed above first' : '';
+            }
         }
 
         async function downloadGstr1() {
             if (!_gstrBuilt || !_gstrBuilt.summary.bills) { await mmAlert('No bills in that month to file.'); return; }
-            const gstin = (document.getElementById('gstrGstin').value || '').trim().toUpperCase();
-            if (gstin.length !== 15) {
-                if (!await mmConfirm('Your GSTIN is not 15 characters. The portal will reject the file.\n\nDownload anyway?', { okText: 'Download' })) return;
-            }
+            // The button is disabled when the file cannot be filed; this is the
+            // backstop in case it is reached another way.
+            const btn = document.getElementById('gstrDownloadBtn');
+            if (btn && btn.disabled) return;
             const blob = new Blob([JSON.stringify(_gstrBuilt.json, null, 2)], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
