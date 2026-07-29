@@ -530,6 +530,7 @@
     <script src="js/modal.js"></script>
     <!-- xlsx (Excel import) is lazy-loaded on demand via mmLoadScript() so it never blocks page load. -->
     <!-- tesseract.js (OCR, several MB) is lazy-loaded on first scan — see loadTesseract() -->
+    <script src="js/ocr-preprocess.js"></script>
     <script src="js/auth.js?v=3"></script>
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1615,26 +1616,76 @@
 
             try {
                 const progEl = document.getElementById('ocrProgress');
+
+                // ── Clean the image up BEFORE the engine sees it ──
+                // Nothing used to happen here: the raw photo went straight to
+                // Tesseract, which is where most of the accuracy on dot-matrix
+                // and thermal invoices was lost. Best-effort — if preprocessing
+                // fails for any reason we scan the original rather than nothing.
+                let ocrMeta = null;
+                if (typeof mmOcrPreprocess === 'function') {
+                    if (progEl) progEl.textContent = 'Cleaning up the image…';
+                    try {
+                        const pre = await mmOcrPreprocess(imageSource, { mode: 'auto' });
+                        if (pre && (pre.blob || pre.canvas)) {
+                            imageSource = pre.blob || pre.canvas;
+                            ocrMeta = pre.meta;
+                            console.log('[OCR] preprocess:', pre.meta);
+                        }
+                    } catch (pe) { console.warn('[OCR] preprocess skipped:', pe); }
+                }
+
                 if (!window.Tesseract && progEl) progEl.textContent = 'Loading OCR engine…';
                 await loadTesseract();
-                const result = await Tesseract.recognize(imageSource, 'eng', {
-                    logger: m => {
-                        if (m.status === 'recognizing text') {
-                            const pct = Math.round((m.progress || 0) * 100);
-                            const bar = document.getElementById('ocrBar');
-                            const prog = document.getElementById('ocrProgress');
-                            if (bar) bar.style.width = pct + '%';
-                            if (prog) prog.textContent = `Reading text… ${pct}%`;
-                        }
+
+                const onProgress = m => {
+                    if (m.status === 'recognizing text') {
+                        const pct = Math.round((m.progress || 0) * 100);
+                        const bar = document.getElementById('ocrBar');
+                        const prog = document.getElementById('ocrProgress');
+                        if (bar) bar.style.width = pct + '%';
+                        if (prog) prog.textContent = `Reading text… ${pct}%`;
                     }
-                });
-                const ocrData = result.data;
+                };
+
+                const ocrData = await _runTesseract(imageSource, onProgress);
+                if (ocrMeta) ocrData._pre = ocrMeta;
                 dz.innerHTML = origHTML;
                 _parseOCRWithLayout(ocrData);
             } catch(err) {
                 dz.innerHTML = origHTML;
                 showToast('OCR Failed', 'Could not scan the file. Please try a clearer image.');
                 console.error('OCR error:', err);
+            }
+        }
+
+        /* Run Tesseract with parameters suited to an invoice TABLE.
+           The default page-segmentation mode assumes a page of prose and will
+           happily reorder columns; PSM 6 treats the sheet as one uniform block,
+           which keeps cells on the line they belong to. user_defined_dpi stops
+           the engine guessing the resolution wrongly on an upscaled photo.
+           The worker API is the only way to set parameters in tesseract.js v5,
+           so if anything about it fails we drop back to the plain recognize()
+           call that shipped before — a tuned scan is preferable, no scan is not. */
+        let _tessWorker = null;
+        async function _runTesseract(image, logger) {
+            try {
+                if (!_tessWorker) {
+                    _tessWorker = await Tesseract.createWorker('eng', 1, { logger });
+                    await _tessWorker.setParameters({
+                        tessedit_pageseg_mode: '6',
+                        preserve_interword_spaces: '1',
+                        user_defined_dpi: '300',
+                    });
+                }
+                const res = await _tessWorker.recognize(image);
+                return res.data;
+            } catch (e) {
+                console.warn('[OCR] worker path failed, using basic recognize():', e);
+                try { if (_tessWorker) await _tessWorker.terminate(); } catch (_) {}
+                _tessWorker = null;
+                const res = await Tesseract.recognize(image, 'eng', { logger });
+                return res.data;
             }
         }
 
