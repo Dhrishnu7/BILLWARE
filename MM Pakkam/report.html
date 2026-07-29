@@ -1130,6 +1130,36 @@
     </div>
 
     <!-- Preview Modal -->
+    <!-- ═══ HSN back-fill ═══
+         Opened from the GSTR-1 blocker. Sets the code once per PRODUCT and
+         applies it across that product's history, because fixing thousands of
+         old bill lines by hand is not a real option. -->
+    <div class="modal-overlay" id="hsnModal" style="display:none;" onclick="if(event.target===this) closeHsnFixer()">
+        <div class="modal-content" style="max-width:640px;">
+            <div class="modal-header">
+                <div class="modal-title">🏷️ Fix missing HSN codes</div>
+                <button class="modal-close" onclick="closeHsnFixer()">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:10px;padding:10px 13px;font-size:0.8rem;line-height:1.55;margin-bottom:0.9rem;">
+                    Set the code once per medicine — it is applied to that medicine's past bills
+                    <b>and</b> used automatically on future ones. Amounts, quantities and tax are
+                    not touched; this only fills in a missing reporting code.
+                </div>
+                <div id="hsnFixList"></div>
+                <div style="font-size:0.74rem;color:#94a3b8;line-height:1.5;margin-top:0.7rem;">
+                    Most tablets and capsules are <b>30049099</b>. Type to search, or pick from the list.
+                    Leave a row blank to skip it.
+                </div>
+            </div>
+            <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;">
+                <button class="search-btn" onclick="closeHsnFixer()" style="background:#f1f5f9;color:#475569;">Cancel</button>
+                <button class="search-btn" id="hsnApplyBtn" onclick="applyHsnFixes()">✓ Apply to all filled rows</button>
+            </div>
+        </div>
+    </div>
+    <datalist id="hsnSuggest"></datalist>
+
     <!-- ═══ GSTR-1 ═══
          A month at a time, because that is what the return is. Uses its own
          month picker rather than the report's From/To, so a half-month range
@@ -1342,6 +1372,82 @@
         }
 
         /* ══════════════════════════════════════════════════════════════════
+           HSN BACK-FILL
+           One code per medicine, applied across its history. Opened from the
+           GSTR-1 blocker so the error and its cure are the same click.
+        ══════════════════════════════════════════════════════════════════ */
+        function openHsnFixer() {
+            const products = (_gstrBuilt && _gstrBuilt.summary.noHsnProducts) || [];
+            if (!products.length) { mmAlert('Nothing to fix — every line already has an HSN code.'); return; }
+
+            // Suggestion list, shown as "code — what it covers".
+            const sug = document.getElementById('hsnSuggest');
+            if (sug && !sug.children.length && window.MM_COMMON_HSN) {
+                sug.innerHTML = MM_COMMON_HSN.map(([c, d]) => `<option value="${c}">${c} — ${d}</option>`).join('');
+            }
+
+            document.getElementById('hsnFixList').innerHTML = `
+                <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                ${products.map((p, i) => `
+                    <div style="display:flex;gap:10px;align-items:center;padding:9px 12px;${i ? 'border-top:1px solid #f1f5f9;' : ''}">
+                        <div style="flex:1;min-width:0;font-size:0.86rem;font-weight:600;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_te(p)}</div>
+                        <input id="hsnfix_${i}" data-prod="${_te(p).replace(/"/g, '&quot;')}" list="hsnSuggest"
+                            placeholder="30049099" maxlength="8" inputmode="numeric"
+                            style="width:150px;flex-shrink:0;padding:0.45rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:0.86rem;outline:none;">
+                    </div>`).join('')}
+                </div>
+                <button type="button" onclick="hsnFillAll()" style="margin-top:0.7rem;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:9px;padding:0.45rem 0.9rem;font-weight:700;font-size:0.78rem;font-family:inherit;cursor:pointer;">
+                    Fill every empty row with 30049099
+                </button>`;
+
+            const m = document.getElementById('hsnModal');
+            m.classList.add('open'); m.style.display = 'flex';
+        }
+        function closeHsnFixer() {
+            const m = document.getElementById('hsnModal');
+            m.classList.remove('open'); m.style.display = 'none';
+        }
+        // Most of a pharmacy's stock is plain medicaments, so one click covers
+        // the bulk of it and only the exceptions need individual attention.
+        function hsnFillAll() {
+            document.querySelectorAll('[id^="hsnfix_"]').forEach(el => { if (!el.value.trim()) el.value = '30049099'; });
+        }
+
+        async function applyHsnFixes() {
+            const rows = [...document.querySelectorAll('[id^="hsnfix_"]')]
+                .map(el => ({ product: el.dataset.prod, hsn: (el.value || '').trim() }))
+                .filter(r => r.hsn);
+            if (!rows.length) { await mmAlert('Enter at least one HSN code, or use the fill button.'); return; }
+
+            const bad = rows.find(r => !/^\d{4}(\d{2})?(\d{2})?$/.test(r.hsn));
+            if (bad) { await mmAlert(`"${bad.hsn}" is not a valid HSN code. They are 4, 6 or 8 digits.`); return; }
+
+            const btn = document.getElementById('hsnApplyBtn');
+            btn.disabled = true; btn.textContent = 'Applying…';
+            let bills = 0, purch = 0, failed = 0;
+            for (const r of rows) {
+                try {
+                    const res = await dbSetProductHsn(r.product, r.hsn);
+                    if (res && res.success) { bills += res.items || 0; purch += res.purchases || 0; }
+                    else failed++;
+                } catch (e) { failed++; console.warn('[hsn] failed for', r.product, e); }
+            }
+            if (typeof mmAudit === 'function') mmAudit('HSN back-fill', rows.length + ' product(s)', bills + ' bill lines');
+
+            btn.disabled = false; btn.textContent = '✓ Apply to all filled rows';
+            closeHsnFixer();
+            await mmAlert(
+                `Updated ${bills} bill line(s) and ${purch} purchase record(s) across ${rows.length} product(s).` +
+                (failed ? `\n\n${failed} product(s) could not be updated — check your connection and try again.` : ''),
+                { title: 'HSN codes applied', variant: failed ? 'warn' : 'success' });
+
+            // Pull the corrected bills back down and rebuild the return.
+            try { if (typeof dbSyncCoreData === 'function') await dbSyncCoreData(); } catch (e) {}
+            try { await loadData(); } catch (e) {}
+            refreshGstrSummary();
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
            GSTR-1
            Monthly, with its own month picker — the report's From/To could be
            any range at all, and half a month would produce a wrong return.
@@ -1395,9 +1501,12 @@
             if (!gstin || gstin.length !== 15) block.push('Your GSTIN must be 15 characters. Set it in your shop profile.');
             else if (!mmGstr1.posOf(gstin))     block.push('Your GSTIN must start with a 2-digit state code.');
             if (s.missingHsn) {
-                block.push(`${s.missingHsn} line(s) have no HSN code, and HSN is mandatory. Add HSN to: `
-                    + s.noHsnProducts.slice(0, 8).map(_te).join(', ')
-                    + (s.noHsnProducts.length > 8 ? ` and ${s.noHsnProducts.length - 8} more` : ''));
+                // Say what is wrong AND give the button that fixes it. Telling a
+                // shopkeeper "5 lines are missing HSN" and leaving them to find
+                // those bills is not help.
+                block.push(`${s.missingHsn} line(s) have no HSN code, and HSN is mandatory — `
+                    + `<b>${s.noHsnProducts.length}</b> product(s) affected. `
+                    + `<button onclick="openHsnFixer()" style="background:#991b1b;color:#fff;border:none;border-radius:8px;padding:3px 11px;font-weight:700;font-size:0.74rem;font-family:inherit;cursor:pointer;margin-left:2px;">Fix HSN codes →</button>`);
             }
             if (s.badRates && s.badRates.length) {
                 block.push('These GST rates do not exist and the portal will reject them: '

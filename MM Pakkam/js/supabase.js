@@ -934,6 +934,77 @@ window.mmIsValidGstRate = mmIsValidGstRate;
 window.mmWatchGstInput = mmWatchGstInput;
 window.mmInstallGstSlabList = mmInstallGstSlabList;
 
+/* ─────────────────────────────────────────────────────
+   HSN BACK-FILL
+   HSN is mandatory in GSTR-1, and any bill raised before the shop started
+   entering it has none. Fixing that one bill at a time is hopeless — a year
+   of sales is thousands of lines — and deleting and re-entering bills is
+   worse, because it puts gaps in the invoice-number series that GSTR-1's
+   doc_issue section declares.
+
+   So the fix is applied per PRODUCT, across its history:
+     purchases   — the source sales read HSN from, so future bills self-fill
+     bill_items  — past sales, ONLY where the HSN is blank, so a value the
+                   shop entered deliberately is never overwritten
+
+   Amounts, quantities and tax are untouched: this fills in a missing
+   reporting code, it does not restate any bill.
+───────────────────────────────────────────────────── */
+const MM_COMMON_HSN = [
+    ['30049099', 'Medicaments — general'],
+    ['30041020', 'Penicillins / amoxicillin'],
+    ['30041090', 'Other antibiotics'],
+    ['30042090', 'Antibiotic formulations'],
+    ['30045000', 'Vitamins'],
+    ['30049011', 'Ayurvedic / herbal'],
+    ['30051090', 'Dressings, bandages'],
+    ['90183900', 'Syringes, needles, catheters'],
+    ['90189099', 'Medical instruments'],
+    ['21069099', 'Food / protein supplements'],
+    ['33049990', 'Skin care, cosmetics'],
+    ['34011190', 'Medicated soap'],
+];
+window.MM_COMMON_HSN = MM_COMMON_HSN;
+
+async function dbSetProductHsn(productName, hsn) {
+    const user = _currentUser();
+    if (!user) return { success: false, message: 'Not logged in.' };
+    const p = String(productName || '').trim();
+    const h = String(hsn || '').trim();
+    if (!p || !h) return { success: false, message: 'Product and HSN are both required.' };
+
+    let purchases = 0, items = 0;
+    try {
+        // Purchases: match the name case-insensitively but exactly, so "Dolo 650"
+        // does not also catch "Dolo 650 DT".
+        const { data: pr, error: pErr } = await _supabase.from('purchases')
+            .update({ hsn: h }).eq('user_id', user).ilike('product_name', p).select('id');
+        if (pErr) console.warn('[db] hsn purchases update:', pErr.message);
+        else purchases = (pr || []).length;
+    } catch (e) { console.warn('[db] hsn purchases update failed:', e); }
+
+    try {
+        // bill_items has no user_id of its own — it hangs off bills — so collect
+        // this shop's bill ids first and scope the update to them.
+        const { data: bills } = await _supabase.from('bills').select('id').eq('user_id', user);
+        const ids = (bills || []).map(b => b.id);
+        for (let i = 0; i < ids.length; i += 100) {
+            const batch = ids.slice(i, i + 100);
+            const { data: bi, error: bErr } = await _supabase.from('bill_items')
+                .update({ hsn: h })
+                .in('bill_id', batch)
+                .ilike('product', p)
+                .or('hsn.is.null,hsn.eq.')          // blank only — never overwrite
+                .select('id');
+            if (bErr) { console.warn('[db] hsn bill_items update:', bErr.message); break; }
+            items += (bi || []).length;
+        }
+    } catch (e) { console.warn('[db] hsn bill_items update failed:', e); }
+
+    return { success: true, purchases, items };
+}
+window.dbSetProductHsn = dbSetProductHsn;
+
 const MM_EXPENSE_CATEGORIES = [
     'Rent', 'Salary', 'Electricity', 'Freight / Transport', 'Phone / Internet',
     'Repairs & Maintenance', 'Licence & Fees', 'Bank Charges', 'GST / Tax Paid',
