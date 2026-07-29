@@ -432,6 +432,15 @@
                     <label>Address / Place</label>
                     <textarea id="cAddress" placeholder="Enter area or address…"></textarea>
                 </div>
+                <!-- Optional, and blank for almost every customer. It matters only
+                     for a registered buyer — a clinic, nursing home or another
+                     chemist — whose invoices must be filed B2B in GSTR-1 so they
+                     can claim the input credit on what they bought. -->
+                <div class="form-group">
+                    <label>GSTIN <span style="font-weight:400;color:#94a3b8;font-size:0.78rem;">(only for clinics / businesses)</span></label>
+                    <input type="text" id="cGstin" maxlength="15" placeholder="e.g. 33ABCDE1234F1Z5" style="text-transform:uppercase;">
+                    <div style="font-size:0.72rem;color:#94a3b8;margin-top:3px;">Leave blank for regular customers. Filled in, their bills are filed B2B in GSTR-1.</div>
+                </div>
             </div>
 
             <!-- Doctor Fields -->
@@ -873,22 +882,35 @@
                 const name    = document.getElementById('cName').value.trim();
                 const phone   = document.getElementById('cPhone').value.trim();
                 const address = document.getElementById('cAddress').value.trim();
+                const gstin   = (document.getElementById('cGstin').value || '').trim().toUpperCase();
 
                 if (!name || !phone) {
                     alert('Name and Phone are required.'); btn.textContent = 'Save'; btn.disabled = false; return;
+                }
+                // A wrong GSTIN is worse than none: the return would be filed
+                // against a buyer who cannot be matched, so refuse a half-typed one.
+                if (gstin && gstin.length !== 15) {
+                    alert('A GSTIN must be exactly 15 characters. Leave it blank if this is a regular customer.');
+                    btn.textContent = 'Save'; btn.disabled = false; return;
                 }
 
                 // Save to Supabase
                 let ok = false;
                 try {
-                    const r = await dbAddCustomer(name, phone, address);
+                    const r = await dbAddCustomer(name, phone, address, gstin);
                     if (r && r.success) ok = true;
                 } catch(e) { console.warn('Supabase customer save failed:', e); }
 
                 // Always save to localStorage too
                 const custs = JSON.parse(localStorage.getItem('mm_customers') || '[]');
-                if (!custs.find(c => c.name.toLowerCase() === name.toLowerCase() && (c.phone||'') === phone)) {
-                    custs.push({ name, phone, address, balance: 0 });
+                const cIdx = custs.findIndex(c => (c.name||'').toLowerCase() === name.toLowerCase() && (c.phone||'') === phone);
+                if (cIdx >= 0) {
+                    custs[cIdx].gstin = gstin;                 // editing an existing customer
+                    custs[cIdx].address = address || custs[cIdx].address;
+                    localStorage.setItem('mm_customers', JSON.stringify(custs));
+                    ok = true;
+                } else {
+                    custs.push({ name, phone, address, gstin, balance: 0 });
                     localStorage.setItem('mm_customers', JSON.stringify(custs));
                     ok = true;
                 }

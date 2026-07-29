@@ -80,22 +80,45 @@ async function dbGetCustomers() {
     if (error) { console.error('customers fetch:', error); return []; }
     return data;
 }
-async function dbAddCustomer(name, phone, address) {
+async function dbAddCustomer(name, phone, address, gstin) {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbAddCustomer: no user, aborting.'); return { success: false, message: 'Not logged in.' }; }
     const cName  = name.trim();
     const cPhone = phone.trim();
     const cAddr  = address?.trim() || '';
+    // Optional, and blank for nearly every customer. It only matters for a
+    // registered buyer (clinic, nursing home), whose invoices must be filed
+    // B2B in GSTR-1. Needs migrations/add_customer_gstin.sql; if that has not
+    // been run the column is missing and the write is retried without it, so
+    // saving a customer never breaks over an un-run migration.
+    const cGstin = (gstin || '').trim().toUpperCase();
+    const _hasGstinCol = () => cGstin !== '';
 
     // Check for existing record scoped to this user
     const { data: existing } = await _supabase.from('customers')
         .select('*').eq('name', cName).eq('phone', cPhone).eq('user_id', user).maybeSingle();
-    if (existing) return { success: true, data: existing };
+    if (existing) {
+        // Already there — the only thing that may have changed is the GSTIN.
+        if (cGstin && existing.gstin !== cGstin) {
+            const { error: gErr } = await _supabase.from('customers')
+                .update({ gstin: cGstin }).eq('id', existing.id).eq('user_id', user);
+            if (gErr) console.warn('[db] customer gstin update failed:', gErr.message);
+            else existing.gstin = cGstin;
+        }
+        return { success: true, data: existing };
+    }
 
     // Try insert
-    const { data, error } = await _supabase.from('customers')
-        .insert({ name: cName, phone: cPhone, address: cAddr, user_id: user })
-        .select();
+    const row = { name: cName, phone: cPhone, address: cAddr, user_id: user };
+    if (_hasGstinCol()) row.gstin = cGstin;
+    let { data, error } = await _supabase.from('customers').insert(row).select();
+    // Column not added yet (migration not run) — retry without it rather than
+    // losing the customer entirely.
+    if (error && /column|schema cache|PGRST204/i.test(String(error.message || '')) && row.gstin !== undefined) {
+        console.warn('[db] customers.gstin missing — run migrations/add_customer_gstin.sql');
+        const legacy = Object.assign({}, row); delete legacy.gstin;
+        ({ data, error } = await _supabase.from('customers').insert(legacy).select());
+    }
 
     // If duplicate key (another tenant has same name+phone), upsert on conflict
     if (error && (error.code === '23505' || (error.message && error.message.includes('duplicate key')))) {

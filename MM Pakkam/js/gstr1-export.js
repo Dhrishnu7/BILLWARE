@@ -15,14 +15,11 @@
                 HSN on every line, so it comes out of the bills directly.
      doc_issue  The invoice-number series actually issued in the month.
 
-   WHAT IT DELIBERATELY DOES NOT FILL IN
-     b2b        Sales to a buyer holding a GSTIN (a clinic, a nursing home)
-                must be filed invoice-wise so the buyer can claim input
-                credit. The customer record has no GSTIN field yet, so this
-                export CANNOT tell such a sale apart from a counter sale and
-                would file it as B2C — which quietly denies the buyer their
-                credit. Rather than guess, the UI says so plainly. Adding a
-                GSTIN to customers is the fix, and is its own change.
+     b2b        Sales to a buyer holding a GSTIN (a clinic, a nursing home,
+                another chemist), filed invoice by invoice so that buyer can
+                claim the input credit. A bill counts as B2B only when its
+                customer has a GSTIN recorded in the Directory; everything
+                else stays B2C, which is the safe default for a pharmacy.
 
    Figures are derived from each line's tax-inclusive total rather than
    qty × rate, because a discounted line makes those two disagree and the
@@ -45,6 +42,24 @@
         var p = String(ym || '').split('-');
         return p.length === 2 ? p[1] + p[0] : '';
     }
+    function idt(d) {                                                   // -> DD-MM-YYYY
+        var s = String(d || '').slice(0, 10).split('-');
+        return s.length === 3 ? s[2] + '-' + s[1] + '-' + s[0] : '';
+    }
+    function key(s) { return String(s || '').trim().toLowerCase(); }
+
+    /* Which customers are registered buyers. Only these turn a bill into B2B;
+       a blank GSTIN — which is nearly all of them — stays B2C. */
+    function gstinMap() {
+        var m = {};
+        try {
+            (JSON.parse(localStorage.getItem('mm_customers') || '[]') || []).forEach(function (c) {
+                var g = String(c.gstin || '').trim().toUpperCase();
+                if (g.length === 15 && c.name) m[key(c.name)] = g;
+            });
+        } catch (e) {}
+        return m;
+    }
 
     /* Build the return for one month.
        opts: { month:'YYYY-MM', gstin }  */
@@ -57,15 +72,23 @@
         try { bills = JSON.parse(localStorage.getItem('mm_sales') || '[]'); } catch (e) {}
         bills = bills.filter(function (b) { return monthOf(b.date) === month; });
 
-        var b2csMap = {};     // rate -> totals
-        var hsnMap  = {};     // hsn|rate -> totals
+        var reg = gstinMap();
+        var b2csMap = {};     // rate -> totals            (counter sales)
+        var b2bMap  = {};     // ctin -> { inv: [...] }    (registered buyers)
+        var hsnMap  = {};     // hsn|rate -> totals        (all sales, both kinds)
         var invNos  = [];
         var grand   = 0;
         var lineCount = 0;
         var missingHsn = 0;
+        var b2bInvCount = 0;
+        var b2bValue = 0;
 
         bills.forEach(function (bill) {
             if (bill.billNo) invNos.push(String(bill.billNo));
+            var ctin = reg[key(bill.customerName || bill.customer_name || '')] || '';
+            var invRates = {};     // rate -> totals, for this one B2B invoice
+            var invVal = 0;
+
             (bill.medicines || []).forEach(function (m) {
                 var rate  = Number(m.gst) || 0;
                 var total = Number(m.total) || 0;
@@ -78,10 +101,19 @@
                 grand += total;
 
                 var rk = String(rate);
-                if (!b2csMap[rk]) b2csMap[rk] = { rt: rate, txval: 0, camt: 0, samt: 0 };
-                b2csMap[rk].txval += txval;
-                b2csMap[rk].camt  += half;
-                b2csMap[rk].samt  += half;
+                if (ctin) {
+                    // Registered buyer: this invoice is reported on its own.
+                    if (!invRates[rk]) invRates[rk] = { rt: rate, txval: 0, camt: 0, samt: 0 };
+                    invRates[rk].txval += txval;
+                    invRates[rk].camt  += half;
+                    invRates[rk].samt  += half;
+                    invVal += total;
+                } else {
+                    if (!b2csMap[rk]) b2csMap[rk] = { rt: rate, txval: 0, camt: 0, samt: 0 };
+                    b2csMap[rk].txval += txval;
+                    b2csMap[rk].camt  += half;
+                    b2csMap[rk].samt  += half;
+                }
 
                 var hsn = String(m.hsn || '').trim();
                 if (!hsn) missingHsn++;
@@ -95,6 +127,32 @@
                 hsnMap[hk].camt  += half;
                 hsnMap[hk].samt  += half;
             });
+
+            // Close off this bill as a B2B invoice if the buyer is registered.
+            if (ctin && invVal > 0) {
+                if (!b2bMap[ctin]) b2bMap[ctin] = [];
+                b2bMap[ctin].push({
+                    inum: String(bill.billNo || ''),
+                    idt: idt(bill.date),
+                    val: r2(invVal),
+                    pos: pos,
+                    rchrg: 'N',
+                    inv_typ: 'R',
+                    itms: Object.keys(invRates).map(function (rk, i) {
+                        var v = invRates[rk];
+                        return { num: i + 1, itm_det: {
+                            rt: v.rt, txval: r2(v.txval),
+                            camt: r2(v.camt), samt: r2(v.samt), csamt: 0
+                        } };
+                    })
+                });
+                b2bInvCount++;
+                b2bValue += invVal;
+            }
+        });
+
+        var b2b = Object.keys(b2bMap).map(function (ctin) {
+            return { ctin: ctin, inv: b2bMap[ctin] };
         });
 
         var b2cs = Object.keys(b2csMap).map(function (k) {
@@ -133,10 +191,13 @@
             fp: fpOf(month),
             version: 'GST3.2',
             hash: 'hash',
-            b2cs: b2cs,
             hsn: { data: hsn },
             doc_issue: { doc_det: docs }
         };
+        // Omit empty sections rather than sending [] — a shop with no
+        // registered buyers should not file an empty B2B block.
+        if (b2b.length)  json.b2b  = b2b;
+        if (b2cs.length) json.b2cs = b2cs;
 
         return {
             json: json,
@@ -145,15 +206,22 @@
                 bills: bills.length,
                 lines: lineCount,
                 grandTotal: r2(grand),
-                taxable: r2(b2cs.reduce(function (s, x) { return s + x.txval; }, 0)),
-                tax:     r2(b2cs.reduce(function (s, x) { return s + x.camt + x.samt; }, 0)),
+                // Totals come from the HSN summary, which covers B2B and B2CS
+                // alike — the two together are the month's whole outward supply.
+                taxable: r2(hsn.reduce(function (s, x) { return s + x.txval; }, 0)),
+                tax:     r2(hsn.reduce(function (s, x) { return s + x.camt + x.samt; }, 0)),
                 rates:   b2cs.length,
                 hsnRows: hsn.length,
                 missingHsn: missingHsn,
+                b2bBuyers: b2b.length,
+                b2bInvoices: b2bInvCount,
+                b2bValue: r2(b2bValue),
+                b2csValue: r2(grand - b2bValue),
                 firstInv: docs.length ? docs[0].docs[0].from : '',
                 lastInv:  docs.length ? docs[0].docs[0].to   : ''
             },
             b2cs: b2cs,
+            b2b: b2b,
             hsn: hsn
         };
     }

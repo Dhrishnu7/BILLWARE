@@ -1162,11 +1162,11 @@
                 <div id="gstrSummary"></div>
 
                 <div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:10px 13px;font-size:0.78rem;line-height:1.55;margin-top:0.8rem;">
-                    <b>Counter sales only.</b> Every sale is filed as B2C. If you sell to a buyer
-                    who has a GSTIN — a clinic or nursing home — that invoice must be filed
-                    <b>B2B</b> so they can claim input credit, and this export cannot tell those
-                    apart because customers have no GSTIN field yet. Ask for that to be added
-                    before using this if you have such buyers.
+                    <b>Selling to a clinic or another business?</b> Their invoices must be filed
+                    <b>B2B</b> so they can claim input credit. That happens automatically once
+                    you put their <b>GSTIN</b> on their customer record in the Directory —
+                    anyone without one is treated as a counter sale, which is right for
+                    ordinary customers.
                     <br><br>
                     Always open the file in the GST offline utility and check the totals before submitting.
                 </div>
@@ -1404,7 +1404,9 @@
                         <tr style="border-top:1px solid #f1f5f9;background:#f8fafc;"><td style="padding:7px 13px;font-weight:800;">Invoice total</td><td style="padding:7px 13px;text-align:right;font-weight:800;">${money(s.grandTotal)}</td></tr>
                     </table>
                     <div style="padding:9px 13px;border-top:1px solid #f1f5f9;font-size:0.78rem;color:#64748b;">
-                        <b>B2CS</b> ${s.rates} tax rate(s) &nbsp;·&nbsp; <b>HSN summary</b> ${s.hsnRows} row(s)
+                        <b>B2CS</b> ${s.rates} tax rate(s) · ${money(s.b2csValue)}
+                        &nbsp;·&nbsp; <b>HSN summary</b> ${s.hsnRows} row(s)
+                        ${s.b2bInvoices ? `<br><b style="color:#059669;">B2B</b> ${s.b2bInvoices} invoice(s) to ${s.b2bBuyers} registered buyer(s) · ${money(s.b2bValue)}` : ''}
                     </div>
                     <div style="padding:0 13px 11px;">
                         ${res.b2cs.map(r => `<span style="display:inline-block;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;border-radius:20px;padding:3px 10px;font-size:0.74rem;font-weight:700;margin:3px 4px 0 0;">${r.rt}% · ${money(r.txval)}</span>`).join('')}
@@ -4101,7 +4103,7 @@
                 for (const c of P.customers) {
                     if (!String(c.name || '').trim()) continue;
                     if (existingCSet.has(cKey(c.name, c.phone))) { okC++; continue; }
-                    const r = await dbAddCustomer(c.name || '', c.phone || '', c.address || '');
+                    const r = await dbAddCustomer(c.name || '', c.phone || '', c.address || '', c.gstin || '');
                     if (r && r.success) {
                         const bal = _num(c.balance);
                         if (bal && typeof dbUpdateCustomerBalance === 'function') {
