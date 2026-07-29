@@ -1173,7 +1173,7 @@
 
             <!-- ═══ TAB 1: Drug Register ═══ -->
             <div class="tab-panel active" id="panelRegister">
-                <form id="registerForm" onsubmit="handleRegisterSubmit(event)" novalidate>
+                <form id="registerForm" onsubmit="handleRegisterSubmit(event)" novalidate autocomplete="off">
 
                     <div class="section-label">📝 Entry Details</div>
                     <div class="form-grid" style="margin-bottom: 1.5rem;">
@@ -1190,7 +1190,7 @@
                         </div>
                         <div class="form-group">
                             <label>Bill No</label>
-                            <input type="text" id="billNo" placeholder="e.g. SH-001">
+                            <input type="text" id="billNo" placeholder="e.g. SH-001" autocomplete="off">
                         </div>
                         <div class="form-group">
                             <label>Firm / Supplier</label>
@@ -3506,6 +3506,12 @@
         });
 
         async function syncScheduleHFromCloud() {
+            // Pushing local rows UP re-homes them under whoever is signed in now.
+            // If the cache on this device came from a different shop, that would
+            // copy their register straight into this account's cloud data — so
+            // only ever back-fill when the cache provably belongs to this tenant.
+            const canBackfill = (typeof mmOwnsLocalData !== 'function') || mmOwnsLocalData();
+
             // ── Drug list ──
             try {
                 if (typeof dbGetScheduleHDrugs === 'function') {
@@ -3527,7 +3533,7 @@
                     // Push local-only drugs up so pre-existing lists get backed up.
                     const cloudSet = new Set(cloudDrugs.map(n => (n || '').trim().toLowerCase()));
                     const localOnly = localDrugs.filter(n => !cloudSet.has((n || '').trim().toLowerCase()));
-                    if (localOnly.length && typeof dbAddScheduleHDrugs === 'function') {
+                    if (canBackfill && localOnly.length && typeof dbAddScheduleHDrugs === 'function') {
                         dbAddScheduleHDrugs(localOnly).catch(e => console.warn('drug backfill failed:', e));
                     }
                 }
@@ -3544,7 +3550,7 @@
                     if (merged.length !== localX.length) _setXDrugs(merged);
                     const cloudXSet = new Set(cloudX.map(n => (n || '').trim().toLowerCase()));
                     const xLocalOnly = localX.filter(n => !cloudXSet.has((n || '').trim().toLowerCase()));
-                    if (xLocalOnly.length && typeof dbAddScheduleXDrugs === 'function') {
+                    if (canBackfill && xLocalOnly.length && typeof dbAddScheduleXDrugs === 'function') {
                         dbAddScheduleXDrugs(xLocalOnly).catch(() => {});
                     }
                 }
@@ -3569,7 +3575,7 @@
                     // Push local-only entries up so pre-existing registers get backed up.
                     const cloudIds = new Set(cloudReg.map(e => e.id));
                     const localOnly = localReg.filter(e => e && e.id && !cloudIds.has(e.id));
-                    if (localOnly.length && typeof dbAddScheduleHEntry === 'function') {
+                    if (canBackfill && localOnly.length && typeof dbAddScheduleHEntry === 'function') {
                         for (const e of localOnly) {
                             dbAddScheduleHEntry(e).catch(err => console.warn('register backfill failed:', err));
                         }
@@ -3788,7 +3794,10 @@
                 }
                 const cloudIds = new Set(cloud.map(r => r.id));
                 const localOnly = local.filter(r => r && r.id && !cloudIds.has(r.id));
-                if (localOnly.length) {
+                // Same guard as the register back-fill: never re-home another
+                // shop's cached prescriptions (patient photos!) into this account.
+                const canBackfill = (typeof mmOwnsLocalData !== 'function') || mmOwnsLocalData();
+                if (canBackfill && localOnly.length) {
                     // Route through _rxPersistCloud so any old inline-base64 photos
                     // also get migrated up to Storage as they back up.
                     for (const r of localOnly) _rxPersistCloud(r);

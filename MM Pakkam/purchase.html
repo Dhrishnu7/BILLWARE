@@ -572,14 +572,17 @@
         </div>
 
         <div class="form-card">
-            <form id="purchaseForm" onsubmit="handleSubmit(event)" novalidate>
+            <form id="purchaseForm" onsubmit="handleSubmit(event)" novalidate autocomplete="off">
 
                 <!-- ═══ Bill Header Section ═══ -->
                 <div class="section-label">📋 Bill Details</div>
                 <div class="form-grid" style="margin-bottom: 1.5rem;">
                     <div class="form-group">
                         <label>Bill No</label>
-                        <input type="text" id="billNo" placeholder="e.g. BL-001">
+                        <!-- autocomplete off: without it the BROWSER offers its own
+                             saved form history here, so bill numbers typed by a
+                             previous account on this device pop up as suggestions. -->
+                        <input type="text" id="billNo" placeholder="e.g. BL-001" autocomplete="off">
                     </div>
                     <div class="form-group">
                         <label>Supplier / Firm</label>

@@ -402,6 +402,21 @@ const SB_URL = 'https://jwyyjdwlbgjijmwillow.supabase.co';
 const SB_KEY = 'sb_publishable_sY9QwFEMckky9KDJoc1O_w_zN7qY0mo';
 const sb = supabase.createClient(SB_URL, SB_KEY);
 
+// This page does not load js/auth.js, so it reads the session itself. It MUST
+// use the same precedence mmGetSession() does — "remember me" decides which
+// store is authoritative. Reading localStorage first (as this page used to) can
+// return a previous account's leftover session and file/read shop edit requests
+// against the WRONG shop.
+function shopSetupSession() {
+    try {
+        const remembered = localStorage.getItem('mm_auth_remember') === 'true';
+        const raw = remembered
+            ? localStorage.getItem('mm_auth_session')
+            : sessionStorage.getItem('mm_auth_session');
+        return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+}
+
 // Get tenant from URL (passed from setup.html after account creation)
 const params = new URLSearchParams(location.search);
 let tenantId = params.get('tenant') || '';
@@ -409,7 +424,7 @@ let isEditMode = params.get('edit') === '1'; // for editing existing profile whe
 
 // Auto-detect if user came from a direct link but is logged in
 if (!tenantId && !isEditMode) {
-    const session = JSON.parse(localStorage.getItem('mm_auth_session') || sessionStorage.getItem('mm_auth_session') || 'null');
+    const session = shopSetupSession();
     if (session) {
         isEditMode = true;
         tenantId = session.tenant_id || session.username;
@@ -447,7 +462,7 @@ if (isEditMode) {
 // ── EDIT MODE: populate data and finalise permissions (form is already locked) ──
 async function initEditMode() {
     try {
-        const session = JSON.parse(localStorage.getItem('mm_auth_session') || sessionStorage.getItem('mm_auth_session') || 'null');
+        const session = shopSetupSession();
         if (!session) {
             unlockFormFirstTime(); // no session — show empty form for setup
             return;
@@ -760,7 +775,7 @@ async function sendEditRequest() {
     btn.disabled = true;
     btn.innerHTML = `<svg class="spin" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0114.13-3.36M20 15a9 9 0 01-14.13 3.36"/></svg> Sending...`;
 
-    const session = JSON.parse(localStorage.getItem('mm_auth_session') || sessionStorage.getItem('mm_auth_session') || 'null');
+    const session = shopSetupSession();
     const userId = session?.tenant_id || session?.username || tenantId;
     const shopName = document.getElementById('shopName').value || userId;
 
@@ -821,7 +836,7 @@ async function saveAndContinue() {
     // Determine user_id
     let userId = tenantId;
     if (!userId) {
-        const session = JSON.parse(localStorage.getItem('mm_auth_session') || sessionStorage.getItem('mm_auth_session') || 'null');
+        const session = shopSetupSession();
         userId = session?.tenant_id || session?.username;
     }
     if (!userId) { 

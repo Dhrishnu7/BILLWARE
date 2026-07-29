@@ -197,6 +197,66 @@ Deno.serve(async (req) => {
           });
         }
 
+        case "sa_list_requests": {
+          // shop_edit_requests / customer_issues / mm_announcements / shop_billing
+          // are per-tenant tables under RLS (see migrations/fix_cross_account_leaks.sql).
+          // The dashboard used to read them with the browser's publishable key,
+          // which only worked because they had no RLS at all — i.e. they were
+          // world-readable. They are read here instead, with the service role.
+          const [edits, issues, anns, billing] = await Promise.all([
+            db.from("shop_edit_requests").select("*").order("created_at", { ascending: false }),
+            db.from("customer_issues").select("*").order("created_at", { ascending: false }),
+            db.from("mm_announcements").select("*").order("created_at", { ascending: false }),
+            db.from("shop_billing").select("*"),
+          ]);
+          return json({
+            edits: edits.data || [],
+            issues: issues.data || [],
+            announcements: anns.data || [],
+            billing: billing.data || [],
+          });
+        }
+
+        case "sa_review_edit_request": {
+          const status = String(body.status || "");
+          if (!["approved", "rejected", "used"].includes(status)) {
+            return json({ error: "Invalid status." }, 400);
+          }
+          const patch: Record<string, unknown> = { status };
+          if (status !== "used") patch.reviewed_at = new Date().toISOString();
+          const { error } = await db.from("shop_edit_requests").update(patch).eq("id", body.id);
+          return error ? json({ error: error.message }, 400) : json({ ok: true });
+        }
+
+        case "sa_resolve_issue": {
+          const { error } = await db.from("customer_issues")
+            .update({ status: "resolved", resolved_at: new Date().toISOString() })
+            .eq("id", body.id);
+          return error ? json({ error: error.message }, 400) : json({ ok: true });
+        }
+
+        case "sa_post_announcement": {
+          const { error } = await db.from("mm_announcements").insert({
+            title: String(body.title || ""),
+            message: String(body.message || ""),
+            icon: String(body.icon || "📢"),
+            target_user: body.target_user || null,
+          });
+          return error ? json({ error: error.message }, 400) : json({ ok: true });
+        }
+
+        case "sa_delete_announcement": {
+          const { error } = await db.from("mm_announcements").delete().eq("id", body.id);
+          return error ? json({ error: error.message }, 400) : json({ ok: true });
+        }
+
+        case "sa_save_billing": {
+          const row = body.row || {};
+          if (!row.username) return json({ error: "Missing username." }, 400);
+          const { error } = await db.from("shop_billing").upsert(row, { onConflict: "username" });
+          return error ? json({ error: error.message }, 400) : json({ ok: true });
+        }
+
         case "sa_set_approval": {
           const { error } = await db.from("mm_users")
             .update({ approval_status: body.status }).eq("id", body.id);

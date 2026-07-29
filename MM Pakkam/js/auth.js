@@ -71,28 +71,115 @@ const _AUTH_SUPABASE_KEY = 'sb_publishable_sY9QwFEMckky9KDJoc1O_w_zN7qY0mo';
 const MM_SESSION_KEY  = 'mm_auth_session';
 const MM_REMEMBER_KEY = 'mm_auth_remember';
 
-// Every localStorage key that caches a TENANT's business data. On a shared
-// computer these must be wiped when switching accounts, or one shop briefly
-// sees another shop's cached data before the cloud sync overwrites it.
-// Keep this list complete — it is the single source of truth used by both
-// mmClearSession() (logout) and the cross-account guard in mmLogin() (login).
-const MM_DATA_KEYS = [
-    'mm_purchases', 'mm_sales', 'mm_customers', 'mm_doctors',
-    'mm_medicine_list', 'mm_medicines', 'mm_stock', 'mm_bills',
-    'mm_bill_counter', 'mm_inventory_adjust_log', 'mm_barcodes',
-    'mm_pending_purchases', 'mm_pending_sales', 'report_bin',
-    'mm_schedule_h_register', 'mm_schedule_h_drugs', 'mm_schedule_x_drugs',
-    'mm_supplier_payments', 'mm_supplier_merges', 'mm_audit_log', 'mm_suppliers',
-    'mm_credit_limit', 'mm_reorder_levels', 'mm_customer_payments'
-];
-// Marks which tenant the cached MM_DATA_KEYS currently belong to.
+// Cached business data must never survive an account switch on a shared device.
+//
+// This used to be an ALLOW-list of "keys that hold business data", which meant
+// every new feature silently leaked until someone remembered to add its key —
+// and several never were (the Schedule H recycle bin, prescription softcopies,
+// the report bin, purchase drafts, the store name). So the rule is now inverted:
+// EVERYTHING in localStorage is treated as tenant data and wiped, except the
+// few keys below that are genuinely device- or app-level. A new feature is then
+// safe by default; forgetting to update this file can no longer leak anything.
+const MM_KEEP_KEYS = new Set([
+    MM_SESSION_KEY,          // who is signed in (cleared separately on logout)
+    MM_REMEMBER_KEY,
+    'mm_auth_users',         // offline fallback user store (no business data)
+    'mm_app_config',         // global feature switches, identical for every shop
+    'mm_thermal_printer',    // this device's printer, not this shop's data
+    'mm_bill_attach_hint_off', // a UI hint this device has dismissed
+]);
+
+// Offline queues are already hard-scoped to their own tenant (mm_<tenant>_pending_*)
+// so they cannot leak, and wiping them would destroy another shop's un-synced
+// bills. The UNSCOPED fallbacks (mm_pending_sales / mm_pending_purchases) are
+// NOT covered by this and are wiped like everything else.
+const MM_PENDING_SCOPED_RE = /^mm_.+_pending_(sales|purchases)$/;
+
+// Marks which tenant the cached business data currently belongs to.
 const MM_DATA_OWNER_KEY = 'mm_data_owner';
 
 // Wipe all cached tenant business data (used on logout and account switch).
 function _mmClearBusinessData() {
-    MM_DATA_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch {} });
-    try { localStorage.removeItem(MM_DATA_OWNER_KEY); } catch {}
+    try {
+        const doomed = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (!k) continue;
+            if (MM_KEEP_KEYS.has(k)) continue;
+            if (k.startsWith('sb-')) continue;            // Supabase Auth tokens
+            if (MM_PENDING_SCOPED_RE.test(k)) continue;   // other shops' offline queues
+            doomed.push(k);
+        }
+        doomed.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+    } catch (e) { console.warn('[auth] data wipe failed:', e); }
 }
+
+/**
+ * True when the business data cached on this device provably belongs to the
+ * signed-in tenant. Anything that pushes local cache UP to the cloud must check
+ * this first, or one shop's leftover data gets written into another shop's rows.
+ */
+function mmOwnsLocalData() {
+    try {
+        const session = mmGetSession();
+        if (!session) return false;
+        const tenant = session.tenant_id || session.username;
+        return !!tenant && localStorage.getItem(MM_DATA_OWNER_KEY) === tenant;
+    } catch (e) { return false; }
+}
+
+/**
+ * Second line of defence for devices that carry no ownership marker — a session
+ * that predates the marker, or storage that was cleared halfway. Rows synced
+ * down from the cloud keep the `user_id` they were stored under, so a cache that
+ * contains somebody else's user_id is provably foreign no matter what the
+ * marker says (or doesn't).
+ */
+function _mmForeignDataDetected(tenant) {
+    const SAMPLED = ['mm_purchases', 'mm_sales', 'mm_bills', 'mm_customers', 'mm_doctors'];
+    for (const key of SAMPLED) {
+        let rows;
+        try { rows = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { continue; }
+        if (!Array.isArray(rows)) continue;
+        for (const r of rows) {
+            const owner = r && (r.user_id || r.userId);
+            if (owner && owner !== tenant) return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Cross-account guard. Runs on EVERY page load (not just at login), because a
+ * session can arrive on a page without ever passing through mmLogin() — a
+ * restored "remember me" session, a second tab, a back-button navigation, or a
+ * device whose last login predates this guard. If the cached data belongs to a
+ * different shop, it is wiped before any page has a chance to render it.
+ */
+function mmEnforceDataOwner() {
+    try {
+        const session = mmGetSession();
+        if (!session) return;                       // logged out: leave the device alone
+        const tenant = session.tenant_id || session.username;
+        if (!tenant) return;
+        const cachedOwner = localStorage.getItem(MM_DATA_OWNER_KEY);
+        if (cachedOwner === tenant) return;         // already ours — nothing to do
+        if (!cachedOwner && _mmForeignDataDetected(tenant)) {
+            _mmClearBusinessData();
+            localStorage.setItem(MM_DATA_OWNER_KEY, tenant);
+            return;
+        }
+        if (cachedOwner) _mmClearBusinessData();    // someone else's — wipe it now
+        localStorage.setItem(MM_DATA_OWNER_KEY, tenant);
+    } catch (e) { console.warn('[auth] owner guard failed:', e); }
+}
+window.mmOwnsLocalData    = mmOwnsLocalData;
+window.mmEnforceDataOwner = mmEnforceDataOwner;
+
+// Run immediately, at parse time — NOT on DOMContentLoaded. Page scripts read
+// localStorage as soon as they run, so the wipe has to happen before any of
+// them get a chance to render another shop's cached data.
+mmEnforceDataOwner();
 
 // Lazy Supabase client — returns existing _supabase global or creates a new one
 function _authDB() {
@@ -198,11 +285,18 @@ function mmSaveSession(user, remember) {
         token:     user.token, // Store active session token
         loginTime: Date.now()
     };
+    // Write to ONE store and clear the other. Signing in without "remember me"
+    // used to leave the PREVIOUS account's session sitting in localStorage: the
+    // pages that read `mm_auth_session` straight out of localStorage (index.html,
+    // notifications.js, shop-setup.html) then answered with the old shop's
+    // tenant, so the new account saw the old account's inbox and requests.
     if (remember) {
         localStorage.setItem(MM_REMEMBER_KEY, 'true');
         localStorage.setItem(MM_SESSION_KEY, JSON.stringify(session));
+        sessionStorage.removeItem(MM_SESSION_KEY);
     } else {
         localStorage.removeItem(MM_REMEMBER_KEY);
+        localStorage.removeItem(MM_SESSION_KEY);
         sessionStorage.setItem(MM_SESSION_KEY, JSON.stringify(session));
     }
 }
@@ -506,7 +600,9 @@ async function mmLogin(username, password, remember, force = false) {
         // exists and differs, so an existing user's own cached data is preserved. ---
         try {
             const cachedOwner = localStorage.getItem(MM_DATA_OWNER_KEY);
-            if (cachedOwner && cachedOwner !== tenant) _mmClearBusinessData();
+            const foreign = cachedOwner ? (cachedOwner !== tenant)
+                                        : _mmForeignDataDetected(tenant);
+            if (foreign) _mmClearBusinessData();
         } catch (e) {}
 
         // --- STEP 2: Single-device lockout. Read/claim the device token with the
@@ -694,13 +790,15 @@ async function mmDeleteAccountPermanently() {
             await _deleteUser(u.username, tenantId, true);
         }
 
-        // ── 3. Clear all localStorage keys for this tenant ──
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
+        // ── 3. Clear every cached trace of this shop from the device ──
+        // (The old version only matched `_<tenant>_` keys, which left all the
+        //  unscoped caches — medicines, bills, the Schedule H register — behind
+        //  for whoever signed in on this device next.)
+        _mmClearBusinessData();
+        for (let i = localStorage.length - 1; i >= 0; i--) {
             const k = localStorage.key(i);
-            if (k && k.includes(`_${tenantId}_`)) keysToRemove.push(k);
+            if (k && k.includes(`_${tenantId}_`)) localStorage.removeItem(k);
         }
-        keysToRemove.forEach(k => localStorage.removeItem(k));
 
         // ── 4. Clear session and redirect ──
         mmClearSession();

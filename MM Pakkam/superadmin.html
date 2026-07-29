@@ -593,6 +593,9 @@ let allUsers=[], allBills=[], allPurchases=[], allCustomers=[], allMedicines=[];
 // right on it). sa_list also returns the extra-user and password-reset queues,
 // so the render functions below read from this cache instead of the table.
 let saExtraReqs = [], saResets = [];
+// Admin-only tables (shop_edit_requests, customer_issues, mm_announcements,
+// shop_billing) are now behind RLS and arrive together from sa_list_requests.
+let saRequestCache = {};
 
 async function loadAll() {
     // Everything here spans all tenants, so it all comes from sa_list. Reading
@@ -839,13 +842,15 @@ async function renderShopEditRequests() {
     if (!grid) return;
     grid.innerHTML = '<div class="ld"><div class="sp"></div>Loading…</div>';
 
-    const { data: reqs, error } = await sb.from('shop_edit_requests')
-        .select('*').order('created_at', { ascending: false });
-
-    if (error) {
-        grid.innerHTML = `<div class="no-pending" style="color:#f87171">⚠️ Table not found. Run SQL to create shop_edit_requests.<br><small>${error.message}</small></div>`;
+    // Read through mm-admin (service role): this table is scoped to each shop by
+    // RLS now, so the page's own key returns nothing across tenants.
+    const res = await saCall('sa_list_requests');
+    if (!res.ok) {
+        grid.innerHTML = `<div class="no-pending" style="color:#f87171">⚠️ Could not load requests.<br><small>${escHtml(res.message)}</small></div>`;
         return;
     }
+    saRequestCache = res.data || {};
+    const reqs = saRequestCache.edits || [];
     if (!reqs || reqs.length === 0) {
         grid.innerHTML = '<div class="no-pending">✨ No shop edit requests</div>';
         badge.style.display = 'none';
@@ -895,25 +900,16 @@ async function renderShopEditRequests() {
 }
 
 async function approveShopEdit(id, userId) {
-    const { data, error } = await sb.from('shop_edit_requests')
-        .update({ status: 'approved', reviewed_at: new Date().toISOString() })
-        .eq('id', id)
-        .select();
-    if (error) { alert('Error: ' + error.message); return; }
-    if (!data || data.length === 0) {
-        alert('⚠️ Update failed silently — this is usually caused by Row Level Security (RLS) on the shop_edit_requests table in Supabase.\n\nFix: Go to Supabase → Table Editor → shop_edit_requests → Disable RLS (or add a policy to allow updates).');
-        return;
-    }
+    const res = await saCall('sa_review_edit_request', { id, status: 'approved' });
+    if (!res.ok) { alert('Error: ' + res.message); return; }
     alert('✅ Approved! ' + userId + ' can now edit their shop details.');
     renderShopEditRequests();
 }
 
 async function rejectShopEdit(id, userId) {
     if (!await mmConfirm('Reject this edit request?', { okText: 'Reject' })) return;
-    const { error } = await sb.from('shop_edit_requests')
-        .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
-        .eq('id', id);
-    if (error) { alert('Error: ' + error.message); return; }
+    const res = await saCall('sa_review_edit_request', { id, status: 'rejected' });
+    if (!res.ok) { alert('Error: ' + res.message); return; }
     renderShopEditRequests();
 }
 
@@ -1129,8 +1125,13 @@ let _billing = {};   // username -> { plan_amount, paid_until, suspended, note }
 async function loadBilling() {
     _billing = {};
     try {
-        const { data, error } = await sb.from('shop_billing').select('*');
-        if (!error && data) data.forEach(r => { _billing[r.username] = r; });
+        // shop_billing is service-role only now (it holds every shop's payment
+        // state), so it arrives with the other admin-only tables.
+        const res = await saCall('sa_list_requests');
+        if (res.ok) {
+            saRequestCache = res.data || {};
+            (saRequestCache.billing || []).forEach(r => { _billing[r.username] = r; });
+        }
     } catch (e) { /* table may not exist yet */ }
     _updateOverdueBadge();
 }
@@ -1207,8 +1208,8 @@ async function _upsertBilling(username, patch) {
     const cur = _billing[username] || { username };
     const row = Object.assign({ username, plan_amount: 0, suspended: false }, cur, patch, { updated_at: new Date().toISOString() });
     delete row.id;
-    const { error } = await sb.from('shop_billing').upsert(row, { onConflict: 'username' });
-    if (error) { alert('Save failed: ' + error.message + '\n\nRun migrations/add_shop_billing_table.sql in Supabase if this mentions shop_billing.'); return false; }
+    const res = await saCall('sa_save_billing', { row });
+    if (!res.ok) { alert('Save failed: ' + res.message + '\n\nRun migrations/add_shop_billing_table.sql in Supabase if this mentions shop_billing.'); return false; }
     _billing[username] = row;
     return true;
 }
@@ -1281,11 +1282,14 @@ async function sendAnnouncement() {
     if (!title && !message) { alert('Type a title or message first.'); return; }
     const who = target ? ('the shop "' + target + '"') : 'ALL shops';
     if (!await mmConfirm('Send this message to ' + who + '?\n\nIt will appear in their Inbox (📢 Updates).', { okText: 'Send' })) return;
-    const row = { title: title || 'Message', message: message, icon: icon || '📢' };
-    if (target) row.target_user = target;
-    const { error } = await sb.from('mm_announcements').insert(row);
-    if (error) {
-        alert('Could not send: ' + error.message + '\n\nIf this mentions "target_user" or a policy, run migrations/add_announcement_targeting.sql in Supabase.');
+    // Posting is server-side only: the browser's key had insert rights on this
+    // table, which meant anyone at all could push a fake "system message" into
+    // every pharmacy's Inbox. That grant is revoked.
+    const res = await saCall('sa_post_announcement', {
+        title: title || 'Message', message, icon: icon || '📢', target_user: target || null,
+    });
+    if (!res.ok) {
+        alert('Could not send: ' + res.message + '\n\nIf this mentions "target_user" or a policy, run migrations/add_announcement_targeting.sql in Supabase.');
         return;
     }
     document.getElementById('annTitle').value = '';
@@ -1298,10 +1302,11 @@ async function renderAnnouncements() {
     _populateAnnTargets();
     const box = document.getElementById('annList');
     if (!box) return;
-    const { data, error } = await sb.from('mm_announcements')
-        .select('*').order('created_at', { ascending: false }).limit(50);
-    if (error) { box.innerHTML = '<div class="no-pending">Could not load messages — run the targeting migration in Supabase.</div>'; return; }
-    if (!data || !data.length) { box.innerHTML = '<div class="no-pending">No messages sent yet.</div>'; return; }
+    const res = await saCall('sa_list_requests');
+    if (!res.ok) { box.innerHTML = '<div class="no-pending">Could not load messages — run the targeting migration in Supabase.</div>'; return; }
+    saRequestCache = res.data || {};
+    const data = (saRequestCache.announcements || []).slice(0, 50);
+    if (!data.length) { box.innerHTML = '<div class="no-pending">No messages sent yet.</div>'; return; }
     box.innerHTML = data.map(a => {
         const tgt = a.target_user ? ('🏪 ' + escHtml(a.target_user)) : '📣 All shops';
         return '<div class="pcard"><div class="pcard-top"><div class="pcard-avatar">' + escHtml(a.icon || '📢') + '</div>'
@@ -1314,8 +1319,8 @@ async function renderAnnouncements() {
 
 async function deleteAnnouncement(id) {
     if (!await mmConfirm('Delete this message? It will disappear from shops\' inboxes.', { danger: true, okText: 'Delete' })) return;
-    const { error } = await sb.from('mm_announcements').delete().eq('id', id);
-    if (error) { alert('Delete failed: ' + error.message); return; }
+    const res = await saCall('sa_delete_announcement', { id });
+    if (!res.ok) { alert('Delete failed: ' + res.message); return; }
     renderAnnouncements();
 }
 
@@ -1385,31 +1390,23 @@ async function renderSupportIssues() {
     if (!grid) return;
     grid.innerHTML = '<div class="ld"><div class="sp"></div>Loading...</div>';
 
-    const { data: issues, error } = await sb.from('customer_issues')
-        .select('*').eq('status', 'open').order('created_at', { ascending: false });
+    const issRes = await saCall('sa_list_requests');
+    const error = issRes.ok ? null : { message: issRes.message };
+    if (issRes.ok) saRequestCache = issRes.data || {};
+    const issues = (saRequestCache.issues || []).filter(i => i.status === 'open');
 
     if (error) {
-        const sql = `-- Run this SQL in Supabase SQL Editor to create the table:
-CREATE TABLE IF NOT EXISTS customer_issues (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  tenant_id text NOT NULL,
-  username text NOT NULL,
-  issue_text text NOT NULL,
-  status text DEFAULT 'open',
-  created_at timestamptz DEFAULT now(),
-  resolved_at timestamptz
-);
-ALTER TABLE customer_issues ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all" ON customer_issues FOR ALL USING (true) WITH CHECK (true);`;
+        // The old version of this branch printed a ready-made
+        // `CREATE POLICY "Allow all" ... USING (true)` for the admin to paste —
+        // which is precisely the world-readable setup this table just got fixed
+        // out of. Never hand that out again.
         grid.innerHTML = `<div class="no-pending" style="color:#f87171;text-align:left;max-width:600px;margin:0 auto;">
-            ⚠️ <strong>Table "customer_issues" not found in Supabase.</strong><br><br>
-            <span style="color:#94a3b8;font-size:.82rem;">Go to your Supabase Dashboard → SQL Editor and run this SQL:</span><br><br>
-            <pre style="background:#0f172a;color:#86efac;padding:12px;border-radius:8px;font-size:.72rem;overflow-x:auto;text-align:left;">${sql}</pre>
-            <button onclick="navigator.clipboard.writeText(\`${sql.replace(/`/g,'\\`')}\`).then(()=>this.textContent='✅ Copied!').catch(()=>this.textContent='Copy failed')"
-                style="margin-top:8px;padding:7px 16px;background:#0d9488;border:none;border-radius:8px;color:white;font-size:.82rem;font-weight:700;cursor:pointer;">
-                📋 Copy SQL
-            </button>
-            <button onclick="renderSupportIssues()" style="margin-top:8px;margin-left:8px;padding:7px 16px;background:#6366f1;border:none;border-radius:8px;color:white;font-size:.82rem;font-weight:700;cursor:pointer;">
+            ⚠️ <strong>Could not load support issues.</strong><br><br>
+            <span style="color:#94a3b8;font-size:.82rem;">${escHtml(error.message || 'Server error')}<br><br>
+            If this mentions a missing table or policy, run
+            <b>migrations/fix_cross_account_leaks.sql</b> in the Supabase SQL editor and make
+            sure the latest <b>mm-admin</b> Edge Function is deployed.</span><br><br>
+            <button onclick="renderSupportIssues()" style="margin-top:8px;padding:7px 16px;background:#6366f1;border:none;border-radius:8px;color:white;font-size:.82rem;font-weight:700;cursor:pointer;">
                 🔄 Retry
             </button>
         </div>`;
@@ -1453,9 +1450,8 @@ CREATE POLICY "Allow all" ON customer_issues FOR ALL USING (true) WITH CHECK (tr
 
 async function resolveSupportIssue(id) {
     if (!await mmConfirm('Mark this issue as resolved?', { okText: 'Resolve' })) return;
-    const { error } = await sb.from('customer_issues')
-        .update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', id);
-    if (error) { alert('Error: ' + error.message); return; }
+    const res = await saCall('sa_resolve_issue', { id });
+    if (!res.ok) { alert('Error: ' + res.message); return; }
     renderSupportIssues();
 }
 </script>

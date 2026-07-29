@@ -724,11 +724,7 @@
         (function() {
             function setWelcome() {
                 try {
-                    const session = JSON.parse(
-                        localStorage.getItem('mm_auth_session') ||
-                        sessionStorage.getItem('mm_auth_session') ||
-                        'null'
-                    );
+                    const session = mmGetSession();
                     const el = document.getElementById('dashWelcome');
                     if (el && session && session.username) {
                         el.textContent = 'Welcome, ' + session.username + '!';
@@ -744,10 +740,7 @@
                         if (b0) b0.style.display = 'none';
                         return;
                     }
-                    const session = JSON.parse(
-                        localStorage.getItem('mm_auth_session') ||
-                        sessionStorage.getItem('mm_auth_session') || 'null'
-                    );
+                    const session = mmGetSession();
                     if (!session) return;
                     const tenant = session.tenant_id || session.username || 'anon';
                     // Per-shop "Don't show again" (permanent) — the weekly inbox reminder still nags.
@@ -776,7 +769,7 @@
             }
             function _bkTenant() {
                 try {
-                    const s = JSON.parse(localStorage.getItem('mm_auth_session') || sessionStorage.getItem('mm_auth_session') || 'null');
+                    const s = mmGetSession();
                     return s ? (s.tenant_id || s.username || 'anon') : 'anon';
                 } catch (e) { return 'anon'; }
             }
@@ -849,7 +842,12 @@
                     // Explicit columns, never '*': password_hash is not granted to
                     // browsers, and a '*' expansion would 401 the whole query.
                     _supabase.from('extra_user_requests').select('id,tenant_id,requested_username,reason,status,created_at,reviewed_at').eq('tenant_id', tenantId).in('status', ['approved','rejected']).order('reviewed_at', { ascending: false }).limit(10),
-                    _supabase.from('mm_announcements').select('*').order('created_at', { ascending: false }).limit(10),
+                    // Ask for broadcasts + this shop's own messages only. Filtering
+                    // these client-side meant a message addressed to ONE pharmacy
+                    // was still downloaded by every other one.
+                    _supabase.from('mm_announcements').select('*')
+                        .or(`target_user.is.null,target_user.eq."${String(tenantId).replace(/"/g, '')}"`)
+                        .order('created_at', { ascending: false }).limit(10),
                     _supabase.from('customer_issues').select('*').eq('tenant_id', tenantId).eq('status', 'resolved').order('resolved_at', { ascending: false }).limit(10)
                 ]);
                 shopEditReqs = er.data || [];

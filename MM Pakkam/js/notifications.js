@@ -10,12 +10,15 @@
 const MMNotifications = (() => {
 
     // ── Storage keys per logged-in user ──
+    // Go through mmGetSession(): reading localStorage first, as this used to,
+    // returns a stale session left behind by a previous account when the current
+    // one signed in without "remember me" — i.e. the wrong shop's inbox.
     const _tenant = () => {
         try {
-            const s = JSON.parse(
-                localStorage.getItem('mm_auth_session') ||
-                sessionStorage.getItem('mm_auth_session') || 'null'
-            );
+            const s = (typeof mmGetSession === 'function')
+                ? mmGetSession()
+                : JSON.parse(sessionStorage.getItem('mm_auth_session')
+                          || localStorage.getItem('mm_auth_session') || 'null');
             return s ? (s.tenant_id || s.username) : 'anon';
         } catch { return 'anon'; }
     };
