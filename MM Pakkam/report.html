@@ -770,9 +770,9 @@
             <!-- Hidden legacy profit box (value still updated by JS) -->
             <div class="true-profit-box" id="trueProfitBoxLegacy" style="display:none;">
                 <div class="tp-left">
-                    <div class="tp-label">📊 True Profit Margin</div>
+                    <div class="tp-label">📊 Gross Margin</div>
                     <div class="tp-value" id="trueProfitValue">₹ 0</div>
-                    <div class="tp-sub">Calculated per item: (Sale Price − Purchase Price) × Qty</div>
+                    <div class="tp-sub">Per item: (Sale Price − Purchase Price) × Qty · before running costs</div>
                 </div>
             </div>
 
@@ -785,9 +785,16 @@
                     <div class="kpi-icon">💰</div>
                 </div>
                 <div class="analytics-kpi-card kpi-profit">
-                    <div class="kpi-label">Est. Net Profit</div>
+                    <!-- "Gross Margin", not "Net Profit". The figure is
+                         (Sale − Purchase) × Qty — revenue minus cost of goods. It
+                         subtracts NO running costs (rent, salaries, electricity,
+                         freight) because the app does not track them. Labelling it
+                         net profit overstated earnings in the owner's favour, which
+                         is the dangerous direction to be wrong in. Rename it back
+                         only once expenses actually exist. -->
+                    <div class="kpi-label">Gross Margin</div>
                     <div class="kpi-value" id="kpiProfit">₹0</div>
-                    <div class="kpi-sub">(Sale − Purchase Price) × Qty</div>
+                    <div class="kpi-sub">Sales − cost of goods · before rent, salaries &amp; other costs</div>
                     <div class="kpi-icon">📈</div>
                 </div>
                 <div class="analytics-kpi-card kpi-txn">
@@ -862,7 +869,7 @@
                     <div class="analytics-card-header">
                         <div class="analytics-card-title">
                             <span class="chart-icon icon-trend">📉</span>
-                            Revenue &amp; Profit Trend
+                            Revenue &amp; Margin Trend
                         </div>
                         <span class="analytics-card-badge badge-trend">Over Time</span>
                     </div>
@@ -972,7 +979,7 @@
             </div>
             <div class="summary-card card-profit">
                 <div style="display:flex;align-items:center;justify-content:space-between;">
-                    <div class="summary-label">Net Profit</div>
+                    <div class="summary-label">Gross Margin</div>
                     <span data-badge style="font-size:0.65rem;font-weight:800;padding:2px 8px;border-radius:20px;background:#fee2e2;color:#9f1239;letter-spacing:0.05em;">ALL TIME</span>
                 </div>
                 <div class="summary-value" id="netProfit">₹ 0</div>
@@ -2136,7 +2143,9 @@
             const sortedDates = Object.keys(dateMap).sort();
             const labels = sortedDates.map(formatDate);
             const salesData = sortedDates.map(d => dateMap[d].sales);
-            // Real net profit is Sales Revenue - Cost of Goods Sold (COGS)
+            // Gross margin = Sales Revenue − Cost of Goods Sold. NOT net profit:
+            // no running costs are tracked anywhere in the app, so nothing here
+            // subtracts rent, salaries or electricity.
             const profitData = sortedDates.map(d => dateMap[d].sales - dateMap[d].cogs);
 
             // Render Trend Chart
@@ -2177,7 +2186,7 @@
                                 pointHoverBorderColor: '#ffffff'
                             },
                             {
-                                label: 'Est. Net Profit (₹)',
+                                label: 'Gross Margin (₹)',
                                 data: profitData.length ? profitData : [0],
                                 borderColor: '#10b981', 
                                 backgroundColor: gradientProf,
@@ -2665,9 +2674,9 @@
     <div class="s-sub">${purchaseCount}</div>
   </div>
   <div class="s-card c-profit">
-    <div class="s-label">Net Profit</div>
+    <div class="s-label">Gross Margin</div>
     <div class="s-value" style="color:${profitColor}">${netProfit}</div>
-    <div class="s-sub">Sales &minus; Purchase</div>
+    <div class="s-sub">Sales &minus; Purchase (before running costs)</div>
   </div>
   <div class="s-card c-items">
     <div class="s-label">Total Items</div>
