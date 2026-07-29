@@ -51,14 +51,16 @@
     /* Which customers are registered buyers. Only these turn a bill into B2B;
        a blank GSTIN — which is nearly all of them — stays B2C. */
     function gstinMap() {
-        var m = {};
+        var byName = {}, byId = {};
         try {
             (JSON.parse(localStorage.getItem('mm_customers') || '[]') || []).forEach(function (c) {
                 var g = String(c.gstin || '').trim().toUpperCase();
-                if (g.length === 15 && c.name) m[key(c.name)] = g;
+                if (g.length !== 15) return;
+                if (c.name) byName[key(c.name)] = g;
+                if (c.id != null) byId[String(c.id)] = g;      // survives typos and renames
             });
         } catch (e) {}
-        return m;
+        return { byName: byName, byId: byId };
     }
 
     /* Build the return for one month.
@@ -93,7 +95,14 @@
 
         bills.forEach(function (bill) {
             if (bill.billNo) invNos.push(String(bill.billNo));
-            var ctin = reg[key(bill.customerName || bill.customer_name || '')] || '';
+            /* Prefer the customer id: it cannot be broken by a typo at the till
+               or by a later rename. Bills raised before that link existed carry
+               no id, so fall back to the name for those. */
+            var cid = (bill.customerId != null) ? String(bill.customerId)
+                    : (bill.customer_id != null ? String(bill.customer_id) : '');
+            var ctin = (cid && reg.byId[cid])
+                    || reg.byName[key(bill.customerName || bill.customer_name || '')]
+                    || '';
             var invRates = {};     // rate -> totals, for this one B2B invoice
             var invVal = 0;
 

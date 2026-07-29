@@ -668,8 +668,16 @@
                                 + New Customer
                             </button>
                         </div>
-                        <input type="text" id="customerName" list="customerList" placeholder="Select or type…" autocomplete="off">
+                        <input type="text" id="customerName" list="customerList" placeholder="Select or type…" autocomplete="off"
+                               oninput="updateB2BBadge()" onchange="updateB2BBadge()">
                         <datalist id="customerList"></datalist>
+                        <!-- Tells the biller AT THE TILL that this bill will be filed
+                             B2B. A misspelt clinic name silently files as B2C and costs
+                             the buyer their input credit; they only find out weeks
+                             later. Seeing the badge missing is the moment to fix it. -->
+                        <div id="b2bBadge" style="display:none;margin-top:5px;font-size:0.74rem;font-weight:700;
+                             background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;border-radius:20px;
+                             padding:3px 10px;width:fit-content;"></div>
                     </div>
                     <div class="form-group">
                         <div class="field-label-row">
@@ -1878,10 +1886,25 @@
                 }
             } catch(e) {}
 
+            /* Attach the customer RECORD, not just their typed name. GSTR-1
+               decides B2B vs B2C from the customer's GSTIN, and matching that
+               by name breaks on a typo or a later rename — silently, and at the
+               buyer's expense. Nobody types this; it comes from the customer
+               they picked. Null for a walk-in, which is correct: no record,
+               no GSTIN, so B2C is right. */
+            let _custId = null;
+            try {
+                const cn = customerName.trim().toLowerCase();
+                const known = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+                const hit = known.find(c => (c.name || '').trim().toLowerCase() === cn);
+                if (hit && hit.id != null) _custId = hit.id;
+            } catch (e) {}
+
             const bill = {
                 billNo:       finalBillNo,
                 date:         document.getElementById('saleDate').value,
                 customerName: customerName,
+                customerId:   _custId,
                 doctorName:   document.getElementById('doctorName').value.trim(),
                 medicines:    medicines,
                 grandTotal:   grandTotal,
@@ -2091,6 +2114,30 @@
            character — which breaks blind typing at the very first keystroke,
            the one place it hurts most. Skipped when a barcode scanner bar is
            showing, because that field wants the scanner's input instead. */
+        /* Show whether this bill will be filed B2B, while it is still being made.
+           Matching a customer by NAME is what decides it, so a typo silently
+           drops a clinic into B2C — this makes that visible immediately rather
+           than at filing time, when it is too late to be useful. */
+        function updateB2BBadge() {
+            const el = document.getElementById('b2bBadge');
+            if (!el) return;
+            const typed = (document.getElementById('customerName').value || '').trim().toLowerCase();
+            if (!typed) { el.style.display = 'none'; return; }
+            let hit = null;
+            try {
+                hit = (JSON.parse(localStorage.getItem('mm_customers') || '[]') || [])
+                    .find(c => (c.name || '').trim().toLowerCase() === typed
+                            && String(c.gstin || '').trim().length === 15);
+            } catch (e) {}
+            if (hit) {
+                el.textContent = '🧾 GST-registered buyer — this bill files as B2B (' + hit.gstin + ')';
+                el.style.display = '';
+            } else {
+                el.style.display = 'none';
+            }
+        }
+        window.updateB2BBadge = updateB2BBadge;
+
         window.addEventListener('DOMContentLoaded', () => { if (window.mmInstallGstSlabList) mmInstallGstSlabList(); });
         window.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {

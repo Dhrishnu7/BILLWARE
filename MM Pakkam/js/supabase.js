@@ -1378,6 +1378,9 @@ async function dbSaveBill(bill) {
             grand_total:   parseFloat(String(bill.grandTotal).replace(/[^0-9.]/g,'')) || 0,
             user_id:       user,
         };
+        // Only sent when we actually have one, so a shop that has not run
+        // migrations/add_bill_customer_id.sql is unaffected.
+        if (bill.customerId != null) p.customer_id = bill.customerId;
         if (withPM) p.payment_mode = bill.paymentMode || 'cash';
         return p;
     };
@@ -1537,6 +1540,7 @@ async function dbSyncCoreData() {
                 billNo:       b.bill_no,
                 date:         b.date,
                 customerName: b.customer_name || '',
+                customerId:   b.customer_id != null ? b.customer_id : null,
                 doctorName:   b.doctor_name   || '',
                 grandTotal:   b.grand_total,
                 paymentMode:  b.payment_mode || 'cash',
