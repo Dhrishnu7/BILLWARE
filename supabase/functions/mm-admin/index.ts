@@ -46,6 +46,22 @@ async function emailFor(username: string): Promise<string> {
   return `u${h.slice(0, 24)}@users.billware.app`;
 }
 
+/**
+ * Capability token handed out by `signup`, spent by `submit_shop_profile`.
+ *
+ * A brand-new owner fills in their shop details BEFORE the admin approves them,
+ * so they have no session and no membership yet and RLS (rightly) refuses the
+ * shop_profiles write. Only the service role can store it — but the endpoint
+ * that does so must not be a free-for-all, or anyone could write a shop profile
+ * for any pending username. This token is derived from the service-role key, so
+ * only the server can produce it, and it is never stored: we just recompute and
+ * compare. It reveals nothing about the key (one-way hash).
+ */
+async function setupTokenFor(username: string): Promise<string> {
+  const secret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  return await sha256Hex(`${username.toLowerCase()}|shop-setup|${secret}`);
+}
+
 // Constant-time-ish compare, so a wrong SA password can't be probed by timing.
 function safeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -375,7 +391,42 @@ Deno.serve(async (req) => {
           gstin: s.gstin || "",
         });
       }
-      return json({ ok: true, pending: true });
+      // The shop-details form is a separate page that runs straight after this,
+      // still pre-approval. Hand it a token so it can store the profile too.
+      return json({ ok: true, pending: true, setup_token: await setupTokenFor(uname) });
+    }
+
+    if (action === "submit_shop_profile") {
+      // Pre-approval shop details. Guarded three ways: the caller must hold a
+      // token only this server can mint, the account must exist, and it must
+      // still be PENDING — an approved shop goes through RLS + the edit-request
+      // flow instead, so this can never be used to rewrite a live shop.
+      const uname = String(body.username || "").trim();
+      const token = String(body.token || "");
+      const s = body.shopInfo || {};
+      if (!uname || !token) return json({ error: "Missing details." }, 400);
+      if (!safeEqual(token, await setupTokenFor(uname))) {
+        return json({ error: "Invalid setup token." }, 401);
+      }
+      const row = await findUser(db, uname);
+      if (!row) return json({ error: "Account not found." }, 404);
+      if (row.approval_status !== "pending") {
+        return json({ error: "This shop is already approved. Request an edit instead." }, 409);
+      }
+      const { error } = await db.from("shop_profiles").upsert({
+        user_id: row.username,
+        shop_name: s.shop_name || "",
+        phone: s.phone || "",
+        address_line1: s.address_line1 || "",
+        address_line2: s.address_line2 || "",
+        dl_no: s.dl_no || "",
+        gstin: s.gstin || "",
+        invoice_prefix: s.invoice_prefix || "",
+        terms: s.terms || "",
+        footer_msg: s.footer_msg || "",
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id" });
+      return error ? json({ error: error.message }, 400) : json({ ok: true });
     }
 
     if (action === "reset_request") {

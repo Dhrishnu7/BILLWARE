@@ -417,6 +417,31 @@ function shopSetupSession() {
     } catch (e) { return null; }
 }
 
+// Store a brand-new (still unapproved) shop's details through mm-admin. The
+// token comes from signup and only the server can mint it, so this cannot be
+// used to write a profile for somebody else's account; the server also refuses
+// once the shop is approved. Best-effort: a failure just leaves the local stash.
+async function submitPendingProfile(profile, username) {
+    try {
+        const u = username || tenantId;
+        if (!u) return false;
+        let token = new URLSearchParams(location.search).get('t') || '';
+        if (!token) { try { token = localStorage.getItem('mm_setup_token_' + u) || ''; } catch (_) {} }
+        if (!token) return false;
+        const res = await fetch(`${SB_URL}/functions/v1/mm-admin`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` },
+            body: JSON.stringify({ action: 'submit_shop_profile', username: u, token, shopInfo: profile }),
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok || (body && body.error)) {
+            console.warn('[shop-setup] pending profile save failed:', body && body.error);
+            return false;
+        }
+        return true;
+    } catch (e) { console.warn('[shop-setup] pending profile save error:', e); return false; }
+}
+
 // Get tenant from URL (passed from setup.html after account creation)
 const params = new URLSearchParams(location.search);
 let tenantId = params.get('tenant') || '';
@@ -864,17 +889,19 @@ async function saveAndContinue() {
     if (error) {
         // First-time setup runs BEFORE the admin approves the shop, so the new owner
         // has no tenant membership yet and RLS (correctly) refuses this cloud write.
-        // That's expected — don't alarm them with a red failure. Stash the details
-        // locally so they survive, then continue to the "awaiting approval" screen.
-        // The profile saves to the cloud after approval, when the membership exists.
+        // That's expected — don't alarm them with a red failure.
         if (!isEditMode) {
-            try {
-                localStorage.setItem('mm_pending_shop_profile', JSON.stringify({
-                    shop_name: shopName, invoice_prefix: prefix, phone: phone,
-                    address_line1: addr1, address_line2: addr2, dl_no: dlNo,
-                    gstin: gstin, terms: terms, footer_msg: footer,
-                }));
-            } catch(_) {}
+            const profile = {
+                shop_name: shopName, invoice_prefix: prefix, phone: phone,
+                address_line1: addr1, address_line2: addr2, dl_no: dlNo,
+                gstin: gstin, terms: terms, footer_msg: footer,
+            };
+            // Save it through the server, which holds the service role and is not
+            // subject to RLS. This is what puts the shop details in front of the
+            // admin at approval time — stashing them in localStorage only (the old
+            // behaviour) meant the Shop Details dialog was always empty.
+            await submitPendingProfile(profile, userId);
+            try { localStorage.setItem('mm_pending_shop_profile', JSON.stringify(profile)); } catch(_) {}
             document.getElementById('setupCard').style.display = 'none';
             document.getElementById('pendingScreen').style.display = 'block';
             document.querySelector('.page-header h1').textContent = 'Almost Done!';

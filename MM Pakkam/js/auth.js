@@ -715,7 +715,10 @@ async function mmCreateOwner(username, password, shopInfo = null) {
     // can't register itself into somebody else's shop or self-approve.
     const res = await mmAdminCall('signup', { username: username.trim(), password, shopInfo });
     if (!res.ok) return { success: false, message: res.message };
-    return { success: true, pending: true };
+    // setup_token lets the shop-details page (which runs before approval, with
+    // no session) store the profile through the server. Without it the details
+    // never reach the cloud and the admin sees "no shop profile" at approval.
+    return { success: true, pending: true, setupToken: (res.data && res.data.setup_token) || '' };
 }
 
 /** Add a worker to the current owner's store. Username unique within this store only. */

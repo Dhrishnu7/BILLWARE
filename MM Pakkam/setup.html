@@ -591,9 +591,13 @@
             const result = await mmCreateOwner(username, password, null);
             if (result.success) {
                 setBtnDone('Account Created!');
-                // Redirect to shop setup page 
+                // Carry the setup token across so shop-setup.html can save the
+                // shop details to the cloud before the admin approves them.
+                // Also stashed, so a reload that drops the query string still works.
+                try { if (result.setupToken) localStorage.setItem('mm_setup_token_' + username, result.setupToken); } catch (_) {}
                 setTimeout(() => {
-                    window.location.href = 'shop-setup.html?tenant=' + encodeURIComponent(username);
+                    window.location.href = 'shop-setup.html?tenant=' + encodeURIComponent(username)
+                        + (result.setupToken ? '&t=' + encodeURIComponent(result.setupToken) : '');
                 }, 600);
             } else {
                 showError(result.message);
