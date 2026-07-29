@@ -12,8 +12,8 @@
    the "browser apps can't match legacy billing software" complaint.
 
    This gives identical behaviour everywhere:
-       type      filter, best matches first
-       ↑ / ↓     move the highlight
+       type      filter, best matches first (nothing shows until you type)
+       ↑ / ↓     move the highlight — ↓ on an empty box lists everything
        Enter     commit the highlighted row, then carry on to the next field
        Tab       commit and move on
        Esc       close the list, keep what was typed
@@ -190,10 +190,17 @@
                (el.hasAttribute('list') || el.dataset.mmlist);
     }
 
-    function open(el) {
+    /* `force` = the user asked for the list explicitly (pressed ↓).
+       Without it an EMPTY box shows nothing. Opening the full list the moment
+       the field is focused covered half the bill form with names before a
+       single key was pressed — and since the Sales page now puts the cursor
+       here on load, that happened every time the page opened. Type to search;
+       press ↓ if you actually want to browse. */
+    function open(el, force) {
         var listId = listIdFor(el);
         if (!listId) return;
         current = el;
+        if (!force && !(el.value || '').trim()) { close(); return; }
         matches = filter(listId, el.value);
         active = matches.length ? 0 : -1;
         render(el.value);
@@ -201,13 +208,13 @@
 
     document.addEventListener('focusin', function (e) {
         if (!eligible(e.target)) { if (current && e.target !== current) { current = null; close(); } return; }
-        open(e.target);
+        open(e.target);          // stays shut while the box is empty
     });
 
     document.addEventListener('input', function (e) {
         if (e.target !== current) { if (eligible(e.target)) open(e.target); return; }
-        var listId = current.dataset.mmlist;
-        matches = filter(listId, current.value);
+        if (!(current.value || '').trim()) { close(); return; }   // cleared the box → hide again
+        matches = filter(current.dataset.mmlist, current.value);
         active = matches.length ? 0 : -1;
         render(current.value);
     });
@@ -227,7 +234,8 @@
         var open_ = box && box.classList.contains('open');
 
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-            if (!open_) { open(current); return; }
+            // ↓ on a closed list is a deliberate "show me everything", so force it.
+            if (!open_) { e.preventDefault(); open(current, true); return; }
             e.preventDefault();
             if (!matches.length) return;
             active += (e.key === 'ArrowDown' ? 1 : -1);
