@@ -478,6 +478,9 @@ function _rxRowToObj(r) {
    has the URL, with no login and no expiry. Render via
    dbPrescriptionImageSrc(), never getPublicUrl(). */
 const RX_BUCKET = 'prescriptions';
+// How long a signed photo link lives, and the cache lifetime uploads are
+// stored with. Declared here because the uploader uses it too.
+const RX_SIGNED_TTL = 3600;
 
 // Upload a base64 JPEG data URL → returns the STORAGE PATH ("<tenant>/<rx>.jpg"),
 // or null on any failure. It used to return a permanent public URL; that URL
@@ -490,8 +493,15 @@ async function dbUploadPrescriptionImage(rxId, dataUrl) {
         if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return null;
         const blob = await (await fetch(dataUrl)).blob();
         const path = `${user}/${rxId}.jpg`;
+        // cacheControl matters more than it looks. These were uploaded with a
+        // ONE YEAR cache header, and Supabase's CDN honours it — so after the
+        // bucket was switched to private, the CDN kept serving the cached copy
+        // of a patient's prescription to anyone with the URL (verified:
+        // CF-Cache-Status: HIT while the origin returned 400). Keep it in step
+        // with the signed-URL lifetime so a cached copy cannot outlive the link
+        // that was allowed to fetch it.
         const { error } = await _supabase.storage.from(RX_BUCKET)
-            .upload(path, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '31536000' });
+            .upload(path, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: String(RX_SIGNED_TTL) });
         if (error) { console.warn('[db] rx image upload failed:', error.message); return null; }
         return path;
     } catch (e) { console.warn('[db] rx image upload error:', e); return null; }
@@ -507,7 +517,6 @@ window.dbUploadPrescriptionImage = dbUploadPrescriptionImage;
 //   3. "<tenant>/<rx>.jpg" — current shape. Signed on demand.
 // Signed links expire (default 1 hour), so a copied link stops working instead
 // of being a permanent public handle on a patient's prescription.
-const RX_SIGNED_TTL = 3600;
 const _rxSignedCache = new Map();   // path -> { url, expires }
 
 function _rxStoragePath(imageData) {
