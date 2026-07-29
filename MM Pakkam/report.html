@@ -700,6 +700,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
     <script src="js/tally-export.js"></script>
+    <script src="js/gstr1-export.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
@@ -960,6 +961,12 @@
                     </svg>
                     Export for Tally
                 </button>
+                <button class="btn-export-excel" onclick="openGstrModal()" title="Build the monthly GSTR-1 JSON for the GST portal">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    GSTR-1 JSON
+                </button>
                 <button class="btn-backup" onclick="backupData()" title="Download all your data as a backup file">
                     <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -1123,6 +1130,54 @@
     </div>
 
     <!-- Preview Modal -->
+    <!-- ═══ GSTR-1 ═══
+         A month at a time, because that is what the return is. Uses its own
+         month picker rather than the report's From/To, so a half-month range
+         left over from something else cannot produce a wrong filing. -->
+    <div class="modal-overlay" id="gstrModal" style="display:none;" onclick="if(event.target===this) closeGstrModal()">
+        <div class="modal-content" style="max-width:560px;">
+            <div class="modal-header">
+                <div class="modal-title">🧾 GSTR-1 for the GST portal</div>
+                <button class="modal-close" onclick="closeGstrModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height:72vh;overflow-y:auto;">
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:10px;padding:10px 13px;font-size:0.8rem;line-height:1.55;margin-bottom:1rem;">
+                    Builds the JSON the GST portal's offline utility imports — so the month's
+                    sales, tax and HSN summary do not have to be typed in again.
+                </div>
+
+                <div style="display:flex;gap:0.7rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+                    <div style="flex:1;min-width:150px;">
+                        <label style="display:block;font-size:0.74rem;font-weight:700;color:#475569;margin-bottom:3px;">Return month</label>
+                        <input type="month" id="gstrMonth" style="width:100%;box-sizing:border-box;padding:0.5rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:0.88rem;outline:none;">
+                    </div>
+                    <div style="flex:1;min-width:170px;">
+                        <label style="display:block;font-size:0.74rem;font-weight:700;color:#475569;margin-bottom:3px;">Your GSTIN</label>
+                        <input type="text" id="gstrGstin" placeholder="33AAGCD8891M1Z4" maxlength="15"
+                            style="width:100%;box-sizing:border-box;padding:0.5rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:0.88rem;outline:none;text-transform:uppercase;">
+                        <div style="font-size:0.68rem;color:#94a3b8;margin-top:2px;">from your shop profile</div>
+                    </div>
+                </div>
+
+                <div id="gstrSummary"></div>
+
+                <div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:10px 13px;font-size:0.78rem;line-height:1.55;margin-top:0.8rem;">
+                    <b>Counter sales only.</b> Every sale is filed as B2C. If you sell to a buyer
+                    who has a GSTIN — a clinic or nursing home — that invoice must be filed
+                    <b>B2B</b> so they can claim input credit, and this export cannot tell those
+                    apart because customers have no GSTIN field yet. Ask for that to be added
+                    before using this if you have such buyers.
+                    <br><br>
+                    Always open the file in the GST offline utility and check the totals before submitting.
+                </div>
+            </div>
+            <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;">
+                <button class="search-btn" onclick="closeGstrModal()" style="background:#f1f5f9;color:#475569;">Cancel</button>
+                <button class="search-btn" onclick="downloadGstr1()">⬇ Download JSON</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ═══ Tally export ═══
          The ledger NAMES are the whole ballgame: Tally matches by name, so a
          file saying "Sales" against a company that has "Sales Account" will
@@ -1284,6 +1339,94 @@
                 if (dates.length > 0) fd.value = dates[0];
             }
             generateReport();
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           GSTR-1
+           Monthly, with its own month picker — the report's From/To could be
+           any range at all, and half a month would produce a wrong return.
+        ══════════════════════════════════════════════════════════════════ */
+        function openGstrModal() {
+            const m = document.getElementById('gstrModal');
+            // Default to LAST month: GSTR-1 is filed after the month closes, so
+            // that is nearly always the one being prepared.
+            const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
+            const el = document.getElementById('gstrMonth');
+            if (!el.value) el.value = d.toISOString().slice(0, 7);
+            const sp = window.mmShopProfile || {};
+            const g = document.getElementById('gstrGstin');
+            if (!g.value) g.value = (sp.gstin || '').toUpperCase();
+            m.classList.add('open');
+            m.style.display = 'flex';
+            refreshGstrSummary();
+            el.onchange = refreshGstrSummary;
+            g.oninput = refreshGstrSummary;
+        }
+        function closeGstrModal() {
+            const m = document.getElementById('gstrModal');
+            m.classList.remove('open');
+            m.style.display = 'none';
+        }
+
+        let _gstrBuilt = null;
+        function refreshGstrSummary() {
+            const month = document.getElementById('gstrMonth').value;
+            const gstin = (document.getElementById('gstrGstin').value || '').trim().toUpperCase();
+            const box = document.getElementById('gstrSummary');
+            if (!month) { box.innerHTML = ''; _gstrBuilt = null; return; }
+
+            const res = mmGstr1.build({ month, gstin });
+            _gstrBuilt = res;
+            const s = res.summary;
+            const money = v => '₹' + (Number(v) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            if (!s.bills) {
+                box.innerHTML = `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center;color:#94a3b8;font-size:0.86rem;">
+                    No bills found in this month.</div>`;
+                return;
+            }
+
+            const warn = [];
+            if (!gstin || gstin.length !== 15) warn.push('Your GSTIN looks incomplete — the portal will reject the file.');
+            if (!mmGstr1.posOf(gstin))          warn.push('GSTIN must start with your 2-digit state code.');
+            if (s.missingHsn)                   warn.push(`${s.missingHsn} line(s) have no HSN code. HSN is mandatory in GSTR-1 — fix those bills or the summary will be short.`);
+
+            box.innerHTML = `
+                <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                    <div style="background:#f8fafc;padding:9px 13px;font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;">
+                        What will be filed
+                    </div>
+                    <table style="width:100%;border-collapse:collapse;font-size:0.84rem;">
+                        <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Bills</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${s.bills} &nbsp;(${s.lines} lines)</td></tr>
+                        <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Invoice series</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${_te(s.firstInv)} → ${_te(s.lastInv)}</td></tr>
+                        <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Taxable value</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${money(s.taxable)}</td></tr>
+                        <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Tax (CGST + SGST)</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${money(s.tax)}</td></tr>
+                        <tr style="border-top:1px solid #f1f5f9;background:#f8fafc;"><td style="padding:7px 13px;font-weight:800;">Invoice total</td><td style="padding:7px 13px;text-align:right;font-weight:800;">${money(s.grandTotal)}</td></tr>
+                    </table>
+                    <div style="padding:9px 13px;border-top:1px solid #f1f5f9;font-size:0.78rem;color:#64748b;">
+                        <b>B2CS</b> ${s.rates} tax rate(s) &nbsp;·&nbsp; <b>HSN summary</b> ${s.hsnRows} row(s)
+                    </div>
+                    <div style="padding:0 13px 11px;">
+                        ${res.b2cs.map(r => `<span style="display:inline-block;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;border-radius:20px;padding:3px 10px;font-size:0.74rem;font-weight:700;margin:3px 4px 0 0;">${r.rt}% · ${money(r.txval)}</span>`).join('')}
+                    </div>
+                </div>
+                ${warn.length ? `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:10px 13px;font-size:0.78rem;line-height:1.5;margin-top:0.7rem;">
+                    ${warn.map(w => '⚠️ ' + w).join('<br>')}</div>` : ''}`;
+        }
+
+        async function downloadGstr1() {
+            if (!_gstrBuilt || !_gstrBuilt.summary.bills) { await mmAlert('No bills in that month to file.'); return; }
+            const gstin = (document.getElementById('gstrGstin').value || '').trim().toUpperCase();
+            if (gstin.length !== 15) {
+                if (!await mmConfirm('Your GSTIN is not 15 characters. The portal will reject the file.\n\nDownload anyway?', { okText: 'Download' })) return;
+            }
+            const blob = new Blob([JSON.stringify(_gstrBuilt.json, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'GSTR1-' + _gstrBuilt.month + '.json';
+            a.click();
+            closeGstrModal();
+            if (typeof mmAudit === 'function') mmAudit('GSTR-1 export', _gstrBuilt.month, _gstrBuilt.summary.bills + ' bills');
         }
 
         /* ══════════════════════════════════════════════════════════════════
