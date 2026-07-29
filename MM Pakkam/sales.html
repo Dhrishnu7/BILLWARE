@@ -2076,9 +2076,78 @@
         };
 
         /* ── Extra Sales shortcuts (on top of the shared keyboard-nav.js ones) ── */
+        /* Land the cursor in the first medicine box as soon as the page opens.
+           Without this the biller has to click or Tab before typing a single
+           character — which breaks blind typing at the very first keystroke,
+           the one place it hurts most. Skipped when a barcode scanner bar is
+           showing, because that field wants the scanner's input instead. */
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                if (document.activeElement && document.activeElement !== document.body) return;
+                const bar = document.getElementById('barcodeScanBar');
+                const scanVisible = bar && bar.offsetParent !== null;
+                const target = scanVisible
+                    ? document.getElementById('barcodeScan')
+                    : document.querySelector('[id^="product_"]');
+                if (target) { target.focus(); if (target.select) target.select(); }
+            }, 250);
+        });
+
+        /* Jump straight to a field, the way legacy billing software does.
+           Kept to F-keys the browser does NOT reserve: F5 (reload), F11
+           (fullscreen) and F12 (dev tools) belong to the browser and cannot be
+           taken, which is the one part of the desktop-vs-browser gap that is
+           genuinely unfixable. */
+        function _kbFocus(el) {
+            if (!el) return false;
+            el.focus();
+            if (el.select) el.select();
+            return true;
+        }
+        function _kbCurrentRowId() {
+            const a = document.activeElement;
+            const m = a && a.id && a.id.match(/_(\d+)$/);
+            return m ? m[1] : null;
+        }
+
         document.addEventListener('keydown', function (e) {
             // F1 → open the shortcuts cheat-sheet
             if (e.key === 'F1') { e.preventDefault(); toggleShortcutsHelp(true); return; }
+
+            // F3 → the medicine box (current row if you're in one, else the first)
+            if (e.key === 'F3') {
+                e.preventDefault();
+                const id = _kbCurrentRowId();
+                _kbFocus((id && document.getElementById('product_' + id))
+                         || document.querySelector('[id^="product_"]'));
+                return;
+            }
+            // F4 → Customer
+            if (e.key === 'F4') {
+                e.preventDefault();
+                _kbFocus(document.getElementById('customerName'));
+                return;
+            }
+            // F6 → Discount on the row being edited
+            if (e.key === 'F6') {
+                e.preventDefault();
+                const id = _kbCurrentRowId();
+                _kbFocus((id && document.getElementById('discount_' + id))
+                         || document.querySelector('[id^="discount_"]'));
+                return;
+            }
+            // F7 → Payment mode
+            if (e.key === 'F7') {
+                e.preventDefault();
+                _kbFocus(document.getElementById('paymentMode'));
+                return;
+            }
+            // F8 → the barcode scan box, when the scanner bar is in use
+            if (e.key === 'F8') {
+                e.preventDefault();
+                _kbFocus(document.getElementById('barcodeScan'));
+                return;
+            }
             // Ctrl+Enter → save the bill
             if (e.ctrlKey && e.key === 'Enter') {
                 e.preventDefault();
@@ -3129,6 +3198,11 @@
                     <div class="sc-item"><span class="sc-key"><kbd>Enter</kbd></span><span class="sc-desc">Next field &mdash; adds a new row on the last field</span></div>
                     <div class="sc-item"><span class="sc-key"><kbd>Shift</kbd><kbd>Enter</kbd></span><span class="sc-desc">Previous field &mdash; go back to fix an earlier entry</span></div>
                     <div class="sc-item"><span class="sc-key"><kbd>F2</kbd></span><span class="sc-desc">Add a new medicine row</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>F3</kbd></span><span class="sc-desc">Jump to the Medicine box</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>F4</kbd></span><span class="sc-desc">Jump to the Customer field</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>F6</kbd></span><span class="sc-desc">Jump to Discount on this row</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>F7</kbd></span><span class="sc-desc">Jump to Payment mode</span></div>
+                    <div class="sc-item"><span class="sc-key"><kbd>F8</kbd></span><span class="sc-desc">Jump to the Barcode scan box</span></div>
                     <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>R</kbd></span><span class="sc-desc">Remove the current medicine row</span></div>
                     <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>Q</kbd></span><span class="sc-desc">Jump to the Quantity box</span></div>
                     <div class="sc-item"><span class="sc-key"><kbd>Alt</kbd><kbd>C</kbd></span><span class="sc-desc">Jump to the Customer field</span></div>

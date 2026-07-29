@@ -9,6 +9,7 @@
  *  - F9        → jumps focus to the first [type=submit] button
  *  - Alt + S   → triggers the first [type=submit] button
  *  - F2        → fires window.__kbAddRow() if defined (sales page only)
+ *  (F2 / F9 / Alt+S fire from inside form fields too — a biller is always in one)
  *  - Esc       → closes any open modal overlay, otherwise clicks the Back button
  *
  * Works automatically on every page it is loaded into.
@@ -96,11 +97,12 @@
             return;
         }
 
-        // Don't fire shortcuts when typing inside inputs/textareas
-        const tag = e.target.tagName.toLowerCase();
-        const inField = ['input', 'textarea', 'select'].includes(tag);
-
-        if (inField) return;
+        // These used to be blocked whenever focus was inside an input, which
+        // made them useless for their actual purpose: a biller filling a bill is
+        // ALWAYS inside a field, so "F2 to add a row" and "Alt+S to save" never
+        // fired during the one task they exist for. Function keys and Alt
+        // combinations do not type characters, so they are safe to handle
+        // anywhere — that is precisely why billing software binds them.
 
         // F2 → add a new row (sales page hook)
         if (e.key === 'F2') {
