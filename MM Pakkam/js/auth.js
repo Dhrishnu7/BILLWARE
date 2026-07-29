@@ -86,6 +86,7 @@ const MM_KEEP_KEYS = new Set([
     'mm_auth_users',         // offline fallback user store (no business data)
     'mm_app_config',         // global feature switches, identical for every shop
     'mm_thermal_printer',    // this device's printer, not this shop's data
+    'mm_ocr_engine_cached',  // whether THIS DEVICE has the OCR engine saved
     'mm_bill_attach_hint_off', // a UI hint this device has dismissed
 ]);
 

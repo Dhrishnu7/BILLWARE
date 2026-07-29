@@ -470,8 +470,16 @@
 
                 <!-- Remember + Forgot -->
                 <div class="form-meta">
+                    <!-- Checked by DEFAULT, deliberately. Unchecked, the session is
+                         held in sessionStorage and dies the moment the app is closed —
+                         so staff were signed out every night. Signing in needs the
+                         server (the password is checked by the mm-login function, never
+                         in the browser), so a shop whose internet is down in the morning
+                         could not open the till at all. Staying signed in keeps the
+                         counter working through an outage; anyone on a shared device
+                         can still untick it. -->
                     <label class="remember-row" id="rememberLabel">
-                        <input type="checkbox" id="rememberMe">
+                        <input type="checkbox" id="rememberMe" checked>
                         <div class="custom-check">
                             <svg class="custom-check-icon" width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>

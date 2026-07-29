@@ -613,6 +613,16 @@
                     <button type="button" class="import-btn-sm inv-btn" onclick="openInvoiceImportModal()">
                         📥 Import Full Invoice
                     </button>
+                    <!-- The OCR engine is ~4 MB and is fetched from a CDN the first time
+                         anyone scans. That is fine on a good day and useless on a bad one:
+                         a shop that has never scanned before cannot scan during an outage.
+                         This lets them fetch it deliberately, on good WiFi, instead of
+                         finding out mid-crisis. Hidden once it is already cached. -->
+                    <button type="button" class="import-btn-sm" id="ocrOfflineBtn"
+                            style="display:none;" onclick="downloadOcrEngine()"
+                            title="Save the invoice scanner on this device so it works without internet">
+                        ⬇️ Save Scanner Offline
+                    </button>
                 </div>
 
                 <!-- ═══ Line Items Section ═══ -->
@@ -1356,6 +1366,10 @@
             if (dl) dl.innerHTML = getAllMedNames().map(n => `<option value="${n}">`).join('');
         }
         window.addEventListener('DOMContentLoaded', refreshProductDatalist); // populate on page load
+// Only offer the offline-scanner download when it hasn't been saved yet.
+window.addEventListener('DOMContentLoaded', () => {
+    if (typeof refreshOcrOfflineBtn === 'function') refreshOcrOfflineBtn();
+});
 
         // Refresh purchases/sales/etc. from Supabase so name-autocomplete and any
         // stock-aware checks on this page use current data, not a stale local cache.
@@ -1650,12 +1664,74 @@
 
                 const ocrData = await _runTesseract(imageSource, onProgress);
                 if (ocrMeta) ocrData._pre = ocrMeta;
+                // A completed scan means the engine is cached on this device too,
+                // so the "save it offline" prompt has nothing left to do.
+                try { localStorage.setItem(OCR_CACHED_KEY, '1'); } catch (e) {}
+                if (typeof refreshOcrOfflineBtn === 'function') refreshOcrOfflineBtn();
                 dz.innerHTML = origHTML;
                 _parseOCRWithLayout(ocrData);
             } catch(err) {
                 dz.innerHTML = origHTML;
                 showToast('OCR Failed', 'Could not scan the file. Please try a clearer image.');
                 console.error('OCR error:', err);
+            }
+        }
+
+        /* ── Save the OCR engine for offline use ──
+           Loading tesseract.min.js alone is not enough: the heavy parts (the
+           WASM core and the English training data) are only fetched when a
+           recognition actually runs. So we run one throwaway recognition on a
+           tiny generated image, which pulls everything down through the service
+           worker's cache. After that, scanning works with no internet at all.
+           The flag is per device, which is the right scope — the cache is too. */
+        const OCR_CACHED_KEY = 'mm_ocr_engine_cached';
+
+        function _ocrEngineReady() {
+            try { return localStorage.getItem(OCR_CACHED_KEY) === '1'; } catch (e) { return false; }
+        }
+
+        function refreshOcrOfflineBtn() {
+            const b = document.getElementById('ocrOfflineBtn');
+            if (!b) return;
+            b.style.display = _ocrEngineReady() ? 'none' : '';
+        }
+
+        async function downloadOcrEngine() {
+            const btn = document.getElementById('ocrOfflineBtn');
+            if (!btn) return;
+            if (!navigator.onLine) {
+                showToast('No internet', 'Connect to WiFi first — this needs to download about 4 MB.');
+                return;
+            }
+            const original = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Downloading… 0%';
+            try {
+                await loadTesseract();
+                const worker = await Tesseract.createWorker('eng', 1, {
+                    logger: m => {
+                        const pct = Math.round((m.progress || 0) * 100);
+                        btn.innerHTML = `⏳ ${m.status === 'recognizing text' ? 'Finishing' : 'Downloading'}… ${pct}%`;
+                    }
+                });
+                // One tiny recognition forces the WASM + training data to load.
+                const c = document.createElement('canvas');
+                c.width = 220; c.height = 70;
+                const cx = c.getContext('2d');
+                cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
+                cx.fillStyle = '#000'; cx.font = 'bold 34px Arial';
+                cx.fillText('BATCH 123', 12, 46);
+                await worker.recognize(c);
+                await worker.terminate();
+
+                try { localStorage.setItem(OCR_CACHED_KEY, '1'); } catch (e) {}
+                refreshOcrOfflineBtn();
+                showToast('Scanner saved', 'Invoice scanning now works on this device without internet.');
+            } catch (e) {
+                console.error('[OCR] offline save failed:', e);
+                btn.disabled = false;
+                btn.innerHTML = original;
+                showToast('Download failed', 'Could not save the scanner. Check your connection and try again.');
             }
         }
 
