@@ -692,6 +692,7 @@
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
+    <script src="js/tally-export.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
@@ -946,6 +947,12 @@
                     </svg>
                     Export GST Excel
                 </button>
+                <button class="btn-export-excel" onclick="openTallyModal()" title="Export vouchers your accountant can import straight into Tally">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6h13M9 7h13M4 7h.01M4 12h.01M4 17h.01"/>
+                    </svg>
+                    Export for Tally
+                </button>
                 <button class="btn-backup" onclick="backupData()" title="Download all your data as a backup file">
                     <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -1109,6 +1116,45 @@
     </div>
 
     <!-- Preview Modal -->
+    <!-- ═══ Tally export ═══
+         The ledger NAMES are the whole ballgame: Tally matches by name, so a
+         file saying "Sales" against a company that has "Sales Account" will
+         fail or post to the wrong place. Hence they are settings the shop
+         fills in once from its accountant, not constants baked into the code. -->
+    <div class="modal-overlay" id="tallyModal" style="display:none;" onclick="if(event.target===this) closeTallyModal()">
+        <div class="modal-content" style="max-width:520px;">
+            <div class="modal-header">
+                <div class="modal-title">📒 Export for Tally</div>
+                <button class="modal-close" onclick="closeTallyModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:10px;padding:10px 13px;font-size:0.8rem;line-height:1.55;margin-bottom:1rem;">
+                    Creates a voucher file your accountant imports directly into Tally —
+                    no re-typing. Uses the <b>From / To dates</b> selected on this page.
+                </div>
+
+                <div style="font-size:0.76rem;font-weight:800;color:#0d9488;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.55rem;">Include</div>
+                <label style="display:block;font-size:0.87rem;margin-bottom:5px;cursor:pointer;"><input type="checkbox" id="tlySales" checked> Sales bills → Sales vouchers</label>
+                <label style="display:block;font-size:0.87rem;margin-bottom:5px;cursor:pointer;"><input type="checkbox" id="tlyPurch" checked> Purchase bills → Purchase vouchers</label>
+                <label style="display:block;font-size:0.87rem;margin-bottom:1rem;cursor:pointer;"><input type="checkbox" id="tlyExp" checked> Expenses → Payment vouchers</label>
+
+                <div style="font-size:0.76rem;font-weight:800;color:#0d9488;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.55rem;">Ledger names</div>
+                <div style="font-size:0.76rem;color:#64748b;line-height:1.5;margin-bottom:0.7rem;">
+                    Ask your accountant for these once — they must match the ledgers in their Tally company exactly, or the import will fail. Saved for next time.
+                </div>
+                <div id="tallyFields"></div>
+
+                <div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:10px 13px;font-size:0.78rem;line-height:1.55;margin-top:0.6rem;">
+                    <b>Before relying on this:</b> ask your accountant to import one short period first and check it against your bills. GST is split half CGST / half SGST, which is correct for sales within your own state — inter-state (IGST) bills would need adjusting.
+                </div>
+            </div>
+            <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;">
+                <button class="search-btn" onclick="closeTallyModal()" style="background:#f1f5f9;color:#475569;">Cancel</button>
+                <button class="search-btn" onclick="doTallyExport()">⬇ Download Tally file</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="previewModal" onclick="if(event.target===this) closePreviewModal()">
         <div class="modal-content">
             <div class="modal-header">
@@ -1220,6 +1266,76 @@
                 if (dates.length > 0) fd.value = dates[0];
             }
             generateReport();
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           TALLY EXPORT
+           The app deliberately does not try to be an accounting package. This
+           writes the period's vouchers in Tally's own import format so the CA
+           works in the tool they already know, instead of re-keying every bill.
+        ══════════════════════════════════════════════════════════════════ */
+        const TALLY_FIELDS = [
+            ['company',      'Company name in Tally',   'leave blank to use whichever company is open'],
+            ['salesLedger',  'Sales ledger',            'income from bills'],
+            ['purchLedger',  'Purchase ledger',         'stock bought'],
+            ['cgstOut',      'Output CGST ledger',      'GST collected on sales'],
+            ['sgstOut',      'Output SGST ledger',      ''],
+            ['cgstIn',       'Input CGST ledger',       'GST paid on purchases'],
+            ['sgstIn',       'Input SGST ledger',       ''],
+            ['cashLedger',   'Cash ledger',             ''],
+            ['bankLedger',   'Bank ledger',             'used when an expense was paid by UPI / card / bank'],
+            ['walkIn',       'Counter-sale party',      'ledger used when a bill has no customer name'],
+            ['expensePrefix','Expense ledger prefix',   'optional, e.g. "Indirect Exp - "'],
+        ];
+
+        function openTallyModal() {
+            const cfg = mmTally.loadCfg();
+            const m = document.getElementById('tallyModal');
+            const box = document.getElementById('tallyFields');
+            box.innerHTML = TALLY_FIELDS.map(([k, label, hint]) => `
+                <div style="margin-bottom:0.6rem;">
+                    <label style="display:block;font-size:0.74rem;font-weight:700;color:#475569;margin-bottom:3px;">${label}</label>
+                    <input id="tly_${k}" type="text" value="${String(cfg[k] || '').replace(/"/g, '&quot;')}"
+                        style="width:100%;box-sizing:border-box;padding:0.5rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:0.86rem;outline:none;">
+                    ${hint ? `<div style="font-size:0.68rem;color:#94a3b8;margin-top:2px;">${hint}</div>` : ''}
+                </div>`).join('');
+            m.classList.add('open');
+            m.style.display = 'flex';
+        }
+        function closeTallyModal() {
+            const m = document.getElementById('tallyModal');
+            m.classList.remove('open');
+            m.style.display = 'none';
+        }
+
+        async function doTallyExport() {
+            const cfg = {};
+            TALLY_FIELDS.forEach(([k]) => { cfg[k] = (document.getElementById('tly_' + k).value || '').trim(); });
+            mmTally.saveCfg(cfg);
+
+            const opts = {
+                from: document.getElementById('fromDate').value || '',
+                to:   document.getElementById('toDate').value   || '',
+                sales:     document.getElementById('tlySales').checked,
+                purchases: document.getElementById('tlyPurch').checked,
+                expenses:  document.getElementById('tlyExp').checked,
+            };
+            const res = mmTally.build(opts);
+            const n = res.counts.sales + res.counts.purchases + res.counts.expenses;
+            if (!n) { await mmAlert('Nothing to export in this date range. Widen the From / To dates and try again.'); return; }
+
+            const blob = new Blob([res.xml], { type: 'application/xml' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'tally-' + (opts.from || 'all') + '-to-' + (opts.to || 'all') + '.xml';
+            a.click();
+            closeTallyModal();
+            if (typeof mmAudit === 'function') mmAudit('Tally export', `${n} vouchers`, `${opts.from} → ${opts.to}`);
+            await mmAlert(
+                `Exported ${n} voucher(s):\n` +
+                `  ${res.counts.sales} sales\n  ${res.counts.purchases} purchase\n  ${res.counts.expenses} payment (expenses)\n\n` +
+                `Send the .xml file to your accountant. In Tally: Gateway of Tally → Import Data → Vouchers → pick this file.`,
+                { title: 'Tally file ready', variant: 'success' });
         }
 
         /* Running costs recorded on the Accounts page. Read from the local cache
