@@ -862,6 +862,78 @@ async function dbDeleteSupplierPayment(id) {
 window.dbDeleteSupplierPayment = dbDeleteSupplierPayment;
 
 /* ─────────────────────────────────────────────────────
+   EXPENSES — the shop's running costs (rent, salaries, power,
+   freight…). Without these every "profit" number in the app is
+   really gross margin, because nothing is subtracted for the
+   cost of operating. Needs migrations/add_expenses_table.sql.
+───────────────────────────────────────────────────── */
+const MM_EXPENSE_CATEGORIES = [
+    'Rent', 'Salary', 'Electricity', 'Freight / Transport', 'Phone / Internet',
+    'Repairs & Maintenance', 'Licence & Fees', 'Bank Charges', 'GST / Tax Paid',
+    'Packing Material', 'Other'
+];
+window.MM_EXPENSE_CATEGORIES = MM_EXPENSE_CATEGORIES;
+
+function _expRowToObj(r) {
+    return {
+        id: r.expense_id, date: r.exp_date || '', category: r.category || 'Other',
+        note: r.note || '', amount: Number(r.amount) || 0,
+        paymentMode: r.payment_mode || 'Cash', savedAt: r.saved_at || ''
+    };
+}
+
+async function dbGetExpenses() {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetExpenses: no user, aborting.'); return []; }
+    const { data, error } = await _supabase.from('expenses')
+        .select('*').eq('user_id', user).order('exp_date', { ascending: false });
+    if (error) { console.error('expenses fetch:', error); return []; }
+    return (data || []).map(_expRowToObj);
+}
+window.dbGetExpenses = dbGetExpenses;
+
+async function dbSaveExpense(e) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbSaveExpense: no user, aborting.'); return { success: false }; }
+    const { error } = await _supabase.from('expenses').upsert({
+        expense_id:   e.id,
+        user_id:      user,
+        exp_date:     e.date || new Date().toISOString().slice(0, 10),
+        category:     e.category || 'Other',
+        note:         e.note || '',
+        amount:       Number(e.amount) || 0,
+        payment_mode: e.paymentMode || 'Cash',
+        saved_at:     e.savedAt || new Date().toISOString()
+    }, { onConflict: 'expense_id' });
+    if (error) { console.error('expense save:', error); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbSaveExpense = dbSaveExpense;
+
+async function dbDeleteExpense(id) {
+    const user = _currentUser();
+    if (!user) return false;
+    const { error } = await _supabase.from('expenses').delete().eq('expense_id', id).eq('user_id', user);
+    if (error) { console.error('expense delete:', error); return false; }
+    return true;
+}
+window.dbDeleteExpense = dbDeleteExpense;
+
+/* Pull expenses down and refresh the local cache. Falls back to whatever is
+   cached when offline or before the migration has been run, so the Report page
+   never breaks over a missing table — it just shows no expenses. */
+async function dbSyncExpenses() {
+    let rows = [];
+    try { rows = await dbGetExpenses(); } catch (e) { rows = []; }
+    if (rows.length) {
+        try { localStorage.setItem('mm_expenses', JSON.stringify(rows)); } catch (e) {}
+        return rows;
+    }
+    try { return JSON.parse(localStorage.getItem('mm_expenses') || '[]'); } catch (e) { return []; }
+}
+window.dbSyncExpenses = dbSyncExpenses;
+
+/* ─────────────────────────────────────────────────────
    CUSTOMER PAYMENTS (khata settlements). One row per payment
    a customer makes against their credit balance. Feeds the
    per-customer Statement (passbook) on the Accounts page.

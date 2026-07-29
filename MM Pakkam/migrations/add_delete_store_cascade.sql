@@ -25,7 +25,7 @@ declare
     'bills','purchases','customers','medicines','doctors','shop_profiles',
     'schedule_h_register','schedule_h_drugs','schedule_x_drugs','barcodes',
     'supplier_payments','customer_payments','audit_log','suppliers',
-    'reorder_levels','promise_orders','prescriptions','stock_adjustments',
+    'reorder_levels','promise_orders','prescriptions','stock_adjustments','expenses',
     -- this shop's own request/queue rows
     'shop_edit_requests','extra_user_requests','password_reset_requests',
     'customer_issues'

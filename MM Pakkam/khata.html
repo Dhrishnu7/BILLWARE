@@ -365,6 +365,7 @@
         <div style="display:flex;gap:0.5rem;margin-bottom:1.3rem;flex-wrap:wrap;">
             <button id="ktabCust" class="ktab" onclick="switchKhataTab('customers')" style="padding:0.6rem 1.2rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:0.88rem;cursor:pointer;color:#475569;font-family:inherit;">👤 Customers</button>
             <button id="ktabSupp" class="ktab" onclick="switchKhataTab('suppliers')" style="padding:0.6rem 1.2rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:0.88rem;cursor:pointer;color:#475569;font-family:inherit;">🏭 Suppliers</button>
+            <button id="ktabExp" class="ktab" onclick="switchKhataTab('expenses')" style="padding:0.6rem 1.2rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:0.88rem;cursor:pointer;color:#475569;font-family:inherit;">💸 Expenses</button>
         </div>
 
         <div id="khataTabCustomers">
@@ -410,6 +411,67 @@
             </div>
             <div class="khata-grid" id="supplierGrid">
                 <div style="text-align:center;padding:3rem;color:#94a3b8;grid-column:1/-1;font-size:0.9rem;">Open this tab to load suppliers…</div>
+            </div>
+        </div>
+
+        <!-- ═══ EXPENSES ═══
+             Running costs live here rather than on the Report page because this
+             is the money-movement page: what customers owe you, what you owe
+             suppliers, and what the shop itself costs to run. The Report page
+             reads these to turn gross margin into an actual net profit. -->
+        <div id="khataTabExpenses" style="display:none;">
+            <div class="stat-card">
+                <div class="stat-left">
+                    <div class="stat-label">Expenses This Month</div>
+                    <div class="stat-value" id="expMonthTotal">₹0.00</div>
+                    <div class="stat-sub" id="expMonthSub">Rent, salaries, power and other running costs</div>
+                </div>
+                <div class="stat-icon">💸</div>
+            </div>
+
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:1.1rem 1.2rem;margin-bottom:1.2rem;box-shadow:0 1px 3px rgba(15,23,42,.05);">
+                <div style="font-size:0.78rem;font-weight:800;color:#be123c;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.9rem;">Add an expense</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.7rem;">
+                    <div>
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Date</label>
+                        <input type="date" id="expDate" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;outline:none;">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Category</label>
+                        <select id="expCategory" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;outline:none;background:#fff;"></select>
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Amount ₹</label>
+                        <input type="number" id="expAmount" min="0" step="0.01" placeholder="0.00" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;outline:none;">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Paid by</label>
+                        <select id="expMode" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;outline:none;background:#fff;">
+                            <option>Cash</option><option>UPI</option><option>Bank</option><option>Card</option>
+                        </select>
+                    </div>
+                    <div style="grid-column:1/-1;">
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Note (optional)</label>
+                        <input type="text" id="expNote" placeholder="e.g. July shop rent" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;outline:none;">
+                    </div>
+                </div>
+                <button type="button" onclick="saveExpense()" id="expSaveBtn"
+                    style="margin-top:0.9rem;background:linear-gradient(135deg,#f43f5e,#e11d48);color:#fff;border:none;border-radius:11px;padding:0.65rem 1.5rem;font-weight:700;font-size:0.88rem;font-family:inherit;cursor:pointer;">
+                    ＋ Add Expense
+                </button>
+            </div>
+
+            <div class="search-bar">
+                <svg width="16" height="16" fill="none" stroke="#a5b4fc" stroke-width="2.5" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35"/>
+                </svg>
+                <input type="text" id="expSearch" placeholder="Search category or note…" oninput="renderExpenses(this.value)">
+                <select id="expMonthFilter" onchange="renderExpenses(document.getElementById('expSearch').value)"
+                    style="border:none;outline:none;background:#e2e8f0;border-radius:10px;padding:0.4rem 0.8rem;font-weight:700;font-size:0.8rem;font-family:inherit;color:#475569;cursor:pointer;"></select>
+            </div>
+
+            <div id="expenseList">
+                <div style="text-align:center;padding:3rem;color:#94a3b8;font-size:0.9rem;">Open this tab to load expenses…</div>
             </div>
         </div>
     </div>
@@ -998,9 +1060,191 @@
         async function switchKhataTab(which) {
             _ktabStyle(document.getElementById('ktabCust'), which === 'customers');
             _ktabStyle(document.getElementById('ktabSupp'), which === 'suppliers');
+            _ktabStyle(document.getElementById('ktabExp'),  which === 'expenses');
             document.getElementById('khataTabCustomers').style.display = which === 'customers' ? '' : 'none';
             document.getElementById('khataTabSuppliers').style.display = which === 'suppliers' ? '' : 'none';
+            document.getElementById('khataTabExpenses').style.display  = which === 'expenses'  ? '' : 'none';
             if (which === 'suppliers') await loadSuppliers();
+            if (which === 'expenses')  await loadExpenses();
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           EXPENSES — the shop's running costs.
+           Kept here, on the money page, and read by the Report page so its
+           profit figure can subtract them instead of ignoring them.
+        ══════════════════════════════════════════════════════════════════ */
+        let _expenses = [];
+
+        function _expLocal() {
+            try { return JSON.parse(localStorage.getItem('mm_expenses') || '[]'); } catch (e) { return []; }
+        }
+        function _expSaveLocal() {
+            try { localStorage.setItem('mm_expenses', JSON.stringify(_expenses)); } catch (e) {}
+        }
+        const _inr = n => '₹' + (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        async function loadExpenses() {
+            // Union local + cloud by id: an expense added offline must not vanish
+            // when the cloud copy (which has not seen it yet) comes back.
+            let cloud = [];
+            try { if (typeof dbGetExpenses === 'function') cloud = await dbGetExpenses(); } catch (e) {}
+            const byId = new Map();
+            [..._expLocal(), ...cloud].forEach(x => { if (x && x.id && !byId.has(x.id)) byId.set(x.id, x); });
+            _expenses = [...byId.values()].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+            _expSaveLocal();
+
+            const cat = document.getElementById('expCategory');
+            if (cat && !cat.options.length) {
+                const list = window.MM_EXPENSE_CATEGORIES || ['Rent', 'Salary', 'Electricity', 'Other'];
+                cat.innerHTML = list.map(c => `<option>${c}</option>`).join('');
+            }
+            const d = document.getElementById('expDate');
+            if (d && !d.value) d.value = new Date().toISOString().slice(0, 10);
+
+            _buildExpMonths();
+            renderExpenses();
+        }
+
+        function _buildExpMonths() {
+            const sel = document.getElementById('expMonthFilter');
+            if (!sel) return;
+            const keep = sel.value;
+            const months = [...new Set(_expenses.map(e => String(e.date).slice(0, 7)).filter(Boolean))].sort().reverse();
+            const now = new Date().toISOString().slice(0, 7);
+            if (!months.includes(now)) months.unshift(now);
+            sel.innerHTML = '<option value="">All months</option>' + months.map(m => {
+                const [y, mo] = m.split('-');
+                const nm = new Date(y, Number(mo) - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+                return `<option value="${m}">${nm}</option>`;
+            }).join('');
+            sel.value = keep || now;
+        }
+
+        function renderExpenses(q) {
+            const box = document.getElementById('expenseList');
+            if (!box) return;
+            const month = (document.getElementById('expMonthFilter') || {}).value || '';
+            const query = (q || '').trim().toLowerCase();
+
+            let rows = _expenses.filter(e => !month || String(e.date).slice(0, 7) === month);
+            if (query) rows = rows.filter(e =>
+                (e.category || '').toLowerCase().includes(query) || (e.note || '').toLowerCase().includes(query));
+
+            // The headline card always reflects the CURRENT month, whatever is
+            // being filtered below — it is a "what is this month costing me" number.
+            const thisMonth = new Date().toISOString().slice(0, 7);
+            const mTotal = _expenses.filter(e => String(e.date).slice(0, 7) === thisMonth)
+                                    .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+            const mt = document.getElementById('expMonthTotal');
+            if (mt) mt.textContent = _inr(mTotal);
+
+            if (!rows.length) {
+                box.innerHTML = `<div style="text-align:center;padding:2.6rem;color:#94a3b8;font-size:0.9rem;">
+                    ${_expenses.length ? 'No expenses match this filter.' : 'No expenses recorded yet. Add your first one above.'}</div>`;
+                return;
+            }
+
+            const total = rows.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+            const byCat = {};
+            rows.forEach(e => { byCat[e.category || 'Other'] = (byCat[e.category || 'Other'] || 0) + (Number(e.amount) || 0); });
+            const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+
+            box.innerHTML = `
+                <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.9rem;">
+                    ${cats.map(([c, v]) => `<span style="background:#fff1f2;color:#be123c;border:1px solid #fecdd3;border-radius:20px;padding:4px 12px;font-size:0.76rem;font-weight:700;">${_esc(c)} · ${_inr(v)}</span>`).join('')}
+                </div>
+                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.05);">
+                    <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:0.86rem;">
+                        <thead><tr style="background:#f8fafc;text-align:left;">
+                            <th style="padding:0.7rem 0.9rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;">Date</th>
+                            <th style="padding:0.7rem 0.9rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;">Category</th>
+                            <th style="padding:0.7rem 0.9rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;">Note</th>
+                            <th style="padding:0.7rem 0.9rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;">Paid by</th>
+                            <th style="padding:0.7rem 0.9rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;text-align:right;">Amount</th>
+                            <th style="padding:0.7rem 0.9rem;"></th>
+                        </tr></thead>
+                        <tbody>
+                        ${rows.map(e => `
+                            <tr style="border-top:1px solid #f1f5f9;">
+                                <td style="padding:0.62rem 0.9rem;white-space:nowrap;">${_expDate(e.date)}</td>
+                                <td style="padding:0.62rem 0.9rem;font-weight:700;color:#0f172a;">${_esc(e.category)}</td>
+                                <td style="padding:0.62rem 0.9rem;color:#64748b;">${_esc(e.note) || '—'}</td>
+                                <td style="padding:0.62rem 0.9rem;color:#64748b;">${_esc(e.paymentMode)}</td>
+                                <td style="padding:0.62rem 0.9rem;text-align:right;font-weight:700;color:#be123c;white-space:nowrap;">${_inr(e.amount)}</td>
+                                <td style="padding:0.62rem 0.9rem;text-align:right;">
+                                    <button type="button" onclick="removeExpense('${_escAttr(e.id)}')" title="Delete"
+                                        style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.95rem;">🗑️</button>
+                                </td>
+                            </tr>`).join('')}
+                        </tbody>
+                        <tfoot><tr style="background:#fff1f2;border-top:2px solid #fecdd3;">
+                            <td colspan="4" style="padding:0.7rem 0.9rem;font-weight:800;color:#9f1239;">Total shown</td>
+                            <td style="padding:0.7rem 0.9rem;text-align:right;font-weight:800;color:#9f1239;white-space:nowrap;">${_inr(total)}</td>
+                            <td></td>
+                        </tr></tfoot>
+                    </table>
+                    </div>
+                </div>`;
+        }
+
+        function _expDate(d) {
+            if (!d) return '—';
+            const t = new Date(d + 'T00:00:00');
+            return isNaN(t) ? d : t.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+        function _esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"]/g, c =>
+                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        }
+        function _escAttr(s) { return _esc(s).replace(/'/g, '&#39;'); }
+
+        async function saveExpense() {
+            const amount = parseFloat(document.getElementById('expAmount').value);
+            if (!amount || amount <= 0) { await mmAlert('Enter an amount greater than zero.'); return; }
+            const btn = document.getElementById('expSaveBtn');
+            btn.disabled = true;
+
+            const exp = {
+                id: 'EXP' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                date: document.getElementById('expDate').value || new Date().toISOString().slice(0, 10),
+                category: document.getElementById('expCategory').value || 'Other',
+                note: document.getElementById('expNote').value.trim(),
+                amount: amount,
+                paymentMode: document.getElementById('expMode').value || 'Cash',
+                savedAt: new Date().toISOString()
+            };
+
+            // Save locally FIRST so an offline entry is never lost if the cloud
+            // write fails — the same pattern the rest of the app uses.
+            _expenses.unshift(exp);
+            _expSaveLocal();
+            _buildExpMonths();
+            renderExpenses(document.getElementById('expSearch').value);
+
+            try {
+                if (typeof dbSaveExpense === 'function') {
+                    const r = await dbSaveExpense(exp);
+                    if (!r.success) console.warn('[expenses] cloud save failed:', r.message);
+                }
+            } catch (e) { console.warn('[expenses] cloud save error:', e); }
+
+            if (typeof mmAudit === 'function') mmAudit('Expense added', exp.category, '₹' + exp.amount);
+            document.getElementById('expAmount').value = '';
+            document.getElementById('expNote').value = '';
+            btn.disabled = false;
+        }
+
+        async function removeExpense(id) {
+            const e = _expenses.find(x => x.id === id);
+            if (!e) return;
+            if (!await mmConfirm(`Delete this ${_esc(e.category)} expense of ${_inr(e.amount)}?`,
+                                 { danger: true, okText: 'Delete' })) return;
+            _expenses = _expenses.filter(x => x.id !== id);
+            _expSaveLocal();
+            renderExpenses(document.getElementById('expSearch').value);
+            try { if (typeof dbDeleteExpense === 'function') await dbDeleteExpense(id); } catch (err) {}
+            if (typeof mmAudit === 'function') mmAudit('Expense deleted', e.category, '₹' + e.amount);
         }
 
         async function loadSuppliers() {

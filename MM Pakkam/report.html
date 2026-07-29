@@ -794,8 +794,24 @@
                          only once expenses actually exist. -->
                     <div class="kpi-label">Gross Margin</div>
                     <div class="kpi-value" id="kpiProfit">₹0</div>
-                    <div class="kpi-sub">Sales − cost of goods · before rent, salaries &amp; other costs</div>
+                    <div class="kpi-sub">Sales − cost of goods · before running costs</div>
                     <div class="kpi-icon">📈</div>
+                </div>
+                <!-- Expenses and the REAL net profit. Both are hidden until the
+                     shop has recorded at least one expense: showing "Net Profit"
+                     equal to gross margin, because nothing has been entered yet,
+                     would recreate exactly the overstatement this replaced. -->
+                <div class="analytics-kpi-card kpi-profit" id="kpiExpenseCard" style="display:none;">
+                    <div class="kpi-label">Expenses</div>
+                    <div class="kpi-value" id="kpiExpenses">₹0</div>
+                    <div class="kpi-sub">Rent, salaries &amp; other costs in this period</div>
+                    <div class="kpi-icon">💸</div>
+                </div>
+                <div class="analytics-kpi-card kpi-profit" id="kpiNetCard" style="display:none;">
+                    <div class="kpi-label">Net Profit</div>
+                    <div class="kpi-value" id="kpiNet">₹0</div>
+                    <div class="kpi-sub">Gross margin − expenses</div>
+                    <div class="kpi-icon">✅</div>
                 </div>
                 <div class="analytics-kpi-card kpi-txn">
                     <div class="kpi-label">Total Transactions</div>
@@ -1206,9 +1222,25 @@
             generateReport();
         }
 
+        /* Running costs recorded on the Accounts page. Read from the local cache
+           so the report paints instantly and still works offline; dbSyncExpenses()
+           refreshes that cache in the background. Returns [] when the expenses
+           migration has not been run, which simply leaves the net-profit cards
+           hidden rather than breaking the page. */
+        function _reportExpenses() {
+            try {
+                const r = JSON.parse(localStorage.getItem('mm_expenses') || '[]');
+                return Array.isArray(r) ? r : [];
+            } catch (e) { return []; }
+        }
+
         async function loadData() {
             // Instant paint from the localStorage cache before the network work below.
             try { _renderReportFromLocal(); } catch (e) { console.warn('report cache pre-render failed:', e); }
+
+            // Pull expenses down alongside everything else. Never blocks the
+            // report: a missing table or no connection just means no expense data.
+            try { if (typeof dbSyncExpenses === 'function') await dbSyncExpenses(); } catch (e) {}
 
             let dbPurchases = [];
             let dbBills = [];
@@ -2125,6 +2157,7 @@
 
             // ── Update KPI Cards ──
             const totalRevenue = sales.reduce((s, r) => s + (r.total || 0), 0);
+            // (expenses are read via _reportExpenses() further down)
             const totalTxns    = sales.length;
             const fmt = v => '₹' + Math.round(v).toLocaleString('en-IN');
             const kpiRev  = document.getElementById('kpiRevenue');
@@ -2140,10 +2173,42 @@
             const legacyEl = document.getElementById('trueProfitValue');
             if (legacyEl) legacyEl.textContent = fmt(trueProfit);
 
+            /* ── Expenses → an honest net profit ──
+               Gross margin above is (Sale − Purchase) × Qty. Subtracting the
+               running costs recorded on the Accounts page is what finally makes
+               "net profit" mean what it says. Both cards stay hidden until at
+               least one expense exists in the period, because a Net Profit that
+               silently equals gross margin is the same overstatement under a
+               new name. */
+            try {
+                const expFrom = (document.getElementById('fromDate') || {}).value || '';
+                const expTo   = (document.getElementById('toDate')   || {}).value || '';
+                const inRange = _reportExpenses().filter(e => {
+                    const d = String(e.date || '');
+                    return (!expFrom || d >= expFrom) && (!expTo || d <= expTo);
+                });
+                const expTotal = inRange.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+                const expCard = document.getElementById('kpiExpenseCard');
+                const netCard = document.getElementById('kpiNetCard');
+                if (expTotal > 0) {
+                    const net = trueProfit - expTotal;
+                    const eEl = document.getElementById('kpiExpenses');
+                    const nEl = document.getElementById('kpiNet');
+                    if (eEl) { eEl.textContent = fmt(expTotal); eEl.style.color = '#dc2626'; }
+                    if (nEl) { nEl.textContent = fmt(net); nEl.style.color = net >= 0 ? '#059669' : '#dc2626'; }
+                    if (expCard) expCard.style.display = '';
+                    if (netCard) netCard.style.display = '';
+                } else {
+                    if (expCard) expCard.style.display = 'none';
+                    if (netCard) netCard.style.display = 'none';
+                }
+            } catch (e) { console.warn('[report] expenses unavailable:', e); }
+
             const sortedDates = Object.keys(dateMap).sort();
             const labels = sortedDates.map(formatDate);
             const salesData = sortedDates.map(d => dateMap[d].sales);
-            // Gross margin = Sales Revenue − Cost of Goods Sold. NOT net profit:
+            // Gross margin = Sales Revenue − Cost of Goods Sold. Net profit is this
+        // MINUS the running costs recorded on the Accounts page (see below).
             // no running costs are tracked anywhere in the app, so nothing here
             // subtracts rent, salaries or electricity.
             const profitData = sortedDates.map(d => dateMap[d].sales - dateMap[d].cogs);
@@ -3433,7 +3498,7 @@
                 const [
                     bills, purchases, customers, doctors, medicines,
                     stockAdjustments, promiseOrders, scheduleHDrugs,
-                    scheduleHRegister, prescriptions, shopProfile
+                    scheduleHRegister, prescriptions, expenses, shopProfile
                 ] = await Promise.all([
                     _grab(window.dbGetBills),
                     _grab(window.dbGetPurchases),
@@ -3445,6 +3510,7 @@
                     _grab(window.dbGetScheduleHDrugs),
                     _grab(window.dbGetScheduleHRegister),
                     _grab(window.dbGetPrescriptions),
+                    _grab(window.dbGetExpenses),
                     _grab(window.dbGetShopProfile),
                 ]);
 
@@ -3463,6 +3529,7 @@
                     scheduleHDrugs:    scheduleHDrugs    || [],
                     scheduleHRegister: scheduleHRegister || [],
                     prescriptions:     prescriptions     || [],
+                    expenses:          expenses          || [],
                     shopProfile:       shopProfile       || null,
                 };
 
@@ -3511,7 +3578,7 @@
                     // Accept any backup that carries at least one known data section
                     // (v1.0 = bills+purchases only; v2.0 = the whole shop).
                     const KNOWN = ['bills','purchases','customers','doctors','medicines',
-                        'stockAdjustments','promiseOrders','scheduleHDrugs','scheduleHRegister','prescriptions'];
+                        'stockAdjustments','promiseOrders','scheduleHDrugs','scheduleHRegister','prescriptions','expenses'];
                     const hasData = data && typeof data === 'object' &&
                         (KNOWN.some(k => Array.isArray(data[k])) || data.shopProfile);
                     if (!hasData) throw new Error('Invalid backup file format.');
@@ -3535,6 +3602,7 @@
                     if (_cnt('scheduleHDrugs'))    addRLog(`🅗 Schedule-H drugs: ${_cnt('scheduleHDrugs')} records`, 'ok');
                     if (_cnt('scheduleHRegister')) addRLog(`🅗 Schedule-H register: ${_cnt('scheduleHRegister')} records`, 'ok');
                     if (_cnt('prescriptions'))     addRLog(`📄 Prescriptions: ${_cnt('prescriptions')} records`, 'ok');
+                if (_cnt('expenses'))          addRLog(`💸 Expenses: ${_cnt('expenses')} records`, 'ok');
                     if (data.shopProfile)          addRLog(`🏪 Shop profile: included`, 'ok');
                     addRLog(``, 'info');
                     addRLog(`⚠️  This will ADD these records back to the database.`, 'info');
@@ -3784,6 +3852,17 @@
                     if (r && r.success) okRx++;
                 }
                 addRLog(`  ✅ ${okRx} prescriptions restored`, 'ok');
+            }
+
+            // Expenses — idempotent on expense_id, same as everything above.
+            if (Array.isArray(P.expenses) && P.expenses.length && typeof dbSaveExpense === 'function') {
+                addRLog(`⏳ Restoring ${P.expenses.length} expenses...`, 'info');
+                let okE = 0;
+                for (const ex of P.expenses) {
+                    const r = await dbSaveExpense(ex);
+                    if (r && r.success) okE++;
+                }
+                addRLog(`  ✅ ${okE} expenses restored`, 'ok');
             }
 
             // Shop profile — restore only when none exists, so current settings win.
