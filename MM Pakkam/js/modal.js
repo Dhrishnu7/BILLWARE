@@ -3,42 +3,94 @@
    Provides promise-based:  mmAlert(msg, opts)  mmConfirm(msg, opts)  mmPrompt(msg, defaultVal, opts)
    Also overrides window.alert so plain alert() calls become styled popups.
    Self-contained: injects its own CSS + DOM, namespaced with `mmd-`.
+
+   Options: { title, okText, cancelText, danger, variant, defaultValue,
+              placeholder, emoji }
+   `variant` is one of success | info | warn | danger | ask. It drives the
+   icon, the icon tint and the primary button colour together, so a dialog
+   can never show (say) a blue info glyph on a pink chip above a red button.
    ══════════════════════════════════════════════════════════════════════ */
 (function () {
     if (window.__mmModalReady) return;
     window.__mmModalReady = true;
 
-    // ── Inject styles once ──
+    // ── Icons ──
+    // Inline stroke SVGs rather than emoji: emoji render differently on every
+    // platform, carry their own colour (which fought the tinted chip behind
+    // them) and always read as clip-art next to real UI type.
+    var SVG = {
+        success: '<path d="M20 6 9 17l-5-5"/>',
+        info:    '<circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01"/>',
+        warn:    '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+        danger:  '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+        ask:     '<circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>',
+        edit:    '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>'
+    };
+    function iconSvg(name) {
+        return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" '
+             + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+             + (SVG[name] || SVG.info) + '</svg>';
+    }
+
+    // ── Styles ──
     var css = ''
-      + '.mmd-overlay{position:fixed;inset:0;background:rgba(15,23,42,0.55);'
-      + 'backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;'
-      + 'align-items:center;justify-content:center;z-index:2147483000;opacity:0;'
-      + 'pointer-events:none;transition:opacity .2s ease;padding:1rem;}'
+      + '.mmd-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);'
+      + 'backdrop-filter:blur(8px) saturate(120%);-webkit-backdrop-filter:blur(8px) saturate(120%);'
+      + 'display:flex;align-items:center;justify-content:center;z-index:2147483000;opacity:0;'
+      + 'pointer-events:none;transition:opacity .22s ease;padding:1.25rem;}'
       + '.mmd-overlay.mmd-open{opacity:1;pointer-events:auto;}'
-      + '.mmd-card{background:#fff;border-radius:22px;width:100%;max-width:420px;'
-      + 'box-shadow:0 25px 60px rgba(0,0,0,0.28);transform:scale(.94) translateY(14px);'
-      + 'transition:transform .28s cubic-bezier(.175,.885,.32,1.275);overflow:hidden;'
-      + "font-family:'Inter',system-ui,sans-serif;}"
-      + '.mmd-overlay.mmd-open .mmd-card{transform:scale(1) translateY(0);}'
-      + '.mmd-hd{display:flex;align-items:center;gap:.7rem;padding:1.3rem 1.6rem .4rem;}'
-      + '.mmd-ico{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;'
-      + 'justify-content:center;font-size:1.25rem;flex-shrink:0;}'
-      + '.mmd-ico.info{background:#fff1f2;}.mmd-ico.warn{background:#fef3c7;}'
-      + '.mmd-ico.danger{background:#fee2e2;}.mmd-ico.ask{background:#e0e7ff;}'
-      + '.mmd-title{font-size:1.05rem;font-weight:800;color:#0f172a;line-height:1.2;}'
-      + '.mmd-bd{padding:.6rem 1.6rem 1.1rem;font-size:.92rem;color:#475569;line-height:1.5;white-space:pre-wrap;word-break:break-word;}'
-      + '.mmd-input{width:100%;margin-top:.9rem;font-family:inherit;font-size:.92rem;color:#0f172a;'
-      + 'background:#fff1f2;border:1.5px solid #fecdd3;border-radius:10px;padding:.7rem 1rem;outline:none;box-sizing:border-box;transition:all .2s;}'
-      + '.mmd-input:focus{border-color:#f43f5e;background:#fff;box-shadow:0 0 0 3px rgba(244,63,94,.12);}'
-      + '.mmd-ft{display:flex;gap:.7rem;justify-content:flex-end;padding:0 1.6rem 1.4rem;}'
-      + '.mmd-btn{font-family:inherit;font-size:.9rem;font-weight:700;border-radius:11px;'
-      + 'padding:.65rem 1.4rem;cursor:pointer;border:1.5px solid transparent;transition:all .18s;}'
-      + '.mmd-btn-cancel{background:#f1f5f9;color:#475569;border-color:#e2e8f0;}'
-      + '.mmd-btn-cancel:hover{background:#e2e8f0;}'
-      + '.mmd-btn-ok{background:linear-gradient(135deg,#f43f5e,#e11d48);color:#fff;box-shadow:0 4px 14px rgba(244,63,94,.3);}'
-      + '.mmd-btn-ok:hover{filter:brightness(1.05);}'
-      + '.mmd-btn-ok.danger{background:linear-gradient(135deg,#ef4444,#b91c1c);box-shadow:0 4px 14px rgba(220,38,38,.32);}'
-      + '@media(max-width:480px){.mmd-ft{flex-direction:column-reverse;}.mmd-btn{width:100%;}}';
+
+      + '.mmd-card{background:#fff;border-radius:20px;width:100%;max-width:432px;'
+      + 'border:1px solid rgba(15,23,42,.06);'
+      + 'box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 28px -8px rgba(15,23,42,.18),0 40px 64px -32px rgba(15,23,42,.22);'
+      + 'transform:scale(.96) translateY(10px);opacity:.6;'
+      + 'transition:transform .26s cubic-bezier(.16,1,.3,1),opacity .2s ease;overflow:hidden;'
+      + "font-family:'Inter',system-ui,-apple-system,sans-serif;"
+      // Default accent (used by the confirm/prompt dialogs, which are the common case)
+      + '--mmd-accent:#e11d48;--mmd-accent-2:#be123c;--mmd-tint:#fff1f2;--mmd-ring:rgba(225,29,72,.16);--mmd-ico:#e11d48;}'
+      + '.mmd-overlay.mmd-open .mmd-card{transform:scale(1) translateY(0);opacity:1;}'
+
+      // Semantic palettes — chip tint, glyph colour and button all move together.
+      + '.mmd-card[data-v="success"]{--mmd-accent:#059669;--mmd-accent-2:#047857;--mmd-tint:#ecfdf5;--mmd-ring:rgba(5,150,105,.18);--mmd-ico:#059669;}'
+      + '.mmd-card[data-v="info"]{--mmd-accent:#0f172a;--mmd-accent-2:#1e293b;--mmd-tint:#eff6ff;--mmd-ring:rgba(37,99,235,.16);--mmd-ico:#2563eb;}'
+      + '.mmd-card[data-v="warn"]{--mmd-accent:#b45309;--mmd-accent-2:#92400e;--mmd-tint:#fffbeb;--mmd-ring:rgba(217,119,6,.2);--mmd-ico:#d97706;}'
+      + '.mmd-card[data-v="danger"]{--mmd-accent:#dc2626;--mmd-accent-2:#b91c1c;--mmd-tint:#fef2f2;--mmd-ring:rgba(220,38,38,.18);--mmd-ico:#dc2626;}'
+      + '.mmd-card[data-v="ask"]{--mmd-accent:#e11d48;--mmd-accent-2:#be123c;--mmd-tint:#fff1f2;--mmd-ring:rgba(225,29,72,.16);--mmd-ico:#e11d48;}'
+
+      + '.mmd-hd{display:flex;align-items:center;gap:.8rem;padding:1.5rem 1.5rem .75rem;}'
+      + '.mmd-ico{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;'
+      + 'justify-content:center;flex-shrink:0;background:var(--mmd-tint);color:var(--mmd-ico);'
+      + 'box-shadow:inset 0 0 0 1px var(--mmd-ring);font-size:1.15rem;line-height:1;}'
+      + '.mmd-ico svg{width:21px;height:21px;display:block;}'
+      + '.mmd-title{font-size:1.0625rem;font-weight:700;color:#0f172a;line-height:1.25;letter-spacing:-.011em;}'
+
+      + '.mmd-bd{padding:0 1.5rem 1.35rem;font-size:.9rem;color:#475569;line-height:1.6;'
+      + 'white-space:pre-wrap;word-break:break-word;}'
+      + '.mmd-input{width:100%;margin-top:.95rem;font-family:inherit;font-size:.9rem;color:#0f172a;'
+      + 'background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:11px;padding:.7rem .9rem;'
+      + 'outline:none;box-sizing:border-box;transition:border-color .16s,box-shadow .16s,background .16s;}'
+      + '.mmd-input:focus{border-color:var(--mmd-accent);background:#fff;box-shadow:0 0 0 3px var(--mmd-ring);}'
+
+      // A quiet footer band anchors the buttons instead of letting them float.
+      + '.mmd-ft{display:flex;gap:.6rem;justify-content:flex-end;padding:.9rem 1.5rem;'
+      + 'background:#f8fafc;border-top:1px solid #eef2f7;}'
+      + '.mmd-btn{font-family:inherit;font-size:.875rem;font-weight:600;border-radius:10px;'
+      + 'padding:.6rem 1.15rem;cursor:pointer;border:1px solid transparent;'
+      + 'transition:background .16s,border-color .16s,box-shadow .16s,transform .08s;'
+      + 'letter-spacing:-.005em;}'
+      + '.mmd-btn:active{transform:translateY(1px);}'
+      + '.mmd-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--mmd-ring);}'
+      + '.mmd-btn-cancel{background:#fff;color:#475569;border-color:#e2e8f0;'
+      + 'box-shadow:0 1px 2px rgba(15,23,42,.04);}'
+      + '.mmd-btn-cancel:hover{background:#f1f5f9;border-color:#cbd5e1;color:#334155;}'
+      + '.mmd-btn-ok{background:var(--mmd-accent);color:#fff;box-shadow:0 1px 2px rgba(15,23,42,.12);}'
+      + '.mmd-btn-ok:hover{background:var(--mmd-accent-2);}'
+
+      + '@media(max-width:480px){.mmd-ft{flex-direction:column-reverse;padding:.9rem 1.25rem;}'
+      + '.mmd-btn{width:100%;padding:.7rem 1rem;}.mmd-hd{padding:1.25rem 1.25rem .65rem;}'
+      + '.mmd-bd{padding:0 1.25rem 1.15rem;}}'
+      + '@media(prefers-reduced-motion:reduce){.mmd-overlay,.mmd-card{transition:none;}}';
+
     var style = document.createElement('style');
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
@@ -47,6 +99,8 @@
     var activeResolve = null;      // resolver for the currently-open dialog
     var getConfirmValue = null;    // fn → value when user confirms current dialog
     var getCancelValue = null;     // fn → value when user cancels/dismisses current dialog
+    var lastFocused = null;        // element to restore focus to on close
+    var prevBodyOverflow = '';
 
     function ensureOverlay() {
         if (overlay) return;
@@ -63,8 +117,18 @@
         document.addEventListener('keydown', function (e) {
             if (!activeResolve) return;
             if (e.key === 'Escape') { e.preventDefault(); close(getCancelValue()); }
-            else if (e.key === 'Enter') { e.preventDefault(); close(getConfirmValue()); }
+            else if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); close(getConfirmValue()); }
+            else if (e.key === 'Tab') trapFocus(e);
         });
+    }
+
+    // Keep keyboard focus inside the dialog while it is open.
+    function trapFocus(e) {
+        var f = overlay.querySelectorAll('button, input, [href], [tabindex]:not([tabindex="-1"])');
+        if (!f.length) return;
+        var first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     }
 
     function close(value) {
@@ -74,7 +138,10 @@
         getConfirmValue = null;
         getCancelValue = null;
         overlay.classList.remove('mmd-open');
-        setTimeout(function () { if (overlay && !activeResolve) overlay.innerHTML = ''; }, 220);
+        try { document.body.style.overflow = prevBodyOverflow; } catch (e) {}
+        setTimeout(function () { if (overlay && !activeResolve) overlay.innerHTML = ''; }, 240);
+        try { if (lastFocused && lastFocused.focus) lastFocused.focus(); } catch (e) {}
+        lastFocused = null;
         r(value);
     }
 
@@ -82,6 +149,21 @@
         return String(s == null ? '' : s)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
+
+    /* Work out the tone of a plain alert from its own wording.
+       There are ~58 call sites and almost none pass a variant, so without this
+       a cheerful "Saved successfully!" would render with the same warning-ish
+       chrome as a failure. Explicit opts.variant always wins over the guess. */
+    function inferVariant(message) {
+        var m = String(message || '');
+        if (/✅|✔|🎉|success|successful|saved|updated|restored|completed|sent!|done!/i.test(m)) return 'success';
+        if (/❌|⛔|error|failed|could not|couldn't|unable to|denied|invalid/i.test(m))         return 'danger';
+        if (/⚠️|⚠|warning|careful|cannot be undone|permanently/i.test(m))                     return 'warn';
+        return 'info';
+    }
+
+    var TITLES = { success: 'Done', danger: 'Something went wrong', warn: 'Heads up', info: 'Notice', ask: 'Please confirm' };
+    var ICON_FOR = { success: 'success', danger: 'danger', warn: 'warn', info: 'info', ask: 'ask' };
 
     // kind: 'alert' | 'confirm' | 'prompt'
     function open(kind, message, opts) {
@@ -93,17 +175,18 @@
         var isConfirm = kind === 'confirm';
         var isPrompt = kind === 'prompt';
         var danger = !!opts.danger;
-        var iconClass = opts.icon ? opts.icon
-                        : danger ? 'danger'
-                        : isConfirm ? 'warn'
-                        : isPrompt ? 'ask' : 'info';
-        var emoji = opts.emoji ? opts.emoji
-                    : danger ? '⚠️'
-                    : isConfirm ? '❓'
-                    : isPrompt ? '✏️' : 'ℹ️';
+
+        var variant = opts.variant ? opts.variant
+                      : danger ? 'danger'
+                      : (isConfirm || isPrompt) ? 'ask'
+                      : inferVariant(message);
+
+        var iconName = isPrompt && !opts.variant && !danger ? 'edit' : (ICON_FOR[variant] || 'info');
+        var iconHtml = opts.emoji ? esc(opts.emoji) : iconSvg(iconName);
+
         var title = opts.title != null ? opts.title
-                    : isConfirm || danger ? 'Please Confirm'
-                    : isPrompt ? 'Enter Value' : 'Notice';
+                    : isPrompt ? 'Enter value'
+                    : (TITLES[variant] || 'Notice');
         var okText = opts.okText || 'OK';
         var cancelText = opts.cancelText || 'Cancel';
 
@@ -111,16 +194,19 @@
             ? '<input class="mmd-input" id="mmdInput" type="text" value="' + esc(opts.defaultValue || '') + '" placeholder="' + esc(opts.placeholder || '') + '">'
             : '';
         var cancelBtn = (isConfirm || isPrompt)
-            ? '<button class="mmd-btn mmd-btn-cancel" id="mmdCancel">' + esc(cancelText) + '</button>'
+            ? '<button type="button" class="mmd-btn mmd-btn-cancel" id="mmdCancel">' + esc(cancelText) + '</button>'
             : '';
 
+        lastFocused = document.activeElement;
+        try { prevBodyOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; } catch (e) {}
+
         overlay.innerHTML =
-            '<div class="mmd-card" role="document">'
-          +   '<div class="mmd-hd"><div class="mmd-ico ' + iconClass + '">' + emoji + '</div>'
-          +     '<div class="mmd-title">' + esc(title) + '</div></div>'
-          +   '<div class="mmd-bd">' + esc(message) + inputHtml + '</div>'
+            '<div class="mmd-card" role="document" data-v="' + esc(variant) + '" aria-labelledby="mmdTitle" aria-describedby="mmdBody">'
+          +   '<div class="mmd-hd"><div class="mmd-ico">' + iconHtml + '</div>'
+          +     '<div class="mmd-title" id="mmdTitle">' + esc(title) + '</div></div>'
+          +   '<div class="mmd-bd" id="mmdBody">' + esc(message) + inputHtml + '</div>'
           +   '<div class="mmd-ft">' + cancelBtn
-          +     '<button class="mmd-btn mmd-btn-ok' + (danger ? ' danger' : '') + '" id="mmdOk">' + esc(okText) + '</button>'
+          +     '<button type="button" class="mmd-btn mmd-btn-ok" id="mmdOk">' + esc(okText) + '</button>'
           +   '</div>'
           + '</div>';
 
