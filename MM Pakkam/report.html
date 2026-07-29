@@ -162,9 +162,16 @@
             font-size: 0.72rem; font-weight: 800;
             letter-spacing: 0.07em; text-transform: uppercase;
         }
+        /* nowrap so the rupee sign can never break away from its number, and a
+           fluid size so a long total (or a leading minus) shrinks to fit rather
+           than wrapping onto two lines. */
         .summary-value {
-            font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em;
+            font-size: clamp(1.05rem, 2.1vw, 1.6rem); font-weight: 800; letter-spacing: -0.02em;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
+        /* "ALL TIME" was breaking across two lines and shoving the label around. */
+        .summary-card [data-badge] { white-space: nowrap; flex-shrink: 0; }
+        .summary-label { min-width: 0; }
         .summary-sub { font-size: 0.78rem; color: #94a3b8; }
 
         .card-sales   { border-top: 3px solid #10b981; }
@@ -2117,11 +2124,17 @@
             const totalP   = purchase.reduce((s, r) => s + r.total, 0);
             const totalQty = data.reduce((s, r) => s + r.qty, 0);
 
-            document.getElementById('totalSales').textContent    = '₹ ' + totalS.toFixed(2);
+            /* '₹ 333541.95' overflowed these narrow cards, so the space let the
+               rupee sign wrap onto its own line above the number. Round and use
+               Indian grouping — same format the analytics KPIs above already use,
+               and short enough to fit: ₹3,33,542. The card is a summary; the
+               paise belong in the table, not here. */
+            const sfmt = v => '₹' + Math.round(v).toLocaleString('en-IN');
+            document.getElementById('totalSales').textContent    = sfmt(totalS);
             document.getElementById('salesCount').textContent    = sales.length + ' transactions';
-            document.getElementById('totalPurchase').textContent = '₹ ' + totalP.toFixed(2);
+            document.getElementById('totalPurchase').textContent = sfmt(totalP);
             document.getElementById('purchaseCount').textContent = purchase.length + ' transactions';
-            document.getElementById('netProfit').textContent     = '₹ ' + (totalS - totalP).toFixed(2);
+            document.getElementById('netProfit').textContent     = sfmt(totalS - totalP);
             document.getElementById('totalItems').textContent    = totalQty;
 
             const profitEl = document.getElementById('netProfit');
