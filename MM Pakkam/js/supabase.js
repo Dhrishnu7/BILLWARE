@@ -139,6 +139,35 @@ async function dbAddCustomer(name, phone, address, gstin) {
     if (error) { console.error('customer add:', error); return { success: false, message: error.message }; }
     return { success: true, data: data?.[0] || null };
 }
+/* Fill in the place-of-supply details an e-invoice needs (town + PIN).
+   Separate from dbAddCustomer because it is edited long after the customer
+   was created — usually from the e-invoice screen, where the missing field
+   is what stopped the file being built.
+   Needs migrations/add_einvoice_fields.sql. Until that is run the columns do
+   not exist, and the write reports the fact instead of failing silently. */
+async function dbUpdateCustomerPos(id, patch) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbUpdateCustomerPos: no user, aborting.'); return { success: false }; }
+    const row = {};
+    if (patch.address != null) row.address = String(patch.address).trim();
+    if (patch.city    != null) row.city    = String(patch.city).trim();
+    if (patch.pincode != null) row.pincode = String(patch.pincode).trim();
+    if (patch.gstin   != null) row.gstin   = String(patch.gstin).trim().toUpperCase();
+    if (!Object.keys(row).length) return { success: true };
+
+    const { error } = await _supabase.from('customers').update(row).eq('id', id).eq('user_id', user);
+    if (error) {
+        if (/column|schema cache|PGRST204/i.test(String(error.message || ''))) {
+            console.warn('[db] customers.city/pincode missing — run migrations/add_einvoice_fields.sql');
+            return { success: false, message: 'Run migrations/add_einvoice_fields.sql in Supabase first.' };
+        }
+        console.error('customer pos update:', error);
+        return { success: false, message: error.message };
+    }
+    return { success: true };
+}
+window.dbUpdateCustomerPos = dbUpdateCustomerPos;
+
 async function dbDeleteCustomer(id) {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbDeleteCustomer: no user, aborting.'); return false; }
@@ -1912,6 +1941,29 @@ async function dbSetCreditLimit(limit) {
     return { success: true };
 }
 window.dbSetCreditLimit = dbSetCreditLimit;
+
+// The shop's own town + PIN, which the profile form never asked for and which
+// an e-invoice cannot be built without. Written on its own — same reason as
+// the credit limit above — so saving them from the e-invoice screen cannot
+// blank out an address the shop set up months ago.
+// Needs migrations/add_einvoice_fields.sql.
+async function dbSetShopPos(city, pincode) {
+    const user = _currentUser();
+    if (!user) return { success: false, message: 'Not logged in.' };
+    const { error } = await _supabase.from('shop_profiles')
+        .upsert({ user_id: user, city: String(city || '').trim(),
+                  pincode: String(pincode || '').trim(),
+                  updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+    if (error) {
+        if (/column|schema cache|PGRST204/i.test(String(error.message || ''))) {
+            return { success: false, message: 'Run migrations/add_einvoice_fields.sql in Supabase first.' };
+        }
+        console.error('shop pos save:', error);
+        return { success: false, message: error.message };
+    }
+    return { success: true };
+}
+window.dbSetShopPos = dbSetShopPos;
 
 async function dbSaveShopProfile(profile) {
     const user = _currentUser();

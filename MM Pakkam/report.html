@@ -701,6 +701,7 @@
     <script src="js/supabase.js"></script>
     <script src="js/tally-export.js"></script>
     <script src="js/gstr1-export.js"></script>
+    <script src="js/einvoice-export.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
@@ -967,6 +968,12 @@
                     </svg>
                     GSTR-1 JSON
                 </button>
+                <button class="btn-export-excel" onclick="openEinvModal()" title="Build the e-invoice / e-way bill JSON for the government portal">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v4m0 0l-2-2m2 2l2-2M4 9h16v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9zm4 4h8m-8 4h5"/>
+                    </svg>
+                    e-Invoice / e-Way
+                </button>
                 <button class="btn-backup" onclick="backupData()" title="Download all your data as a backup file">
                     <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -1204,6 +1211,89 @@
             <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;">
                 <button class="search-btn" onclick="closeGstrModal()" style="background:#f1f5f9;color:#475569;">Cancel</button>
                 <button class="search-btn" id="gstrDownloadBtn" onclick="downloadGstr1()">⬇ Download JSON</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ e-Invoice / e-Way bill ═══
+         Uses the report's own From/To, unlike GSTR-1: these are per-invoice
+         documents, not a monthly return, so any range is a legitimate ask.
+         The seller's town and PIN live here rather than in the shop profile
+         because this is the only screen that needs them, and it is where the
+         shop finds out they are missing. -->
+    <div class="modal-overlay" id="einvModal" style="display:none;" onclick="if(event.target===this) closeEinvModal()">
+        <div class="modal-content" style="max-width:760px;">
+            <div class="modal-header">
+                <div class="modal-title">🧾 e-Invoice &amp; e-Way bill</div>
+                <button class="modal-close" onclick="closeEinvModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height:74vh;overflow-y:auto;">
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:10px;padding:10px 13px;font-size:0.8rem;line-height:1.55;margin-bottom:1rem;">
+                    Builds the JSON file the government portal imports in bulk. Upload it at
+                    <b>einvoice1.gst.gov.in</b> (or <b>ewaybillgst.gov.in</b>) and the portal
+                    returns the IRNs and signed QR codes. Uses the <b>From / To dates</b> on this page.
+                </div>
+
+                <!-- Who is legally in scope. Stated up front because most
+                     pharmacies are not, and building the file anyway would
+                     imply an obligation that does not exist. -->
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 13px;font-size:0.78rem;line-height:1.6;color:#475569;margin-bottom:1rem;">
+                    <b>Do you need this?</b> e-invoicing applies only to <b>B2B</b> sales, and only
+                    once your annual turnover crosses the notified limit (₹5 crore).
+                    Ordinary counter sales are <b>exempt</b> — they are left out of the file on purpose.
+                    An e-way bill is needed when goods are <b>transported</b> above the value below.
+                </div>
+
+                <div style="font-size:0.76rem;font-weight:800;color:#0d9488;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.55rem;">Your shop's details</div>
+                <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+                    <div style="flex:2;min-width:180px;">
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#475569;margin-bottom:3px;">Town / City</label>
+                        <input type="text" id="einvLoc" placeholder="e.g. Chennai" style="width:100%;box-sizing:border-box;padding:0.45rem 0.65rem;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:0.86rem;outline:none;">
+                    </div>
+                    <div style="flex:1;min-width:110px;">
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#475569;margin-bottom:3px;">PIN code</label>
+                        <input type="text" id="einvPin" maxlength="6" inputmode="numeric" placeholder="600001" style="width:100%;box-sizing:border-box;padding:0.45rem 0.65rem;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:0.86rem;outline:none;">
+                    </div>
+                    <div style="flex:1;min-width:140px;">
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#475569;margin-bottom:3px;">e-Way bill above ₹</label>
+                        <input type="number" id="einvThreshold" min="1" step="1000" style="width:100%;box-sizing:border-box;padding:0.45rem 0.65rem;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:0.86rem;outline:none;">
+                        <div style="font-size:0.66rem;color:#94a3b8;margin-top:2px;">₹50,000 in most states</div>
+                    </div>
+                </div>
+
+                <div id="einvSummary"></div>
+                <div id="einvRows"></div>
+            </div>
+            <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;flex-wrap:wrap;">
+                <button class="search-btn" onclick="closeEinvModal()" style="background:#f1f5f9;color:#475569;">Close</button>
+                <button class="search-btn" id="einvDownloadBtn" onclick="downloadEinvoices()">⬇ e-Invoice JSON</button>
+                <button class="search-btn" id="ewbDownloadBtn" onclick="downloadEwb()" style="background:#0891b2;">⬇ e-Way bill JSON</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Buyer details fixer ═══
+         An e-invoice cannot be built without the buyer's town and PIN, and
+         those were never asked for anywhere. Fixing them here — where the
+         gap is reported — rather than sending the shop to the Directory to
+         hunt for the right customer, is the same choice the HSN fixer made. -->
+    <div class="modal-overlay" id="einvBuyerModal" style="display:none;" onclick="if(event.target===this) closeEinvBuyers()">
+        <div class="modal-content" style="max-width:620px;">
+            <div class="modal-header">
+                <div class="modal-title">🏥 Complete the buyer's address</div>
+                <button class="modal-close" onclick="closeEinvBuyers()">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:10px;padding:10px 13px;font-size:0.8rem;line-height:1.55;margin-bottom:0.9rem;">
+                    An e-invoice must carry the buyer's place of supply. Fill these in once per
+                    business customer — they are saved to the customer's record and used on every
+                    future invoice.
+                </div>
+                <div id="einvBuyerList"></div>
+            </div>
+            <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;">
+                <button class="search-btn" onclick="closeEinvBuyers()" style="background:#f1f5f9;color:#475569;">Cancel</button>
+                <button class="search-btn" id="einvBuyerSaveBtn" onclick="saveEinvBuyers()">✓ Save addresses</button>
             </div>
         </div>
     </div>
@@ -1564,6 +1654,334 @@
             a.click();
             closeGstrModal();
             if (typeof mmAudit === 'function') mmAudit('GSTR-1 export', _gstrBuilt.month, _gstrBuilt.summary.bills + ' bills');
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           E-INVOICE / E-WAY BILL
+           Two documents, one screen, because they are built from the same
+           bill and a shop that needs one usually needs the other on the same
+           day. Both come out as bulk-upload JSON — see js/einvoice-export.js
+           for why this is a file and not a live API call.
+        ══════════════════════════════════════════════════════════════════ */
+        let _einvBuilt = null;
+        let _einvRows  = [];      // index → row, so the DOM can refer to a bill safely
+        let _einvTransport = {};  // billNo → { on, distance, vehicleNo, transMode, transporterId }
+
+        function openEinvModal() {
+            const cfg = mmEinvoice.loadCfg();
+            const sp  = window.mmShopProfile || {};
+            const loc = document.getElementById('einvLoc');
+            const pin = document.getElementById('einvPin');
+            const thr = document.getElementById('einvThreshold');
+            if (!loc.value) loc.value = cfg.loc || sp.city    || '';
+            if (!pin.value) pin.value = cfg.pin || sp.pincode || '';
+            thr.value = cfg.ewbThreshold || mmEinvoice.DEFAULT_EWB_THRESHOLD;
+
+            // Re-reading the shop's own details on every keystroke is cheap and
+            // means the blocker list clears itself as they are typed in.
+            loc.oninput = thr.oninput = refreshEinv;
+            pin.oninput = refreshEinv;
+
+            const m = document.getElementById('einvModal');
+            m.classList.add('open');
+            m.style.display = 'flex';
+            refreshEinv();
+        }
+        function closeEinvModal() {
+            const m = document.getElementById('einvModal');
+            m.classList.remove('open');
+            m.style.display = 'none';
+            /* Push the shop's town + PIN to the cloud on the way out, so they
+               are not re-typed on the next device. Fire-and-forget: they are
+               already saved locally, and a failed write must not block closing
+               a dialog. */
+            const loc = (document.getElementById('einvLoc').value || '').trim();
+            const pin = (document.getElementById('einvPin').value || '').trim();
+            if ((loc || pin) && typeof dbSetShopPos === 'function') {
+                Promise.resolve(dbSetShopPos(loc, pin)).catch(() => {});
+            }
+        }
+
+        function _einvOpts() {
+            const loc = (document.getElementById('einvLoc').value || '').trim();
+            const pin = (document.getElementById('einvPin').value || '').trim();
+            const thr = Number(document.getElementById('einvThreshold').value) || mmEinvoice.DEFAULT_EWB_THRESHOLD;
+            // Saved as they are typed: a shop should fill its own town in once,
+            // not on every export.
+            const cfg = mmEinvoice.loadCfg();
+            cfg.loc = loc; cfg.pin = pin; cfg.ewbThreshold = thr;
+            mmEinvoice.saveCfg(cfg);
+            return {
+                from: document.getElementById('fromDate').value || '',
+                to:   document.getElementById('toDate').value   || '',
+                seller: { loc, pin },
+                ewbThreshold: thr,
+                transport: _einvTransport
+            };
+        }
+
+        /* Recompute without touching the row list — called while the shop is
+           typing a vehicle number, where re-rendering would steal focus. */
+        function _einvRecount() {
+            _einvBuilt = mmEinvoice.build(_einvOpts());
+            const s = _einvBuilt.summary;
+            const dl = document.getElementById('einvDownloadBtn');
+            const ew = document.getElementById('ewbDownloadBtn');
+            const dim = (btn, off, why) => {
+                if (!btn) return;
+                btn.disabled = off;
+                btn.style.opacity = off ? '.45' : '';
+                btn.style.cursor  = off ? 'not-allowed' : '';
+                btn.title = off ? why : '';
+            };
+            dim(dl, !s.ready, 'No B2B invoice in this period is ready to file');
+            dim(ew, !s.ewbBuilt, 'Tick the bills whose goods were actually transported');
+            const c = document.getElementById('einvCounts');
+            if (c) {
+                c.innerHTML = `<b>${s.ready}</b> e-invoice(s) ready${s.blocked ? ` · <b style="color:#991b1b;">${s.blocked}</b> blocked` : ''}`
+                            + ` &nbsp;·&nbsp; <b>${s.ewbBuilt}</b> e-way bill(s) selected`;
+            }
+        }
+
+        function refreshEinv() {
+            _einvBuilt = mmEinvoice.build(_einvOpts());
+            const res = _einvBuilt, s = res.summary;
+            _einvRows = res.rows;
+            const box  = document.getElementById('einvSummary');
+            const list = document.getElementById('einvRows');
+
+            const sellerBad = res.sellerProblems.length
+                ? `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:11px 13px;font-size:0.78rem;line-height:1.6;margin-bottom:0.7rem;">
+                       <b style="display:block;margin-bottom:5px;">Your own details are incomplete — nothing can be filed until these are fixed:</b>
+                       ${res.sellerProblems.map(p => '• ' + _te(p)).join('<br>')}</div>`
+                : '';
+
+            const needFix = res.needBuyerDetails.length
+                ? `<div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:10px 13px;font-size:0.78rem;line-height:1.6;margin-bottom:0.7rem;">
+                       <b>${res.needBuyerDetails.length}</b> business customer(s) have no town / PIN on record, so their invoices cannot be built.
+                       <button onclick="openEinvBuyers()" style="background:#92400e;color:#fff;border:none;border-radius:8px;padding:3px 11px;font-weight:700;font-size:0.74rem;font-family:inherit;cursor:pointer;margin-left:4px;">Add addresses →</button>
+                   </div>`
+                : '';
+
+            box.innerHTML = sellerBad + needFix + `
+                <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:0.8rem;">
+                    <div style="background:#f8fafc;padding:9px 13px;font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;">
+                        In this period
+                    </div>
+                    <table style="width:100%;border-collapse:collapse;font-size:0.84rem;">
+                        <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Bills</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${s.billsInPeriod}</td></tr>
+                        <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">B2B (registered buyer)</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${s.b2bBills} &nbsp;·&nbsp; ${_tf(s.b2bValue)}</td></tr>
+                        <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Over the e-way value</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${s.ewbCandidates}</td></tr>
+                    </table>
+                    <div id="einvCounts" style="padding:9px 13px;border-top:1px solid #f1f5f9;font-size:0.78rem;color:#64748b;"></div>
+                </div>`;
+
+            if (!res.rows.length) {
+                list.innerHTML = `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;text-align:center;color:#94a3b8;font-size:0.85rem;line-height:1.6;">
+                    Nothing in this period needs either document.<br>
+                    <span style="font-size:0.78rem;">Counter sales are exempt from e-invoicing, and no bill is above the e-way value.</span></div>`;
+                _einvRecount();
+                return;
+            }
+
+            list.innerHTML = `
+                <div style="font-size:0.76rem;font-weight:800;color:#0d9488;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">Bills in scope</div>
+                <div style="font-size:0.76rem;color:#64748b;line-height:1.5;margin-bottom:0.6rem;">
+                    Tick <b>Goods transported</b> only for bills whose medicines were actually sent somewhere —
+                    a customer carrying their own purchase home does not need an e-way bill.
+                </div>
+                ${res.rows.map((r, i) => {
+                    const ok = r.isB2B && !r.problems.length && !res.sellerProblems.length;
+                    const badge = !r.isB2B
+                        ? `<span style="background:#f1f5f9;color:#64748b;border-radius:20px;padding:2px 9px;font-size:0.7rem;font-weight:700;">Counter sale · exempt</span>`
+                        : ok
+                        ? `<span style="background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;border-radius:20px;padding:2px 9px;font-size:0.7rem;font-weight:700;">B2B · ready</span>`
+                        : `<span style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:20px;padding:2px 9px;font-size:0.7rem;font-weight:700;">B2B · blocked</span>`;
+                    const t = _einvTransport[r.billNo] || {};
+                    return `
+                    <div style="border:1px solid #e2e8f0;border-radius:11px;padding:10px 12px;margin-bottom:7px;">
+                        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;">
+                            <div style="min-width:0;">
+                                <div style="font-weight:800;font-size:0.87rem;color:#0f172a;">${_te(r.billNo)} <span style="font-weight:500;color:#94a3b8;">· ${_td(r.date)}</span></div>
+                                <div style="font-size:0.79rem;color:#475569;">${_te(r.customer)}${r.ctin ? ` · <span style="font-family:monospace;">${_te(r.ctin)}</span>` : ''}${r.interState ? ' · <b style="color:#b45309;">inter-state (IGST)</b>' : ''}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-weight:800;font-size:0.88rem;">${_tf(r.value)}</div>
+                                ${badge}
+                            </div>
+                        </div>
+                        ${r.problems.length ? `<div style="background:#fef2f2;border-radius:8px;color:#991b1b;font-size:0.74rem;line-height:1.5;padding:6px 9px;margin-top:6px;">
+                            ${r.problems.map(p => '• ' + _te(p)).join('<br>')}</div>` : ''}
+                        <label style="display:flex;align-items:center;gap:6px;font-size:0.79rem;margin-top:7px;cursor:pointer;color:#334155;">
+                            <input type="checkbox" ${t.on ? 'checked' : ''} onchange="einvToggleEwb(${i}, this)"> Goods transported — make an e-way bill
+                            ${r.overThreshold ? '<span style="background:#fef3c7;color:#92400e;border-radius:20px;padding:1px 8px;font-size:0.68rem;font-weight:700;">above the value</span>' : ''}
+                        </label>
+                        <div id="ewbT_${i}" style="display:${t.on ? 'block' : 'none'};margin-top:7px;">
+                            ${r.ewbProblems && r.ewbProblems.length ? `<div style="background:#fffbeb;border-radius:8px;color:#92400e;font-size:0.74rem;line-height:1.5;padding:6px 9px;margin-bottom:6px;">
+                                ${r.ewbProblems.map(p => '• ' + _te(p)).join('<br>')}</div>` : ''}
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                <input type="text" placeholder="Delivery town" value="${_te(t.toPlace != null ? t.toPlace : (r.toPlace || ''))}" oninput="einvSetT(${i},'toPlace',this.value)"
+                                    style="flex:1;min-width:130px;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.82rem;outline:none;">
+                                <input type="text" maxlength="6" inputmode="numeric" placeholder="Delivery PIN" value="${_te(t.toPin != null ? t.toPin : (r.toPin || ''))}" oninput="einvSetT(${i},'toPin',this.value)"
+                                    style="flex:1;min-width:110px;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.82rem;outline:none;">
+                                <input type="text" placeholder="Vehicle no (e.g. TN01AB1234)" value="${_te(t.vehicleNo || '')}" oninput="einvSetT(${i},'vehicleNo',this.value)"
+                                    style="flex:1;min-width:150px;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.82rem;outline:none;text-transform:uppercase;">
+                                <input type="number" placeholder="Distance km (0 = auto)" value="${_te(t.distance || '')}" oninput="einvSetT(${i},'distance',this.value)"
+                                    style="flex:1;min-width:130px;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.82rem;outline:none;">
+                                <input type="text" placeholder="Transporter ID (optional)" value="${_te(t.transporterId || '')}" oninput="einvSetT(${i},'transporterId',this.value)"
+                                    style="flex:1;min-width:150px;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.82rem;outline:none;">
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('')}`;
+
+            _einvRecount();
+        }
+
+        /* Full re-render, not just a recount: ticking a bill is what makes the
+           delivery town / PIN relevant, and they need to appear already filled
+           in from the buyer's record — or flagged as missing. Losing focus is
+           not a concern here; the shop just clicked a checkbox. */
+        function einvToggleEwb(i, el) {
+            const r = _einvRows[i]; if (!r) return;
+            const t = _einvTransport[r.billNo] || (_einvTransport[r.billNo] = {});
+            t.on = !!el.checked;
+            refreshEinv();
+        }
+        /* Deliberately does NOT rebuild: a vehicle number changes what goes
+           INTO an e-way bill, never whether one is made, and re-parsing every
+           bill in the period on each keystroke is a visible stall on a busy
+           month. The rebuild happens once, at download. */
+        function einvSetT(i, field, val) {
+            const r = _einvRows[i]; if (!r) return;
+            const t = _einvTransport[r.billNo] || (_einvTransport[r.billNo] = {});
+            t[field] = val;
+        }
+
+        /* ── Buyer address fixer ───────────────────────────────────────── */
+        let _einvBuyerFix = [];
+        function openEinvBuyers() {
+            if (!_einvBuilt) return;
+            _einvBuyerFix = _einvBuilt.needBuyerDetails;
+            document.getElementById('einvBuyerList').innerHTML = _einvBuyerFix.map((b, i) => `
+                <div style="border:1px solid #e2e8f0;border-radius:11px;padding:10px 12px;margin-bottom:8px;">
+                    <div style="font-weight:800;font-size:0.87rem;color:#0f172a;margin-bottom:2px;">${_te(b.name)}</div>
+                    <div style="font-size:0.74rem;color:#94a3b8;font-family:monospace;margin-bottom:7px;">${_te(b.gstin)}</div>
+                    ${b.id ? '' : `<div style="background:#fffbeb;color:#92400e;border-radius:8px;font-size:0.73rem;padding:5px 8px;margin-bottom:6px;line-height:1.5;">
+                        This customer has not synced to the cloud yet — the address will be saved on this device only.</div>`}
+                    <input type="text" id="ebAddr_${i}" placeholder="Address line" value="${_te(b.address || '')}"
+                        style="width:100%;box-sizing:border-box;padding:0.42rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.83rem;outline:none;margin-bottom:6px;">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <input type="text" id="ebCity_${i}" placeholder="Town / City" value="${_te(b.city || '')}"
+                            style="flex:2;min-width:140px;padding:0.42rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.83rem;outline:none;">
+                        <input type="text" id="ebPin_${i}" maxlength="6" inputmode="numeric" placeholder="PIN code" value="${_te(b.pincode || '')}"
+                            style="flex:1;min-width:100px;padding:0.42rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.83rem;outline:none;">
+                    </div>
+                </div>`).join('');
+            const m = document.getElementById('einvBuyerModal');
+            m.classList.add('open');
+            m.style.display = 'flex';
+        }
+        function closeEinvBuyers() {
+            const m = document.getElementById('einvBuyerModal');
+            m.classList.remove('open');
+            m.style.display = 'none';
+        }
+
+        async function saveEinvBuyers() {
+            const btn = document.getElementById('einvBuyerSaveBtn');
+            const original = btn.textContent;
+            btn.disabled = true; btn.textContent = 'Saving…';
+
+            let saved = 0, failed = 0, badPin = 0, msg = '';
+            // Write locally first: the export reads mm_customers, so a cloud
+            // hiccup should not stop the shop filing today.
+            let custs = [];
+            try { custs = JSON.parse(localStorage.getItem('mm_customers') || '[]') || []; } catch (e) {}
+
+            for (let i = 0; i < _einvBuyerFix.length; i++) {
+                const b = _einvBuyerFix[i];
+                const address = (document.getElementById('ebAddr_' + i).value || '').trim();
+                const city    = (document.getElementById('ebCity_' + i).value || '').trim();
+                const pincode = (document.getElementById('ebPin_'  + i).value || '').trim();
+                if (!address && !city && !pincode) continue;          // left blank = skip
+                if (pincode && !mmEinvoice.validPin(pincode)) { badPin++; continue; }
+
+                const idx = custs.findIndex(c =>
+                    (b.id && String(c.id) === String(b.id)) ||
+                    (c.name || '').trim().toLowerCase() === (b.name || '').trim().toLowerCase());
+                if (idx >= 0) custs[idx] = { ...custs[idx], address, city, pincode };
+
+                if (b.id && typeof dbUpdateCustomerPos === 'function') {
+                    const r = await dbUpdateCustomerPos(b.id, { address, city, pincode });
+                    if (r && r.success) saved++;
+                    else { failed++; if (r && r.message) msg = r.message; }
+                } else {
+                    saved++;      // local-only customer; already flagged in the form
+                }
+            }
+            try { localStorage.setItem('mm_customers', JSON.stringify(custs)); } catch (e) {}
+
+            btn.disabled = false; btn.textContent = original;
+            closeEinvBuyers();
+
+            await mmAlert(
+                `Saved ${saved} customer address(es).` +
+                (badPin ? `\n\n${badPin} skipped — a PIN code must be exactly 6 digits.` : '') +
+                (failed ? `\n\n${failed} could not be saved to the cloud.${msg ? '\n' + msg : ''}` : ''),
+                { title: 'Buyer addresses', variant: (failed || badPin) ? 'warn' : 'success' });
+
+            refreshEinv();
+        }
+
+        /* ── Downloads ─────────────────────────────────────────────────── */
+        function _einvSaveJson(payload, filename) {
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+        }
+        function _einvPeriod() {
+            const o = _einvOpts();
+            return (o.from || 'all') + '-to-' + (o.to || 'all');
+        }
+
+        async function downloadEinvoices() {
+            const btn = document.getElementById('einvDownloadBtn');
+            if (btn && btn.disabled) return;
+            _einvRecount();          // pick up anything typed since the last build
+            if (!_einvBuilt || !_einvBuilt.einvoices.length) { await mmAlert('No B2B invoice in this period is ready to file.'); return; }
+            _einvSaveJson(_einvBuilt.einvoices, 'einvoice-' + _einvPeriod() + '.json');
+            if (typeof mmAudit === 'function') mmAudit('e-Invoice export', _einvBuilt.einvoices.length + ' invoices', _einvPeriod());
+            await mmAlert(
+                `${_einvBuilt.einvoices.length} invoice(s) written.\n\n` +
+                `Upload the file at einvoice1.gst.gov.in → Bulk Upload, then check every IRN came back before treating these invoices as issued.`,
+                { title: 'e-Invoice file ready', variant: 'success' });
+        }
+
+        async function downloadEwb() {
+            const btn = document.getElementById('ewbDownloadBtn');
+            if (btn && btn.disabled) return;
+            _einvRecount();          // the vehicle numbers just typed are only read here
+
+            /* A ticked bill that produced nothing must say why. Silently
+               exporting 2 of 3 consignments is how a lorry leaves without its
+               e-way bill. */
+            const skipped = _einvBuilt.rows.filter(r => (_einvTransport[r.billNo] || {}).on
+                                                     && (r.ewbProblems.length || r.problems.length));
+            if (skipped.length) {
+                await mmAlert(
+                    skipped.map(r => `${r.billNo}: ${(r.ewbProblems.concat(r.problems)).join('; ')}`).join('\n'),
+                    { title: `${skipped.length} bill(s) left out`, variant: 'warn' });
+            }
+            if (!_einvBuilt || !_einvBuilt.ewbs.length) { await mmAlert('Tick the bills whose goods were actually transported first.'); return; }
+            _einvSaveJson(_einvBuilt.ewbs, 'ewaybill-' + _einvPeriod() + '.json');
+            if (typeof mmAudit === 'function') mmAudit('e-Way bill export', _einvBuilt.ewbs.length + ' consignments', _einvPeriod());
+            await mmAlert(
+                `${_einvBuilt.ewbs.length} consignment(s) written.\n\n` +
+                `Upload at ewaybillgst.gov.in → Bulk Generation. A blank vehicle number generates Part-A only — Part-B must be filled in before the goods move.`,
+                { title: 'e-Way bill file ready', variant: 'success' });
         }
 
         /* ══════════════════════════════════════════════════════════════════
