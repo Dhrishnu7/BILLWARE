@@ -591,6 +591,12 @@
             z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.3s;
         }
         .modal-overlay.open { opacity: 1; pointer-events: auto; }
+        /* A dialog opened FROM another dialog. Every .modal-overlay shares
+           z-index 1000, so which one wins comes down to document order — and
+           the fixers are written above the dialog that launches them, so they
+           were opening behind it. Stacking is a property of the dialog's role,
+           not of where it happens to sit in the file. */
+        .modal-overlay.modal-stacked { z-index: 1200; }
         .modal-content {
             background: white; border-radius: 16px; width: 90%; max-width: 600px;
             max-height: 85vh; overflow-y: auto;
@@ -1142,7 +1148,7 @@
          Opened from the GSTR-1 blocker. Sets the code once per PRODUCT and
          applies it across that product's history, because fixing thousands of
          old bill lines by hand is not a real option. -->
-    <div class="modal-overlay" id="hsnModal" style="display:none;" onclick="if(event.target===this) closeHsnFixer()">
+    <div class="modal-overlay modal-stacked" id="hsnModal" style="display:none;" onclick="if(event.target===this) closeHsnFixer()">
         <div class="modal-content" style="max-width:640px;">
             <div class="modal-header">
                 <div class="modal-title">🏷️ Fix missing HSN codes</div>
@@ -1173,7 +1179,7 @@
          filed, and there is no other screen in the app that can edit a bill
          after it is raised — so reporting the problem without offering this
          left the shop stuck with a return it could not produce. -->
-    <div class="modal-overlay" id="rateFixModal" style="display:none;" onclick="if(event.target===this) closeRateFixer()">
+    <div class="modal-overlay modal-stacked" id="rateFixModal" style="display:none;" onclick="if(event.target===this) closeRateFixer()">
         <div class="modal-content" style="max-width:640px;">
             <div class="modal-header">
                 <div class="modal-title">⚖️ Correct impossible GST rates</div>
@@ -1314,7 +1320,7 @@
          those were never asked for anywhere. Fixing them here — where the
          gap is reported — rather than sending the shop to the Directory to
          hunt for the right customer, is the same choice the HSN fixer made. -->
-    <div class="modal-overlay" id="einvBuyerModal" style="display:none;" onclick="if(event.target===this) closeEinvBuyers()">
+    <div class="modal-overlay modal-stacked" id="einvBuyerModal" style="display:none;" onclick="if(event.target===this) closeEinvBuyers()">
         <div class="modal-content" style="max-width:620px;">
             <div class="modal-header">
                 <div class="modal-title">🏥 Complete the buyer's address</div>
