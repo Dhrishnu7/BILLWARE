@@ -1034,6 +1034,46 @@ async function dbSetProductHsn(productName, hsn) {
 }
 window.dbSetProductHsn = dbSetProductHsn;
 
+/* Correct the GST rate on an already-saved bill line.
+   A rate like 7.5% or 2% does not exist, so a bill carrying one can never be
+   filed — and until this existed the app reported the problem and offered no
+   way to fix it, which is not help.
+
+   ONLY the rate moves. The line total is what the customer actually paid and
+   is left alone; changing the rate re-splits tax INSIDE that total (taxable
+   value shifts, the amount received does not). Recomputing the total from the
+   new rate would silently rewrite history and disagree with the printed bill.
+
+   Scoped by bill number AND the wrong rate, so a correctly-rated line of the
+   same medicine on the same bill is never touched. */
+async function dbSetBillItemGst(billNo, product, fromRate, toRate) {
+    const user = _currentUser();
+    if (!user) return { success: false, message: 'Not logged in.' };
+    const bn = String(billNo || '').trim();
+    const p  = String(product || '').trim();
+    if (!bn || !p) return { success: false, message: 'Bill number and product are both required.' };
+
+    try {
+        const { data: bills, error: bErr } = await _supabase.from('bills')
+            .select('id').eq('user_id', user).eq('bill_no', bn);
+        if (bErr) return { success: false, message: bErr.message };
+        const ids = (bills || []).map(b => b.id);
+        if (!ids.length) return { success: false, message: 'Bill ' + bn + ' not found in the cloud.' };
+
+        const { data, error } = await _supabase.from('bill_items')
+            .update({ gst: Number(toRate) || 0 })
+            .in('bill_id', ids)
+            .ilike('product', p)
+            .eq('gst', Number(fromRate) || 0)
+            .select('id');
+        if (error) return { success: false, message: error.message };
+        return { success: true, items: (data || []).length };
+    } catch (e) {
+        return { success: false, message: String(e && e.message ? e.message : e) };
+    }
+}
+window.dbSetBillItemGst = dbSetBillItemGst;
+
 const MM_EXPENSE_CATEGORIES = [
     'Rent', 'Salary', 'Electricity', 'Freight / Transport', 'Phone / Internet',
     'Repairs & Maintenance', 'Licence & Fees', 'Bank Charges', 'GST / Tax Paid',

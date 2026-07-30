@@ -83,6 +83,10 @@
 
         var reg = gstinMap();
         var noHsnProducts = [];
+        /* The offending lines themselves, not just a count. "2 lines are at
+           7.5%" tells a shopkeeper nothing about WHICH bills to open, and
+           until this existed there was no way to correct one anyway. */
+        var badRateLines = [];
         var b2csMap = {};     // rate -> totals            (counter sales)
         var b2bMap  = {};     // ctin -> { inv: [...] }    (registered buyers)
         var hsnMap  = {};     // hsn|rate -> totals        (all sales, both kinds)
@@ -120,7 +124,15 @@
                 var half  = tax / 2;
                 lineCount++;
                 grand += total;
-                if (!validRates[rate] && !MM_GST_SLABS_SET[rate]) badRates[rate] = (badRates[rate] || 0) + 1;
+                if (!validRates[rate] && !MM_GST_SLABS_SET[rate]) {
+                    badRates[rate] = (badRates[rate] || 0) + 1;
+                    if (badRateLines.length < 60) {
+                        badRateLines.push({
+                            billNo: String(bill.billNo || ''), date: String(bill.date || '').slice(0, 10),
+                            product: String(m.product || ''), rate: rate, total: r2(total)
+                        });
+                    }
+                }
 
                 var rk = String(rate);
                 if (ctin) {
@@ -328,6 +340,7 @@
                 missingHsn: missingHsn,
                 noHsnProducts: noHsnProducts,
                 badRates: Object.keys(badRates).map(function (r) { return { rt: Number(r), lines: badRates[r] }; }),
+                badRateLines: badRateLines,
                 b2bBuyers: b2b.length,
                 b2bInvoices: b2bInvCount,
                 b2bValue: r2(b2bValue),
