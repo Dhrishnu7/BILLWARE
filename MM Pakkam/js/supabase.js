@@ -1577,6 +1577,44 @@ function _mmMergeCustomerBalances(cloudCustomers) {
     return merged;
 }
 
+/* Supabase's { bill_no, bill_items: [...] } → the flat { billNo, medicines: [] }
+   shape every page's stock, report and export logic reads.
+
+   THIS MUST BE THE ONLY PLACE BILLS ARE SHAPED. It used to be inline in
+   dbSyncCoreData while dbSyncDown wrote the RAW rows straight to mm_sales on
+   login. Nothing crashed, because the two shapes use different key names and
+   every reader simply skipped the raw ones — so the damage was silent: bills
+   were stored TWICE, and the "preserve local-only bills" rule below could
+   never delete the raw copies (they have no billNo, so they never match a
+   cloud bill and always look like unsynced offline work). A shop with 70 bills
+   carried 140 records for months. Same lesson as the customer merge above:
+   one shared, tested shaping function — never a second hand-rolled copy. */
+function _mmNormalizeBills(rows) {
+    return (rows || []).map(b => ({
+        billNo:       b.bill_no,
+        date:         b.date,
+        customerName: b.customer_name || '',
+        customerId:   b.customer_id != null ? b.customer_id : null,
+        doctorName:   b.doctor_name   || '',
+        grandTotal:   b.grand_total,
+        paymentMode:  b.payment_mode || 'cash',
+        medicines:    (b.bill_items || []).map(m => ({
+            product:  m.product  || '',
+            batch:    m.batch    || '',
+            exp:      m.exp      || '',
+            pack:     m.pack     || 0,
+            qty:      m.qty      || 0,
+            mrp:      m.mrp      || 0,
+            rate:     m.rate     || 0,
+            gst:      m.gst      || 0,
+            discount: m.discount || 0,
+            total:    m.total    || 0,
+            hsn:      m.hsn      || '',
+        })),
+        savedAt: b.date
+    }));
+}
+
 async function dbSyncCoreData() {
     const user = _currentUser();
     if (!user) return false;
@@ -1603,36 +1641,19 @@ async function dbSyncCoreData() {
         if (adjustments && adjustments.length) mmLsSet('stockAdjustments', adjustments);
 
         if (bills && bills.length) {
-            // Normalize Supabase's { bill_items: [...] } shape into the
-            // flat { medicines: [...] } shape every page's stock/name logic expects.
-            const normalized = bills.map(b => ({
-                billNo:       b.bill_no,
-                date:         b.date,
-                customerName: b.customer_name || '',
-                customerId:   b.customer_id != null ? b.customer_id : null,
-                doctorName:   b.doctor_name   || '',
-                grandTotal:   b.grand_total,
-                paymentMode:  b.payment_mode || 'cash',
-                medicines:    (b.bill_items || []).map(m => ({
-                    product:  m.product  || '',
-                    batch:    m.batch    || '',
-                    exp:      m.exp      || '',
-                    pack:     m.pack     || 0,
-                    qty:      m.qty      || 0,
-                    mrp:      m.mrp      || 0,
-                    rate:     m.rate     || 0,
-                    gst:      m.gst      || 0,
-                    discount: m.discount || 0,
-                    total:    m.total    || 0,
-                    hsn:      m.hsn      || '',
-                })),
-                savedAt: b.date
-            }));
+            const normalized = _mmNormalizeBills(bills);
             // Preserve any bill saved locally that hasn't reached the cloud yet
             // (offline/pending sync) — the cloud copy wins once it exists.
             const cloudBillNos  = new Set(normalized.map(b => b.billNo));
             const existingLocal = JSON.parse(localStorage.getItem('mm_sales') || '[]');
-            const localOnly     = existingLocal.filter(b => !cloudBillNos.has(b.billNo));
+            /* Requiring a billNo is what makes this self-healing. A genuine
+               offline bill always has one (sales.html assigns it before saving),
+               so nothing real is lost — but the raw cloud rows written by the
+               old dbSyncDown have none, and would otherwise be preserved as
+               "unsynced" for ever. This purges them on the next sync. */
+            const localOnly = existingLocal.filter(b => b && b.billNo && !cloudBillNos.has(b.billNo));
+            const dropped   = existingLocal.length - localOnly.length - normalized.length;
+            if (dropped > 0) console.log('[Sync] cleared', dropped, 'duplicate bill record(s) left by the old sync');
             localStorage.setItem('mm_sales', JSON.stringify([...normalized, ...localOnly]));
         }
 
@@ -2043,7 +2064,9 @@ async function dbSyncDown() {
         ]);
         
         if (purchases && purchases.length) localStorage.setItem('mm_purchases', JSON.stringify(purchases));
-        if (bills && bills.length) localStorage.setItem('mm_sales', JSON.stringify(bills));
+        // Through the SAME shaper dbSyncCoreData uses. Writing the raw rows here
+        // is what doubled every shop's bill list — see _mmNormalizeBills.
+        if (bills && bills.length) localStorage.setItem('mm_sales', JSON.stringify(_mmNormalizeBills(bills)));
         if (customers && customers.length) localStorage.setItem('mm_customers', JSON.stringify(_mmMergeCustomerBalances(customers)));
         if (doctors && doctors.length) localStorage.setItem('mm_doctors', JSON.stringify(doctors));
         
