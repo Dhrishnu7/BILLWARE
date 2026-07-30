@@ -980,6 +980,11 @@
               .ret-in{width:100%;padding:.6rem .75rem;border:1.5px solid #cbd5e1;border-radius:10px;font-size:.9rem;}
               .ret-pick{padding:.65rem .85rem;border:1.5px solid #e2e8f0;border-radius:10px;margin-bottom:.45rem;cursor:pointer;display:flex;justify-content:space-between;gap:.6rem;align-items:center;}
               .ret-pick:hover{border-color:#0d9488;background:#f0fdfa;}
+              /* Hover alone confirmed nothing: it vanishes the moment the
+                 mouse moves, so after clicking there was no way to tell WHICH
+                 bill was picked without scrolling down to the card below. */
+              .ret-pick.ret-selected{border-color:#0d9488;border-width:2px;background:#ecfdf5;box-shadow:0 0 0 3px rgba(13,148,136,.12);}
+              .ret-pick.ret-selected::after{content:'✓ Selected';background:#0d9488;color:#fff;font-size:.66rem;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap;margin-left:.5rem;}
               .ret-tbl{width:100%;border-collapse:collapse;margin-top:.7rem;}
               .ret-tbl th{text-align:left;font-size:.66rem;text-transform:uppercase;color:#64748b;font-weight:800;padding:.45rem .5rem;border-bottom:2px solid #e2e8f0;}
               .ret-tbl td{padding:.5rem .5rem;border-bottom:1px solid #f1f5f9;font-size:.86rem;}
@@ -1280,11 +1285,33 @@
         if (!bills.length) { list.innerHTML = '<div class="ret-empty">No matching bills.</div>'; return; }
         list.innerHTML = bills.map(b => {
             const items = (b.medicines || []).length;
-            return '<div class="ret-pick" onclick="loadBillForReturn(' + JSON.stringify(String(b.billNo)).replace(/"/g, '&quot;') + ')">'
+            return '<div class="ret-pick" onclick="retMarkPicked(this); loadBillForReturn(' + JSON.stringify(String(b.billNo)).replace(/"/g, '&quot;') + ')">'
                 + '<div><b>' + retEsc(b.billNo) + '</b> &nbsp;<span class="ret-muted">' + retEsc(b.customerName || 'Walk-in') + '</span></div>'
                 + '<div class="ret-muted">' + retEsc(b.date || '') + ' · ' + items + ' item' + (items === 1 ? '' : 's') + '</div></div>';
         }).join('');
     }
+    /* Mark the row that was just clicked, and clear any previous one. Called
+       from the row itself so it works for both pickers without either of them
+       needing to know how the other identifies its rows. */
+    function retMarkPicked(el) {
+        if (!el || !el.parentNode) return;
+        el.parentNode.querySelectorAll('.ret-pick').forEach(n => n.classList.remove('ret-selected'));
+        el.classList.add('ret-selected');
+    }
+
+    /* Take the shop TO the thing it just opened. The card naming the chosen
+       bill sits below the results list, so on a laptop it was off-screen —
+       you had to scroll down to find out whether you clicked the right one. */
+    function retRevealCard(id) {
+        const card = document.getElementById(id);
+        if (!card) return;
+        // After the browser has laid the now-visible card out, not before.
+        requestAnimationFrame(() => {
+            try { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+            catch (e) { card.scrollIntoView(); }      // older browsers
+        });
+    }
+
     function loadBillForReturn(billNo) {
         const bill = retSales().find(b => !b.isReturn && String(b.billNo) === String(billNo));
         if (!bill) { retToast('Not found', 'That bill could not be loaded.'); return; }
@@ -1324,6 +1351,7 @@
         }
         document.getElementById('saleReturnCard').classList.remove('ret-hidden');
         renderSrSummary();
+        retRevealCard('saleReturnCard');
     }
     function renderSrSummary() {
         let total = 0, count = 0;
@@ -1435,7 +1463,7 @@
         list.innerHTML = _purLots.map((p, i) => {
             const name = (p.productName || p.product_name || ''), batch = (p.batchNo || p.batch_no || ''), firm = p.firm || 'Supplier';
             const stock = (typeof mmComputeStock === 'function') ? mmComputeStock(name, batch) : 0;
-            return '<div class="ret-pick" onclick="loadLotForReturn(' + i + ')"><div><b>' + retEsc(name) + '</b> <span class="ret-muted">' + retEsc(batch || '—') + '</span><br><span class="ret-muted">' + retEsc(firm) + ' · ' + retEsc(p.date || '') + '</span></div><div class="ret-muted">In stock: <b>' + stock + '</b></div></div>';
+            return '<div class="ret-pick" onclick="retMarkPicked(this); loadLotForReturn(' + i + ')"><div><b>' + retEsc(name) + '</b> <span class="ret-muted">' + retEsc(batch || '—') + '</span><br><span class="ret-muted">' + retEsc(firm) + ' · ' + retEsc(p.date || '') + '</span></div><div class="ret-muted">In stock: <b>' + stock + '</b></div></div>';
         }).join('');
     }
     function loadLotForReturn(idx) {
@@ -1451,6 +1479,7 @@
         document.getElementById('prItems').innerHTML = '<tr data-unitcost="' + perUnitCost + '" data-max="' + stock + '"><td><b>' + retEsc(name) + '</b></td><td>' + retEsc(batch || '—') + '</td><td>' + stock + '</td><td><input type="number" class="ret-qty pr-qty" min="0" max="' + stock + '" value="0" oninput="renderPrSummary()"></td><td class="pr-line">₹0.00</td></tr>';
         document.getElementById('purReturnCard').classList.remove('ret-hidden');
         renderPrSummary();
+        retRevealCard('purReturnCard');
     }
     function renderPrSummary() {
         const tr = document.querySelector('#prItems tr');
