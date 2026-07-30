@@ -99,10 +99,25 @@
         return '   <TALLYMESSAGE xmlns:UDF="TallyUDF">\n' + s + '   </TALLYMESSAGE>\n';
     }
 
+    function r2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+
+    /* Split a bill's tax into its CGST and SGST halves.
+       NOT tax/2 twice: an odd number of paise rounds UP on both halves, so
+       ₹4.63 became 2.32 + 2.32 = 4.64 and the voucher no longer balanced.
+       Tally rejects a voucher whose two sides differ by even one paisa. */
+    function halves(tax) {
+        var cg = r2(tax / 2);
+        return { cg: cg, sg: r2(tax - cg) };
+    }
+
     /* ── Group the flat line-item rows back into whole bills ──
-       The app stores sales per medicine; a voucher is per BILL. Tax is split
-       evenly into CGST and SGST, which is correct for an intra-state pharmacy
-       sale — see the caveat surfaced in the UI for inter-state supplies. */
+       The app stores sales per medicine; a voucher is per BILL. Rows arrive
+       with taxable/tax/total already worked out per line, because sales and
+       purchases derive them from opposite directions — see below.
+
+       The three figures are then forced to foot exactly: tax is defined as
+       total − taxable rather than carried separately, so rounding can never
+       leave the voucher one paisa out. */
     function groupBills(rows) {
         var map = {};
         rows.forEach(function (r) {
@@ -110,14 +125,18 @@
             if (!map[key]) {
                 map[key] = { billNo: r.billNo || '-', date: r.date || '', party: r.party || '', taxable: 0, tax: 0, total: 0 };
             }
-            var taxable = (Number(r.qty) || 0) * (Number(r.rate) || 0);
-            var total   = Number(r.total) || taxable;
-            map[key].taxable += taxable;
-            map[key].tax     += Math.max(0, total - taxable);
-            map[key].total   += total;
+            map[key].taxable += Number(r.taxable) || 0;
+            map[key].tax     += Number(r.tax)     || 0;
+            map[key].total   += Number(r.total)   || 0;
             if (!map[key].party && r.party) map[key].party = r.party;
         });
-        return Object.keys(map).map(function (k) { return map[k]; });
+        return Object.keys(map).map(function (k) {
+            var b = map[k];
+            b.taxable = r2(b.taxable);
+            b.total   = r2(b.total);
+            b.tax     = r2(b.total - b.taxable);
+            return b;
+        });
     }
 
     /* ── Build the XML ──
@@ -137,7 +156,22 @@
         // plain language before sending it. The XML is written for Tally; nobody
         // should have to squint at angle brackets to check their own bills.
         var rows = [];
+        /* Tally will not accept a voucher whose debits and credits differ, by
+           any amount. Two bugs used to produce exactly that — a discounted
+           bill's Sales figure exceeded the money received, and an odd number
+           of paise rounded up on BOTH tax halves. Neither was visible in the
+           XML unless you added the columns up by hand, and the shop would only
+           have found out when the accountant's import failed.
+
+           So every voucher is now checked as it is written. Anything that does
+           not balance is named, and the UI refuses the download. */
+        var unbalanced = [];
         function note(kind, date, num, party, total, lines) {
+            var dr = 0, cr = 0;
+            lines.forEach(function (l) { if (l.debit) dr += l.amount; else cr += l.amount; });
+            if (Math.abs(r2(dr) - r2(cr)) > 0.005) {
+                unbalanced.push(kind + ' ' + (num || '-') + ': debits ' + amt(dr) + ' vs credits ' + amt(cr));
+            }
             rows.push({ kind: kind, date: date, num: num, party: party, total: total, lines: lines });
         }
 
@@ -149,10 +183,20 @@
             rawSales.forEach(function (bill) {
                 if (!inRange(bill.date)) return;
                 (bill.medicines || []).forEach(function (m) {
+                    /* Work BACKWARDS from the line total, exactly as the GSTR-1
+                       and e-invoice exports do. The old code multiplied qty ×
+                       rate, which is the price before any discount — so a
+                       discounted bill produced a Sales figure LARGER than the
+                       money received, tax came out as zero, and the voucher was
+                       out by the whole discount. The total is what the customer
+                       actually paid; the tax inside it follows from the rate. */
+                    var total = Number(m.total) || 0;
+                    if (!total) return;
+                    var taxable = total / (1 + (Number(m.gst) || 0) / 100);
                     sRows.push({
                         billNo: bill.billNo, date: bill.date,
                         party: bill.customerName || bill.customer_name || '',
-                        qty: m.qty, rate: m.rate, total: m.total
+                        taxable: taxable, tax: total - taxable, total: total
                     });
                 });
             });
@@ -163,10 +207,11 @@
                 var plain = [{ ledger: party, amount: b.total, debit: true },
                              { ledger: cfg.salesLedger, amount: b.taxable, debit: false }];
                 if (b.tax > 0) {
-                    lines.push(entry(cfg.cgstOut, b.tax / 2, false));
-                    lines.push(entry(cfg.sgstOut, b.tax / 2, false));
-                    plain.push({ ledger: cfg.cgstOut, amount: b.tax / 2, debit: false });
-                    plain.push({ ledger: cfg.sgstOut, amount: b.tax / 2, debit: false });
+                    var hs = halves(b.tax);
+                    lines.push(entry(cfg.cgstOut, hs.cg, false));
+                    lines.push(entry(cfg.sgstOut, hs.sg, false));
+                    plain.push({ ledger: cfg.cgstOut, amount: hs.cg, debit: false });
+                    plain.push({ ledger: cfg.sgstOut, amount: hs.sg, debit: false });
                 }
                 body += voucher('Sales', b.date, b.billNo, party, lines);
                 note('Sales', b.date, b.billNo, party, b.total, plain);
@@ -180,10 +225,13 @@
             try { rawPurch = JSON.parse(localStorage.getItem('mm_purchases') || '[]'); } catch (e) {}
             var pRows = rawPurch.filter(function (p) { return inRange(p.date); }).map(function (p) {
                 var qty = Number(p.quantity) || 0, rate = Number(p.rate) || 0, gst = Number(p.gst) || 0;
+                /* Purchases run the other way: the app stores a PRE-tax rate,
+                   so the taxable value is authoritative and the total follows. */
                 var taxable = qty * rate;
+                var tax     = taxable * gst / 100;
                 return {
                     billNo: p.billNo || '-', date: p.date, party: p.firm || '',
-                    qty: qty, rate: rate, total: taxable * (1 + gst / 100)
+                    taxable: taxable, tax: tax, total: taxable + tax
                 };
             });
             groupBills(pRows).forEach(function (b) {
@@ -191,10 +239,11 @@
                 var lines = [entry(cfg.purchLedger, b.taxable, true)];  // stock bought = debit
                 var plainP = [{ ledger: cfg.purchLedger, amount: b.taxable, debit: true }];
                 if (b.tax > 0) {
-                    lines.push(entry(cfg.cgstIn, b.tax / 2, true));
-                    lines.push(entry(cfg.sgstIn, b.tax / 2, true));
-                    plainP.push({ ledger: cfg.cgstIn, amount: b.tax / 2, debit: true });
-                    plainP.push({ ledger: cfg.sgstIn, amount: b.tax / 2, debit: true });
+                    var hp = halves(b.tax);
+                    lines.push(entry(cfg.cgstIn, hp.cg, true));
+                    lines.push(entry(cfg.sgstIn, hp.sg, true));
+                    plainP.push({ ledger: cfg.cgstIn, amount: hp.cg, debit: true });
+                    plainP.push({ ledger: cfg.sgstIn, amount: hp.sg, debit: true });
                 }
                 lines.push(entry(party, b.total, false));               // supplier owed = credit
                 plainP.push({ ledger: party, amount: b.total, debit: false });
@@ -237,10 +286,11 @@
                 var lines = [entry(cfg.salesRetLedger, n.taxable, true)];
                 var plain = [{ ledger: cfg.salesRetLedger, amount: n.taxable, debit: true }];
                 if (n.tax > 0) {
-                    lines.push(entry(cfg.cgstOut, n.tax / 2, true));
-                    lines.push(entry(cfg.sgstOut, n.tax / 2, true));
-                    plain.push({ ledger: cfg.cgstOut, amount: n.tax / 2, debit: true });
-                    plain.push({ ledger: cfg.sgstOut, amount: n.tax / 2, debit: true });
+                    var hc = halves(n.tax);
+                    lines.push(entry(cfg.cgstOut, hc.cg, true));
+                    lines.push(entry(cfg.sgstOut, hc.sg, true));
+                    plain.push({ ledger: cfg.cgstOut, amount: hc.cg, debit: true });
+                    plain.push({ ledger: cfg.sgstOut, amount: hc.sg, debit: true });
                 }
                 lines.push(entry(party, n.gross, false));
                 plain.push({ ledger: party, amount: n.gross, debit: false });
@@ -259,10 +309,11 @@
                 lines.push(entry(cfg.purchRetLedger, n.taxable, false));
                 plain.push({ ledger: cfg.purchRetLedger, amount: n.taxable, debit: false });
                 if (n.tax > 0) {
-                    lines.push(entry(cfg.cgstIn, n.tax / 2, false));
-                    lines.push(entry(cfg.sgstIn, n.tax / 2, false));
-                    plain.push({ ledger: cfg.cgstIn, amount: n.tax / 2, debit: false });
-                    plain.push({ ledger: cfg.sgstIn, amount: n.tax / 2, debit: false });
+                    var hd = halves(n.tax);
+                    lines.push(entry(cfg.cgstIn, hd.cg, false));
+                    lines.push(entry(cfg.sgstIn, hd.sg, false));
+                    plain.push({ ledger: cfg.cgstIn, amount: hd.cg, debit: false });
+                    plain.push({ ledger: cfg.sgstIn, amount: hd.sg, debit: false });
                 }
                 body += voucher('Debit Note', n.date, n.no, sup, lines);
                 note('Debit Note', n.date, n.no, sup, n.gross, plain);
@@ -290,6 +341,7 @@
 
         rows.sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
         return { xml: xml, counts: counts, rows: rows,
+                 unbalanced: unbalanced,
                  returnProblems: (retData ? retData.problems : []) };
     }
 

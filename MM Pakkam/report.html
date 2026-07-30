@@ -2221,11 +2221,28 @@
             document.getElementById('tallyFootSetup').style.display = 'none';
             document.getElementById('tallyFootPreview').style.display = '';
 
+            /* A file Tally rejects is worse than no file: the shop believes the
+               handover is done and the accountant discovers it days later. */
+            const dlBtn = document.querySelector('#tallyFootPreview .search-btn:last-child');
+            if (dlBtn) {
+                const bad = (res.unbalanced || []).length > 0;
+                dlBtn.disabled = bad;
+                dlBtn.style.opacity = bad ? '.45' : '';
+                dlBtn.style.cursor = bad ? 'not-allowed' : '';
+                dlBtn.title = bad ? 'Some vouchers do not balance — Tally would reject the file' : '';
+            }
+
             document.getElementById('tallyPreview').innerHTML = `
                 <div style="background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:10px;padding:11px 14px;font-size:0.83rem;line-height:1.55;margin-bottom:0.9rem;">
                     <b>${n} voucher${n === 1 ? '' : 's'} ready</b> — ${c.sales} sales, ${c.purchases} purchase, ${c.expenses} payment${c.creditNotes ? `, ${c.creditNotes} credit note` : ''}${c.debitNotes ? `, ${c.debitNotes} debit note` : ''}.
                     Period ${opts.from || 'start'} to ${opts.to || 'today'}. Total value ${_tf(grand)}.
                 </div>
+                ${(res.unbalanced || []).length ? `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:11px 13px;font-size:0.78rem;line-height:1.6;margin-bottom:0.8rem;">
+                    <b style="display:block;margin-bottom:5px;">${res.unbalanced.length} voucher(s) do not balance — Tally would reject them:</b>
+                    ${res.unbalanced.slice(0, 12).map(u => '• ' + _te(u)).join('<br>')}
+                    ${res.unbalanced.length > 12 ? `<br><i>…and ${res.unbalanced.length - 12} more</i>` : ''}
+                    <br><br>The download is blocked. Send me this message — it means a bill's figures do not add up.
+                </div>` : ''}
                 ${(res.returnProblems || []).length ? `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:10px 13px;font-size:0.78rem;line-height:1.6;margin-bottom:0.8rem;">
                     <b style="display:block;margin-bottom:4px;">These returns were LEFT OUT — their original bill could not be found, so the GST rate is unknown:</b>
                     ${res.returnProblems.map(p => '• ' + _te(p)).join('<br>')}
@@ -2278,6 +2295,11 @@
 
         async function downloadTallyFile() {
             if (!_tallyBuilt) return;
+            if ((_tallyBuilt.res.unbalanced || []).length) {
+                await mmAlert('Some vouchers do not balance, so Tally would reject the file. The problems are listed above.',
+                    { title: 'Export blocked', variant: 'warn' });
+                return;
+            }
             const { res, opts, n } = _tallyBuilt;
             const blob = new Blob([res.xml], { type: 'application/xml' });
             const a = document.createElement('a');

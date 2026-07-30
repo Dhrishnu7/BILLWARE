@@ -198,7 +198,14 @@
 
         var all = Object.keys(notes).map(function (k) {
             var n = notes[k];
-            n.taxable = r2(n.taxable); n.tax = r2(n.tax); n.gross = r2(n.gross);
+            /* Round the two authoritative figures, then DERIVE the third.
+               Rounding all three independently let them disagree by a paisa,
+               and a Tally voucher whose sides differ by one paisa is rejected
+               outright. The gross is what actually changed hands, so the tax
+               is defined as the remainder. */
+            n.taxable = r2(n.taxable);
+            n.gross   = r2(n.gross);
+            n.tax     = r2(n.gross - n.taxable);
             // One unreadable line poisons the whole note: a partly-taxed credit
             // note is not filable, and half a document is worse than none.
             n.usable = n.problems.length === 0 && n.lines.length > 0
