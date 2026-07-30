@@ -699,6 +699,7 @@
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
+    <script src="js/returns-data.js"></script>
     <script src="js/tally-export.js"></script>
     <script src="js/gstr1-export.js"></script>
     <script src="js/einvoice-export.js"></script>
@@ -1322,7 +1323,8 @@
                 <div style="font-size:0.76rem;font-weight:800;color:#0d9488;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.55rem;">Include</div>
                 <label style="display:block;font-size:0.87rem;margin-bottom:5px;cursor:pointer;"><input type="checkbox" id="tlySales" checked> Sales bills → Sales vouchers</label>
                 <label style="display:block;font-size:0.87rem;margin-bottom:5px;cursor:pointer;"><input type="checkbox" id="tlyPurch" checked> Purchase bills → Purchase vouchers</label>
-                <label style="display:block;font-size:0.87rem;margin-bottom:1rem;cursor:pointer;"><input type="checkbox" id="tlyExp" checked> Expenses → Payment vouchers</label>
+                <label style="display:block;font-size:0.87rem;margin-bottom:5px;cursor:pointer;"><input type="checkbox" id="tlyExp" checked> Expenses → Payment vouchers</label>
+                <label style="display:block;font-size:0.87rem;margin-bottom:1rem;cursor:pointer;"><input type="checkbox" id="tlyRet" checked> Returns → Credit / Debit Note vouchers</label>
 
                 <div style="font-size:0.76rem;font-weight:800;color:#0d9488;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.55rem;">Ledger names</div>
                 <div style="font-size:0.76rem;color:#64748b;line-height:1.5;margin-bottom:0.7rem;">
@@ -1598,6 +1600,18 @@
                     + `<b>${s.noHsnProducts.length}</b> product(s) affected. `
                     + `<button onclick="openHsnFixer()" style="background:#991b1b;color:#fff;border:none;border-radius:8px;padding:3px 11px;font-weight:700;font-size:0.74rem;font-family:inherit;cursor:pointer;margin-left:2px;">Fix HSN codes →</button>`);
             }
+            /* A return whose original bill is gone cannot be taxed, and a
+               credit note left out means the month reports a sale the shop
+               refunded — so this blocks rather than warns. */
+            if (s.creditNoteProblems && s.creditNoteProblems.length) {
+                block.push('These credit notes cannot be filed because their original bill is missing: '
+                    + s.creditNoteProblems.map(p => _te(p)).join('; ')
+                    + '. Without the original there is no GST rate to apply, and guessing one would misstate the return.');
+            }
+            if (s.negativeRates && s.negativeRates.length) {
+                warn.push('Refunds exceed sales this month at ' + s.negativeRates.map(r => `<b>${r}%</b>`).join(', ')
+                    + '. That is legal but unusual — check the figures in the offline utility before submitting.');
+            }
             if (s.badRates && s.badRates.length) {
                 block.push('These GST rates do not exist and the portal will reject them: '
                     + s.badRates.map(b => `<b>${b.rt}%</b> (${b.lines} line${b.lines === 1 ? '' : 's'})`).join(', ')
@@ -1615,11 +1629,14 @@
                         <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Taxable value</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${money(s.taxable)}</td></tr>
                         <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Tax (CGST + SGST)</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${money(s.tax)}</td></tr>
                         <tr style="border-top:1px solid #f1f5f9;background:#f8fafc;"><td style="padding:7px 13px;font-weight:800;">Invoice total</td><td style="padding:7px 13px;text-align:right;font-weight:800;">${money(s.grandTotal)}</td></tr>
+                        ${s.creditNotes ? `<tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#b45309;">Less: credit notes (${s.creditNotes})</td><td style="padding:7px 13px;text-align:right;font-weight:700;color:#b45309;">− ${money(s.creditNoteValue)}</td></tr>
+                        <tr style="border-top:1px solid #f1f5f9;background:#f8fafc;"><td style="padding:7px 13px;font-weight:800;">Net of refunds</td><td style="padding:7px 13px;text-align:right;font-weight:800;">${money(s.grandTotal - s.creditNoteValue)}</td></tr>` : ''}
                     </table>
                     <div style="padding:9px 13px;border-top:1px solid #f1f5f9;font-size:0.78rem;color:#64748b;">
                         <b>B2CS</b> ${s.rates} tax rate(s) · ${money(s.b2csValue)}
                         &nbsp;·&nbsp; <b>HSN summary</b> ${s.hsnRows} row(s)
                         ${s.b2bInvoices ? `<br><b style="color:#059669;">B2B</b> ${s.b2bInvoices} invoice(s) to ${s.b2bBuyers} registered buyer(s) · ${money(s.b2bValue)}` : ''}
+                        ${s.creditNotes ? `<br><b style="color:#b45309;">Credit notes</b> ${s.creditNotes} · ${money(s.creditNoteValue)}${s.cdnrBuyers ? ` — ${s.cdnrBuyers} filed as CDNR, the rest netted off counter sales` : ' — netted off counter sales'}` : ''}
                     </div>
                     <div style="padding:0 13px 11px;">
                         ${res.b2cs.map(r => `<span style="display:inline-block;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;border-radius:20px;padding:3px 10px;font-size:0.74rem;font-weight:700;margin:3px 4px 0 0;">${r.rt}% · ${money(r.txval)}</span>`).join('')}
@@ -2002,6 +2019,8 @@
             ['bankLedger',   'Bank ledger',             'used when an expense was paid by UPI / card / bank'],
             ['walkIn',       'Counter-sale party',      'ledger used when a bill has no customer name'],
             ['expensePrefix','Expense ledger prefix',   'optional, e.g. "Indirect Exp - "'],
+            ['salesRetLedger','Sales returns ledger',   'credit notes; some CAs post these back to Sales instead'],
+            ['purchRetLedger','Purchase returns ledger','debit notes to suppliers'],
         ];
 
         function openTallyModal() {
@@ -2043,9 +2062,11 @@
                 sales:     document.getElementById('tlySales').checked,
                 purchases: document.getElementById('tlyPurch').checked,
                 expenses:  document.getElementById('tlyExp').checked,
+                returns:   document.getElementById('tlyRet').checked,
             };
             const res = mmTally.build(opts);
-            const n = res.counts.sales + res.counts.purchases + res.counts.expenses;
+            const c0 = res.counts;
+            const n = c0.sales + c0.purchases + c0.expenses + c0.creditNotes + c0.debitNotes;
             if (!n) { await mmAlert('Nothing to export in this date range. Widen the From / To dates and try again.'); return; }
             _tallyBuilt = { res, opts, n };
             renderTallyPreview();
@@ -2070,9 +2091,14 @@
 
             document.getElementById('tallyPreview').innerHTML = `
                 <div style="background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:10px;padding:11px 14px;font-size:0.83rem;line-height:1.55;margin-bottom:0.9rem;">
-                    <b>${n} voucher${n === 1 ? '' : 's'} ready</b> — ${c.sales} sales, ${c.purchases} purchase, ${c.expenses} payment.
+                    <b>${n} voucher${n === 1 ? '' : 's'} ready</b> — ${c.sales} sales, ${c.purchases} purchase, ${c.expenses} payment${c.creditNotes ? `, ${c.creditNotes} credit note` : ''}${c.debitNotes ? `, ${c.debitNotes} debit note` : ''}.
                     Period ${opts.from || 'start'} to ${opts.to || 'today'}. Total value ${_tf(grand)}.
                 </div>
+                ${(res.returnProblems || []).length ? `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:10px 13px;font-size:0.78rem;line-height:1.6;margin-bottom:0.8rem;">
+                    <b style="display:block;margin-bottom:4px;">These returns were LEFT OUT — their original bill could not be found, so the GST rate is unknown:</b>
+                    ${res.returnProblems.map(p => '• ' + _te(p)).join('<br>')}
+                    <br><br>Guessing a tax rate would put a wrong figure in your books, so they are skipped rather than estimated.
+                </div>` : ''}
                 <div style="font-size:0.76rem;color:#64748b;line-height:1.5;margin-bottom:0.7rem;">
                     Check a few bill numbers and amounts against your own records. <b>Dr</b> = money in / owed to you or a cost;
                     <b>Cr</b> = income or money out. Each voucher's two sides always match.
@@ -2091,7 +2117,7 @@
                     ${res.rows.map(r => `
                         <tr style="border-top:1px solid #f1f5f9;">
                             <td style="padding:6px 9px;white-space:nowrap;">${_td(r.date)}</td>
-                            <td style="padding:6px 9px;"><span style="font-size:0.7rem;font-weight:700;padding:2px 7px;border-radius:20px;background:${r.kind === 'Sales' ? '#ecfdf5;color:#059669' : r.kind === 'Purchase' ? '#eff6ff;color:#2563eb' : '#fff1f2;color:#be123c'};">${r.kind}</span></td>
+                            <td style="padding:6px 9px;"><span style="font-size:0.7rem;font-weight:700;padding:2px 7px;border-radius:20px;background:${r.kind === 'Sales' ? '#ecfdf5;color:#059669' : r.kind === 'Purchase' ? '#eff6ff;color:#2563eb' : r.kind === 'Credit Note' ? '#fef3c7;color:#b45309' : r.kind === 'Debit Note' ? '#f3e8ff;color:#7e22ce' : '#fff1f2;color:#be123c'};">${r.kind}</span></td>
                             <td style="padding:6px 9px;font-weight:600;">${_te(r.num)}</td>
                             <td style="padding:6px 9px;color:#475569;">${_te(r.party)}
                                 <div style="font-size:0.68rem;color:#94a3b8;margin-top:2px;">

@@ -1,0 +1,218 @@
+/* ══════════════════════════════════════════════════════════════════════
+   returns-data.js — credit notes and debit notes, with their tax recovered
+
+   WHY THIS EXISTS
+   The Returns feature stores a return as a stock adjustment: one row per
+   product line, tagged sales_return / purchase_return, with the money detail
+   as JSON in the note. That is right for stock — every stock view stays
+   correct — but it means a return carries an AMOUNT and no tax at all.
+   Without a GST rate a credit note cannot be filed, and until this existed
+   neither the GSTR-1 return nor the Tally export included returns. A shop
+   that refunded a customer was still reporting the original sale, and paying
+   GST on money it had given back.
+
+   HOW THE TAX IS RECOVERED
+   Every return records `ref` — the bill it reverses. A credit note legally
+   inherits the tax treatment of the invoice it cancels, so the rate and HSN
+   are read from the matching line of the original document. That is the rule,
+   not a workaround. When the original cannot be found the return is reported
+   as a problem and NEVER guessed: an invented rate is how an unfilable return
+   gets built.
+
+   THE ONE ASYMMETRY THAT MATTERS
+     sales returns     amount is tax-INCLUSIVE  (bill line total ÷ qty sold)
+     purchase returns  amount is tax-EXCLUSIVE  (purchase rate ÷ pack)
+   They are computed from different sources on the Returns screen. Treating
+   them the same silently misstates one of them by the GST rate.
+   ══════════════════════════════════════════════════════════════════════ */
+(function () {
+    'use strict';
+
+    function num(n) { return Number(n) || 0; }
+    function r2(n) { return Math.round(num(n) * 100) / 100; }
+    function key(s) { return String(s || '').trim().toLowerCase(); }
+
+    /* Stock adjustments are written through the scoped helper, so they live
+       under mm_<user>_stockAdjustments and cannot be read with a bare key. */
+    function adjustments() {
+        if (typeof mmLsGet === 'function') {
+            var a = mmLsGet('stockAdjustments');
+            if (a && a.length) return a;
+        }
+        return [];
+    }
+
+    function parseNote(n) {
+        if (!n) return {};
+        if (typeof n === 'object') return n;
+        try { return JSON.parse(n) || {}; } catch (e) { return {}; }
+    }
+
+    function inRange(d, from, to) {
+        var s = String(d || '').slice(0, 10);
+        if (!s) return false;
+        if (from && s < from) return false;
+        if (to   && s > to)   return false;
+        return true;
+    }
+
+    function readJson(k) {
+        try { return JSON.parse(localStorage.getItem(k) || '[]') || []; } catch (e) { return []; }
+    }
+
+    /* Original documents, indexed by the number the return refers to. */
+    function billIndex() {
+        var by = {};
+        readJson('mm_sales').forEach(function (b) {
+            if (b.billNo) by[key(b.billNo)] = b;
+        });
+        return by;
+    }
+    function purchaseIndex() {
+        var by = {};
+        readJson('mm_purchases').forEach(function (p) {
+            var k = key(p.billNo);
+            if (!k) return;
+            if (!by[k]) by[k] = [];
+            by[k].push(p);
+        });
+        return by;
+    }
+
+    /* Match a returned product back to its line on the original bill. Batch
+       first, because the same medicine can appear twice on one bill from two
+       batches at different prices; name-only is the fallback for lines saved
+       before batches were captured. */
+    function findBillLine(bill, product, batch) {
+        var items = (bill && bill.medicines) || [];
+        var p = key(product), b = key(batch);
+        var exact = null, loose = null;
+        for (var i = 0; i < items.length; i++) {
+            if (key(items[i].product) !== p) continue;
+            if (!loose) loose = items[i];
+            if (key(items[i].batch) === b) { exact = items[i]; break; }
+        }
+        return exact || loose;
+    }
+
+    function findPurchaseLine(rows, product, batch) {
+        var p = key(product), b = key(batch);
+        var exact = null, loose = null;
+        (rows || []).forEach(function (r) {
+            var nm = key(r.productName || r.product_name || r.product);
+            if (nm !== p) return;
+            if (!loose) loose = r;
+            if (key(r.batchNo || r.batch_no) === b) exact = exact || r;
+        });
+        return exact || loose;
+    }
+
+    /* ──────────────────────────────────────────────────────────────────
+       load({ from, to })
+       Groups the per-line adjustments back into the notes they were issued
+       as — every line of one return shares its CN/DN number — and attaches
+       the tax recovered from the original document.
+    ────────────────────────────────────────────────────────────────── */
+    function load(opts) {
+        opts = opts || {};
+        var bills = billIndex();
+        var purch = purchaseIndex();
+        var notes = {};       // 'C'|'D' + number -> note
+
+        adjustments().forEach(function (a) {
+            var reason = a.reason || a.adjustment_reason || '';
+            if (reason !== 'sales_return' && reason !== 'purchase_return') return;
+
+            var note = parseNote(a.note);
+            var isSale = reason === 'sales_return';
+            var date = String(note.date || a.created_at || '').slice(0, 10);
+            if (!inRange(date, opts.from, opts.to)) return;
+
+            var no = String((isSale ? note.cn : note.dn) || '').trim();
+            if (!no) no = (isSale ? 'CN-' : 'DN-') + (note.ref || '?') + '-' + date;
+            var gk = (isSale ? 'C' : 'D') + no;
+
+            if (!notes[gk]) {
+                notes[gk] = {
+                    type: isSale ? 'credit' : 'debit',
+                    no: no,
+                    date: date,
+                    ref: String(note.ref || '').trim(),
+                    party: String(note.party || '').trim(),
+                    mode: note.mode || '',
+                    reason: note.reason || '',
+                    lines: [],
+                    problems: [],
+                    taxable: 0, tax: 0, gross: 0
+                };
+            }
+            var n = notes[gk];
+
+            var product = a.product_name || a.productName || '';
+            var batch   = a.batch_no || a.batchNo || '';
+            // Sales returns add stock back (+), purchase returns remove it (−).
+            // The document is about the magnitude either way.
+            var qty     = Math.abs(num(a.qty_delta !== undefined ? a.qty_delta : a.qtyDelta));
+            var amount  = num(note.amount);
+
+            var rate = null, hsn = '';
+            if (isSale) {
+                var bill = bills[key(n.ref)];
+                if (!bill) {
+                    n.problems.push('original bill ' + (n.ref || '(none recorded)') + ' no longer exists, so its GST rate cannot be read');
+                } else {
+                    var bl = findBillLine(bill, product, batch);
+                    if (!bl) n.problems.push('"' + product + '" is not on bill ' + n.ref + ' any more');
+                    else { rate = num(bl.gst); hsn = String(bl.hsn || '').trim(); }
+                    // The buyer decides whether this is a CDNR entry or a B2CS
+                    // reduction, so carry the identity, not just the name.
+                    n.customerName = bill.customerName || bill.customer_name || n.party;
+                    n.customerId   = (bill.customerId != null) ? bill.customerId
+                                   : (bill.customer_id != null ? bill.customer_id : null);
+                    n.origDate     = String(bill.date || '').slice(0, 10);
+                }
+            } else {
+                var rows = purch[key(n.ref)];
+                var pl = findPurchaseLine(rows, product, batch);
+                if (!pl) n.problems.push('original purchase ' + (n.ref || '(none recorded)') + ' for "' + product + '" cannot be found, so its GST rate cannot be read');
+                else { rate = num(pl.gst); hsn = String(pl.hsn || '').trim(); }
+            }
+
+            /* The asymmetry. A sales return's amount already contains the tax;
+               a purchase return's does not. */
+            var taxable, tax;
+            if (rate === null) { taxable = 0; tax = 0; }
+            else if (isSale)   { taxable = amount / (1 + rate / 100); tax = amount - taxable; }
+            else               { taxable = amount; tax = amount * rate / 100; }
+
+            n.lines.push({
+                product: product, batch: batch, qty: qty,
+                amount: r2(amount), rate: rate, hsn: hsn,
+                taxable: taxable, tax: tax,
+                known: rate !== null
+            });
+            n.taxable += taxable;
+            n.tax     += tax;
+            n.gross   += isSale ? amount : (amount + tax);
+        });
+
+        var all = Object.keys(notes).map(function (k) {
+            var n = notes[k];
+            n.taxable = r2(n.taxable); n.tax = r2(n.tax); n.gross = r2(n.gross);
+            // One unreadable line poisons the whole note: a partly-taxed credit
+            // note is not filable, and half a document is worse than none.
+            n.usable = n.problems.length === 0 && n.lines.length > 0
+                       && n.lines.every(function (l) { return l.known; });
+            return n;
+        }).sort(function (a, b) { return (a.date + a.no).localeCompare(b.date + b.no); });
+
+        return {
+            creditNotes: all.filter(function (n) { return n.type === 'credit'; }),
+            debitNotes:  all.filter(function (n) { return n.type === 'debit'; }),
+            problems:    all.filter(function (n) { return !n.usable; })
+                            .map(function (n) { return n.no + ': ' + (n.problems[0] || 'a line has no GST rate'); })
+        };
+    }
+
+    window.mmReturns = { load: load };
+})();

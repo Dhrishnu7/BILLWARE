@@ -179,6 +179,90 @@
             }
         });
 
+        /* ── Credit notes ──────────────────────────────────────────────
+           Until this existed the return reported the original sale and
+           ignored the refund, so the shop paid GST on money it had given
+           back. A credit note to a REGISTERED buyer is filed in its own
+           right (CDNR); one to an ordinary customer is netted off the B2CS
+           figures, which is how the portal expects a retail refund.
+
+           The original invoice number is deliberately NOT sent: credit notes
+           were de-linked from their invoice in 2019 and the current return
+           does not carry it. The app still keeps the link for the shop's own
+           reconciliation. */
+        var cdnrMap = {};        // ctin -> [note]
+        var cnCount = 0, cnValue = 0, cnProblems = [];
+        if (window.mmReturns) {
+            var rets = mmReturns.load({ from: month + '-01', to: month + '-31' });
+            cnProblems = rets.problems;
+            rets.creditNotes.forEach(function (n) {
+                if (!n.usable) return;                  // never guess a rate
+                var ctin2 = (n.customerId != null && reg.byId[String(n.customerId)])
+                         || reg.byName[key(n.customerName || n.party)] || '';
+                var noteRates = {};
+
+                n.lines.forEach(function (l) {
+                    var rate = Number(l.rate) || 0;
+                    var rk = String(rate);
+                    var half = l.tax / 2;
+                    if (!MM_GST_SLABS_SET[rate]) badRates[rate] = (badRates[rate] || 0) + 1;
+
+                    if (ctin2) {
+                        if (!noteRates[rk]) noteRates[rk] = { rt: rate, txval: 0, camt: 0, samt: 0 };
+                        noteRates[rk].txval += l.taxable;
+                        noteRates[rk].camt  += half;
+                        noteRates[rk].samt  += half;
+                    } else {
+                        // Reduce the counter-sale totals for that rate.
+                        if (!b2csMap[rk]) b2csMap[rk] = { rt: rate, txval: 0, camt: 0, samt: 0 };
+                        b2csMap[rk].txval -= l.taxable;
+                        b2csMap[rk].camt  -= half;
+                        b2csMap[rk].samt  -= half;
+                    }
+
+                    // The HSN summary covers the month's NET outward supply,
+                    // so a refunded item must come out of it too.
+                    var hsn2 = String(l.hsn || '').trim();
+                    var hk2 = (hsn2 || 'UNSPECIFIED') + '|' + rate;
+                    if (!hsnMap[hk2]) {
+                        hsnMap[hk2] = { hsn_sc: hsn2, desc: String(l.product || '').slice(0, 30),
+                                        rt: rate, qty: 0, txval: 0, camt: 0, samt: 0 };
+                    }
+                    hsnMap[hk2].qty   -= Number(l.qty) || 0;
+                    hsnMap[hk2].txval -= l.taxable;
+                    hsnMap[hk2].camt  -= half;
+                    hsnMap[hk2].samt  -= half;
+                });
+
+                cnCount++;
+                cnValue += n.gross;
+
+                if (ctin2) {
+                    if (!cdnrMap[ctin2]) cdnrMap[ctin2] = [];
+                    cdnrMap[ctin2].push({
+                        ntty: 'C',                       // C = credit note
+                        nt_num: n.no,
+                        nt_dt: idt(n.date),
+                        pos: pos,
+                        rchrg: 'N',
+                        inv_typ: 'R',
+                        val: r2(n.gross),
+                        itms: Object.keys(noteRates).map(function (rk, i) {
+                            var v = noteRates[rk];
+                            return { num: i + 1, itm_det: {
+                                rt: v.rt, txval: r2(v.txval),
+                                camt: r2(v.camt), samt: r2(v.samt), csamt: 0
+                            } };
+                        })
+                    });
+                }
+            });
+        }
+
+        var cdnr = Object.keys(cdnrMap).map(function (ctin) {
+            return { ctin: ctin, nt: cdnrMap[ctin] };
+        });
+
         var b2b = Object.keys(b2bMap).map(function (ctin) {
             return { ctin: ctin, inv: b2bMap[ctin] };
         });
@@ -226,6 +310,7 @@
         // registered buyers should not file an empty B2B block.
         if (b2b.length)  json.b2b  = b2b;
         if (b2cs.length) json.b2cs = b2cs;
+        if (cdnr.length) json.cdnr = cdnr;
 
         return {
             json: json,
@@ -248,10 +333,20 @@
                 b2bValue: r2(b2bValue),
                 b2csValue: r2(grand - b2bValue),
                 firstInv: docs.length ? docs[0].docs[0].from : '',
-                lastInv:  docs.length ? docs[0].docs[0].to   : ''
+                lastInv:  docs.length ? docs[0].docs[0].to   : '',
+                creditNotes: cnCount,
+                creditNoteValue: r2(cnValue),
+                cdnrBuyers: cdnr.length,
+                creditNoteProblems: cnProblems,
+                /* A rate whose refunds exceed its sales for the month. Legal
+                   and occasionally real, but the portal treats a negative
+                   B2CS line harshly, so it is surfaced rather than hidden. */
+                negativeRates: b2cs.filter(function (r) { return r.txval < 0; })
+                                   .map(function (r) { return r.rt; })
             },
             b2cs: b2cs,
             b2b: b2b,
+            cdnr: cdnr,
             hsn: hsn
         };
     }

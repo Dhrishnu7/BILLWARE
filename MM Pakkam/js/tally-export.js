@@ -43,7 +43,12 @@
         cashLedger:   'Cash',
         bankLedger:   'Bank',
         walkIn:       'Cash',          // party ledger for counter sales
-        expensePrefix: ''              // e.g. "Indirect Exp - " if the CA groups them
+        expensePrefix: '',             // e.g. "Indirect Exp - " if the CA groups them
+        /* Most CAs keep returns in their own ledgers so gross sales stay
+           visible; some just post them back against Sales/Purchase. Both are
+           legitimate, so these are settings rather than a decision made here. */
+        salesRetLedger: 'Sales Returns',
+        purchRetLedger: 'Purchase Returns'
     };
 
     function loadCfg() {
@@ -126,7 +131,8 @@
         };
 
         var body = '';
-        var counts = { sales: 0, purchases: 0, expenses: 0 };
+        var counts = { sales: 0, purchases: 0, expenses: 0, creditNotes: 0, debitNotes: 0 };
+        var retData = null;
         // Structured copy of every voucher, so the shop can read the export in
         // plain language before sending it. The XML is written for Tally; nobody
         // should have to squint at angle brackets to check their own bills.
@@ -214,6 +220,56 @@
             });
         }
 
+        /* ── Returns → Credit Note / Debit Note vouchers ──
+           A refund the books never saw is money the shop appears to have kept.
+           Each of these is the exact mirror of the Sales or Purchase voucher
+           above: the same ledgers, the same tax split, the opposite sides.
+           The GST rate comes from the original document via js/returns-data.js,
+           because a return records only an amount. */
+        if (opts.returns && window.mmReturns) {
+            var rets = retData = mmReturns.load({ from: from, to: to });
+
+            rets.creditNotes.forEach(function (n) {
+                if (!n.usable) return;                  // never post a guessed rate
+                var party = (n.party && n.party.trim()) ? n.party.trim() : cfg.walkIn;
+                // Reverse of a sale: income and output tax come back, the
+                // customer stops owing.
+                var lines = [entry(cfg.salesRetLedger, n.taxable, true)];
+                var plain = [{ ledger: cfg.salesRetLedger, amount: n.taxable, debit: true }];
+                if (n.tax > 0) {
+                    lines.push(entry(cfg.cgstOut, n.tax / 2, true));
+                    lines.push(entry(cfg.sgstOut, n.tax / 2, true));
+                    plain.push({ ledger: cfg.cgstOut, amount: n.tax / 2, debit: true });
+                    plain.push({ ledger: cfg.sgstOut, amount: n.tax / 2, debit: true });
+                }
+                lines.push(entry(party, n.gross, false));
+                plain.push({ ledger: party, amount: n.gross, debit: false });
+                body += voucher('Credit Note', n.date, n.no, party, lines);
+                note('Credit Note', n.date, n.no, party, n.gross, plain);
+                counts.creditNotes++;
+            });
+
+            rets.debitNotes.forEach(function (n) {
+                if (!n.usable) return;
+                var sup = (n.party && n.party.trim()) ? n.party.trim() : 'Sundry Creditors';
+                // Reverse of a purchase: the supplier owes us, stock and input
+                // tax go back out.
+                var lines = [entry(sup, n.gross, true)];
+                var plain = [{ ledger: sup, amount: n.gross, debit: true }];
+                lines.push(entry(cfg.purchRetLedger, n.taxable, false));
+                plain.push({ ledger: cfg.purchRetLedger, amount: n.taxable, debit: false });
+                if (n.tax > 0) {
+                    lines.push(entry(cfg.cgstIn, n.tax / 2, false));
+                    lines.push(entry(cfg.sgstIn, n.tax / 2, false));
+                    plain.push({ ledger: cfg.cgstIn, amount: n.tax / 2, debit: false });
+                    plain.push({ ledger: cfg.sgstIn, amount: n.tax / 2, debit: false });
+                }
+                body += voucher('Debit Note', n.date, n.no, sup, lines);
+                note('Debit Note', n.date, n.no, sup, n.gross, plain);
+                counts.debitNotes++;
+            });
+        }
+
         var xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
             '<ENVELOPE>\n' +
             ' <HEADER>\n  <TALLYREQUEST>Import Data</TALLYREQUEST>\n </HEADER>\n' +
@@ -233,7 +289,8 @@
             '</ENVELOPE>\n';
 
         rows.sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
-        return { xml: xml, counts: counts, rows: rows };
+        return { xml: xml, counts: counts, rows: rows,
+                 returnProblems: (retData ? retData.problems : []) };
     }
 
     window.mmTally = {
