@@ -71,7 +71,8 @@
     function purchaseIndex() {
         var by = {};
         readJson('mm_purchases').forEach(function (p) {
-            var k = key(p.billNo);
+            // snake_case from the cloud, camelCase if saved locally first.
+            var k = key(p.billNo || p.bill_no);
             if (!k) return;
             if (!by[k]) by[k] = [];
             by[k].push(p);

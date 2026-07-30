@@ -1473,7 +1473,7 @@
                 const rate = parseFloat(p.rate) || 0;
                 const gst = parseFloat(p.gst) || 0;
                 const total = (qty * rate) * (1 + (gst / 100));
-                return { billNo: p.billNo || '-', date: p.date || '', type: 'purchase', product: p.productName || '-', qty, rate, gst, total };
+                return { billNo: p.billNo || p.bill_no || '-', date: p.date || '', type: 'purchase', product: p.productName || p.product_name || '-', qty, rate, gst, total };
             });
             const rawSales = (typeof mmLsGet === 'function')
                 ? (mmLsGet('sales') || [])
@@ -2400,7 +2400,7 @@
                     const gst = parseFloat(p.gst) || 0;
                     const total = (qty * rate) * (1 + (gst / 100));
                     return {
-                        billNo: p.billNo || '-',
+                        billNo: p.billNo || p.bill_no || '-',
                         date: p.date || '',
                         type: 'purchase',
                         product: p.productName || '-',

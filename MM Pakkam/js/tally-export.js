@@ -230,7 +230,14 @@
                 var taxable = qty * rate;
                 var tax     = taxable * gst / 100;
                 return {
-                    billNo: p.billNo || '-', date: p.date, party: p.firm || '',
+                    /* BOTH spellings. Purchases reach mm_purchases as RAW cloud
+                       rows (bill_no), while one saved locally before syncing
+                       keeps the app's own billNo. Reading only camelCase made
+                       every purchase voucher come out numbered "-", which
+                       looked like the shop had never entered a supplier
+                       invoice number — it had. */
+                    billNo: p.billNo || p.bill_no || '-',
+                    date: p.date, party: p.firm || '',
                     taxable: taxable, tax: tax, total: taxable + tax
                 };
             });

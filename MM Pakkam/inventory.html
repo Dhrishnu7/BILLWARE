@@ -1483,7 +1483,7 @@
         const pack = parseFloat(p.pack) || 1, rate = parseFloat(p.rate) || 0;
         const perUnitCost = rate / (pack || 1);
         document.getElementById('prFirm').textContent = firm;
-        document.getElementById('prMeta').textContent = 'Bill ' + (p.billNo || '—') + ' · ' + (p.date || '');
+        document.getElementById('prMeta').textContent = 'Bill ' + (p.billNo || p.bill_no || '—') + ' · ' + (p.date || '');
         document.getElementById('prItems').innerHTML = '<tr data-unitcost="' + perUnitCost + '" data-max="' + stock + '"><td><b>' + retEsc(name) + '</b></td><td>' + retEsc(batch || '—') + '</td><td>' + stock + '</td><td><input type="number" class="ret-qty pr-qty" min="0" max="' + stock + '" value="0" oninput="renderPrSummary()"></td><td class="pr-line">₹0.00</td></tr>';
         document.getElementById('purReturnCard').classList.remove('ret-hidden');
         renderPrSummary();
@@ -1522,7 +1522,7 @@
                GST rate could never be recovered afterwards. The rate belongs to
                the goods, not to the paperwork, so it is captured at source. */
             await _saveReturnAdjustment(name, batch, -q, 'purchase_return', {
-                ref: _prLot.billNo || '', dn: dnNo, party: firm, amount: value, reason,
+                ref: _prLot.billNo || _prLot.bill_no || '', dn: dnNo, party: firm, amount: value, reason,
                 gst: Number(_prLot.gst) || 0, hsn: _prLot.hsn || '',
                 date: retToday()
             });
