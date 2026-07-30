@@ -1380,7 +1380,10 @@
             if (q <= 0) return;
             const m = _srBill.medicines[parseInt(tr.dataset.i, 10)];
             const unit = parseFloat(tr.dataset.unit) || 0;
-            rows.push({ product: m.product, batch: m.batch || '', qty: q, amount: q * unit }); total += q * unit;
+            // Carry the line's own tax details, so the credit note never has to
+            // go looking for the original bill to find out what rate applied.
+            rows.push({ product: m.product, batch: m.batch || '', qty: q, amount: q * unit,
+                        gst: Number(m.gst) || 0, hsn: m.hsn || '' }); total += q * unit;
         });
         if (!rows.length) return;
         const ok = await mmConfirm('Process this sales return?\n\n' + rows.length + ' item(s), ' + retMoney(total) + ' refunded (' + (mode === 'khata' ? 'khata' : 'cash') + ').\nStock will be added back.', { title: '↩️ Confirm Sales Return', okText: 'Yes, process' });
@@ -1389,7 +1392,12 @@
         const cnNo = 'CN-' + Date.now().toString().slice(-8);
         try {
             for (const r of rows) {
-                await _saveReturnAdjustment(r.product, r.batch, r.qty, 'sales_return', { ref: _srBill.billNo, cn: cnNo, party: _srBill.customerName || 'Walk-in', amount: r.amount, mode, reason, date: retToday() });
+                await _saveReturnAdjustment(r.product, r.batch, r.qty, 'sales_return', {
+                    ref: _srBill.billNo, cn: cnNo, party: _srBill.customerName || 'Walk-in',
+                    amount: r.amount, mode, reason,
+                    gst: r.gst, hsn: r.hsn,
+                    date: retToday()
+                });
                 // If it's a Schedule H drug, reverse the OUT in the H register too.
                 _retLogHReturn(r.product, r.batch, r.qty, _srBill.customerName || '', _srBill.billNo, cnNo);
             }
@@ -1508,7 +1516,16 @@
         btn.disabled = true; btn.textContent = 'Processing…';
         const dnNo = 'DN-' + Date.now().toString().slice(-8);
         try {
-            await _saveReturnAdjustment(name, batch, -q, 'purchase_return', { ref: _prLot.billNo || '', dn: dnNo, party: firm, amount: value, reason, date: retToday() });
+            /* Record the tax rate NOW, from the lot being returned. Purchases
+               carry no bill number in this app — every Tally purchase voucher
+               shows "-" — so a debit note had nothing to point back to and its
+               GST rate could never be recovered afterwards. The rate belongs to
+               the goods, not to the paperwork, so it is captured at source. */
+            await _saveReturnAdjustment(name, batch, -q, 'purchase_return', {
+                ref: _prLot.billNo || '', dn: dnNo, party: firm, amount: value, reason,
+                gst: Number(_prLot.gst) || 0, hsn: _prLot.hsn || '',
+                date: retToday()
+            });
             if (typeof mmAudit === 'function') mmAudit('Purchase return', firm + ' · ' + retMoney(value), dnNo);
             retToast('Purchase return done — ' + dnNo, retMoney(value) + ' debit note, stock removed.');
             cancelPurchaseReturn();

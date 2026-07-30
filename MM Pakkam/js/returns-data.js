@@ -117,6 +117,9 @@
         opts = opts || {};
         var bills = billIndex();
         var purch = purchaseIndex();
+        // Flat list for the product+batch fallback below, where a debit note
+        // has no usable bill number to index by.
+        var allPurchases = readJson('mm_purchases');
         var notes = {};       // 'C'|'D' + number -> note
 
         adjustments().forEach(function (a) {
@@ -156,25 +159,47 @@
             var amount  = num(note.amount);
 
             var rate = null, hsn = '';
+
+            /* Best source: the rate the return itself recorded. Returns taken
+               from v253 onward carry it, so nothing has to be looked up and a
+               later edit to the original document cannot change a note that
+               was already issued. */
+            if (note.gst !== undefined && note.gst !== null && note.gst !== '') {
+                rate = num(note.gst);
+                hsn  = String(note.hsn || '').trim();
+            }
+
             if (isSale) {
+                /* The original bill is still read even when the rate is already
+                   known, because it is the only place the BUYER's identity
+                   lives — and that decides whether this files as a CDNR entry
+                   or reduces counter sales. */
                 var bill = bills[key(n.ref)];
-                if (!bill) {
-                    n.problems.push('original bill ' + (n.ref || '(none recorded)') + ' no longer exists, so its GST rate cannot be read');
-                } else {
+                if (bill) {
                     var bl = findBillLine(bill, product, batch);
-                    if (!bl) n.problems.push('"' + product + '" is not on bill ' + n.ref + ' any more');
-                    else { rate = num(bl.gst); hsn = String(bl.hsn || '').trim(); }
-                    // The buyer decides whether this is a CDNR entry or a B2CS
-                    // reduction, so carry the identity, not just the name.
+                    if (rate === null) {
+                        if (!bl) n.problems.push('"' + product + '" is not on bill ' + n.ref + ' any more');
+                        else { rate = num(bl.gst); hsn = String(bl.hsn || '').trim(); }
+                    }
                     n.customerName = bill.customerName || bill.customer_name || n.party;
                     n.customerId   = (bill.customerId != null) ? bill.customerId
                                    : (bill.customer_id != null ? bill.customer_id : null);
                     n.origDate     = String(bill.date || '').slice(0, 10);
+                } else if (rate === null) {
+                    n.problems.push('original bill ' + (n.ref || '(none recorded)') + ' no longer exists, so its GST rate cannot be read');
                 }
-            } else {
-                var rows = purch[key(n.ref)];
-                var pl = findPurchaseLine(rows, product, batch);
-                if (!pl) n.problems.push('original purchase ' + (n.ref || '(none recorded)') + ' for "' + product + '" cannot be found, so its GST rate cannot be read');
+            } else if (rate === null) {
+                /* Purchases in this app carry no bill number — every Tally
+                   purchase voucher comes out as "-" — so matching on `ref`
+                   alone could never work for a debit note taken before the
+                   rate was recorded on the return. Fall back to the goods
+                   themselves: a product+batch identifies the lot, and the GST
+                   rate is a property of the goods, not of the paperwork. */
+                var pl = findPurchaseLine(purch[key(n.ref)], product, batch)
+                      || findPurchaseLine(allPurchases, product, batch);
+                if (!pl) n.problems.push('no purchase of "' + product + '"'
+                        + (batch ? ' (batch ' + batch + ')' : '')
+                        + ' can be found, so its GST rate cannot be read');
                 else { rate = num(pl.gst); hsn = String(pl.hsn || '').trim(); }
             }
 
