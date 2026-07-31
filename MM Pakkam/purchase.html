@@ -2672,15 +2672,43 @@ window.addEventListener('DOMContentLoaded', () => {
                 const yy=m1[2].length===2?'20'+m1[2]:m1[2];
                 return `${yy}-${mm}`;
             }
-            // Excel serial date
-            if(/^\d{5}$/.test(s)){
-                const d=XLSX.SSF.parse_date_code(parseInt(s));
-                if(d) return `${d.y}-${String(d.m).padStart(2,'0')}`;
+            /* MMYY with the slash lost — a scan drops the separator far more
+               often than the digits, so "1127" is November 2027. Guarded by a
+               real month: "1727" is a misread, not a date, and must fall
+               through to blank rather than become month 17. */
+            const m2=s.match(/^(\d{2})(\d{2})$/);
+            if(m2 && +m2[1]>=1 && +m2[1]<=12) return `20${m2[2]}-${m2[1]}`;
+
+            /* Excel serial date. XLSX is LAZY-LOADED and is only fetched for a
+               spreadsheet import, so on the OCR path this threw a
+               ReferenceError — which killed applyInvoiceImport() silently and
+               made "Load into Form" do nothing at all. It only ever surfaced on
+               a photo whose expiry read as five digits. */
+            if(/^\d{5}$/.test(s) && typeof XLSX!=='undefined' && XLSX.SSF){
+                try{
+                    const d=XLSX.SSF.parse_date_code(parseInt(s));
+                    if(d) return `${d.y}-${String(d.m).padStart(2,'0')}`;
+                }catch(e){}
             }
             return '';
         }
 
+        /* Wrapped because this failed SILENTLY: one lazy-loaded library that was
+           not there threw inside the loop, and the button simply did nothing —
+           no toast, no console line the shop would look at, no clue. A button
+           that appears to be ignored is the worst failure mode there is,
+           because the only thing left to try is pressing it again. */
         function applyInvoiceImport() {
+            try {
+                _applyInvoiceImport();
+            } catch (e) {
+                console.error('[import] failed:', e);
+                showToast('Could not load the items',
+                          (e && e.message ? e.message : 'Unexpected error') + ' — nothing was changed.');
+            }
+        }
+
+        function _applyInvoiceImport() {
             const map=window._invMap||{};
             if(map.productName===undefined){ showToast('Error','Column mapping lost. Please re-map.'); return; }
 
