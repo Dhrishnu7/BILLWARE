@@ -1565,6 +1565,7 @@ window.addEventListener('DOMContentLoaded', () => {
             { key:'batchNo',     label:'Batch No' },
             { key:'expireDate',  label:'Expiry (MM/YY or YYYY-MM)' },
             { key:'quantity',    label:'Quantity' },
+            { key:'freeQty',     label:'Free Qty' },
             { key:'mrp',         label:'MRP (₹)' },
             { key:'rate',        label:'Purchase Rate (₹)' },
             { key:'gst',         label:'GST (%)' },
@@ -1990,7 +1991,12 @@ window.addEventListener('DOMContentLoaded', () => {
                    exists because it was missing. Reading it off the supplier's
                    invoice at entry is where it should have come from all along. */
                 'hsn':'hsn',
-                'old':'skip','free':'skip','mfr':'skip','mfg':'skip','manf':'skip','dis':'skip','s.dis':'skip',
+                /* FREE was skipped too. Scheme goods are stock the shop
+                   receives and can sell, and the purchase form has a Free Qty
+                   box precisely for them — leaving it blank understates the
+                   stock on hand by whatever the supplier threw in. */
+                'free':'free','scheme':'free',
+                'old':'skip','mfr':'skip','mfg':'skip','manf':'skip','dis':'skip','s.dis':'skip',
                 'pack':'pack','pcs':'pack',
                 'batch':'batch','lot':'batch',
                 'exp':'expiry','expiry':'expiry',
@@ -2112,6 +2118,9 @@ window.addEventListener('DOMContentLoaded', () => {
                 let pack   =  cell.pack   || '';
                 let amount =  cell.amount || '';
                 let hsn    = (cell.hsn    || '').replace(/[^\d]/g, '');
+                /* A dash in the FREE column means none, and must not become a
+                   stray character in a number box. */
+                let free   = (cell.free   || '').replace(/[^\d.]/g, '');
                 let gst    = '';
 
                 // Strip old MRP from name (after pipe)
@@ -2182,7 +2191,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     .filter(v => String(v || '').trim()).length;
                 if (filled < 2) continue;
 
-                dataRows.push([name, batch, expiry, qty, mrp, rate, gst, pack, amount, hsn]);
+                dataRows.push([name, batch, expiry, qty, mrp, rate, gst, pack, amount, hsn, free]);
             }
 
             if (dataRows.length === 0) {
@@ -2210,7 +2219,7 @@ window.addEventListener('DOMContentLoaded', () => {
             const repair = (window.mmOcrNumbers ? mmOcrNumbers.repairRows(dataRows) : null);
             if (repair && repair.cellsFixed) console.log('[OCR] number repairs:', repair);
 
-            _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack','Amount','HSN'];
+            _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack','Amount','HSN','Free'];
             _invRows = dataRows;
             const issues = _checkOCRQuality(dataRows);
             if (repair && repair.cellsFixed) {
@@ -2484,6 +2493,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 el.querySelector('.li-pack').value         = String(row[7] || '').trim();
                 const hsnEl = el.querySelector('.li-hsn');
                 if (hsnEl) hsnEl.value                    = String(row[9] || '').trim();
+                const freeEl = el.querySelector('.li-free');
+                if (freeEl) freeEl.value                  = String(row[10] || '').trim();
 
                 calcItemTotal(`item_${lineItemCounter}`);
             });
@@ -2588,7 +2599,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 productName:/product|medicine|drug|name|item|brand|generic/i,
                 batchNo:/batch|lot/i,
                 expireDate:/exp|expiry|expire/i,
-                quantity:/qty|quant|nos|units/i,
+                quantity:/^qty$|^quantity$|quant|nos|units/i,
+                freeQty:/^free|scheme/i,
                 mrp:/mrp|max.*price|selling/i,
                 rate:/rate|purchase|cost|ptr|pts/i,
                 gst:/gst|tax|vat/i,
@@ -2773,6 +2785,10 @@ window.addEventListener('DOMContentLoaded', () => {
                 if(map.expireDate!==undefined) el.querySelector('.li-expireDate').value = _parseExpiry(row[map.expireDate]);
                 if(map.pack!==undefined)       el.querySelector('.li-pack').value       = packVal(row[map.pack]);
                 if(map.quantity!==undefined)   el.querySelector('.li-quantity').value   = numOnly(row[map.quantity]);
+                if(map.freeQty!==undefined){
+                    const fe=el.querySelector('.li-free');
+                    if(fe) fe.value = numOnly(row[map.freeQty]);
+                }
                 if(map.mrp!==undefined)        el.querySelector('.li-mrp').value        = numOnly(row[map.mrp]);
                 if(map.rate!==undefined)       el.querySelector('.li-rate').value       = numOnly(row[map.rate]);
                 if(map.gst!==undefined)        el.querySelector('.li-gst').value        = gstVal(row[map.gst]);
