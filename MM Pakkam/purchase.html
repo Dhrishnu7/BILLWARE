@@ -531,6 +531,7 @@
     <!-- xlsx (Excel import) is lazy-loaded on demand via mmLoadScript() so it never blocks page load. -->
     <!-- tesseract.js (OCR, several MB) is lazy-loaded on first scan — see loadTesseract() -->
     <script src="js/ocr-preprocess.js"></script>
+    <script src="js/ocr-numbers.js"></script>
     <script src="js/auth.js?v=3"></script>
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1965,7 +1966,11 @@ window.addEventListener('DOMContentLoaded', () => {
             // ── Step 2: Find header row ──
             const HDR_MAP = {
                 'product':'name','medicine':'name','item':'name','description':'name','drug':'name','particular':'name',
-                'old':'skip','free':'skip','mfr':'skip','mfg':'skip','manf':'skip','amount':'skip','amt':'skip','hsn':'skip','dis':'skip','s.dis':'skip',
+                /* AMOUNT is no longer skipped. It is the line's own proof:
+                   amount = qty × rate, which is what lets a rate whose
+                   decimal point the scan lost be caught and put back. */
+                'amount':'amount','amt':'amount','value':'amount',
+                'old':'skip','free':'skip','mfr':'skip','mfg':'skip','manf':'skip','hsn':'skip','dis':'skip','s.dis':'skip',
                 'pack':'pack','pcs':'pack',
                 'batch':'batch','lot':'batch',
                 'exp':'expiry','expiry':'expiry',
@@ -2071,6 +2076,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 let mrp    =  cell.mrp    || '';
                 let rate   =  cell.rate   || '';
                 let pack   =  cell.pack   || '';
+                let amount =  cell.amount || '';
                 let gst    = '';
 
                 // Strip old MRP from name (after pipe)
@@ -2111,15 +2117,16 @@ window.addEventListener('DOMContentLoaded', () => {
 
                 // ── Fix: extract numbers from qty/mrp/rate if they contain mixed text ──
                 const cleanNum = v => v ? String(v).replace(/[^\d\.]/g,'') : '';
-                mrp  = cleanNum(mrp);
-                rate = cleanNum(rate);
-                qty  = cleanNum(qty).replace(/\.\d+/,''); // qty must be integer
+                mrp    = cleanNum(mrp);
+                rate   = cleanNum(rate);
+                amount = cleanNum(amount);
+                qty    = cleanNum(qty).replace(/\.\d+/,''); // qty must be integer
 
                 if (!name || name.length < 2) continue;
                 if (SKIP_ROW.some(p => p.test(name))) continue;
                 if (/^[\d\s\.]+$/.test(name)) continue;
 
-                dataRows.push([name, batch, expiry, qty, mrp, rate, gst, pack]);
+                dataRows.push([name, batch, expiry, qty, mrp, rate, gst, pack, amount]);
             }
 
             if (dataRows.length === 0) {
@@ -2128,13 +2135,25 @@ window.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack'];
+            /* Put back the decimal points the scan dropped, using each line's
+               own amount = qty × rate. Done here, before the quality check, so
+               a row that only looked wrong because of a lost point is not
+               counted against the scan. */
+            const repair = (window.mmOcrNumbers ? mmOcrNumbers.repairRows(dataRows) : null);
+            if (repair && repair.cellsFixed) console.log('[OCR] number repairs:', repair);
+
+            _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack','Amount'];
             _invRows = dataRows;
             const issues = _checkOCRQuality(dataRows);
+            if (repair && repair.cellsFixed) {
+                issues.messages.unshift(
+                    `${repair.cellsFixed} price(s) had a missing decimal point, restored from the line total — check these: `
+                    + repair.notes.slice(0, 6).join('; '));
+            }
             if (issues.blocked) {
                 _showOCRWarning(issues.messages, true);
             } else if (issues.messages.length > 0) {
-                _showOCRWarning(issues.messages, false);
+                _showOCRWarning(issues.messages, false, 'showInvMapper');
             } else {
                 showToast('OCR Complete', 'Found ' + dataRows.length + ' product(s). Verify mapping below.');
                 showInvMapper();
@@ -2392,7 +2411,13 @@ window.addEventListener('DOMContentLoaded', () => {
             showToast('✅ ' + lineItemCounter + ' items loaded!', 'Review each item, adjust if needed, then Save.');
         }
 
-        function _showOCRWarning(messages, blocked) {
+        /* `proceed` is the name of the function that continues the import.
+           It used to be hard-coded to _autoImportOCR, which meant a scan with
+           any warning at all skipped the column mapper — and now that a
+           restored decimal point is itself a warning, that would be almost
+           every scan. The layout parser passes 'showInvMapper'. */
+        function _showOCRWarning(messages, blocked, proceed) {
+            proceed = proceed || '_autoImportOCR';
             const old = document.getElementById('ocrScanWarning');
             if (old) old.remove();
 
@@ -2435,9 +2460,9 @@ window.addEventListener('DOMContentLoaded', () => {
                 let html = `<div style='font-weight:800;font-size:0.9rem;color:#78350f;margin-bottom:0.5rem;'>⚠️ Scan Quality Issues</div>`;
                 html += messages.map(m => `<div style='margin-bottom:0.3rem;color:#92400e;'>${m}</div>`).join('');
                 html += `<div style='margin-top:0.8rem;display:flex;gap:0.6rem;'>
-                    <button onclick="document.getElementById('ocrScanWarning').remove(); _autoImportOCR();"
+                    <button onclick="document.getElementById('ocrScanWarning').remove(); ${proceed}();"
                         style='flex:1;padding:0.5rem;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;'>
-                        ✅ Fill Form Anyway (Verify Manually)
+                        ✅ Continue (check the values)
                     </button>
                     <button onclick="document.getElementById('ocrScanWarning').remove(); document.getElementById('invFileInput').value='';"
                         style='flex:1;padding:0.5rem;background:#6b7280;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;'>
