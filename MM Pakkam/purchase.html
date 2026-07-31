@@ -2240,11 +2240,33 @@ window.addEventListener('DOMContentLoaded', () => {
             const repair = (window.mmOcrNumbers ? mmOcrNumbers.repairRows(dataRows) : null);
             if (repair && repair.cellsFixed) console.log('[OCR] number repairs:', repair);
 
+            /* Free is re-checked HERE, after the number repair, not at parse
+               time. The parse-time guard needs a quantity to compare against
+               and the quantity is very often blank at that point — it is
+               recovered from amount ÷ rate a few lines above. So on the very
+               rows that matter the guard silently did nothing, and a free
+               quantity of 10010 against 100 bought sailed through. */
+            let freeBled = 0;
+            dataRows.forEach(r => {
+                const f = Number(r[10]), q = Number(r[3]);
+                if (r[10] && q > 0 && f > q) { r[10] = ''; freeBled++; }
+            });
+            if (freeBled) console.log('[OCR] free qty dropped as column bleed on', freeBled, 'row(s)');
+
             console.log('[OCR] rows kept:', dataRows.length, '| discarded:', _ocrDropped.length, _ocrDropped);
-            /* A discarded row that carried a real-looking product name is worth
-               saying out loud: the filter exists to drop manufacturer lines,
-               and a name with a strength in it is not one. */
-            const lostReal = _ocrDropped.filter(d => /\d/.test(d.name) && d.name.replace(/[^A-Za-z]/g, '').length >= 4);
+            console.log('[OCR] kept:', dataRows.map(r => r[0]).join(' | '));
+
+            /* A discarded row whose first word repeats a kept row's first word
+               is a FRAGMENT of that row, not a lost product — "DOLO 88" beside
+               "DOLO 650" is the manufacturer line, exactly what the filter is
+               for. Warning about it sent the shop hunting through an invoice
+               for a product that was never on it. */
+            const keptFirst = new Set(dataRows.map(r => String(r[0] || '').trim().split(/\s+/)[0].toUpperCase()));
+            const lostReal = _ocrDropped.filter(d => {
+                const first = String(d.name || '').trim().split(/\s+/)[0].toUpperCase();
+                if (!first || keptFirst.has(first)) return false;     // fragment of a row we kept
+                return d.name.replace(/[^A-Za-z]/g, '').length >= 4;  // enough letters to be a name
+            });
             if (lostReal.length) {
                 console.warn('[OCR] these looked like real products but had too few figures:', lostReal);
             }
