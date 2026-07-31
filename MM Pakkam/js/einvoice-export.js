@@ -455,7 +455,13 @@
                         toPincode: Number(toPin),
                         toStateCode: Number(toState), actToStateCode: Number(toState),
                         transactionType: 1,
-                        otherValue: 0,
+                        /* The portal checks totInvValue against the sum of the
+                           value + tax fields. The till's round-off lives in the
+                           e-invoice's RndOffAmt; without it here the two sides
+                           disagree by that amount and the upload is rejected.
+                           otherValue is the e-way schema's slot for it, and it
+                           takes a negative. */
+                        otherValue: built.val.RndOffAmt,
                         totalValue: built.val.AssVal,
                         cgstValue: built.val.CgstVal,
                         sgstValue: built.val.SgstVal,
