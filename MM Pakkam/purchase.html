@@ -2090,6 +2090,7 @@ window.addEventListener('DOMContentLoaded', () => {
             const VALID_GST = new Set(['0','5','12','18','28']);
             const dataRows = [];
             const _ocrDropped = [];       // rows the phantom filter discarded
+            const _ocrNoName  = [];       // real rows whose product name did not read
 
             for (let i = headerRowIdx + 1; i < rows.length; i++) {
                 const row = rows[i];
@@ -2179,9 +2180,33 @@ window.addEventListener('DOMContentLoaded', () => {
                    anything above the quantity is column bleed, not a scheme. */
                 if (free && qty && Number(free) > Number(qty)) free = '';
 
-                if (!name || name.length < 2) continue;
-                if (SKIP_ROW.some(p => p.test(name))) continue;
-                if (/^[\d\s\.]+$/.test(name)) continue;
+                /* Two opposite failures, and they need opposite answers.
+
+                   A NAME WITH NO FIGURES is the manufacturer line printed under
+                   each product — drop it.
+
+                   FIGURES WITH NO NAME is a real product whose name did not
+                   read. TAXIM O 200 was lost exactly this way: its quantity,
+                   rate and amount all scanned perfectly and the whole line was
+                   thrown away because three characters of the name did not.
+                   The name is the one thing the shop can supply instantly by
+                   glancing at the invoice; the figures are the part that is
+                   tedious to retype. Keeping the row blank-named is strictly
+                   better than losing it. */
+                const filled = [batch, expiry, qty, mrp, rate, amount]
+                    .filter(v => String(v || '').trim()).length;
+                const nameBad = !name || name.length < 2
+                              || SKIP_ROW.some(p => p.test(name))
+                              || /^[\d\s\.]+$/.test(name);
+
+                if (nameBad && filled >= 3) {
+                    _ocrNoName.push({ was: name, batch, expiry, qty, mrp, rate, amount });
+                    name = '';
+                } else if (nameBad) {
+                    _ocrDropped.push({ name, why: 'name unreadable and too few figures',
+                                       batch, expiry, qty, mrp, rate, amount });
+                    continue;
+                }
 
                 /* A pharmacy invoice prints the manufacturer under each product
                    — "Micro Labs", "GSK", "Alkem" — in smaller type. That second
@@ -2200,15 +2225,14 @@ window.addEventListener('DOMContentLoaded', () => {
                    manufacturer names: those differ on every supplier's
                    stationery, and a shop buying from someone new would silently
                    start losing rows again. */
-                const filled = [batch, expiry, qty, mrp, rate, amount]
-                    .filter(v => String(v || '').trim()).length;
                 if (filled < 2) {
                     /* Logged, not silent. This rule is the only thing in the
                        parser that can lose a REAL product, so when the row
                        count comes up short the discarded lines have to be
                        nameable — otherwise the next report is "9 rows, should
                        be 10" and nobody can say which one went. */
-                    _ocrDropped.push({ name, batch, expiry, qty, mrp, rate, amount });
+                    _ocrDropped.push({ name, why: 'no figures — manufacturer line',
+                                       batch, expiry, qty, mrp, rate, amount });
                     continue;
                 }
 
@@ -2295,6 +2319,15 @@ window.addEventListener('DOMContentLoaded', () => {
                 issues.messages.unshift(
                     `${lostReal.length} line(s) were skipped because too little of them read` +
                     ` — check your invoice for: ${lostReal.map(d => d.name).join(', ')}`);
+            }
+            /* Named up front, because the row is there and correct in every
+               respect except the one box the shop can fill from memory. */
+            if (_ocrNoName.length) {
+                console.warn('[OCR] kept, but the name did not read:', _ocrNoName);
+                issues.messages.unshift(
+                    `${_ocrNoName.length} line(s) read correctly but their product NAME did not — ` +
+                    `they are in the list with the name blank, type it from your invoice ` +
+                    `(look for qty ${_ocrNoName.map(d => d.qty || '?').join(', ')}).`);
             }
             if (issues.blocked) {
                 _showOCRWarning(issues.messages, true);
@@ -2798,7 +2831,15 @@ window.addEventListener('DOMContentLoaded', () => {
 
             _invRows.forEach(row=>{
                 const pName=String(row[map.productName]??'').trim();
-                if(!pName) return; // skip blank rows
+                /* A blank name used to discard the whole line here — which threw
+                   away the very rows the parser deliberately kept because their
+                   figures were good and only the name failed to scan. The row
+                   comes through with an empty Product Name box, which is
+                   impossible to miss, and Save already refuses to pass an empty
+                   product name without a confirmation. */
+                const hasFigures = ['quantity','rate','mrp'].some(k =>
+                    map[k]!==undefined && String(row[map[k]]??'').trim());
+                if(!pName && !hasFigures) return;
 
                 lineItemCounter++;
                 const container=document.getElementById('lineItemsContainer');
