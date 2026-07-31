@@ -11,6 +11,7 @@
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/keyboard-nav.js"></script>
+    <script src="js/gst-validate.js"></script>
     <style>
         :root {
             --teal:    #0d9488;
@@ -853,6 +854,14 @@ async function saveAndContinue() {
     if (!prefix)   return showErr('Please enter an invoice prefix (e.g. MM).');
     if (!phone)    return showErr('Please enter your phone number.');
     if (!addr1)    return showErr('Please enter your address.');
+    /* The shop's OWN GSTIN goes on every invoice it prints and heads every
+       return it files. A placeholder here is not caught anywhere else until
+       an export refuses to build, which is exactly what happened to this
+       shop's own profile — it carried "26XXXXZZZZ" until 2026-07-31. */
+    if (gstin) {
+        const g = window.mmGstValid ? mmGstValid.gstin(gstin) : { ok: true };
+        if (!g.ok) return showErr(g.reason + ' Leave it blank if you are not GST registered.');
+    }
 
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
@@ -934,6 +943,12 @@ async function saveAndContinue() {
     document.querySelector('.page-header h1').textContent = 'Almost Done!';
     document.querySelector('.page-header p').textContent = 'Your shop is set up and waiting for approval';
 }
+
+/* Live check on the shop's own GSTIN, with the state name echoed back — the
+   quickest way to notice a GSTIN that is valid but belongs to another state. */
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.mmGstValid) mmGstValid.attach(document.getElementById('gstin'), 'gstin');
+});
 
 function skipSetup() {
     if (isEditMode) { window.location.href = 'index.html'; return; }

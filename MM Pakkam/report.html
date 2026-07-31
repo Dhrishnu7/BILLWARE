@@ -709,6 +709,8 @@
     <script src="js/tally-export.js"></script>
     <script src="js/gstr1-export.js"></script>
     <script src="js/einvoice-export.js"></script>
+    <script src="js/gst-validate.js"></script>
+    <script src="js/prefile-check.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
@@ -956,6 +958,14 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M9 21h6v-5H9v5z"/>
                     </svg>
                     Print Report
+                </button>
+                <!-- Deliberately the FIRST of the export buttons: it is meant
+                     to be run before any of them, not after one is refused. -->
+                <button class="btn-export-excel" id="preFileBtn" onclick="openPreFile()" style="background:#0d9488;" title="Run the checks the GST portal and Tally will run, before you send them anything">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Check before filing
                 </button>
                 <button class="btn-export-excel" onclick="exportGSTExcel()" title="Export data as CSV for GST filing">
                     <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -1254,6 +1264,54 @@
             <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;">
                 <button class="search-btn" onclick="closeGstrModal()" style="background:#f1f5f9;color:#475569;">Cancel</button>
                 <button class="search-btn" id="gstrDownloadBtn" onclick="downloadGstr1()">⬇ Download JSON</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Pre-filing check ═══
+         The portal, Tally and the IRP each reject a whole file over one bad
+         row, days after the sale, naming the rule and not the bill. This runs
+         the same rules on demand and names the bill. Uses the page's From/To.
+         Blocking findings are kept apart from warnings on purpose: a list
+         where everything is red is a list nobody reads. -->
+    <div class="modal-overlay" id="preFileModal" style="display:none;" onclick="if(event.target===this) closePreFile()">
+        <div class="modal-content" style="max-width:820px;">
+            <div class="modal-header">
+                <div class="modal-title">✅ Check before filing</div>
+                <button class="modal-close" onclick="closePreFile()">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height:74vh;overflow-y:auto;">
+                <div id="preFileBody"></div>
+            </div>
+            <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;flex-wrap:wrap;">
+                <button class="search-btn" onclick="closePreFile()" style="background:#f1f5f9;color:#475569;">Close</button>
+                <button class="search-btn" onclick="refreshPreFile()">↻ Check again</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Buyer GSTIN fixer ═══
+         Same choice as the HSN and buyer-address fixers: repair it where the
+         problem is reported, rather than sending the shop to the Directory to
+         hunt for the right customer. -->
+    <div class="modal-overlay modal-stacked" id="gstinFixModal" style="display:none;" onclick="if(event.target===this) closeGstinFix()">
+        <div class="modal-content" style="max-width:620px;">
+            <div class="modal-header">
+                <div class="modal-title">🧾 Correct these GSTINs</div>
+                <button class="modal-close" onclick="closeGstinFix()">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:10px;padding:10px 13px;font-size:0.8rem;line-height:1.55;margin-bottom:0.9rem;">
+                    Check each against the customer's own invoice or letterhead. The box turns
+                    green when the number passes its check digit.
+                    <b>If you cannot get the right one, clear the box</b> — a blank GSTIN files
+                    correctly as a counter sale, a wrong one does not file at all.
+                </div>
+                <div id="gstinFixList"></div>
+            </div>
+            <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;">
+                <button class="search-btn" onclick="closeGstinFix()" style="background:#f1f5f9;color:#475569;">Cancel</button>
+                <button class="search-btn" id="gstinFixSaveBtn" onclick="saveGstinFixes()">✓ Save</button>
             </div>
         </div>
     </div>
@@ -1800,6 +1858,174 @@
             a.click();
             closeGstrModal();
             if (typeof mmAudit === 'function') mmAudit('GSTR-1 export', _gstrBuilt.month, _gstrBuilt.summary.bills + ' bills');
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           PRE-FILING CHECK
+           Everything here is presentation — the rules live in
+           js/prefile-check.js so the same set can be exercised headlessly.
+        ══════════════════════════════════════════════════════════════════ */
+        let _preFile = null;
+
+        function openPreFile() {
+            const m = document.getElementById('preFileModal');
+            m.classList.add('open'); m.style.display = 'flex';
+            refreshPreFile();
+        }
+        function closePreFile() {
+            const m = document.getElementById('preFileModal');
+            m.classList.remove('open'); m.style.display = 'none';
+        }
+
+        function refreshPreFile() {
+            if (!window.mmPreFile) {
+                document.getElementById('preFileBody').innerHTML =
+                    '<div style="color:#991b1b;">The checker did not load. Hard-refresh the page (Ctrl+Shift+R).</div>';
+                return;
+            }
+            const from = document.getElementById('fromDate').value || '';
+            const to   = document.getElementById('toDate').value   || '';
+            _preFile = mmPreFile.run({ from: from, to: to });
+            const r = _preFile, c = r.counts;
+
+            /* The headline says what it means, not just a count. "0 problems"
+               is the only place a shop will look, so it has to be honest about
+               what a clean result does and does not promise. */
+            const head = r.ok
+                ? `<div style="background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:12px;padding:13px 15px;margin-bottom:1rem;">
+                       <div style="font-weight:800;font-size:0.95rem;margin-bottom:4px;">Nothing here will stop your filing</div>
+                       <div style="font-size:0.81rem;line-height:1.6;">Checked <b>${c.bills}</b> bill(s) in this period against the rules the portal enforces.</div>
+                   </div>`
+                : `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:12px;padding:13px 15px;margin-bottom:1rem;">
+                       <div style="font-weight:800;font-size:0.95rem;margin-bottom:4px;">${c.blockRows} thing(s) would be rejected</div>
+                       <div style="font-size:0.81rem;line-height:1.6;">Across <b>${c.blockFindings}</b> kind(s) of problem, in <b>${c.bills}</b> bill(s). Fix these before you upload anything.</div>
+                   </div>`;
+
+            const fixBtn = (kind) => {
+                if (kind === 'hsn')   return `<button onclick="openHsnFixer()" style="background:#0d9488;color:#fff;border:none;border-radius:8px;padding:3px 11px;font-weight:700;font-size:0.73rem;font-family:inherit;cursor:pointer;margin-left:6px;">Fix HSN codes →</button>`;
+                if (kind === 'gstin') return `<button onclick="openGstinFix()" style="background:#0d9488;color:#fff;border:none;border-radius:8px;padding:3px 11px;font-weight:700;font-size:0.73rem;font-family:inherit;cursor:pointer;margin-left:6px;">Correct them →</button>`;
+                return '';
+            };
+
+            /* Long lists are capped in the DOM, not in the data: 400 rows of
+               the same fault is a scroll bar, and the count above it already
+               says how big the job is. */
+            const card = (f, block) => {
+                const shown = f.rows.slice(0, 25);
+                const rest  = f.rows.length - shown.length;
+                return `
+                <div style="border:1px solid ${block ? '#fecaca' : '#fde68a'};border-radius:12px;overflow:hidden;margin-bottom:0.7rem;">
+                    <div style="background:${block ? '#fef2f2' : '#fffbeb'};padding:10px 13px;">
+                        <div style="font-weight:800;font-size:0.88rem;color:${block ? '#991b1b' : '#92400e'};">
+                            ${_te(f.title)} <span style="font-weight:600;opacity:.75;">· ${f.rows.length}</span>${fixBtn(f.fix)}
+                        </div>
+                        <div style="font-size:0.77rem;line-height:1.55;color:${block ? '#b91c1c' : '#b45309'};margin-top:3px;">${_te(f.why)}</div>
+                    </div>
+                    ${shown.map((row, i) => `
+                        <div style="padding:7px 13px;${i ? 'border-top:1px solid #f8fafc;' : 'border-top:1px solid #f1f5f9;'}font-size:0.82rem;">
+                            <b style="color:#0f172a;">${_te(row.label)}</b>
+                            <span style="color:#64748b;"> — ${_te(row.detail)}</span>
+                        </div>`).join('')}
+                    ${rest > 0 ? `<div style="padding:7px 13px;border-top:1px solid #f1f5f9;font-size:0.78rem;color:#94a3b8;">…and ${rest} more</div>` : ''}
+                </div>`;
+            };
+
+            const blocks = r.blocks.length
+                ? `<div style="font-size:0.76rem;font-weight:800;color:#991b1b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.55rem;">Will be rejected</div>`
+                  + r.blocks.map(f => card(f, true)).join('')
+                : '';
+
+            const warns = r.warns.length
+                ? `<div style="font-size:0.76rem;font-weight:800;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;margin:1rem 0 0.55rem;">Worth fixing — these will still file</div>`
+                  + r.warns.map(f => card(f, false)).join('')
+                : '';
+
+            /* The honest footer. Without it a green tick reads as a guarantee
+               of acceptance, which nothing offline can give. */
+            const caveat = `
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:11px 14px;font-size:0.78rem;line-height:1.65;color:#475569;margin-top:1rem;">
+                    <b style="color:#0f172a;">What this cannot check.</b> These are only in the government's own
+                    records, so no offline check can see them:
+                    <ul style="margin:6px 0 0;padding-left:18px;">
+                        ${r.cannotCheck.map(x => `<li>${_te(x)}</li>`).join('')}
+                    </ul>
+                    <div style="margin-top:7px;">Upload your GSTR-1 a few days early — uploading is <b>not</b> filing,
+                    and the portal's error report is the only complete check there is.</div>
+                </div>`;
+
+            document.getElementById('preFileBody').innerHTML = head + blocks + warns + caveat;
+        }
+
+        /* ── Buyer GSTIN fixer ──────────────────────────────────────────── */
+        let _gstinFix = [];
+        function openGstinFix() {
+            const f = (_preFile && _preFile.blocks.filter(x => x.id === 'badBuyer')[0]) || null;
+            _gstinFix = f ? f.rows : [];
+            if (!_gstinFix.length) { mmAlert('Nothing to correct — every customer GSTIN in this period passes.'); return; }
+
+            document.getElementById('gstinFixList').innerHTML = _gstinFix.map((b, i) => `
+                <div style="border:1px solid #e2e8f0;border-radius:11px;padding:10px 12px;margin-bottom:8px;">
+                    <div style="font-weight:800;font-size:0.87rem;color:#0f172a;">${_te(b.name || b.label)}</div>
+                    <div style="font-size:0.74rem;color:#991b1b;line-height:1.5;margin:3px 0 7px;">${_te(b.detail)}</div>
+                    <input type="text" id="gfix_${i}" maxlength="15" placeholder="33ABCDE1234F1Z5"
+                        style="width:100%;box-sizing:border-box;padding:0.45rem 0.65rem;border:1.5px solid #e2e8f0;border-radius:9px;font-family:monospace;font-size:0.88rem;text-transform:uppercase;outline:none;">
+                </div>`).join('');
+
+            // Live check on each box, so a correct one goes green as it is typed.
+            if (window.mmGstValid) {
+                _gstinFix.forEach((b, i) => mmGstValid.attach(document.getElementById('gfix_' + i), 'gstin'));
+            }
+            const m = document.getElementById('gstinFixModal');
+            m.classList.add('open'); m.style.display = 'flex';
+        }
+        function closeGstinFix() {
+            const m = document.getElementById('gstinFixModal');
+            m.classList.remove('open'); m.style.display = 'none';
+        }
+
+        async function saveGstinFixes() {
+            const btn = document.getElementById('gstinFixSaveBtn');
+            const original = btn.textContent;
+            btn.disabled = true; btn.textContent = 'Saving…';
+
+            let custs = [];
+            try { custs = JSON.parse(localStorage.getItem('mm_customers') || '[]') || []; } catch (e) {}
+
+            let saved = 0, cleared = 0, failed = 0, rejected = 0;
+            for (let i = 0; i < _gstinFix.length; i++) {
+                const b = _gstinFix[i];
+                const el = document.getElementById('gfix_' + i);
+                const val = (el.value || '').trim().toUpperCase();
+
+                /* A blank box is a deliberate answer, not a skipped row: it
+                   demotes the customer to a counter sale, which files. */
+                if (val && window.mmGstValid && !mmGstValid.gstin(val).ok) { rejected++; continue; }
+
+                const idx = custs.findIndex(c =>
+                    (b.id && String(c.id) === String(b.id)) ||
+                    (c.name || '').trim().toLowerCase() === (b.name || '').trim().toLowerCase());
+                if (idx < 0) { failed++; continue; }
+
+                const c = custs[idx];
+                custs[idx] = { ...c, gstin: val };
+                try {
+                    const r = await dbAddCustomer(c.name, c.phone || '', c.address || '', val);
+                    if (r && r.success) { val ? saved++ : cleared++; } else failed++;
+                } catch (e) { failed++; }
+            }
+            try { localStorage.setItem('mm_customers', JSON.stringify(custs)); } catch (e) {}
+            if (typeof mmAudit === 'function') mmAudit('GSTIN correction', saved + ' corrected', cleared + ' cleared');
+
+            btn.disabled = false; btn.textContent = original;
+            closeGstinFix();
+            await mmAlert(
+                `${saved} corrected, ${cleared} cleared to counter sale.` +
+                (rejected ? `\n\n${rejected} left unchanged — what you typed still fails its check digit.` : '') +
+                (failed ? `\n\n${failed} could not be saved — check your connection.` : ''),
+                { title: 'GSTINs updated', variant: (rejected || failed) ? 'warn' : 'success' });
+
+            try { if (typeof dbSyncCoreData === 'function') await dbSyncCoreData(); } catch (e) {}
+            refreshPreFile();
         }
 
         /* ══════════════════════════════════════════════════════════════════

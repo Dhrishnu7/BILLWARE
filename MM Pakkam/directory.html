@@ -14,6 +14,7 @@
     <script src="js/supabase.js"></script>
     <script src="js/auth.js?v=3"></script>
     <script src="js/keyboard-nav.js"></script>
+    <script src="js/gst-validate.js"></script>
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#6366f1">
@@ -475,7 +476,7 @@
                 </div>
                 <div class="form-group">
                     <label>GSTIN <span style="color:#94a3b8;font-weight:400;font-size:0.85rem;">(optional)</span></label>
-                    <input type="text" id="sGstin" placeholder="e.g. 33ABCDE1234F1Z5" style="text-transform:uppercase;">
+                    <input type="text" id="sGstin" maxlength="15" placeholder="e.g. 33ABCDE1234F1Z5" style="text-transform:uppercase;">
                 </div>
                 <div class="form-group">
                     <label>Phone <span style="color:#94a3b8;font-weight:400;font-size:0.85rem;">(optional)</span></label>
@@ -867,6 +868,17 @@
                 const phone   = document.getElementById('sPhone').value.trim();
                 const address = document.getElementById('sAddress').value.trim();
                 if (!name) { alert('Supplier name is required.'); btn.textContent = 'Save'; btn.disabled = false; return; }
+                // A supplier's GSTIN had no check at all until v256. It is what
+                // an input-credit claim is made against, so a wrong one costs
+                // real money — the same rule as a customer's applies.
+                if (gstin && window.mmGstValid) {
+                    const g = mmGstValid.gstin(gstin);
+                    if (!g.ok) {
+                        await mmAlert(g.reason + '\n\nCheck it against the supplier\'s invoice, or leave it blank.',
+                            { title: 'That GSTIN cannot be right', variant: 'warn' });
+                        btn.textContent = 'Save'; btn.disabled = false; return;
+                    }
+                }
                 try { const r = await dbAddSupplier(name, gstin, phone, address); if (!(r && r.success)) console.warn('supplier cloud save failed'); }
                 catch (e) { console.warn('supplier save failed:', e); }
                 const sups = JSON.parse(localStorage.getItem('mm_suppliers') || '[]');
@@ -887,11 +899,21 @@
                 if (!name || !phone) {
                     alert('Name and Phone are required.'); btn.textContent = 'Save'; btn.disabled = false; return;
                 }
-                // A wrong GSTIN is worse than none: the return would be filed
-                // against a buyer who cannot be matched, so refuse a half-typed one.
-                if (gstin && gstin.length !== 15) {
-                    alert('A GSTIN must be exactly 15 characters. Leave it blank if this is a regular customer.');
-                    btn.textContent = 'Save'; btn.disabled = false; return;
+                /* A wrong GSTIN is worse than none: the return would be filed
+                   against a buyer who cannot be matched, so refuse one that
+                   cannot possibly be real. The length test this replaces let
+                   through anything 15 characters long — including the invented
+                   value that sat in this shop's own test data for two days.
+                   The 15th character is a check digit over the other 14, so a
+                   single mistyped character is caught here and not by the
+                   portal three weeks later. */
+                if (gstin && window.mmGstValid) {
+                    const g = mmGstValid.gstin(gstin);
+                    if (!g.ok) {
+                        await mmAlert(g.reason + '\n\nLeave it blank if this is a regular counter customer — a blank GSTIN files correctly as a counter sale, a wrong one does not file at all.',
+                            { title: 'That GSTIN cannot be right', variant: 'warn' });
+                        btn.textContent = 'Save'; btn.disabled = false; return;
+                    }
                 }
 
                 // Save to Supabase
@@ -1015,6 +1037,16 @@
             document.getElementById('addModal').addEventListener('click', e => {
                 if (e.target === document.getElementById('addModal')) closeModal();
             });
+
+            /* Tell them while the invoice is still in their hand, not at save
+               time and certainly not at filing time. Shows the state name on a
+               good one, which catches the other half of the mistake: a valid
+               GSTIN typed against the wrong customer usually has the wrong
+               state on the front. */
+            if (window.mmGstValid) {
+                mmGstValid.attach(document.getElementById('cGstin'), 'gstin');
+                mmGstValid.attach(document.getElementById('sGstin'), 'gstin');
+            }
 
             // Load shop name + data
             await loadShopName();

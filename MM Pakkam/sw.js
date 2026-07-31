@@ -1,6 +1,6 @@
 ﻿// â”€â”€ Billware Service Worker â”€â”€
 // IMPORTANT: Change CACHE_NAME on every deploy so installed apps get the latest version
-const CACHE_NAME = 'mm-pakkam-v255';
+const CACHE_NAME = 'mm-pakkam-v256';
 
 // Pages and assets to cache for offline use + instant navigation
 const PRECACHE_URLS = [
@@ -33,6 +33,8 @@ const PRECACHE_URLS = [
     '/js/gstr1-export.js',
     '/js/einvoice-export.js',
     '/js/returns-data.js',
+    '/js/gst-validate.js',
+    '/js/prefile-check.js',
     '/icon-192.png',
     '/icon-512.png',
     '/manifest.json',
