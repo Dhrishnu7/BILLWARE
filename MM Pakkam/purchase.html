@@ -2161,19 +2161,26 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (SKIP_ROW.some(p => p.test(name))) continue;
                 if (/^[\d\s\.]+$/.test(name)) continue;
 
-                /* A product line always carries at least one figure. A line
-                   with a name and NOTHING else is the manufacturer printed
-                   underneath the product — "Micro Labs", "GSK", "Alkem", on
-                   every row of a pharmacy invoice.
+                /* A pharmacy invoice prints the manufacturer under each product
+                   — "Micro Labs", "GSK", "Alkem" — in smaller type. That second
+                   line is read as its own row, arriving as a phantom product
+                   ("DOLO 88") with almost every field empty, which was then
+                   counted against the scan as a row missing its quantity.
 
-                   Those were arriving as phantom rows with every field blank
-                   ("DOLO 88"), which then got counted against the scan as rows
-                   missing their quantity: the shop was told three lines had
-                   failed to read when in truth three lines were not products at
-                   all. Dropped on evidence — no quantity, no MRP, no rate and
-                   no amount — rather than by trying to recognise manufacturer
-                   names, which differ on every supplier's stationery. */
-                if (!qty && !mrp && !rate && !amount) continue;
+                   Requiring at least TWO figures, not one: the first version of
+                   this check dropped a row only when qty, MRP, rate AND amount
+                   were all empty, and a single digit bleeding in from a
+                   neighbouring column was enough to keep the phantom alive. A
+                   real line carries five or six of these; a stray fragment
+                   carries one.
+
+                   Deliberately counted rather than matched against a list of
+                   manufacturer names: those differ on every supplier's
+                   stationery, and a shop buying from someone new would silently
+                   start losing rows again. */
+                const filled = [batch, expiry, qty, mrp, rate, amount]
+                    .filter(v => String(v || '').trim()).length;
+                if (filled < 2) continue;
 
                 dataRows.push([name, batch, expiry, qty, mrp, rate, gst, pack, amount, hsn]);
             }
