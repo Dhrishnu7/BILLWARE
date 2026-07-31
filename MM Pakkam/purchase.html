@@ -2089,6 +2089,7 @@ window.addEventListener('DOMContentLoaded', () => {
             ];
             const VALID_GST = new Set(['0','5','12','18','28']);
             const dataRows = [];
+            const _ocrDropped = [];       // rows the phantom filter discarded
 
             for (let i = headerRowIdx + 1; i < rows.length; i++) {
                 const row = rows[i];
@@ -2201,7 +2202,15 @@ window.addEventListener('DOMContentLoaded', () => {
                    start losing rows again. */
                 const filled = [batch, expiry, qty, mrp, rate, amount]
                     .filter(v => String(v || '').trim()).length;
-                if (filled < 2) continue;
+                if (filled < 2) {
+                    /* Logged, not silent. This rule is the only thing in the
+                       parser that can lose a REAL product, so when the row
+                       count comes up short the discarded lines have to be
+                       nameable — otherwise the next report is "9 rows, should
+                       be 10" and nobody can say which one went. */
+                    _ocrDropped.push({ name, batch, expiry, qty, mrp, rate, amount });
+                    continue;
+                }
 
                 dataRows.push([name, batch, expiry, qty, mrp, rate, gst, pack, amount, hsn, free]);
             }
@@ -2231,6 +2240,15 @@ window.addEventListener('DOMContentLoaded', () => {
             const repair = (window.mmOcrNumbers ? mmOcrNumbers.repairRows(dataRows) : null);
             if (repair && repair.cellsFixed) console.log('[OCR] number repairs:', repair);
 
+            console.log('[OCR] rows kept:', dataRows.length, '| discarded:', _ocrDropped.length, _ocrDropped);
+            /* A discarded row that carried a real-looking product name is worth
+               saying out loud: the filter exists to drop manufacturer lines,
+               and a name with a strength in it is not one. */
+            const lostReal = _ocrDropped.filter(d => /\d/.test(d.name) && d.name.replace(/[^A-Za-z]/g, '').length >= 4);
+            if (lostReal.length) {
+                console.warn('[OCR] these looked like real products but had too few figures:', lostReal);
+            }
+
             _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack','Amount','HSN','Free'];
             _invRows = dataRows;
             const issues = _checkOCRQuality(dataRows);
@@ -2246,6 +2264,15 @@ window.addEventListener('DOMContentLoaded', () => {
             if (nameFix && nameFix.questions.length) {
                 issues.messages.unshift(
                     `Check the strength on these — they were NOT changed: ` + nameFix.questions.join('; '));
+            }
+            /* A short row count is the one problem the shop can spot instantly
+               — they know how many lines the invoice has — and the one thing
+               the scan cannot notice for itself. Say the number plainly and
+               name what went, rather than leaving them to count the preview. */
+            if (lostReal.length) {
+                issues.messages.unshift(
+                    `${lostReal.length} line(s) were skipped because too little of them read` +
+                    ` — check your invoice for: ${lostReal.map(d => d.name).join(', ')}`);
             }
             if (issues.blocked) {
                 _showOCRWarning(issues.messages, true);
