@@ -1,6 +1,6 @@
-﻿// â”€â”€ Billware Service Worker â”€â”€
+// ── Billware Service Worker ──
 // IMPORTANT: Change CACHE_NAME on every deploy so installed apps get the latest version
-const CACHE_NAME = 'mm-pakkam-v263';
+const CACHE_NAME = 'mm-pakkam-v264';
 
 // Pages and assets to cache for offline use + instant navigation
 const PRECACHE_URLS = [
@@ -45,7 +45,7 @@ const PRECACHE_URLS = [
     'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
 ];
 
-// â”€â”€ Install: pre-cache all core files â”€â”€
+// ── Install: pre-cache all core files ──
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME).then(cache => {
@@ -58,7 +58,7 @@ self.addEventListener('install', event => {
     );
 });
 
-// â”€â”€ Activate: remove ALL old caches so app gets fresh files â”€â”€
+// ── Activate: remove ALL old caches so app gets fresh files ──
 self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(keys =>
@@ -71,17 +71,17 @@ self.addEventListener('activate', event => {
                     })
             )
         ).then(() => {
-            console.log('[SW] Claiming all clients â€” new version active');
+            console.log('[SW] Claiming all clients — new version active');
             return self.clients.claim(); // Take over all tabs immediately
         })
     );
 });
 
-// â”€â”€ Fetch handler â”€â”€
+// ── Fetch handler ──
 // Strategy:
-//   â€¢ Supabase API  â†’ ALWAYS network-first (live data must never be stale)
-//   â€¢ Everything else (pages, JS, CSS, images, CDN libs) â†’ STALE-WHILE-REVALIDATE:
-//     serve the cached copy instantly (0 ms â€” this is what makes navigation feel
+//   • Supabase API  → ALWAYS network-first (live data must never be stale)
+//   • Everything else (pages, JS, CSS, images, CDN libs) → STALE-WHILE-REVALIDATE:
+//     serve the cached copy instantly (0 ms — this is what makes navigation feel
 //     native), and fetch a fresh copy in the background for the next load.
 //     New deploys still arrive automatically: the browser re-checks sw.js on
 //     navigation, the bumped CACHE_NAME re-caches everything, and the pages'
@@ -127,14 +127,14 @@ self.addEventListener('fetch', event => {
                         headers: { 'Content-Type': 'text/plain' }
                     }));
 
-                // Cache hit â†’ instant response; miss â†’ wait for network
+                // Cache hit → instant response; miss → wait for network
                 return cached || networkFetch;
             })
         )
     );
 });
 
-// â”€â”€ Message handler: force skip waiting when told by the page â”€â”€
+// ── Message handler: force skip waiting when told by the page ──
 self.addEventListener('message', event => {
     if (event.data && event.data.type === 'SKIP_WAITING') {
         self.skipWaiting();

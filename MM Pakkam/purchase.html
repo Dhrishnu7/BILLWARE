@@ -2166,18 +2166,20 @@ window.addEventListener('DOMContentLoaded', () => {
                own amount = qty × rate. Done here, before the quality check, so
                a row that only looked wrong because of a lost point is not
                counted against the scan. */
-            const repair = (window.mmOcrNumbers ? mmOcrNumbers.repairRows(dataRows) : null);
-            if (repair && repair.cellsFixed) console.log('[OCR] number repairs:', repair);
-
-            /* Match each name against what this shop actually buys. Letters are
-               corrected; a different STRENGTH is only ever queried, never
-               rewritten — see js/ocr-names.js. */
+            /* Names FIRST, numbers second. The number repairs quote the row's
+               product name in their notes, and running them the other way round
+               printed the raw scan — "1 DOLO 650", "3 PAN" — with the serial
+               number still attached, so the shop could not tell which line was
+               being talked about. */
             let nameFix = null;
             if (window.mmOcrNames && typeof getAllMedNames === 'function') {
                 try { nameFix = mmOcrNames.matchRows(dataRows, getAllMedNames()); }
                 catch (ne) { console.warn('[OCR] name matching skipped:', ne); }
                 if (nameFix) console.log('[OCR] name matches:', nameFix);
             }
+
+            const repair = (window.mmOcrNumbers ? mmOcrNumbers.repairRows(dataRows) : null);
+            if (repair && repair.cellsFixed) console.log('[OCR] number repairs:', repair);
 
             _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack','Amount'];
             _invRows = dataRows;
@@ -2400,21 +2402,27 @@ window.addEventListener('DOMContentLoaded', () => {
             const emptyBatch= rows.filter(r => !String(r[1]).trim()).length;
             const emptyExp  = rows.filter(r => !String(r[2]).trim()).length;
 
-            /* Over a fifth of the critical fields missing means the scan is
-               not trustworthy as a whole. Name WHICH fields and HOW MANY —
-               "error rate > 20%" told the shop nothing it could act on, and
-               the rows are still offered either way. */
-            if (emptyName / total > 0.2 || emptyQty / total > 0.2 || emptyMRP / total > 0.2) {
-                if (emptyName) issues.push(`${emptyName} of ${total} rows have no product name`);
+            /* Only a missing NAME is fatal. It is the one field nothing can
+               derive and nobody can guess from the screen — a blank quantity or
+               MRP is three seconds of typing next to a row you can already
+               identify.
+
+               The old rule tripped on a fifth of ANY critical field, so a scan
+               that found all ten products and correctly recovered thirteen
+               figures was still announced as "a lot of this did not read
+               cleanly". That is not what happened, and telling a shop its good
+               scan failed teaches it to stop reading the box. */
+            if (emptyName / total > 0.5) {
+                issues.push(`${emptyName} of ${total} rows have no product name`);
                 if (emptyQty)  issues.push(`${emptyQty} of ${total} rows have no quantity`);
                 if (emptyMRP)  issues.push(`${emptyMRP} of ${total} rows have no MRP`);
                 blocked = true;
                 return { messages: issues, blocked };
             }
 
-            if (emptyName > 0) issues.push(emptyName + ' product name(s) missing — check those rows.');
-            if (emptyQty > 0)  issues.push(emptyQty + ' quantity field(s) missing.');
-            if (emptyMRP > 0)  issues.push(emptyMRP + ' MRP field(s) missing.');
+            if (emptyName > 0) issues.push(emptyName + ' row(s) have no product name — check those rows.');
+            if (emptyQty > 0)  issues.push(emptyQty + ' of ' + total + ' row(s) need a quantity typed in.');
+            if (emptyMRP > 0)  issues.push(emptyMRP + ' of ' + total + ' row(s) need an MRP typed in.');
             if (emptyBatch === total) issues.push('Batch numbers not detected (fill manually).');
             if (emptyExp   === total) issues.push('Expiry dates not detected (fill manually).');
             
@@ -2502,8 +2510,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 wrap.innerHTML = html;
             } else {
                 wrap.style.cssText = 'margin-top:1rem;padding:1rem 1.2rem;border-radius:12px;border:2px solid #fde68a;background:#fffbeb;font-size:0.82rem;';
-                let html = `<div style='font-weight:800;font-size:0.9rem;color:#78350f;margin-bottom:0.5rem;'>⚠️ Scan Quality Issues</div>`;
-                html += messages.map(m => `<div style='margin-bottom:0.3rem;color:#92400e;'>${m}</div>`).join('');
+                let html = `<div style='font-weight:800;font-size:0.9rem;color:#78350f;margin-bottom:0.5rem;'>📋 Scan finished — check these</div>`;
+                html += messages.map(m => `<div style='margin-bottom:0.35rem;color:#92400e;line-height:1.5;'>• ${m}</div>`).join('');
                 html += `<div style='margin-top:0.8rem;display:flex;gap:0.6rem;'>
                     <button onclick="document.getElementById('ocrScanWarning').remove(); ${proceed}();"
                         style='flex:1;padding:0.5rem;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;'>
