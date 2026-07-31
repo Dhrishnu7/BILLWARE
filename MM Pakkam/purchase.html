@@ -2166,6 +2166,18 @@ window.addEventListener('DOMContentLoaded', () => {
                 amount = cleanNum(amount);
                 qty    = cleanNum(qty).replace(/\.\d+/,''); // qty must be integer
 
+                /* Checked HERE, after qty is reduced to digits — comparing
+                   against the raw cell gives NaN and the guard never fires.
+
+                   FREE sits directly beside QTY and is the narrowest column on
+                   the sheet, so when the boundary drifts it swallows the
+                   quantity or half of the MRP: a real scan produced 40 free
+                   against 40 bought, and 806 free against 60. Scheme goods are
+                   a fraction of an order, never more than it, and free quantity
+                   is the one field here that silently INFLATES stock — so
+                   anything above the quantity is column bleed, not a scheme. */
+                if (free && qty && Number(free) > Number(qty)) free = '';
+
                 if (!name || name.length < 2) continue;
                 if (SKIP_ROW.some(p => p.test(name))) continue;
                 if (/^[\d\s\.]+$/.test(name)) continue;
