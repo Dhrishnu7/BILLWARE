@@ -533,6 +533,7 @@
     <script src="js/ocr-preprocess.js"></script>
     <script src="js/ocr-numbers.js"></script>
     <script src="js/ocr-names.js"></script>
+    <script src="js/ocr-columns.js"></script>
     <script src="js/auth.js?v=3"></script>
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2025,6 +2026,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
             let headerRowIdx = -1;
             const columns = []; // {type, leftBound, rightBound}
+            const _hdrMid = {};  // type -> centre x of its heading, for ocr-columns.js
 
             for (let i = 0; i < rows.length; i++) {
                 const rowLower = rows[i].words.map(w => w.text.toLowerCase());
@@ -2039,7 +2041,10 @@ window.addEventListener('DOMContentLoaded', () => {
                     for (const hw of hWords) {
                         const t = hw.text.toLowerCase().replace(/[^a-z\.]/g,'');
                         const type = hdrType(t);
-                        if (type) colDefs.push({ type, x0: hw.bbox.x0, x1: hw.bbox.x1, midX: (hw.bbox.x0+hw.bbox.x1)/2 });
+                        if (type) {
+                            colDefs.push({ type, x0: hw.bbox.x0, x1: hw.bbox.x1, midX: (hw.bbox.x0+hw.bbox.x1)/2 });
+                            _hdrMid[type] = (hw.bbox.x0 + hw.bbox.x1) / 2;
+                        }
                     }
                     // Sort colDefs by X position
                     colDefs.sort((a,b) => a.x0 - b.x0);
@@ -2077,6 +2082,26 @@ window.addEventListener('DOMContentLoaded', () => {
             if (headerRowIdx < 0 || columns.length < 3) {
                 _parseOCRText(data.text || '');
                 return;
+            }
+
+            /* Let the figures correct the boundaries. A heading that does not
+               scan takes its whole column with it — "QTY" read as "arty" left
+               no quantity column at all, so the slice ran from EXP straight to
+               FREE and both sets of figures landed in one cell as "10010".
+               Two tight clusters with a wide gap between them are two columns,
+               whatever the heading said. See js/ocr-columns.js — it only ever
+               splits, only when both halves can be named, and does nothing when
+               the evidence is weak. */
+            if (window.mmOcrColumns) {
+                try {
+                    const ref = mmOcrColumns.refine(columns, rows.slice(headerRowIdx + 1),
+                                                    { headerMid: _hdrMid });
+                    if (ref.changed) {
+                        console.log('[OCR] columns refined from the data:', ref.notes.join(' ; '));
+                        columns.length = 0;
+                        ref.columns.forEach(c => columns.push(c));
+                    }
+                } catch (ce) { console.warn('[OCR] column refine skipped:', ce); }
             }
 
             // ── Step 3: Assign data words to columns by X-position ──

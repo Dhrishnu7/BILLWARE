@@ -179,7 +179,8 @@
            overruled: it is the shortest, cleanest number on the line and
            far more likely right than a division involving two others. */
         var qtyFinal = num(out.qty);
-        if ((!isFinite(qtyFinal) || qtyFinal <= 0) && isFinite(amt) && amt > 0) {
+        var haveQty = isFinite(qtyFinal) && qtyFinal > 0;
+        if (isFinite(amt) && amt > 0) {
             var rf = num(out.rate);
             if (isFinite(rf) && rf > 0) {
                 var qd = amt / rf;
@@ -197,10 +198,37 @@
                    about 0.02 on a line of 100. */
                 var tol = Math.max(0.05, qd * 0.001);
                 if (qr >= 1 && qr <= 100000 && Math.abs(qd - qr) <= tol) {
-                    out.qty = String(qr);
-                    out.derivedQty = true;
-                    out.fixes.push({ field: 'qty', from: (cell.qty ? String(cell.qty) : '(blank)'),
-                                     to: String(qr), why: 'filled in from amount ÷ rate' });
+                    /* Fills a blank, and now also CORRECTS a misread one.
+                       Recovering the quantity column (v279) meant a quantity
+                       that scanned wrongly would be kept rather than derived —
+                       the real scan read 80 where the paper said 60, 4 for 40
+                       and 2 for 25, and each divides out exactly right.
+
+                       Only when the division lands on a whole number to within
+                       a paisa's worth of rounding. A misread amount or rate
+                       almost never divides cleanly, so the cleanliness of the
+                       division is itself the evidence that the other two are
+                       sound and the quantity is not. */
+                    if (!haveQty) {
+                        out.qty = String(qr);
+                        out.derivedQty = true;
+                        out.fixes.push({ field: 'qty', from: '(blank)',
+                                         to: String(qr), why: 'filled in from amount ÷ rate' });
+                    } else if (qr !== qtyFinal) {
+                        /* One case where the division is right and the quantity
+                           is too: a supplier whose AMOUNT covers the free goods
+                           as well. Then amount ÷ rate is charged + free, and
+                           "correcting" the quantity to it would book the scheme
+                           stock twice — once in Quantity and again in Free. */
+                        var fq = num(cell.free);
+                        var coversFree = isFinite(fq) && fq > 0 && qr === qtyFinal + fq;
+                        if (!coversFree) {
+                            out.qty = String(qr);
+                            out.derivedQty = true;
+                            out.fixes.push({ field: 'qty', from: String(cell.qty), to: String(qr),
+                                             why: 'did not match amount ÷ rate, which divides exactly' });
+                        }
+                    }
                 }
             }
         }
@@ -213,7 +241,8 @@
     function repairRows(rows) {
         var fixed = 0, touched = 0, notes = [];
         (rows || []).forEach(function (row) {
-            var res = repairLine({ qty: row[3], mrp: row[4], rate: row[5], amount: row[8] });
+            var res = repairLine({ qty: row[3], mrp: row[4], rate: row[5],
+                                   amount: row[8], free: row[10] });
             if (res.fixes.length) {
                 touched++;
                 fixed += res.fixes.length;
