@@ -93,15 +93,28 @@
                                          why: 'decimal point restored — matches amount ÷ qty' });
                     }
                     out.rate = String(r2(c.value));
-                } else {
-                    /* Nothing the scan offered agrees with the arithmetic. The
-                       amount is the biggest, boldest number on the line and the
-                       quantity is a short integer; the rate is the crowded one.
-                       Trust the two, replace the one, and SAY SO. */
+                } else if (!hasPoint(cell.rate)) {
+                    /* Nothing the scan offered agrees with the arithmetic, and
+                       the rate came through with NO decimal point — which is
+                       the very symptom being corrected. The amount is the
+                       biggest, boldest number on the line and the quantity is a
+                       short integer; the rate is the crowded one. Trust the
+                       two, replace the one, and SAY SO. */
                     out.rate = String(r2(derived));
                     out.derivedRate = true;
                     out.fixes.push({ field: 'rate', from: String(cell.rate), to: String(r2(derived)),
                                      why: 'did not match amount ÷ qty — recalculated from them' });
+                } else {
+                    /* The rate was read WITH a decimal point and still does not
+                       match. That is not the lost-point symptom, so the cause is
+                       unknown: the amount may cover free goods, the line may
+                       carry a discount, or the quantity may be the misread one.
+                       Overwriting a legibly printed price on a guess is exactly
+                       the confident-wrong-answer this module exists to avoid.
+                       Keep what was printed and raise it for a human. */
+                    out.mismatch = { rate: rate, derived: r2(derived) };
+                    out.fixes.push({ field: 'rate', from: String(cell.rate), to: String(cell.rate),
+                                     why: 'kept as printed, but amount ÷ qty gives ' + r2(derived) + ' — check this line' });
                 }
             } else {
                 out.rate = String(r2(derived));

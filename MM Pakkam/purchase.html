@@ -1865,7 +1865,7 @@ window.addEventListener('DOMContentLoaded', () => {
         async function _detectOrientation(source, logger, progEl) {
             const probe = await mmOcrProbeCanvas(source, { probeWidth: 900 });
 
-            let best = 0, bestScore = -1;
+            let best = 0, bestScore = -1, zeroScore = 0;
             const order = [0, 90, 270, 180];        // upright first, upside-down last
             for (let i = 0; i < order.length; i++) {
                 const deg = order[i];
@@ -1876,18 +1876,30 @@ window.addEventListener('DOMContentLoaded', () => {
                 } catch (e) { continue; }
                 const sc = _textScore(data);
                 console.log('[OCR] orientation', deg, 'score', sc.toFixed(1));
+                if (deg === 0) zeroScore = sc;
                 if (sc > bestScore) { bestScore = sc; best = deg; }
             }
-            /* No early exit on a good-looking 0°, deliberately. On the real
-               invoice the WRONG turns scored 27-78 on this scale, so any
-               threshold cheap enough to save a probe is also low enough to
-               accept nonsense. Four probes cost about three seconds against a
-               scan that takes half a minute; being right is worth more. */
 
-            /* Nothing scored like text at all — a blank or hopeless page.
-               Turning it on the strength of a coin-toss would only make the
-               result harder to explain. */
+            /* No early exit on a good-looking 0°, deliberately: on the real
+               sideways invoice the WRONG turns scored 27-78 on this scale, so
+               any threshold cheap enough to save a probe also accepts nonsense.
+
+               LEAVING THE PAGE ALONE IS THE DEFAULT, and it takes strong
+               evidence to overturn — because the cost is asymmetric. Failing
+               to straighten a sideways page leaves the shop exactly where it
+               was; turning an upright one makes a working scan fail.
+
+               Measured on both cases of the same invoice:
+                 genuinely sideways   0deg 37.4  ->  270deg 197.5   5.3x
+                 already upright      0deg 51.4  ->   90deg  53.4   1.04x
+               The second is a coin toss that came down on the wrong side, so a
+               mere win is not enough. 1.8x separates them with room to spare. */
             if (bestScore < 20) { console.warn('[OCR] no orientation looked like text'); return 0; }
+            if (best !== 0 && bestScore < zeroScore * 1.8) {
+                console.log('[OCR] leaving as-is —', best, 'scored', bestScore.toFixed(1),
+                            'vs', zeroScore.toFixed(1), 'upright, too close to call');
+                return 0;
+            }
             return best;
         }
 
