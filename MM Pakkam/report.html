@@ -711,6 +711,7 @@
     <script src="js/einvoice-export.js"></script>
     <script src="js/gst-validate.js"></script>
     <script src="js/prefile-check.js"></script>
+    <script src="js/gstr3b.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
@@ -984,6 +985,12 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
                     GSTR-1 JSON
+                </button>
+                <button class="btn-export-excel" onclick="openGstr3bModal()" title="Work out the GSTR-3B figures — the return where the tax is actually paid">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m-6 4h6m-6 4h4M5 3h14a1 1 0 011 1v16l-3-2-3 2-3-2-3 2V4a1 1 0 011-1z"/>
+                    </svg>
+                    GSTR-3B worksheet
                 </button>
                 <button class="btn-export-excel" onclick="openEinvModal()" title="Build the e-invoice / e-way bill JSON for the government portal">
                     <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -1264,6 +1271,25 @@
             <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;">
                 <button class="search-btn" onclick="closeGstrModal()" style="background:#f1f5f9;color:#475569;">Cancel</button>
                 <button class="search-btn" id="gstrDownloadBtn" onclick="downloadGstr1()">⬇ Download JSON</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ GSTR-3B worksheet ═══
+         Deliberately NOT a file. GSTR-1 is hundreds of rows, so typing it is
+         the pain; 3B is about fifteen numbers, and knowing them is the whole
+         problem. A worksheet also means a human reads every figure before it
+         moves money — which matters more here than anywhere else in the app. -->
+    <div class="modal-overlay" id="gstr3bModal" style="display:none;" onclick="if(event.target===this) closeGstr3b()">
+        <div class="modal-content" style="max-width:840px;">
+            <div class="modal-header">
+                <div class="modal-title">🧮 GSTR-3B worksheet</div>
+                <button class="modal-close" onclick="closeGstr3b()">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height:74vh;overflow-y:auto;" id="g3bBody"></div>
+            <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;flex-wrap:wrap;">
+                <button class="search-btn" onclick="closeGstr3b()" style="background:#f1f5f9;color:#475569;">Close</button>
+                <button class="search-btn" onclick="printGstr3b()" style="background:#475569;">🖨 Print worksheet</button>
             </div>
         </div>
     </div>
@@ -1858,6 +1884,285 @@
             a.click();
             closeGstrModal();
             if (typeof mmAudit === 'function') mmAudit('GSTR-1 export', _gstrBuilt.month, _gstrBuilt.summary.bills + ' bills');
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           GSTR-3B WORKSHEET
+           Presentation only — the figures come from js/gstr3b.js. Every
+           number is labelled with the 3B table it belongs in, because the
+           shop is reading this while typing into the portal.
+        ══════════════════════════════════════════════════════════════════ */
+        let _g3b = null;
+
+        function openGstr3bModal() {
+            const m = document.getElementById('gstr3bModal');
+            m.classList.add('open'); m.style.display = 'flex';
+            refreshGstr3b();
+        }
+        function closeGstr3b() {
+            const m = document.getElementById('gstr3bModal');
+            m.classList.remove('open'); m.style.display = 'none';
+        }
+
+        /* Whole calendar periods, because that is the only thing that can be
+           filed. One month = a monthly filer's return, or a QRMP shop's
+           PMT-06 payment; three = a QRMP quarter. */
+        function g3bPreset(kind) {
+            const now = new Date();
+            let y = now.getFullYear(), m = now.getMonth();       // 0-based
+            if (kind === 'last') { m -= 1; if (m < 0) { m = 11; y -= 1; } }
+            let sy = y, sm = m, ey = y, em = m;
+            if (kind === 'quarter') { sm = m - (m % 3); ey = y; em = sm + 2; }
+            const pad = n => (n < 10 ? '0' : '') + n;
+            const lastDay = new Date(ey, em + 1, 0).getDate();
+            document.getElementById('fromDate').value = `${sy}-${pad(sm + 1)}-01`;
+            document.getElementById('toDate').value   = `${ey}-${pad(em + 1)}-${pad(lastDay)}`;
+            refreshGstr3b();
+        }
+
+        function g3bMoney(n) {
+            return (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        /* A copy button per figure: the shop is typing these into the portal
+           one at a time, and a mistyped total here is money. */
+        function g3bCopy(v, el) {
+            const s = String(Number(v) || 0);
+            const done = () => { const t = el.textContent; el.textContent = '✓'; setTimeout(() => el.textContent = t, 900); };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(s).then(done, () => {});
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = s; document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); done(); } catch (e) {}
+                document.body.removeChild(ta);
+            }
+        }
+
+        function g3bRow(label, table, val, indent) {
+            return `<tr>
+                <td style="padding:6px 10px;color:#475569;font-size:0.84rem;${indent ? 'padding-left:26px;' : ''}">${_te(label)}
+                    ${table ? `<span style="color:#94a3b8;font-size:0.72rem;font-weight:700;margin-left:5px;">${_te(table)}</span>` : ''}</td>
+                <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:0.87rem;white-space:nowrap;">₹${g3bMoney(val)}</td>
+                <td style="padding:6px 6px;width:1%;"><button onclick="g3bCopy(${Number(val) || 0}, this)" title="Copy"
+                    style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;padding:2px 8px;font-size:0.72rem;font-family:inherit;cursor:pointer;color:#475569;">copy</button></td>
+            </tr>`;
+        }
+
+        function g3bManualBox(id, val) {
+            return `<input type="number" step="0.01" id="${id}" value="${val === '' || val == null ? '' : Number(val)}"
+                oninput="g3bManualChanged()" placeholder="0.00"
+                style="width:110px;padding:0.32rem 0.5rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.83rem;text-align:right;outline:none;">`;
+        }
+
+        function refreshGstr3b() {
+            const body = document.getElementById('g3bBody');
+            if (!window.mmGstr3b) { body.innerHTML = '<div style="color:#991b1b;">The worksheet did not load. Hard-refresh (Ctrl+Shift+R).</div>'; return; }
+
+            const from = document.getElementById('fromDate').value || '';
+            const to   = document.getElementById('toDate').value   || '';
+            _g3b = mmGstr3b.build({ from, to });
+            const r = _g3b;
+            const s = mmGstr3b.settle(r, r.manual);
+
+            const presets = `
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:0.9rem;">
+                    ${[['This month', 'this'], ['Last month', 'last'], ['This quarter', 'quarter']].map(([lbl, k]) =>
+                        `<button onclick="g3bPreset('${k}')" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:9px;padding:0.35rem 0.8rem;font-size:0.78rem;font-weight:700;font-family:inherit;cursor:pointer;color:#475569;">${lbl}</button>`).join('')}
+                    <div style="flex:1;min-width:120px;"></div>
+                    <div style="font-size:0.8rem;color:#64748b;align-self:center;">
+                        ${r.months.length ? `<b>${_te(r.months.join(', '))}</b>` : 'pick a period'}
+                    </div>
+                </div>`;
+
+            const intro = `
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:10px;padding:10px 13px;font-size:0.8rem;line-height:1.55;margin-bottom:0.9rem;">
+                    Figures to type into <b>GSTR-3B</b> on the portal. Outward supplies are taken from your
+                    <b>GSTR-1</b> for the same months, so the two returns cannot disagree.
+                    This is a worksheet — you and your accountant remain responsible for what is filed.
+                </div>`;
+
+            const sig = (lvl, txt) => {
+                const c = lvl === 'block' ? ['#fef2f2', '#fecaca', '#991b1b']
+                        : lvl === 'itc'   ? ['#fffbeb', '#fde68a', '#92400e']
+                        : lvl === 'warn'  ? ['#fffbeb', '#fde68a', '#92400e']
+                        :                   ['#f8fafc', '#e2e8f0', '#475569'];
+                return `<div style="background:${c[0]};border:1px solid ${c[1]};color:${c[2]};border-radius:9px;padding:9px 12px;font-size:0.78rem;line-height:1.55;margin-bottom:7px;">${_te(txt)}</div>`;
+            };
+            const signals = r.signals.map(x => sig(x.level, x.text)).join('');
+
+            if (!r.gstr1Ran) {
+                body.innerHTML = presets + intro + signals;
+                return;
+            }
+
+            const tbl = rows => `<table style="width:100%;border-collapse:collapse;">${rows}</table>`;
+
+            const outward = `
+                <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:0.8rem;">
+                    <div style="background:#f8fafc;padding:9px 13px;font-size:0.74rem;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;color:#0d9488;">
+                        3.1 Outward supplies
+                    </div>
+                    ${tbl(
+                        g3bRow('Taxable value', '3.1(a)', r.outward.taxable) +
+                        g3bRow('Integrated tax (IGST)', '', r.outward.igst, true) +
+                        g3bRow('Central tax (CGST)', '', r.outward.cgst, true) +
+                        g3bRow('State tax (SGST)', '', r.outward.sgst, true) +
+                        g3bRow('Nil-rated / exempt supplies', '3.1(c)', r.nilRated)
+                    )}
+                    <div style="padding:7px 13px;border-top:1px solid #f1f5f9;font-size:0.75rem;color:#94a3b8;">
+                        ${r.counts.bills} bill(s)${r.creditNoteValue ? ` · credit notes of ₹${g3bMoney(r.creditNoteValue)} already deducted` : ''}
+                    </div>
+                </div>`;
+
+            const m = r.manual;
+            const itcBlock = `
+                <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:0.8rem;">
+                    <div style="background:#f8fafc;padding:9px 13px;font-size:0.74rem;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;color:#0d9488;">
+                        4 Eligible ITC
+                    </div>
+                    ${tbl(
+                        g3bRow('All other ITC — from your purchases', '4(A)(5)', r.itc.total) +
+                        g3bRow('Central tax (CGST)', '', r.itc.cgst, true) +
+                        g3bRow('State tax (SGST)', '', r.itc.sgst, true)
+                    )}
+                    <div style="padding:9px 13px;border-top:1px solid #f1f5f9;">
+                        <div style="font-size:0.78rem;font-weight:700;color:#92400e;margin-bottom:5px;">Actual figures from GSTR-2B on the portal</div>
+                        <div style="font-size:0.75rem;color:#64748b;line-height:1.5;margin-bottom:6px;">
+                            Fill these in and the payable below uses them instead. Leave blank to use your purchase register.
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:0.8rem;color:#475569;">
+                            <span>CGST ${g3bManualBox('g3b_b2Cgst', m.b2Cgst)}</span>
+                            <span>SGST ${g3bManualBox('g3b_b2Sgst', m.b2Sgst)}</span>
+                            <span>IGST ${g3bManualBox('g3b_b2Igst', m.b2Igst)}</span>
+                        </div>
+                    </div>
+                    <div style="padding:7px 13px;border-top:1px solid #f1f5f9;font-size:0.75rem;color:#94a3b8;">
+                        ${r.counts.purchaseBills} purchase bill(s), ${r.counts.purchaseLines} line(s)${r.debitNoteTax ? ` · ₹${g3bMoney(r.debitNoteTax)} of credit removed by ${r.counts.debitNotes} debit note(s)` : ''}
+                    </div>
+                </div>`;
+
+            const manualBlock = `
+                <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:0.8rem;">
+                    <div style="background:#f8fafc;padding:9px 13px;font-size:0.74rem;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;">
+                        Only you can know these
+                    </div>
+                    <div style="padding:10px 13px;font-size:0.78rem;color:#64748b;line-height:1.55;">
+                        Nothing in your bills records these, so they are never guessed. Leave them at zero if they do not apply.
+                    </div>
+                    <div style="padding:0 13px 12px;display:grid;gap:9px;">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:0.81rem;color:#475569;">
+                            <b style="min-width:190px;">Reverse charge payable <span style="color:#94a3b8;font-weight:700;font-size:0.72rem;">3.1(d)</span></b>
+                            CGST ${g3bManualBox('g3b_rcCgst', m.rcCgst)} SGST ${g3bManualBox('g3b_rcSgst', m.rcSgst)} IGST ${g3bManualBox('g3b_rcIgst', m.rcIgst)}
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:0.81rem;color:#475569;">
+                            <b style="min-width:190px;">ITC reversed <span style="color:#94a3b8;font-weight:700;font-size:0.72rem;">4(B)</span></b>
+                            CGST ${g3bManualBox('g3b_itcRevCgst', m.itcRevCgst)} SGST ${g3bManualBox('g3b_itcRevSgst', m.itcRevSgst)} IGST ${g3bManualBox('g3b_itcRevIgst', m.itcRevIgst)}
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:0.81rem;color:#475569;">
+                            <b style="min-width:190px;">Interest / late fee <span style="color:#94a3b8;font-weight:700;font-size:0.72rem;">5.1</span></b>
+                            Interest ${g3bManualBox('g3b_interest', m.interest)} Late fee ${g3bManualBox('g3b_lateFee', m.lateFee)}
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:0.81rem;color:#475569;">
+                            <b style="min-width:190px;">Exempt inward supplies <span style="color:#94a3b8;font-weight:700;font-size:0.72rem;">5</span></b>
+                            <span style="font-weight:700;">₹${g3bMoney(r.exemptInward)}</span>
+                            <span style="color:#94a3b8;font-size:0.75rem;">from your 0% purchases</span>
+                        </div>
+                    </div>
+                </div>`;
+
+            body.innerHTML = presets + intro + signals + outward + itcBlock + manualBlock +
+                `<div id="g3bSettle"></div>`;
+            renderG3bSettle(s);
+        }
+
+        function renderG3bSettle(s) {
+            const el = document.getElementById('g3bSettle');
+            if (!el) return;
+            el.innerHTML = `
+                <div style="border:2px solid #0d9488;border-radius:12px;overflow:hidden;">
+                    <div style="background:#0d9488;color:#fff;padding:9px 13px;font-size:0.74rem;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;">
+                        6.1 Payment of tax
+                    </div>
+                    <table style="width:100%;border-collapse:collapse;">
+                        <tr><td style="padding:6px 13px;color:#475569;font-size:0.84rem;">Tax on outward supplies</td>
+                            <td style="padding:6px 13px;text-align:right;font-weight:700;">₹${g3bMoney(_g3b.outputTax)}</td></tr>
+                        ${s.reverseCharge ? `<tr><td style="padding:6px 13px;color:#475569;font-size:0.84rem;">Reverse charge</td>
+                            <td style="padding:6px 13px;text-align:right;font-weight:700;">₹${g3bMoney(s.reverseCharge)}</td></tr>` : ''}
+                        <tr><td style="padding:6px 13px;color:#475569;font-size:0.84rem;">Less: net input credit
+                            <span style="color:#94a3b8;font-size:0.73rem;">${s.usedB2 ? '(your GSTR-2B figures)' : '(your purchase register)'}</span></td>
+                            <td style="padding:6px 13px;text-align:right;font-weight:700;color:#065f46;">−₹${g3bMoney(s.netItc)}</td></tr>
+                        ${s.interest ? `<tr><td style="padding:6px 13px;color:#475569;font-size:0.84rem;">Interest / late fee</td>
+                            <td style="padding:6px 13px;text-align:right;font-weight:700;">₹${g3bMoney(s.interest)}</td></tr>` : ''}
+                        <tr style="border-top:2px solid #0d9488;">
+                            <td style="padding:10px 13px;font-weight:800;font-size:0.95rem;color:#0f172a;">
+                                ${s.payable > 0 ? 'To pay in cash' : 'Nothing to pay'}</td>
+                            <td style="padding:10px 13px;text-align:right;font-weight:800;font-size:1.05rem;color:${s.payable > 0 ? '#991b1b' : '#065f46'};">
+                                ₹${g3bMoney(s.payable + s.interest)}</td></tr>
+                        ${s.carryForward ? `<tr><td colspan="2" style="padding:7px 13px;border-top:1px solid #f1f5f9;font-size:0.78rem;color:#64748b;">
+                            ₹${g3bMoney(s.carryForward)} of unused credit carries forward in your credit ledger — it is not a refund.</td></tr>` : ''}
+                    </table>
+                </div>
+                <div style="font-size:0.75rem;color:#94a3b8;line-height:1.55;margin-top:9px;">
+                    The portal works out the cash/credit split from your own ledger balances, which only it knows.
+                    Treat this as the amount to expect, not the exact challan.
+                </div>`;
+        }
+
+        /* Re-total only. Rebuilding would re-run three months of GSTR-1 on
+           every keystroke, and would also blow away the box being typed in. */
+        function g3bManualChanged() {
+            if (!_g3b) return;
+            const get = id => { const e = document.getElementById(id); return e ? e.value : ''; };
+            const m = {
+                rcCgst: get('g3b_rcCgst'), rcSgst: get('g3b_rcSgst'), rcIgst: get('g3b_rcIgst'),
+                itcRevCgst: get('g3b_itcRevCgst'), itcRevSgst: get('g3b_itcRevSgst'), itcRevIgst: get('g3b_itcRevIgst'),
+                b2Cgst: get('g3b_b2Cgst'), b2Sgst: get('g3b_b2Sgst'), b2Igst: get('g3b_b2Igst'),
+                interest: get('g3b_interest'), lateFee: get('g3b_lateFee')
+            };
+            _g3b.manual = m;
+            mmGstr3b.saveManual(_g3b.period, m);
+            renderG3bSettle(mmGstr3b.settle(_g3b, m));
+        }
+
+        function printGstr3b() {
+            if (!_g3b) return;
+            const r = _g3b, s = mmGstr3b.settle(r, r.manual);
+            const sp = window.mmShopProfile || {};
+            const line = (a, b) => `<tr><td>${a}</td><td style="text-align:right">${g3bMoney(b)}</td></tr>`;
+            const w = window.open('', '_blank');
+            if (!w) { mmAlert('Allow pop-ups to print the worksheet.'); return; }
+            w.document.write(`<html><head><title>GSTR-3B worksheet ${_te(r.period)}</title>
+                <style>body{font-family:system-ui,sans-serif;padding:24px;color:#0f172a}
+                h1{font-size:1.1rem;margin:0 0 2px}h2{font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;color:#0d9488;margin:18px 0 4px}
+                table{width:100%;border-collapse:collapse;font-size:.86rem}td{padding:4px 0;border-bottom:1px solid #eee}
+                .tot td{font-weight:800;border-top:2px solid #0d9488;border-bottom:none;padding-top:8px}
+                .note{font-size:.75rem;color:#666;margin-top:14px;line-height:1.5}</style></head><body>
+                <h1>GSTR-3B worksheet — ${_te(r.period)}</h1>
+                <div style="font-size:.8rem;color:#666">${_te(sp.shop_name || '')} · ${_te(sp.gstin || '')}</div>
+                <h2>3.1 Outward supplies</h2><table>
+                ${line('3.1(a) Taxable value', r.outward.taxable)}
+                ${line('&nbsp;&nbsp;&nbsp;IGST', r.outward.igst)}
+                ${line('&nbsp;&nbsp;&nbsp;CGST', r.outward.cgst)}
+                ${line('&nbsp;&nbsp;&nbsp;SGST', r.outward.sgst)}
+                ${line('3.1(c) Nil-rated / exempt', r.nilRated)}</table>
+                <h2>4 Eligible ITC</h2><table>
+                ${line('4(A)(5) All other ITC — CGST', r.itc.cgst)}
+                ${line('4(A)(5) All other ITC — SGST', r.itc.sgst)}
+                ${line('4(B) ITC reversed', s.itcReversed)}
+                ${line('Net ITC used', s.netItc)}</table>
+                <h2>5 / 5.1</h2><table>
+                ${line('Exempt inward supplies', r.exemptInward)}
+                ${line('Interest / late fee', s.interest)}</table>
+                <h2>6.1 Payment</h2><table>
+                ${line('Tax on outward supplies', r.outputTax)}
+                ${line('Reverse charge', s.reverseCharge)}
+                ${line('Less: net ITC', -s.netItc)}
+                <tr class="tot"><td>To pay in cash</td><td style="text-align:right">${g3bMoney(s.payable + s.interest)}</td></tr></table>
+                <div class="note"><b>This is a worksheet, not a return.</b> The input credit shown comes from the
+                purchase register and is the most that might be claimed — only what appears in GSTR-2B may
+                actually be taken. Check on the portal before filing.</div>
+                </body></html>`);
+            w.document.close(); w.focus(); w.print();
         }
 
         /* ══════════════════════════════════════════════════════════════════
