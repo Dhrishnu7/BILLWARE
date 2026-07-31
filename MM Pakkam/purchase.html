@@ -1667,27 +1667,13 @@ window.addEventListener('DOMContentLoaded', () => {
             try {
                 const progEl = document.getElementById('ocrProgress');
 
-                // ── Clean the image up BEFORE the engine sees it ──
-                // Nothing used to happen here: the raw photo went straight to
-                // Tesseract, which is where most of the accuracy on dot-matrix
-                // and thermal invoices was lost. Best-effort — if preprocessing
-                // fails for any reason we scan the original rather than nothing.
-                let ocrMeta = null;
-                if (typeof mmOcrPreprocess === 'function') {
-                    if (progEl) progEl.textContent = 'Cleaning up the image…';
-                    try {
-                        const pre = await mmOcrPreprocess(imageSource, { mode: 'auto' });
-                        if (pre && (pre.blob || pre.canvas)) {
-                            imageSource = pre.blob || pre.canvas;
-                            ocrMeta = pre.meta;
-                            console.log('[OCR] preprocess:', pre.meta);
-                        }
-                    } catch (pe) { console.warn('[OCR] preprocess skipped:', pe); }
-                }
-
                 if (!window.Tesseract && progEl) progEl.textContent = 'Loading OCR engine…';
                 await loadTesseract();
 
+                /* Defined before the orientation probe, not after: tesseract.js
+                   binds the logger when the worker is CREATED, and the probe is
+                   what creates it. Declaring this later left the real scan with
+                   no progress bar. */
                 const onProgress = m => {
                     if (m.status === 'recognizing text') {
                         const pct = Math.round((m.progress || 0) * 100);
@@ -1697,6 +1683,45 @@ window.addEventListener('DOMContentLoaded', () => {
                         if (prog) prog.textContent = `Reading text… ${pct}%`;
                     }
                 };
+
+                /* ── Which way up is it? ──
+                   A phone held sideways over an A4 invoice is the single most
+                   common bad scan, and it used to be reported to the shop as
+                   "file not clear" — blaming a photo that was perfectly sharp.
+                   Done BEFORE preprocessing, because deskew and the adaptive
+                   threshold window both assume text runs across the image. */
+                let turnDeg = 0;
+                if (typeof mmOcrProbeCanvas === 'function') {
+                    if (progEl) progEl.textContent = 'Checking which way up…';
+                    try { turnDeg = await _detectOrientation(imageSource, onProgress, progEl); }
+                    catch (oe) { console.warn('[OCR] orientation skipped:', oe); }
+                    if (turnDeg) console.log('[OCR] turning page', turnDeg, 'deg');
+                }
+
+                /* ── Clean the image up BEFORE the engine sees it ──
+                   The raw photo used to go straight to Tesseract, which is
+                   where most of the accuracy on dot-matrix and thermal
+                   invoices was lost. Best-effort — if preprocessing fails for
+                   any reason we scan the original rather than nothing. */
+                let ocrMeta = null;
+                if (typeof mmOcrPreprocess === 'function') {
+                    if (progEl) progEl.textContent = 'Cleaning up the image…';
+                    try {
+                        const pre = await mmOcrPreprocess(imageSource, { mode: 'auto', rotate90: turnDeg });
+                        if (pre && (pre.blob || pre.canvas)) {
+                            imageSource = pre.blob || pre.canvas;
+                            ocrMeta = pre.meta;
+                            ocrMeta.turnDeg = turnDeg;
+                            console.log('[OCR] preprocess:', pre.meta);
+                        }
+                    } catch (pe) { console.warn('[OCR] preprocess skipped:', pe); }
+                } else if (turnDeg && typeof mmOcrRotate90 === 'function') {
+                    try {
+                        const img = await _loadImg(imageSource);
+                        imageSource = mmOcrRotate90(img, turnDeg);
+                    } catch (re) { console.warn('[OCR] rotate skipped:', re); }
+                }
+                _lastTurnDeg = turnDeg;
 
                 const ocrData = await _runTesseract(imageSource, onProgress);
                 if (ocrMeta) ocrData._pre = ocrMeta;
@@ -1779,6 +1804,92 @@ window.addEventListener('DOMContentLoaded', () => {
            The worker API is the only way to set parameters in tesseract.js v5,
            so if anything about it fails we drop back to the plain recognize()
            call that shipped before — a tuned scan is preferable, no scan is not. */
+        /* ── Orientation ──────────────────────────────────────────────────
+           A phone held sideways over an A4 invoice is the commonest bad scan
+           there is, and the deskew in js/ocr-preprocess.js only searches ±5°,
+           so a quarter turn was invisible to it. Tesseract in PSM 6 reads
+           almost nothing off a sideways page, and the shop was then told its
+           photo was unclear — while holding a perfectly sharp photo.
+
+           Decided by MEASUREMENT, not by heuristic: a small copy is read at
+           each of the four turns and the one that produced real words wins.
+           A projection-profile heuristic was tried first and was confidently
+           wrong on the very invoice that prompted this (see the note in
+           ocr-preprocess.js). Four small scans cost a few seconds against a
+           scan that already takes half a minute, and 0° is tried first with
+           an early exit, so an ordinary upright photo pays almost nothing. */
+        let _lastTurnDeg = 0;
+
+        function _loadImg(src) {
+            return new Promise((res, rej) => {
+                if (src && src.getContext) return res(src);           // already a canvas
+                const url = (src instanceof Blob) ? URL.createObjectURL(src) : src;
+                const im = new Image();
+                im.onload = () => { res(im); if (src instanceof Blob) URL.revokeObjectURL(url); };
+                im.onerror = () => rej(new Error('could not decode image'));
+                im.src = url;
+            });
+        }
+
+        /* How much does this look like language rather than noise?
+           The weights are measured, not guessed — all four turns of a real
+           sideways invoice were scored and the metrics compared:
+
+             metric          0     90    270*   180    best/next
+             confidence      27    32    34     30     1.06x  useless
+             letters >=3     34    36    57     25     1.58x
+             letters >=4     12    17    39      9     2.29x
+             letters >=5      5     9    24      4     2.67x  <- best
+             digit runs      14     4    11     22     picks the WRONG turn
+
+           Two things fall out of that. Tesseract's own confidence barely
+           moves between sense and nonsense, so it is not used. And DIGITS
+           MISLEAD: a table read sideways breaks into numeric fragments and
+           scores higher on them than the correct reading does — the original
+           scorer counted them and nearly chose 180.
+
+           Long letter runs are what garbage cannot fake. Junk characters
+           (|, =, ], degree signs) are the signature of a misread page, so
+           they are subtracted. */
+        function _textScore(data) {
+            const t = String((data && data.text) || '');
+            const w5 = (t.match(/[A-Za-z]{5,}/g) || []).length;
+            const w4 = (t.match(/[A-Za-z]{4,}/g) || []).length;
+            const chars = t.replace(/\s/g, '').length;
+            const junk = (t.match(/[^A-Za-z0-9\s.,\-\/()%:&']/g) || []).length;
+            const junkPct = chars ? (junk * 100 / chars) : 0;
+            return w5 * 5 + w4 * 2 - junkPct;
+        }
+
+        async function _detectOrientation(source, logger, progEl) {
+            const probe = await mmOcrProbeCanvas(source, { probeWidth: 900 });
+
+            let best = 0, bestScore = -1;
+            const order = [0, 90, 270, 180];        // upright first, upside-down last
+            for (let i = 0; i < order.length; i++) {
+                const deg = order[i];
+                if (progEl) progEl.textContent = `Checking which way up… ${i + 1}/4`;
+                let data;
+                try {
+                    data = await _runTesseract(mmOcrRotate90(probe.canvas, deg), logger);
+                } catch (e) { continue; }
+                const sc = _textScore(data);
+                console.log('[OCR] orientation', deg, 'score', sc.toFixed(1));
+                if (sc > bestScore) { bestScore = sc; best = deg; }
+            }
+            /* No early exit on a good-looking 0°, deliberately. On the real
+               invoice the WRONG turns scored 27-78 on this scale, so any
+               threshold cheap enough to save a probe is also low enough to
+               accept nonsense. Four probes cost about three seconds against a
+               scan that takes half a minute; being right is worth more. */
+
+            /* Nothing scored like text at all — a blank or hopeless page.
+               Turning it on the strength of a coin-toss would only make the
+               result harder to explain. */
+            if (bestScore < 20) { console.warn('[OCR] no orientation looked like text'); return 0; }
+            return best;
+        }
+
         let _tessWorker = null;
         async function _runTesseract(image, logger) {
             try {
@@ -2225,9 +2336,14 @@ window.addEventListener('DOMContentLoaded', () => {
             const emptyBatch= rows.filter(r => !String(r[1]).trim()).length;
             const emptyExp  = rows.filter(r => !String(r[2]).trim()).length;
 
-            // Block process if more than 20% error rate on critical fields
+            /* Over a fifth of the critical fields missing means the scan is
+               not trustworthy as a whole. Name WHICH fields and HOW MANY —
+               "error rate > 20%" told the shop nothing it could act on, and
+               the rows are still offered either way. */
             if (emptyName / total > 0.2 || emptyQty / total > 0.2 || emptyMRP / total > 0.2) {
-                issues.push('Error rate > 20%: Too many missing product names, quantities, or prices.');
+                if (emptyName) issues.push(`${emptyName} of ${total} rows have no product name`);
+                if (emptyQty)  issues.push(`${emptyQty} of ${total} rows have no quantity`);
+                if (emptyMRP)  issues.push(`${emptyMRP} of ${total} rows have no MRP`);
                 blocked = true;
                 return { messages: issues, blocked };
             }
@@ -2284,13 +2400,35 @@ window.addEventListener('DOMContentLoaded', () => {
             wrap.id = 'ocrScanWarning';
             
             if (blocked) {
+                /* This used to be a dead end: one red box, one "re-upload"
+                   button, and everything the scan HAD read was thrown away —
+                   even when most rows were fine. A shop that can see eight
+                   good rows out of ten will happily fix two by hand, and has
+                   no other copy of that invoice to photograph better. So the
+                   findings are named, the rows are still offered, and the
+                   decision is left with the person holding the paper. */
+                const found = (_invRows || []).length;
                 wrap.style.cssText = 'margin-top:1rem;padding:1rem 1.2rem;border-radius:12px;border:2px solid #fca5a5;background:#fef2f2;font-size:0.82rem;';
-                let html = `<div style='font-weight:800;font-size:1rem;color:#991b1b;margin-bottom:0.5rem;'>🚫 File Not Clear</div>`;
-                html += `<div style='margin-bottom:0.8rem;color:#7f1d1d;line-height:1.4;'>File not clear. Please upload a clear file or use Excel/CSV for better results.</div>`;
-                html += `<button onclick="document.getElementById('ocrScanWarning').remove(); document.getElementById('invFileInput').value='';"
-                        style='width:100%;padding:0.6rem;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;'>
-                        🔄 Re-upload Better Image
+                let html = `<div style='font-weight:800;font-size:1rem;color:#991b1b;margin-bottom:0.5rem;'>⚠️ A lot of this did not read cleanly</div>`;
+                html += `<div style='margin-bottom:0.6rem;color:#7f1d1d;line-height:1.5;'>`
+                     +  (found ? `<b>${found} row(s)</b> were found, but several fields are missing:` : 'Very little could be read:')
+                     +  `</div>`;
+                html += `<div style='margin-bottom:0.8rem;color:#7f1d1d;line-height:1.6;'>`
+                     +  messages.map(m => '• ' + m).join('<br>') + `</div>`;
+                html += `<div style='margin-bottom:0.8rem;color:#7f1d1d;line-height:1.5;font-size:0.79rem;'>`
+                     +  (_lastTurnDeg ? `The photo was sideways and has been turned ${_lastTurnDeg}° automatically. ` : '')
+                     +  `A photo taken square-on in good light usually fixes this — or use the supplier's Excel/CSV if they send one.</div>`;
+                html += `<div style='display:flex;gap:0.6rem;flex-wrap:wrap;'>`;
+                if (found) {
+                    html += `<button onclick="document.getElementById('ocrScanWarning').remove(); showInvMapper();"
+                        style='flex:1;min-width:180px;padding:0.6rem;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;'>
+                        📋 Show me what it read
                     </button>`;
+                }
+                html += `<button onclick="document.getElementById('ocrScanWarning').remove(); document.getElementById('invFileInput').value='';"
+                        style='flex:1;min-width:160px;padding:0.6rem;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;'>
+                        🔄 Try another photo
+                    </button></div>`;
                 wrap.innerHTML = html;
             } else {
                 wrap.style.cssText = 'margin-top:1rem;padding:1rem 1.2rem;border-radius:12px;border:2px solid #fde68a;background:#fffbeb;font-size:0.82rem;';

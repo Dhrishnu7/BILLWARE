@@ -40,6 +40,17 @@
     // ── decode any File/Blob/Image/Canvas into a canvas ──
     function toBitmap(source) {
         if (source instanceof HTMLCanvasElement) return Promise.resolve(source);
+        /* An <img> that has already decoded is usable as-is. Without this it
+           fell through to `img.src = source`, which stringifies the element to
+           "[object HTMLImageElement]" and fails to decode — so any caller
+           holding a loaded image got "Could not decode image". */
+        if (typeof HTMLImageElement !== 'undefined' && source instanceof HTMLImageElement) {
+            if (source.complete && source.naturalWidth) return Promise.resolve(source);
+            return new Promise(function (resolve, reject) {
+                source.addEventListener('load', function () { resolve(source); }, { once: true });
+                source.addEventListener('error', function () { reject(new Error('Could not decode image')); }, { once: true });
+            });
+        }
         if (typeof createImageBitmap === 'function' && (source instanceof Blob)) {
             return createImageBitmap(source);
         }
@@ -237,6 +248,82 @@
         return best;
     }
 
+    /* ── Which way up is the page? ─────────────────────────────────────
+       estimateSkew() above searches ±5°, which is right for a photo taken
+       slightly crooked and useless for the far more common case: a phone
+       held sideways over an A4 invoice, giving a page rotated a quarter
+       turn. Tesseract in PSM 6 reads almost nothing off that, and the shop
+       is told its "unclear" photo is at fault when the photo is perfect.
+
+       Text lines make ink alternate strongly ACROSS them and weakly ALONG
+       them, so the projection profile perpendicular to the lines is spiky
+       and the parallel one is flat. Comparing the two says whether the
+       lines run horizontally (0°/180°) or vertically (90°/270°) — cheaply,
+       with no OCR at all.
+
+       It cannot tell 0° from 180°: both have horizontal lines. That last
+       bit of ambiguity is left to the caller, which resolves it by running
+       a quick low-resolution scan of each and keeping whichever produced
+       real words. Two cheap scans beats four expensive ones.
+    ────────────────────────────────────────────────────────────────── */
+    function rotate90(src, deg) {
+        deg = ((deg % 360) + 360) % 360;
+        if (deg === 0) return src;
+        var swap = (deg === 90 || deg === 270);
+        var c = document.createElement('canvas');
+        c.width  = swap ? src.height : src.width;
+        c.height = swap ? src.width  : src.height;
+        var ctx = c.getContext('2d', { willReadFrequently: true });
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.translate(c.width / 2, c.height / 2);
+        ctx.rotate(deg * Math.PI / 180);
+        ctx.drawImage(src, -src.width / 2, -src.height / 2);
+        return c;
+    }
+
+    /* A REJECTED APPROACH, recorded so it is not tried again.
+
+       The obvious cheap test is to compare the ink-projection profiles of the
+       two axes: text lines ought to make the profile across them spiky and the
+       one along them flat. Measured on a real sideways invoice it was
+       confidently WRONG — cvRow 2.05 against cvCol 0.27, a 7.5x margin in the
+       wrong direction. The photo had a strip of dark desk along the bottom
+       edge, which binarises to a solid band of ink spanning the full width and
+       swamps every row statistic. Dense table rules do the same thing.
+
+       Cropping to the sheet first would fix that particular photo and fail on
+       the next one for some other reason. A confidently wrong answer is worse
+       than none, so the heuristic is gone: the caller reads a small copy at
+       each of the four turns and keeps whichever produced real words. It costs
+       a few seconds once, and it cannot be fooled by the furniture.
+
+       This function now only prepares that small copy. */
+    async function mmOcrProbeCanvas(source, opts) {
+        opts = opts || {};
+        var bmp = await toBitmap(source);
+        var MAXW = opts.probeWidth || 900;
+        var sc = Math.min(1, MAXW / Math.max(bmp.width, bmp.height));
+        var w = Math.max(1, Math.round(bmp.width * sc));
+        var h = Math.max(1, Math.round(bmp.height * sc));
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        var ctx = c.getContext('2d', { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(bmp, 0, 0, w, h);
+
+        /* Contrast-stretched greyscale, not the full binarise pipeline: the
+           probe only has to be legible enough to tell words from noise, and
+           thresholding a downscaled photo throws away thin strokes. */
+        var g = toGray(ctx, w, h);
+        g = stretch(g, stats(g));
+        grayToCtx(ctx, g, w, h);
+
+        return { canvas: c, width: w, height: h };
+    }
+
     function rotateCanvas(src, deg) {
         if (!deg) return src;
         var rad = -deg * Math.PI / 180;
@@ -255,6 +342,10 @@
         opts = opts || {};
         var t0 = (performance && performance.now) ? performance.now() : Date.now();
         var bmp = await toBitmap(source);
+        /* A quarter-turn is applied before anything else: every later step —
+           deskew, thresholding window, despeckle — assumes text runs across
+           the image. */
+        if (opts.rotate90) bmp = rotate90(bmp, opts.rotate90);
         var scaled = drawScaled(bmp);
         var canvas = scaled.canvas;
         var w = canvas.width, h = canvas.height;
@@ -318,4 +409,6 @@
     }
 
     window.mmOcrPreprocess = mmOcrPreprocess;
+    window.mmOcrProbeCanvas = mmOcrProbeCanvas;
+    window.mmOcrRotate90 = rotate90;
 })();
