@@ -1993,12 +1993,29 @@ window.addEventListener('DOMContentLoaded', () => {
             };
             const HDR_KEYS = Object.keys(HDR_MAP);
 
+            /* "QTY" is three narrow capitals and the most misread header on a
+               pharmacy invoice — a real scan returned "ary", so the column was
+               never located and EVERY row lost its quantity, the one field a
+               purchase cannot be saved without.
+
+               Matched on EQUALITY, never as a substring, and kept out of
+               HDR_MAP for that reason: the main matcher uses includes(), and
+               "Party" — which is on every invoice — contains "ary". */
+            const HDR_EXACT = {
+                'qly':'qty', 'qtv':'qty', 'ary':'qty', 'aty':'qty',
+                'oty':'qty', 'ory':'qty', 'gty':'qty', 'qy':'qty',
+                'aymt':'amount', 'amt.':'amount'
+            };
+            const hdrType = t =>
+                HDR_EXACT[t] || (HDR_KEYS.find(k => t.includes(k)) ? HDR_MAP[HDR_KEYS.find(k => t.includes(k))] : null);
+
             let headerRowIdx = -1;
             const columns = []; // {type, leftBound, rightBound}
 
             for (let i = 0; i < rows.length; i++) {
                 const rowLower = rows[i].words.map(w => w.text.toLowerCase());
-                const hits = rowLower.filter(t => HDR_KEYS.some(k => t.includes(k))).length;
+                const hits = rowLower.filter(t =>
+                    HDR_EXACT[t.replace(/[^a-z.]/g, '')] || HDR_KEYS.some(k => t.includes(k))).length;
                 if (hits >= 3) {
                     headerRowIdx = i;
                     // Build column boundaries from this header row
@@ -2007,10 +2024,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     const colDefs = [];
                     for (const hw of hWords) {
                         const t = hw.text.toLowerCase().replace(/[^a-z\.]/g,'');
-                        let type = null;
-                        for (const [key, val] of Object.entries(HDR_MAP)) {
-                            if (t.includes(key)) { type = val; break; }
-                        }
+                        const type = hdrType(t);
                         if (type) colDefs.push({ type, x0: hw.bbox.x0, x1: hw.bbox.x1, midX: (hw.bbox.x0+hw.bbox.x1)/2 });
                     }
                     // Sort colDefs by X position

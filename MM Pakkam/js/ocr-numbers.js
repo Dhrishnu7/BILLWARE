@@ -156,6 +156,42 @@
             }
         }
 
+        /* ── Quantity, recovered from amount ÷ rate ──────────────────────
+           The same identity read the third way. On a real invoice the QTY
+           header came through as "ary", so the column was never located and
+           EVERY row lost its quantity — the one field a purchase cannot be
+           saved without.
+
+           Only ever fills a BLANK. A quantity that was read is never
+           overruled: it is the shortest, cleanest number on the line and
+           far more likely right than a division involving two others. */
+        var qtyFinal = num(out.qty);
+        if ((!isFinite(qtyFinal) || qtyFinal <= 0) && isFinite(amt) && amt > 0) {
+            var rf = num(out.rate);
+            if (isFinite(rf) && rf > 0) {
+                var qd = amt / rf;
+                var qr = Math.round(qd);
+                /* It must land on a whole number: stock comes in units, and a
+                   division that does not is a sign one of the two inputs was
+                   misread — in which case inventing a quantity from them would
+                   only bury the error deeper.
+
+                   The tolerance is nearly absolute. A percentage is the wrong
+                   shape here: at 1% a quantity of 100 would accept anything
+                   from 99 to 101, and a quantity is an exact count, not a
+                   measurement. The small relative term only covers the rate
+                   being printed to two decimals, which drifts the division by
+                   about 0.02 on a line of 100. */
+                var tol = Math.max(0.05, qd * 0.001);
+                if (qr >= 1 && qr <= 100000 && Math.abs(qd - qr) <= tol) {
+                    out.qty = String(qr);
+                    out.derivedQty = true;
+                    out.fixes.push({ field: 'qty', from: (cell.qty ? String(cell.qty) : '(blank)'),
+                                     to: String(qr), why: 'filled in from amount ÷ rate' });
+                }
+            }
+        }
+
         return out;
     }
 
@@ -174,6 +210,7 @@
                     }
                 });
             }
+            row[3] = res.qty;
             row[4] = res.mrp;
             row[5] = res.rate;
         });
