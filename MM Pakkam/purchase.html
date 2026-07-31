@@ -2321,13 +2321,33 @@ window.addEventListener('DOMContentLoaded', () => {
                     ` — check your invoice for: ${lostReal.map(d => d.name).join(', ')}`);
             }
             /* Named up front, because the row is there and correct in every
-               respect except the one box the shop can fill from memory. */
-            if (_ocrNoName.length) {
+               respect except the one box the shop can fill from memory.
+
+               Read off dataRows AFTER the repairs, not off what was captured at
+               parse time: the quantity on these rows is usually blank when the
+               row is first built and only recovered from amount ÷ rate later,
+               so the first version of this message said "look for qty ?" —
+               which is no help at all in finding the line on paper. Expiry and
+               amount are given too, because a quantity of 30 may appear on
+               several lines while an expiry rarely does. */
+            const blankName = dataRows.filter(r => !String(r[0] || '').trim());
+            if (blankName.length) {
                 console.warn('[OCR] kept, but the name did not read:', _ocrNoName);
+                const how = blankName.map(r => {
+                    const bits = [];
+                    if (String(r[2] || '').trim()) bits.push('expiry ' + r[2]);
+                    if (String(r[3] || '').trim()) bits.push('qty ' + r[3]);
+                    if (String(r[8] || '').trim()) bits.push('amount ' + r[8]);
+                    return bits.length ? bits.join(', ') : 'the blank row';
+                }).join('  /  ');
                 issues.messages.unshift(
-                    `${_ocrNoName.length} line(s) read correctly but their product NAME did not — ` +
-                    `they are in the list with the name blank, type it from your invoice ` +
-                    `(look for qty ${_ocrNoName.map(d => d.qty || '?').join(', ')}).`);
+                    `${blankName.length} line(s) read correctly but the product NAME did not. ` +
+                    `They are in the list with the name blank — find them on your invoice by ${how}, ` +
+                    `and type the name in.`);
+                /* Drop the generic "N rows have no product name" that the
+                   quality check adds: it is the same rows said twice, once
+                   usefully and once not. */
+                issues.messages = issues.messages.filter(m => !/have no product name/i.test(m));
             }
             if (issues.blocked) {
                 _showOCRWarning(issues.messages, true);
