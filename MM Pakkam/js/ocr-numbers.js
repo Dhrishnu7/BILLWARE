@@ -88,11 +88,24 @@
                 /* Within a whisker of amount÷qty: the two figures confirm each
                    other, so take the variant that agrees. */
                 if (c.delta <= Math.max(0.02, derived * 0.02)) {
-                    if (c.value !== rate) {
-                        out.fixes.push({ field: 'rate', from: String(cell.rate), to: String(r2(c.value)),
-                                         why: 'decimal point restored — matches amount ÷ qty' });
+                    /* CLOSE BUT NOT EQUAL is a mis-scanned digit, and the
+                       arithmetic wins. A real scan read 151.81 where the paper
+                       said 151.91 and the amount said 4557.30 ÷ 30 = 151.91
+                       exactly; keeping the printed figure because it happened
+                       to carry a decimal point left the wrong price in place.
+
+                       Two independently-read figures agreeing to the paisa beat
+                       one figure read once. The large-disagreement case below
+                       is the one where the printed rate must stand — there the
+                       cause is structural, not a digit. */
+                    var pick = (c.delta > 0.005) ? r2(derived) : r2(c.value);
+                    if (pick !== rate) {
+                        out.fixes.push({ field: 'rate', from: String(cell.rate), to: String(pick),
+                                         why: hasPoint(cell.rate)
+                                            ? 'a digit did not read — amount ÷ qty gives this exactly'
+                                            : 'decimal point restored — matches amount ÷ qty' });
                     }
-                    out.rate = String(r2(c.value));
+                    out.rate = String(pick);
                 } else if (!hasPoint(cell.rate)) {
                     /* Nothing the scan offered agrees with the arithmetic, and
                        the rate came through with NO decimal point — which is

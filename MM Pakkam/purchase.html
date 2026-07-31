@@ -2290,12 +2290,41 @@ window.addEventListener('DOMContentLoaded', () => {
                recovered from amount ÷ rate a few lines above. So on the very
                rows that matter the guard silently did nothing, and a free
                quantity of 10010 against 100 bought sailed through. */
-            let freeBled = 0;
+            /* The FREE column is not bleeding randomly — it is capturing the
+               QUANTITY AND THE FREE QUANTITY RUN TOGETHER, every time:
+
+                   qty 100, free cell "10010"  -> paper says 10
+                   qty  50, free cell "505"    -> paper says 5
+                   qty  30, free cell "30"     -> paper says none
+                   qty  80, free cell "808"    -> paper says 8
+
+               FREE is the narrowest column on the sheet and its figures are
+               right-aligned, so a right-aligned quantity reaches past the
+               boundary and both land in the same cell. Strip the quantity off
+               the front and what remains IS the free quantity — including the
+               empty string, which correctly means none.
+
+               Evidence-based rather than a tolerance: the prefix either matches
+               the quantity exactly or it does not. */
+            let freeFixed = 0, freeBled = 0;
             dataRows.forEach(r => {
-                const f = Number(r[10]), q = Number(r[3]);
-                if (r[10] && q > 0 && f > q) { r[10] = ''; freeBled++; }
+                const q = String(r[3] || '').trim();
+                const f = String(r[10] || '').trim();
+                if (!f) return;
+                if (q && f === q) { r[10] = ''; freeFixed++; return; }      // qty only, no scheme
+                if (q && f.length > q.length && f.indexOf(q) === 0) {
+                    r[10] = f.slice(q.length).replace(/^0+(?=\d)/, '');     // qty + free merged
+                    freeFixed++;
+                    return;
+                }
+                /* Not the merge pattern, and larger than the quantity: some
+                   other column has leaked in. Scheme goods are a fraction of an
+                   order, never more than it, and a wrong free quantity silently
+                   INFLATES stock. */
+                if (q && Number(f) > Number(q)) { r[10] = ''; freeBled++; }
             });
-            if (freeBled) console.log('[OCR] free qty dropped as column bleed on', freeBled, 'row(s)');
+            if (freeFixed) console.log('[OCR] free qty separated from quantity on', freeFixed, 'row(s)');
+            if (freeBled)  console.log('[OCR] free qty dropped as column bleed on', freeBled, 'row(s)');
 
             console.log('[OCR] rows kept:', dataRows.length, '| discarded:', _ocrDropped.length, _ocrDropped);
             console.log('[OCR] kept:', dataRows.map(r => r[0]).join(' | '));
