@@ -1983,7 +1983,14 @@ window.addEventListener('DOMContentLoaded', () => {
                    amount = qty × rate, which is what lets a rate whose
                    decimal point the scan lost be caught and put back. */
                 'amount':'amount','amt':'amount','value':'amount',
-                'old':'skip','free':'skip','mfr':'skip','mfg':'skip','manf':'skip','hsn':'skip','dis':'skip','s.dis':'skip',
+                /* HSN was skipped, which is why the mapper reported "HSN CODE —
+                   not found" on an invoice that prints it in its own column.
+                   It is the code every GST return, the e-invoice and the HSN
+                   summary are built from, and the whole HSN back-fill fixer
+                   exists because it was missing. Reading it off the supplier's
+                   invoice at entry is where it should have come from all along. */
+                'hsn':'hsn',
+                'old':'skip','free':'skip','mfr':'skip','mfg':'skip','manf':'skip','dis':'skip','s.dis':'skip',
                 'pack':'pack','pcs':'pack',
                 'batch':'batch','lot':'batch',
                 'exp':'expiry','expiry':'expiry',
@@ -2104,6 +2111,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 let rate   =  cell.rate   || '';
                 let pack   =  cell.pack   || '';
                 let amount =  cell.amount || '';
+                let hsn    = (cell.hsn    || '').replace(/[^\d]/g, '');
                 let gst    = '';
 
                 // Strip old MRP from name (after pipe)
@@ -2153,7 +2161,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (SKIP_ROW.some(p => p.test(name))) continue;
                 if (/^[\d\s\.]+$/.test(name)) continue;
 
-                dataRows.push([name, batch, expiry, qty, mrp, rate, gst, pack, amount]);
+                dataRows.push([name, batch, expiry, qty, mrp, rate, gst, pack, amount, hsn]);
             }
 
             if (dataRows.length === 0) {
@@ -2181,7 +2189,7 @@ window.addEventListener('DOMContentLoaded', () => {
             const repair = (window.mmOcrNumbers ? mmOcrNumbers.repairRows(dataRows) : null);
             if (repair && repair.cellsFixed) console.log('[OCR] number repairs:', repair);
 
-            _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack','Amount'];
+            _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack','Amount','HSN'];
             _invRows = dataRows;
             const issues = _checkOCRQuality(dataRows);
             if (repair && repair.cellsFixed) {
@@ -2453,6 +2461,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 el.querySelector('.li-rate').value         = String(row[5] || '').trim();
                 el.querySelector('.li-gst').value          = String(row[6] || '').trim();
                 el.querySelector('.li-pack').value         = String(row[7] || '').trim();
+                const hsnEl = el.querySelector('.li-hsn');
+                if (hsnEl) hsnEl.value                    = String(row[9] || '').trim();
 
                 calcItemTotal(`item_${lineItemCounter}`);
             });
@@ -2531,7 +2541,13 @@ window.addEventListener('DOMContentLoaded', () => {
         // Returns true if a column's data values look like physical weight/volume
         // measurements (e.g. "75 GM", "100 ML", "500 MG") rather than a count
         function isWeightVolumeCol(colIdx) {
-            const wvPat = /^\s*[\d.]+\s*(ml|mg|gm|g|l|mcg|iu|kg|oz|tab|cap|nos)\s*$/i;
+            /* TAB, CAP and NOS were in this list, which made the check reject
+               the exact thing the caller wants: a pack column reading "15 Tab",
+               "10 Tab", "3 Tab" is a STRIP COUNT, and every row of a pharmacy
+               invoice looks like that — so Pack Size came back "not found (will
+               default to 1)" on an invoice that prints it plainly. A weight or
+               volume is mg/ml/gm; a count of tablets is not. */
+            const wvPat = /^\s*[\d.]+\s*(ml|mg|gm|g|l|mcg|iu|kg|oz)\s*$/i;
             const sample = _invRows.slice(0, 12);
             const nonEmpty = sample.filter(r => String(r[colIdx]??'').trim()).length;
             if (!nonEmpty) return false;
