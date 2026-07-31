@@ -2099,13 +2099,42 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (!/\d/.test(rowText)) continue;
                 if (rowText.replace(/\s/g,'').length < 4) continue;
 
+                /* ── Which printed line is the product on? ──
+                   A pharmacy invoice prints the manufacturer directly under the
+                   product name, a few pixels below and in smaller type. Words
+                   from those two lines land close enough together to be grouped
+                   into one row, and the NAME cell then picks up letters from
+                   both: "AZITHRAL 500" over "Alembic" came out as "mb 500" —
+                   the "mb" is the middle of Alembic.
+
+                   The figures anchor it. Quantities, rates and amounts are only
+                   ever printed on the product line, never under it, so their
+                   vertical position IS the product line's position. Name words
+                   far from that band belong to the manufacturer and are left
+                   out. Applied to the name only: the numeric columns never had
+                   this problem, and narrowing them could only lose data. */
+                const numY = row.words
+                    .filter(w => /^[\d.,]+$/.test(String(w.text).trim()) && String(w.text).trim().length >= 2)
+                    .map(w => (w.bbox.y0 + w.bbox.y1) / 2)
+                    .sort((a, b) => a - b);
+                const anchorY = numY.length ? numY[Math.floor(numY.length / 2)] : null;
+                const medH = (() => {
+                    const hs = row.words.map(w => w.bbox.y1 - w.bbox.y0).sort((a, b) => a - b);
+                    return hs.length ? hs[Math.floor(hs.length / 2)] : 0;
+                })();
+
                 // Build cell map
                 const cell = {};
                 for (const col of columns) {
                     if (col.type === 'skip') continue;
                     const cellWords = row.words.filter(w => {
                         const mx = (w.bbox.x0 + w.bbox.x1) / 2;
-                        return mx >= col.left && mx < col.right;
+                        if (mx < col.left || mx >= col.right) return false;
+                        if (col.type === 'name' && anchorY !== null && medH > 0) {
+                            const my = (w.bbox.y0 + w.bbox.y1) / 2;
+                            if (Math.abs(my - anchorY) > medH * 0.75) return false;
+                        }
+                        return true;
                     }).map(w => w.text).join(' ').trim();
                     // Merge into existing cell (handles multi-word columns)
                     if (cellWords) cell[col.type] = (cell[col.type] ? cell[col.type]+' ' : '') + cellWords;
