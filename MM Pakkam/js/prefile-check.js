@@ -202,7 +202,12 @@
             if (!v) continue;
             var gr = v.gstin(g2);
             if (!gr.ok) {
-                badBuyer.push({ label: str(cu.name) + ' — ' + g2, detail: gr.reason, id: cu.id, name: str(cu.name) });
+                /* `gstin` is carried so the fixer can PRE-FILL the offending
+                   value. Correcting a typo means seeing it next to the
+                   letterhead; an empty box asks the shop to retype 15
+                   characters they already have. */
+                badBuyer.push({ label: str(cu.name) + ' — ' + g2, detail: gr.reason,
+                                id: cu.id, name: str(cu.name), gstin: g2 });
             }
         }
         add(blocks, 'badBuyer', 'Customer GSTINs that cannot be right',
@@ -269,5 +274,187 @@
         };
     }
 
-    window.mmPreFile = { run: run };
+    /* ══════════════════════════════════════════════════════════════════
+       reconcile({ from, to })
+       ══════════════════════════════════════════════════════════════════
+       run() above checks the SHOP's data. This checks OURS.
+
+       Every export re-derives taxable, tax and totals from the same bills
+       by a different route, and twice now one of those routes has been
+       quietly wrong in a way that looked perfect in the file: v252 (Tally
+       vouchers that did not balance, because taxable was computed before
+       discount) and v255 (e-way bills whose total excluded the till's
+       round-off). Both were found by summing columns by hand, days later.
+
+       So: rebuild each export and compare it, DOCUMENT BY DOCUMENT, with
+       the bill it came from. A per-document check names the bill; an
+       aggregate one only says the month is wrong somewhere. GSTR-1 is the
+       exception — it is a summary return, so it is checked in total.
+
+       A finding here is a bug in this app, not in the shop's data. The UI
+       says so, because "there is a problem with bill SS-041" would send
+       them looking at paperwork that is perfectly fine.
+    ══════════════════════════════════════════════════════════════════ */
+    function reconcile(opts) {
+        opts = opts || {};
+        var from = str(opts.from), to = str(opts.to);
+        var TOL = 1;                       // same "more than a rupee is a disagreement" rule
+        var checks = [], notes = [];
+
+        var bills = (ls('mm_sales', '[]') || []).filter(function (b) {
+            return inPeriod(b.date, from, to);
+        });
+        var byNo = {};
+        bills.forEach(function (b) { byNo[key(b.billNo)] = b; });
+
+        function billGross(b) { return r2(num(b && b.grandTotal)); }
+
+        /* ── Tally: every sales voucher against its bill ───────────────── */
+        if (window.mmTally && typeof window.mmTally.build === 'function') {
+            try {
+                var t = window.mmTally.build({ from: from, to: to,
+                                               sales: true, purch: false, exp: false, ret: true });
+                var tRows = [];
+                (t.rows || []).forEach(function (row) {
+                    if (row.kind !== 'Sales') return;
+                    var b = byNo[key(row.num)];
+                    if (!b) return;                       // a voucher with no bill is run()'s business
+                    var d = r2(num(row.total) - billGross(b));
+                    if (Math.abs(d) > TOL) {
+                        tRows.push({ label: str(row.num),
+                            detail: 'Tally voucher ' + r2(num(row.total)).toFixed(2) +
+                                    ' vs bill ' + billGross(b).toFixed(2) +
+                                    ' (out by ' + Math.abs(d).toFixed(2) + ')' });
+                    }
+                });
+                /* The export's own footing guard, surfaced here so it is seen
+                   before the download refuses. */
+                (t.unbalanced || []).forEach(function (u) {
+                    tRows.push({ label: str(u.num || u), detail: 'voucher debits do not equal credits' });
+                });
+                checks.push({ id: 'tally', title: 'Tally vouchers match their bills',
+                              ran: true, rows: tRows,
+                              summary: (t.counts ? t.counts.sales : 0) + ' sales voucher(s) checked' });
+            } catch (e) {
+                notes.push('Tally export could not be rebuilt: ' + (e && e.message ? e.message : e));
+            }
+        }
+
+        /* ── e-Invoice: every invoice total against its bill ───────────── */
+        if (window.mmEinvoice && typeof window.mmEinvoice.build === 'function') {
+            try {
+                var ei = window.mmEinvoice.build({ from: from, to: to });
+                var eRows = [];
+                (ei.einvoices || []).forEach(function (inv) {
+                    var b2 = byNo[key(inv.DocDtls && inv.DocDtls.No)];
+                    if (!b2) return;
+                    var tot = r2(num(inv.ValDtls && inv.ValDtls.TotInvVal));
+                    var d2 = r2(tot - billGross(b2));
+                    if (Math.abs(d2) > TOL) {
+                        eRows.push({ label: str(inv.DocDtls.No),
+                            detail: 'e-invoice ' + tot.toFixed(2) + ' vs bill ' +
+                                    billGross(b2).toFixed(2) +
+                                    ' (out by ' + Math.abs(d2).toFixed(2) + ')' });
+                    }
+                    /* The invariant the IRP enforces per line, and the one the
+                       e-way bill got wrong: the parts must foot to the total. */
+                    var v2 = inv.ValDtls || {};
+                    var foot = r2(num(v2.AssVal) + num(v2.CgstVal) + num(v2.SgstVal) +
+                                  num(v2.IgstVal) + num(v2.RndOffAmt) - num(v2.TotInvVal));
+                    if (Math.abs(foot) > 0.02) {
+                        eRows.push({ label: str(inv.DocDtls.No),
+                            detail: 'value + tax + round-off does not equal the invoice total (out by ' +
+                                    Math.abs(foot).toFixed(2) + ')' });
+                    }
+                });
+                /* Same footing rule on the e-way side. otherValue is where the
+                   round-off lives there — the field that was hard-coded to 0
+                   until v255. */
+                (ei.ewbs || []).forEach(function (w) {
+                    var f2 = r2(num(w.totalValue) + num(w.cgstValue) + num(w.sgstValue) +
+                                num(w.igstValue) + num(w.cessValue) + num(w.cessNonAdvolValue) +
+                                num(w.otherValue) - num(w.totInvValue));
+                    if (Math.abs(f2) > 0.02) {
+                        eRows.push({ label: str(w.docNo),
+                            detail: 'e-way bill value + tax + other does not equal the invoice total (out by ' +
+                                    Math.abs(f2).toFixed(2) + ')' });
+                    }
+                });
+                checks.push({ id: 'einvoice', title: 'e-Invoice and e-way totals foot correctly',
+                              ran: true, rows: eRows,
+                              summary: (ei.einvoices || []).length + ' e-invoice(s), ' +
+                                       (ei.ewbs || []).length + ' e-way bill(s) checked' });
+            } catch (e) {
+                notes.push('e-Invoice export could not be rebuilt: ' + (e && e.message ? e.message : e));
+            }
+        }
+
+        /* ── GSTR-1: totals, not documents ─────────────────────────────
+           A summary return has no per-document figure to compare, and it
+           is built per CALENDAR MONTH — comparing it against an arbitrary
+           date range would report a difference that is only the dates. */
+        var m1 = str(from).slice(0, 7), m2 = str(to).slice(0, 7);
+        var wholeMonth = m1 && m1 === m2 &&
+                         str(from).slice(8) === '01' &&
+                         Number(str(to).slice(8)) >= 28;
+        if (window.mmGstr1 && typeof window.mmGstr1.build === 'function') {
+            if (!wholeMonth) {
+                notes.push('GSTR-1 is filed one calendar month at a time, so it was not ' +
+                           'compared — set the dates to a whole month to include it.');
+            } else {
+                try {
+                    var shop = window.mmShopProfile || {};
+                    var g = window.mmGstr1.build({ month: m1, gstin: str(shop.gstin) });
+                    var gRows = [];
+
+                    /* Books, derived the way every export derives them: back out
+                       of the tax-INCLUSIVE line total. */
+                    var bookTax = 0, bookTaxable = 0;
+                    bills.forEach(function (b3) {
+                        (b3.medicines || []).forEach(function (m3) {
+                            var tot3 = num(m3.total), rt3 = num(m3.gst);
+                            var txv = tot3 / (1 + rt3 / 100);
+                            bookTaxable += txv;
+                            bookTax += tot3 - txv;
+                        });
+                    });
+                    /* Credit notes are subtracted from the return, so they must
+                       be subtracted from the books before comparing. */
+                    if (window.mmReturns && typeof window.mmReturns.load === 'function') {
+                        var rr = window.mmReturns.load({ from: from, to: to });
+                        (rr.creditNotes || []).forEach(function (n) {
+                            if (!n.usable) return;
+                            bookTaxable -= num(n.taxable);
+                            bookTax     -= num(n.tax);
+                        });
+                    }
+                    var gs = g.summary || {};
+                    var dTaxable = r2(num(gs.taxable) - bookTaxable);
+                    var dTax     = r2(num(gs.tax) - bookTax);
+                    if (Math.abs(dTaxable) > TOL) {
+                        gRows.push({ label: 'Taxable value',
+                            detail: 'GSTR-1 ' + r2(num(gs.taxable)).toFixed(2) + ' vs your books ' +
+                                    r2(bookTaxable).toFixed(2) + ' (out by ' + Math.abs(dTaxable).toFixed(2) + ')' });
+                    }
+                    if (Math.abs(dTax) > TOL) {
+                        gRows.push({ label: 'Tax',
+                            detail: 'GSTR-1 ' + r2(num(gs.tax)).toFixed(2) + ' vs your books ' +
+                                    r2(bookTax).toFixed(2) + ' (out by ' + Math.abs(dTax).toFixed(2) + ')' });
+                    }
+                    checks.push({ id: 'gstr1', title: 'GSTR-1 totals match your books',
+                                  ran: true, rows: gRows,
+                                  summary: 'taxable ' + r2(bookTaxable).toFixed(2) +
+                                           ', tax ' + r2(bookTax).toFixed(2) + ' for ' + m1 });
+                } catch (e) {
+                    notes.push('GSTR-1 could not be rebuilt: ' + (e && e.message ? e.message : e));
+                }
+            }
+        }
+
+        var bad = 0;
+        checks.forEach(function (c) { bad += c.rows.length; });
+        return { checks: checks, notes: notes, problems: bad, ok: bad === 0, bills: bills.length };
+    }
+
+    window.mmPreFile = { run: run, reconcile: reconcile };
 })();

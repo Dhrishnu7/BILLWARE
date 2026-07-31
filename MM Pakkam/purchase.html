@@ -1002,6 +1002,39 @@
                 });
             });
 
+            /* ── Same supplier invoice entered twice? ────────────────────────
+               Nothing warned about this until v257. Entering one invoice twice
+               doubles the stock, doubles the payable, and doubles the input
+               credit claimed against it — and because both copies look
+               perfectly normal, it is usually found by a stock count months
+               later, if at all.
+
+               A WARNING, not a block: a supplier really can reuse a number
+               across financial years, and a shop splitting one delivery across
+               two entries is legitimate. It only has to be impossible to do by
+               accident. */
+            if (billNo && firm) {
+                let prior = [];
+                try { prior = JSON.parse(localStorage.getItem('mm_purchases') || '[]') || []; } catch (e) {}
+                const same = prior.filter(p =>
+                    String(p.billNo || '').trim().toLowerCase() === billNo.toLowerCase() &&
+                    String(p.firm   || '').trim().toLowerCase() === firm.toLowerCase());
+
+                if (same.length) {
+                    const when = String(same[0].date || '').slice(0, 10);
+                    const value = same.reduce((s, p) =>
+                        s + (parseFloat(p.quantity) || 0) * (parseFloat(p.rate) || 0), 0);
+                    const ok = await mmConfirm(
+                        `Bill ${billNo} from ${firm} is already entered` +
+                        (when ? ` — dated ${when}` : '') + `, with ${same.length} item(s)` +
+                        (value ? ` worth about ₹${value.toFixed(2)}` : '') + `.\n\n` +
+                        `Entering it twice doubles your stock and your input credit. ` +
+                        `Save it again only if this really is a second, separate invoice.`,
+                        { title: 'This invoice looks like a duplicate', okText: 'Save anyway', variant: 'warn' });
+                    if (!ok) { _isSaving = false; return; }
+                }
+            }
+
             if (hasEmptyName) {
                 if (!await mmConfirm('Some items have empty product names. Save anyway?', { okText: 'Save Anyway' })) {
                     _isSaving = false;
