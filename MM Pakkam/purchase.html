@@ -534,6 +534,7 @@
     <script src="js/ocr-numbers.js"></script>
     <script src="js/ocr-names.js"></script>
     <script src="js/ocr-columns.js"></script>
+    <script src="js/ocr-rows.js"></script>
     <script src="js/auth.js?v=3"></script>
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1575,9 +1576,31 @@ window.addEventListener('DOMContentLoaded', () => {
         ];
 
         let _invRows=[], _invHdrs=[];
+        let _ocrRaw=null;   // the last photo scan, word by word — see saveScanData()
+
+        /* The scan, exactly as Tesseract returned it, written to a file the
+           shop can send on. It is the difference between "the batch column was
+           blank on two lines" and knowing whether those words were never read,
+           read and thrown away by the confidence filter, or read and put in the
+           wrong row. Stays on the machine unless someone chooses to share it. */
+        function saveScanData() {
+            if (!_ocrRaw) { showToast('Nothing to save', 'This was not a photo scan.'); return; }
+            try {
+                const blob = new Blob([JSON.stringify(_ocrRaw, null, 1)], { type: 'application/json' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'billware-scan-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.json';
+                document.body.appendChild(a); a.click();
+                setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+                showToast('Scan data saved', 'Sent to your Downloads folder.');
+            } catch (e) {
+                console.error('[OCR] could not save scan data:', e);
+                showToast('Could not save', String(e.message || e));
+            }
+        }
 
         function openInvoiceImportModal() {
-            _invRows=[]; _invHdrs=[];
+            _invRows=[]; _invHdrs=[]; _ocrRaw=null;
             document.getElementById('invImportModal').classList.add('open');
             document.getElementById('invStep1').style.display='block';
             document.getElementById('invStep2').style.display='none';
@@ -1952,31 +1975,72 @@ window.addEventListener('DOMContentLoaded', () => {
 
         /* ── Layout-aware OCR parser using word bounding boxes ── */
         function _parseOCRWithLayout(data) {
+            const allWords = (data.words || []).filter(w => w.text.trim().length > 0);
             // Filter out low-confidence / empty words
-            const words = (data.words || []).filter(w => w.confidence > 25 && w.text.trim().length > 0);
+            const words = allWords.filter(w => w.confidence > 25);
             if (words.length < 5) {
                 // Fallback to flat text
                 _parseOCRText(data.text || '');
                 return;
             }
 
+            /* Words the scan was unsure of. They are NOT trusted enough to
+               shape the page — they stay out of the row grouping and out of
+               the column geometry — but they are kept, because a batch number
+               is the least confident thing on a pharmacy invoice: it is a
+               random string with no dictionary behind it, printed small. A
+               real scan came back with the batch column blank on two lines
+               that were otherwise perfect.
+
+               The rule that makes this safe: a faint word may only ever fill
+               a cell that is EMPTY. It can never overwrite, extend or
+               contradict something the scan read confidently. */
+            const faintWords = allWords.filter(w => w.confidence <= 25 && w.confidence > 8);
+
             // ── Step 1: Group words into rows by Y-position ──
-            const ROW_TOL = 12; // pixels — words within 12px vertically = same row
-            const rows = [];
-            for (const word of words) {
-                const midY = (word.bbox.y0 + word.bbox.y1) / 2;
-                let placed = false;
-                for (const row of rows) {
-                    if (Math.abs(row.midY - midY) <= ROW_TOL) {
-                        row.words.push(word);
-                        row.midY = row.words.reduce((s,w)=>s+(w.bbox.y0+w.bbox.y1)/2,0)/row.words.length;
-                        placed = true; break;
+            /* The tolerance is measured off the text itself — see
+               js/ocr-rows.js. A fixed 12px was merging the manufacturer line
+               into the product line on smaller scans, which is where "mb 500"
+               (AZITHRAL 500 wearing half of Alembic) came from. */
+            let rows;
+            if (window.mmOcrRows) {
+                const g = mmOcrRows.group(words);
+                rows = g.rows;
+                console.log('[OCR] row tolerance', g.tol.toFixed(1) + 'px',
+                            g.measured ? '(from median word height ' + g.height.toFixed(1) + 'px)'
+                                       : '(fallback — heights unusable)');
+            } else {
+                rows = [];
+                const ROW_TOL = 12;
+                for (const word of words) {
+                    const midY = (word.bbox.y0 + word.bbox.y1) / 2;
+                    let placed = false;
+                    for (const row of rows) {
+                        if (Math.abs(row.midY - midY) <= ROW_TOL) {
+                            row.words.push(word);
+                            row.midY = row.words.reduce((s,w)=>s+(w.bbox.y0+w.bbox.y1)/2,0)/row.words.length;
+                            placed = true; break;
+                        }
                     }
+                    if (!placed) rows.push({ midY, words: [word] });
                 }
-                if (!placed) rows.push({ midY, words: [word] });
+                rows.sort((a,b) => a.midY - b.midY);
+                rows.forEach(r => r.words.sort((a,b) => a.bbox.x0 - b.bbox.x0));
             }
-            rows.sort((a,b) => a.midY - b.midY);
-            rows.forEach(r => r.words.sort((a,b) => a.bbox.x0 - b.bbox.x0));
+
+            /* Attach each faint word to the row it sits on, if any. Never
+               creates a row of its own: a row made only of words the scan
+               did not believe is not a product line. */
+            const _rowTol = (window.mmOcrRows ? mmOcrRows.toleranceFor(words).tol : 12);
+            for (const fw of faintWords) {
+                const fy = (fw.bbox.y0 + fw.bbox.y1) / 2;
+                let best = null, bestD = Infinity;
+                for (const row of rows) {
+                    const d = Math.abs(row.midY - fy);
+                    if (d <= _rowTol && d < bestD) { bestD = d; best = row; }
+                }
+                if (best) (best.faint = best.faint || []).push(fw);
+            }
 
             // ── Step 2: Find header row ──
             const HDR_MAP = {
@@ -2116,6 +2180,7 @@ window.addEventListener('DOMContentLoaded', () => {
             const dataRows = [];
             const _ocrDropped = [];       // rows the phantom filter discarded
             const _ocrNoName  = [];       // real rows whose product name did not read
+            const _ocrFaint   = [];       // cells filled from words the scan was unsure of
 
             for (let i = headerRowIdx + 1; i < rows.length; i++) {
                 const row = rows[i];
@@ -2146,15 +2211,31 @@ window.addEventListener('DOMContentLoaded', () => {
                    one cannot. Back to the whole cell until there is a way to
                    test row grouping without a person re-scanning an invoice. */
                 const cell = {};
+                const inCol = (list, col) => (list || []).filter(w => {
+                    const mx = (w.bbox.x0 + w.bbox.x1) / 2;
+                    return mx >= col.left && mx < col.right;
+                }).map(w => w.text).join(' ').trim();
+
                 for (const col of columns) {
                     if (col.type === 'skip') continue;
-                    const cellWords = row.words.filter(w => {
-                        const mx = (w.bbox.x0 + w.bbox.x1) / 2;
-                        return mx >= col.left && mx < col.right;
-                    }).map(w => w.text).join(' ').trim();
+                    const cellWords = inCol(row.words, col);
                     // Merge into existing cell (handles multi-word columns)
                     if (cellWords) cell[col.type] = (cell[col.type] ? cell[col.type]+' ' : '') + cellWords;
                 }
+                /* Second pass, faint words only, and only where the first pass
+                   found nothing. A batch number is the least confident thing on
+                   the sheet — a random string with no dictionary behind it — so
+                   this is where it comes back from. Not the product name: a
+                   name the scan could not read is better left blank and asked
+                   about than filled with a guess that reads like a medicine. */
+                const _faintFilled = [];
+                for (const col of columns) {
+                    if (col.type === 'skip' || col.type === 'name') continue;
+                    if (cell[col.type]) continue;
+                    const v = inCol(row.faint, col);
+                    if (v) { cell[col.type] = v; _faintFilled.push(col.type); }
+                }
+                if (_faintFilled.length) _ocrFaint.push({ row: i, fields: _faintFilled });
 
                 let name   = (cell.name   || '').replace(/^\d+[.)]\s*/,'').trim(); // strip serial
                 let batch  =  cell.batch  || '';
@@ -2199,6 +2280,18 @@ window.addEventListener('DOMContentLoaded', () => {
                     batch = batch.replace(DATE_RE, '').replace(/\s{2,}/g, ' ').trim();
                 }
 
+                /* Show what will actually be imported. The expiry cell is read
+                   raw and only interpreted later by _parseExpiry, so a form the
+                   parser cannot read — "06728", the slash scanned as a 7 —
+                   looked correct in the preview and then arrived in the form
+                   blank. Normalising here means the preview and the purchase
+                   agree: if it reads as MM/YY the shop sees MM/YY, and if it
+                   does not the raw scan is left on screen to be corrected. */
+                if (expiry) {
+                    const _iso = _parseExpiry(expiry);
+                    if (_iso) expiry = _iso.slice(5) + '/' + _iso.slice(2, 4);
+                }
+
                 // Validate GST
                 if (cell.gst) {
                     const g = String(Math.round(parseFloat(cell.gst)));
@@ -2240,7 +2333,16 @@ window.addEventListener('DOMContentLoaded', () => {
                    better than losing it. */
                 const filled = [batch, expiry, qty, mrp, rate, amount]
                     .filter(v => String(v || '').trim()).length;
-                const nameBad = !name || name.length < 2
+                /* A NAME NEEDS LETTERS. "5 :" arrived in the preview as a
+                   product and would have gone into stock as one — it slipped
+                   through because the all-digits test below is anchored and
+                   the stray colon broke the match. Counting letters instead of
+                   describing every shape junk can take: no medicine is named
+                   with fewer than two of them, and a row rejected here is not
+                   lost — if it carries figures it is kept with the name blank
+                   and asked about, which is what this row should have been. */
+                const _letters = (name.match(/[A-Za-z]/g) || []).length;
+                const nameBad = !name || name.length < 2 || _letters < 2
                               || SKIP_ROW.some(p => p.test(name))
                               || /^[\d\s\.]+$/.test(name);
 
@@ -2369,6 +2471,29 @@ window.addEventListener('DOMContentLoaded', () => {
                 console.warn('[OCR] these looked like real products but had too few figures:', lostReal);
             }
 
+            /* Keep the raw scan so the next fix can be MEASURED instead of
+               guessed. Every round of this so far has been diagnosed from a
+               screenshot of the preview, which shows what the parser produced
+               and nothing about why — v275 and v276 were both wrong guesses at
+               row grouping that cost the shop a re-scan each. With the words
+               and their boxes saved, the same invoice can be replayed through
+               the parser as many times as needed without anyone photographing
+               anything. Nothing is uploaded; it is written only when the button
+               on the preview is pressed. */
+            _ocrRaw = {
+                savedAt: new Date().toISOString(),
+                rowTolerance: (window.mmOcrRows ? mmOcrRows.toleranceFor(words) : null),
+                columns: columns.map(c => ({ type: c.type, left: Math.round(c.left), right: Math.round(c.right) })),
+                headerRowIdx, headerMid: _hdrMid,
+                words: allWords.map(w => ({
+                    t: w.text, c: Math.round(w.confidence),
+                    x0: Math.round(w.bbox.x0), y0: Math.round(w.bbox.y0),
+                    x1: Math.round(w.bbox.x1), y1: Math.round(w.bbox.y1)
+                })),
+                parsed: dataRows.map(r => r.slice()),
+                dropped: _ocrDropped, noName: _ocrNoName, faintFilled: _ocrFaint
+            };
+
             _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack','Amount','HSN','Free'];
             _invRows = dataRows;
             const issues = _checkOCRQuality(dataRows);
@@ -2376,6 +2501,18 @@ window.addEventListener('DOMContentLoaded', () => {
                 issues.messages.unshift(
                     `${repair.cellsFixed} price(s) had a missing decimal point, restored from the line total — check these: `
                     + repair.notes.slice(0, 6).join('; '));
+            }
+            /* Said out loud, because these cells were filled from words the
+               scan itself did not believe. They are worth having — the
+               alternative was a blank batch number — but they are the first
+               thing to check, and the shop should not have to find that out by
+               noticing a batch that looks odd weeks later. */
+            if (_ocrFaint.length) {
+                const _ff = {};
+                _ocrFaint.forEach(f => f.fields.forEach(k => { _ff[k] = (_ff[k] || 0) + 1; }));
+                issues.messages.unshift(
+                    'These were filled from text the scan was unsure of — check them first: ' +
+                    Object.keys(_ff).map(k => `${k} on ${_ff[k]} line(s)`).join(', '));
             }
             if (nameFix && nameFix.changed) {
                 issues.messages.unshift(
@@ -2864,6 +3001,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 `<thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody>`;
             document.getElementById('invPreviewCount').textContent=
                 `${_invRows.length} row(s) will be added to the purchase form.`;
+            const sdr=document.getElementById('invScanDataRow');
+            if(sdr) sdr.style.display=_ocrRaw?'':'none';
             window._invMap=map;
         }
 
@@ -2872,9 +3011,16 @@ window.addEventListener('DOMContentLoaded', () => {
             if(!s) return '';
             // YYYY-MM or YYYY-MM-DD
             if(/^\d{4}-\d{2}/.test(s)) return s.slice(0,7);
-            // MM/YY or MM/YYYY
-            const m1=s.match(/^(\d{1,2})[\/\-](\d{2,4})$/);
-            if(m1){
+            /* MM/YY or MM/YYYY. The separator is TWO PIXELS of ink between two
+               digits and the scan is free to read it as anything at all — so
+               anything that is not a digit is accepted as the separator. A real
+               invoice came back with "1/27" and, on the next line, "06728". */
+            /* The month and the year are both checked. Widening the separator
+               to "any non-digit" also widened what else can reach here — "5-100"
+               out of a batch cell used to come back as year 100, month 05, and
+               a three-digit year sails through every date box downstream. */
+            const m1=s.match(/^(\d{1,2})\D(\d{2}|20\d{2})$/);
+            if(m1 && +m1[1]>=1 && +m1[1]<=12){
                 const mm=m1[1].padStart(2,'0');
                 const yy=m1[2].length===2?'20'+m1[2]:m1[2];
                 return `${yy}-${mm}`;
@@ -2886,12 +3032,34 @@ window.addEventListener('DOMContentLoaded', () => {
             const m2=s.match(/^(\d{2})(\d{2})$/);
             if(m2 && +m2[1]>=1 && +m2[1]<=12) return `20${m2[2]}-${m2[1]}`;
 
+            /* MMYYYY, the same loss on a four-digit year. */
+            const m3=s.match(/^(\d{2})(20\d{2})$/);
+            if(m3 && +m3[1]>=1 && +m3[1]<=12) return `${m3[2]}-${m3[1]}`;
+
+            /* FIVE DIGITS: the separator was not dropped, it was READ AS A
+               DIGIT. "06728" is 06/28 with the slash scanned as a 7 — the
+               commonest misread there is, because a slash and a 7 are the same
+               stroke. Take out the middle character and see if what is left is
+               a date: 06|28 is, and there is only one way to cut five digits
+               down the middle, so nothing is being guessed at.
+
+               A real month AND a plausible expiry year are both required.
+               "78945" cuts to 78|45, month 78, and is correctly refused. */
+            const m4=s.match(/^(\d{2})\d(\d{2})$/);
+            if(m4 && +m4[1]>=1 && +m4[1]<=12 && +m4[2]>=20 && +m4[2]<=60)
+                return `20${m4[2]}-${m4[1]}`;
+
             /* Excel serial date. XLSX is LAZY-LOADED and is only fetched for a
                spreadsheet import, so on the OCR path this threw a
                ReferenceError — which killed applyInvoiceImport() silently and
                made "Load into Form" do nothing at all. It only ever surfaced on
-               a photo whose expiry read as five digits. */
-            if(/^\d{5}$/.test(s) && typeof XLSX!=='undefined' && XLSX.SSF){
+               a photo whose expiry read as five digits.
+
+               Now floored at 40000 (mid-2009). It sits below the misread-slash
+               rule above and would otherwise claim the same five digits: with a
+               spreadsheet imported earlier in the session XLSX is loaded, and
+               "06728" would have been booked as an expiry in 1918. */
+            if(/^\d{5}$/.test(s) && parseInt(s)>=40000 && typeof XLSX!=='undefined' && XLSX.SSF){
                 try{
                     const d=XLSX.SSF.parse_date_code(parseInt(s));
                     if(d) return `${d.y}-${String(d.m).padStart(2,'0')}`;
@@ -3177,6 +3345,14 @@ window.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="import-count" id="invPreviewCount" style="margin-top:0.6rem;"></div>
                 <div style="font-size:0.78rem;color:#64748b;margin-top:0.4rem;">✅ Looks good? Click <strong>Load into Form</strong> to fill all items instantly.</div>
+                <!-- Only for photo/PDF scans: lets a bad scan be diagnosed without re-photographing the invoice -->
+                <div id="invScanDataRow" style="display:none;margin-top:0.6rem;">
+                    <button type="button" onclick="saveScanData()"
+                            style="background:none;border:none;padding:0;font-size:0.74rem;color:#0ea5e9;text-decoration:underline;cursor:pointer;">
+                        ⬇ Save scan data
+                    </button>
+                    <span style="font-size:0.72rem;color:#94a3b8;">— if anything above is wrong, save this and send it with your report.</span>
+                </div>
             </div>
 
             <div class="modal-ft">
