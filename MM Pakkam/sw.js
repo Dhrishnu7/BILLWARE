@@ -1,6 +1,6 @@
 // â”€â”€ Billware Service Worker â”€â”€
 // IMPORTANT: Change CACHE_NAME on every deploy so installed apps get the latest version
-const CACHE_NAME = 'mm-pakkam-v281';
+const CACHE_NAME = 'mm-pakkam-v282';
 
 // Pages and assets to cache for offline use + instant navigation
 const PRECACHE_URLS = [
@@ -32,6 +32,7 @@ const PRECACHE_URLS = [
     '/js/ocr-names.js',
     '/js/ocr-columns.js',
     '/js/ocr-rows.js',
+    '/js/med-names.js',
     '/js/combo.js',
     '/js/tally-export.js',
     '/js/gstr1-export.js',

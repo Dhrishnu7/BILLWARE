@@ -44,6 +44,31 @@
         }).join('');
     }
 
+    /* The mirror of fixDigitLookalikes, and much narrower. A token that is
+       exactly "0" is never a strength — no medicine is a zero of anything —
+       so between two letters it is the letter O that the scan flattened.
+       Measured: TAXIM O 200 came back as "TaXiM 0 200", and because digits
+       are identity the matcher read that as a different strength (0.200
+       against 200) and refused to correct a name it had otherwise found.
+
+       Only a LONE zero, and only with a letter beside it: "0.5" and "40"
+       keep their zeros, and so does a "0" standing on its own in a cell
+       with nothing around it. */
+    function fixLoneZero(s) {
+        var toks = str(s).split(/(\s+)/);
+        var words = [], idx = [];
+        for (var i = 0; i < toks.length; i++) {
+            if (!/^\s*$/.test(toks[i])) { words.push(toks[i]); idx.push(i); }
+        }
+        for (var w = 0; w < words.length; w++) {
+            if (words[w] !== '0') continue;
+            var prev = w > 0 ? words[w - 1] : '';
+            var next = w < words.length - 1 ? words[w + 1] : '';
+            if (/[A-Za-z]/.test(prev) || /[A-Za-z]/.test(next)) toks[idx[w]] = 'O';
+        }
+        return toks.join('');
+    }
+
     function clean(raw) {
         var s = str(raw)
             .replace(/[|\[\]{}()<>*_~^`"]/g, ' ')
@@ -51,7 +76,7 @@
             .replace(/[\s.,:;]+$/, '')
             .replace(/\s{2,}/g, ' ')
             .trim();
-        return fixDigitLookalikes(s);
+        return fixLoneZero(fixDigitLookalikes(s));
     }
 
     function norm(s) {
@@ -100,11 +125,17 @@
     var MIN_EDGE  = 0.06;   // the winner must be clear of the runner-up
     var MIN_CHARS = 3;      // "PAN" is real; two characters is noise
 
-    function match(raw, known) {
+    /* A national brand list is a far larger haystack than one pharmacy's
+       shelf, so a match against it has to be correspondingly clearer. */
+    var FALLBACK_SIM = 0.86;
+
+    function match(raw, known, fallback) {
         var cleaned = clean(raw);
         var out = { name: cleaned || str(raw), changed: false, from: str(raw),
                     suggestion: '', score: 0, why: '' };
-        if (!known || !known.length) return out;
+        var haveKnown = !!(known && known.length);
+        var haveFall  = !!(fallback && fallback.length);
+        if (!haveKnown && !haveFall) return out;
         if (norm(cleaned).length < MIN_CHARS) return out;
 
         var target = norm(cleaned);
@@ -112,7 +143,8 @@
         /* Already one of theirs — the commonest case, and it must never be
            touched. Checked before any scoring so an exact hit can never lose
            to a marginally closer-looking neighbour. */
-        for (var e = 0; e < known.length; e++) {
+        var e;
+        for (e = 0; known && e < known.length; e++) {
             if (norm(known[e]) === target) {
                 out.name = known[e];
                 return out;
@@ -120,9 +152,9 @@
         }
 
         var tLetters = lettersOf(target), tDigits = digitsOf(target);
-        var best = null, bestScore = 0, secondScore = 0;
+        var best = null, bestScore = 0, secondScore = 0, usedFallback = false;
 
-        for (var i = 0; i < known.length; i++) {
+        for (var i = 0; known && i < known.length; i++) {
             var k = known[i], kn = norm(k);
             if (kn.length < MIN_CHARS) continue;
             var sc = similarity(target, kn);
@@ -130,7 +162,47 @@
             else if (sc > secondScore) { secondScore = sc; }
         }
 
-        if (!best || bestScore < MIN_SIM) return out;
+        /* THE SHOP'S OWN HISTORY WINS OUTRIGHT. The common-brand list is only
+           reached when that has nothing to offer, because a pharmacy that
+           stocks DOLO knows it stocks DOLO, and a national list cannot know
+           which of two similar brands this particular shop actually buys.
+
+           On day one the shop's history is empty and this is the only corpus
+           there is — which is exactly the moment a new user decides whether
+           the scanning works. See js/med-names.js. */
+        if (haveFall && (!best || bestScore < MIN_SIM)) {
+            /* THE LIST CARRIES BRANDS, NOT PACK SIZES — "AZITHRAL", not
+               "AZITHRAL 500" — so the strength has to be taken out of the
+               comparison or every match fails on the digits the shop's own
+               invoice supplies. "AZTHRAL 500" scored 0.60 against "AZITHRAL"
+               whole and 0.88 letter for letter, which is the same reading
+               either way; only one of them recognises it.
+
+               The digits are not being ignored, they are being LEFT ALONE:
+               nothing here can change them, and whatever the scan read is
+               carried through onto the corrected name below. Where a list
+               entry does carry digits of its own they still have to agree,
+               so "PAN 40" in the list can never claim a scanned "PAN 20". */
+            var fBest = null, fScore = 0, fSecond = 0;
+            for (var f = 0; f < fallback.length; f++) {
+                var fk = fallback[f], fn = norm(fk);
+                if (fn.length < MIN_CHARS) continue;
+                if (fn === target) { out.name = fk; return out; }
+                var fDigits = digitsOf(fn);
+                if (fDigits && fDigits !== tDigits) continue;
+                var fLetters = lettersOf(fn);
+                if (fLetters.length < MIN_CHARS) continue;
+                var fs = similarity(tLetters, fLetters);
+                if (fs > fScore) { fSecond = fScore; fScore = fs; fBest = fk; }
+                else if (fs > fSecond) { fSecond = fs; }
+            }
+            if (fBest && fScore >= FALLBACK_SIM) {
+                best = fBest; bestScore = fScore; secondScore = fSecond;
+                usedFallback = true;
+            }
+        }
+
+        if (!best || bestScore < (usedFallback ? FALLBACK_SIM : MIN_SIM)) return out;
         /* Two candidates equally close means the scan does not say which one
            it is, and picking the first is a coin toss with someone's stock. */
         if (bestScore - secondScore < MIN_EDGE) {
@@ -142,6 +214,13 @@
 
         var bDigits = digitsOf(norm(best));
 
+        /* A brand-only entry from the common list makes no claim about the
+           strength, so there is nothing to disagree with — the scanned
+           digits stand as printed and are carried onto the corrected name.
+           Without this, every fallback match on a product that HAS a
+           strength would be demoted to a question. */
+        if (usedFallback && !bDigits) bDigits = tDigits;
+
         if (bDigits !== tDigits) {
             /* A STRENGTH, NOT A SPELLING. Report it, never rewrite it — the
                shop may simply have started buying a different strength, and
@@ -152,22 +231,41 @@
             return out;
         }
 
-        if (lettersOf(best) !== tLetters) {
-            out.name = best;
+        /* A correction from the common list REPLACES THE BRAND AND KEEPS THE
+           REST. The list holds "AZITHRAL", the paper says "AZITHRAL 500",
+           and simply taking the list entry would delete a strength the scan
+           read perfectly — the one thing this module is built never to do.
+           So the brand's own tokens are swapped out and whatever followed
+           them is carried through: "AZTHRAL 500" → "AZITHRAL 500",
+           "AUGMENTIN 625" → "AUGMENTIN 625", "PAN 20" → "PAN 20".
+
+           A match from the shop's OWN list is a whole product name, strength
+           included, so there it is the entry that stands. */
+        var finalName = best;
+        if (usedFallback) {
+            var cTok = cleaned.split(/\s+/).filter(function (t) { return t.length; });
+            var bTok = str(best).split(/\s+/).filter(function (t) { return t.length; });
+            var rest = cTok.slice(bTok.length).join(' ').trim();
+            if (rest) finalName = best + ' ' + rest;
+        }
+
+        if (finalName !== cleaned) {
+            out.name = finalName;
             out.changed = true;
             out.score = bestScore;
-            out.why = 'matched to a product you already buy';
+            out.why = usedFallback ? 'matched to a common brand name'
+                                   : 'matched to a product you already buy';
         } else {
-            out.name = best;      // spacing/punctuation only
+            out.name = finalName;   // spacing/punctuation only
         }
         return out;
     }
 
     /* Rows are the parser's shape; the product name is column 0. */
-    function matchRows(rows, known) {
+    function matchRows(rows, known, fallback) {
         var changed = 0, notes = [], asks = [];
         (rows || []).forEach(function (row) {
-            var r = match(row[0], known);
+            var r = match(row[0], known, fallback);
             if (r.changed) {
                 changed++;
                 if (notes.length < 10) notes.push(r.from + ' → ' + r.name);

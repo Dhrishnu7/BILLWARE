@@ -535,6 +535,7 @@
     <script src="js/ocr-names.js"></script>
     <script src="js/ocr-columns.js"></script>
     <script src="js/ocr-rows.js"></script>
+    <script src="js/med-names.js"></script>
     <script src="js/auth.js?v=3"></script>
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2442,9 +2443,12 @@ window.addEventListener('DOMContentLoaded', () => {
                number still attached, so the shop could not tell which line was
                being talked about. */
             let nameFix = null;
-            if (window.mmOcrNames && typeof getAllMedNames === 'function') {
-                try { nameFix = mmOcrNames.matchRows(dataRows, getAllMedNames()); }
-                catch (ne) { console.warn('[OCR] name matching skipped:', ne); }
+            if (window.mmOcrNames) {
+                try {
+                    const own = (typeof getAllMedNames === 'function') ? getAllMedNames() : [];
+                    const common = (window.mmMedNames && mmMedNames.COMMON) || [];
+                    nameFix = mmOcrNames.matchRows(dataRows, own, common);
+                } catch (ne) { console.warn('[OCR] name matching skipped:', ne); }
                 if (nameFix) console.log('[OCR] name matches:', nameFix);
             }
 
@@ -2536,6 +2540,93 @@ window.addEventListener('DOMContentLoaded', () => {
                 faintFilled: _ocrFaint, echoesDropped: _ocrEchoes
             };
 
+            /* ── Batch numbers that do not look like the others ─────────
+               A batch number is the one field with no dictionary, no
+               arithmetic and no pattern behind it — a random string, printed
+               small, and the least confidently read thing on the sheet.
+               Measured against the paper: of ten batches, ZL2288 came back
+               "712288", ZS5417 "785417", MS1943 "Ms1e43", OZ6628 "ozeezs".
+               Every one is a letter/digit lookalike.
+
+               They are NOT repaired. Substituting lookalikes would turn
+               "ozeezs" into OZ6625 — right in shape, wrong in fact, and
+               indistinguishable from a correct reading afterwards. A batch
+               number is what a recall is traced by; a confidently wrong one
+               is worse than an obviously odd one.
+
+               What CAN be said is which ones are odd. Where a supplier's
+               batches share a shape — here two letters and four digits, on
+               six of ten lines — the ones that break it are the misreads,
+               and naming them turns "check the batches" into "check these
+               three". */
+            let batchOdd = [];
+            try {
+                const shapeOf = s => String(s || '').trim()
+                    .replace(/[A-Za-z]+/g, 'L').replace(/\d+/g, 'D');
+                const tally = {};
+                dataRows.forEach(r => {
+                    const s = shapeOf(r[1]);
+                    if (s) tally[s] = (tally[s] || 0) + 1;
+                });
+                let domShape = '', domCount = 0;
+                Object.keys(tally).forEach(k => {
+                    if (tally[k] > domCount) { domCount = tally[k]; domShape = k; }
+                });
+                /* Only when a shape is genuinely the house style — half the
+                   lines and at least three of them. Some suppliers really do
+                   print a different format on every line. */
+                if (domShape && domCount >= 3 && domCount >= dataRows.length / 2) {
+                    batchOdd = dataRows
+                        .filter(r => String(r[1] || '').trim() && shapeOf(r[1]) !== domShape)
+                        .map(r => (String(r[0] || '').trim() || 'the blank-named line') + ': ' + r[1]);
+                }
+            } catch (be) { console.warn('[OCR] batch shape check skipped:', be); }
+
+            /* ── The invoice checks itself ──────────────────────────────
+               Every one of these repairs is a judgement about ONE line, and
+               nothing so far has been able to say whether the table as a
+               whole came out right. The supplier prints that answer at the
+               bottom of the sheet: the line amounts must add up to the Sub
+               Total. On the real invoice they do, to the paisa —
+
+                   2142.00 + 4557.30 + 6757.50 + 3590.40 + 4834.80
+                 + 1523.00 + 3595.50 + 4874.40 + 2782.40 + 2514.25
+                 = 37,171.55, printed as "Sub Total 37,171.55"
+
+               and because the rate and quantity on each line are already
+               checked against its amount, an agreeing total is a proof that
+               the whole table is right — not a guess about it. When it does
+               NOT agree the shortfall is the size of what went wrong, and a
+               difference that equals one line's amount says a line is
+               missing rather than misread. This is the only check here that
+               can see the table whole, so it is worth saying either way. */
+            let totalCheck = null;
+            try {
+                let printed = 0;
+                for (let ri = headerRowIdx + 1; ri < rows.length; ri++) {
+                    const txt = rows[ri].words.map(w => w.text).join(' ');
+                    if (!/sub\s*total|net\s*(amount|total)|total\s*(amount|value)|grand\s*total/i.test(txt)) continue;
+                    /* The largest figure on the line: a total row also carries
+                       a tax rate and sometimes a page number. */
+                    const nums = (txt.match(/[\d,]+\.\d{2}|\b\d{3,}\b/g) || [])
+                        .map(s => parseFloat(s.replace(/,/g, ''))).filter(n => isFinite(n));
+                    if (nums.length) printed = Math.max(printed, Math.max.apply(null, nums));
+                }
+                if (printed > 0) {
+                    const summed = dataRows.reduce((s, r) => {
+                        const v = parseFloat(String(r[8] || '').replace(/[^0-9.]/g, ''));
+                        return s + (isFinite(v) ? v : 0);
+                    }, 0);
+                    const diff = Math.round((summed - printed) * 100) / 100;
+                    /* A rupee of slack for the round-off a supplier may apply
+                       to the total but not to the lines. */
+                    totalCheck = { printed, summed: Math.round(summed * 100) / 100,
+                                   diff, ok: Math.abs(diff) <= 1 };
+                    console.log('[OCR] totals check:', totalCheck);
+                }
+            } catch (tce) { console.warn('[OCR] totals check skipped:', tce); }
+            if (_ocrRaw) _ocrRaw.totalCheck = totalCheck;
+
             _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack','Amount','HSN','Free'];
             _invRows = dataRows;
             const issues = _checkOCRQuality(dataRows);
@@ -2549,6 +2640,11 @@ window.addEventListener('DOMContentLoaded', () => {
                alternative was a blank batch number — but they are the first
                thing to check, and the shop should not have to find that out by
                noticing a batch that looks odd weeks later. */
+            if (batchOdd.length) {
+                issues.messages.unshift(
+                    `${batchOdd.length} batch number(s) do not look like the rest on this invoice — ` +
+                    `these are the ones to check against the paper: ` + batchOdd.slice(0, 6).join('; '));
+            }
             if (_ocrFaint.length) {
                 const _ff = {};
                 _ocrFaint.forEach(f => f.fields.forEach(k => { _ff[k] = (_ff[k] || 0) + 1; }));
@@ -2601,6 +2697,25 @@ window.addEventListener('DOMContentLoaded', () => {
                    quality check adds: it is the same rows said twice, once
                    usefully and once not. */
                 issues.messages = issues.messages.filter(m => !/have no product name/i.test(m));
+            }
+            /* Last in, so it reads FIRST. It is the only line here that
+               speaks about the invoice as a whole, and when it agrees it is
+               worth more than every warning under it — the shop can stop
+               checking and press the button. */
+            if (totalCheck) {
+                if (totalCheck.ok) {
+                    issues.messages.unshift(
+                        `✅ The ${dataRows.length} line amounts add up to the ₹${totalCheck.printed.toFixed(2)}` +
+                        ` Sub Total printed on the invoice — nothing is missing and no amount was misread.`);
+                } else {
+                    const short = totalCheck.diff < 0;
+                    issues.messages.unshift(
+                        `⚠️ The line amounts come to ₹${totalCheck.summed.toFixed(2)} but the invoice's Sub Total` +
+                        ` says ₹${totalCheck.printed.toFixed(2)} — ${short ? 'short' : 'over'} by ` +
+                        `₹${Math.abs(totalCheck.diff).toFixed(2)}. ` +
+                        (short ? 'A whole line may be missing, or one amount read low.'
+                               : 'One amount was probably read high, or a line was counted twice.'));
+                }
             }
             if (issues.blocked) {
                 _showOCRWarning(issues.messages, true);
