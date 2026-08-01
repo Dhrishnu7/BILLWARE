@@ -1992,23 +1992,35 @@ window.addEventListener('DOMContentLoaded', () => {
                real scan came back with the batch column blank on two lines
                that were otherwise perfect.
 
-               The rule that makes this safe: a faint word may only ever fill
-               a cell that is EMPTY. It can never overwrite, extend or
-               contradict something the scan read confidently. */
-            const faintWords = allWords.filter(w => w.confidence <= 25 && w.confidence > 8);
+               The rule that makes this safe everywhere EXCEPT the product
+               name: a faint word may only ever fill a cell that is EMPTY. It
+               can never overwrite, extend or contradict something the scan
+               read confidently.
+
+               The product name is the exception, and the saved scan is what
+               showed why. "AZITHRAL" was read as "AZTHRAL" at 21% and thrown
+               out by this filter; the only thing left in the cell was "mb",
+               a stray reading of the manufacturer line beneath at 56%. The
+               shop saw "mb 500". The name the scan doubted was the right one.
+               So name-column words are MERGED rather than used as a fallback,
+               and the doubled readings are separated afterwards by
+               mmOcrRows.trimEchoes(). The floor is 5 because "TAXIM" came
+               through at 8. */
+            const faintWords = allWords.filter(w => w.confidence <= 25 && w.confidence >= 5);
 
             // ── Step 1: Group words into rows by Y-position ──
-            /* The tolerance is measured off the text itself — see
-               js/ocr-rows.js. A fixed 12px was merging the manufacturer line
-               into the product line on smaller scans, which is where "mb 500"
-               (AZITHRAL 500 wearing half of Alembic) came from. */
+            /* The tolerance is measured off the gap between printed lines —
+               see js/ocr-rows.js. A fixed 12px cannot fit every scan, and
+               v280's first attempt at measuring it used the word height and
+               came out at 6px on an invoice whose lines are 51px apart, which
+               cut seven names of ten loose from their own figures. */
             let rows;
             if (window.mmOcrRows) {
                 const g = mmOcrRows.group(words);
                 rows = g.rows;
                 console.log('[OCR] row tolerance', g.tol.toFixed(1) + 'px',
-                            g.measured ? '(from median word height ' + g.height.toFixed(1) + 'px)'
-                                       : '(fallback — heights unusable)');
+                            g.measured ? '(line pitch ' + g.pitch.toFixed(1) + 'px)'
+                                       : '(fallback — could not measure the lines)');
             } else {
                 rows = [];
                 const ROW_TOL = 12;
@@ -2181,6 +2193,7 @@ window.addEventListener('DOMContentLoaded', () => {
             const _ocrDropped = [];       // rows the phantom filter discarded
             const _ocrNoName  = [];       // real rows whose product name did not read
             const _ocrFaint   = [];       // cells filled from words the scan was unsure of
+            const _ocrEchoes  = [];       // doubled readings of a name, dropped
 
             for (let i = headerRowIdx + 1; i < rows.length; i++) {
                 const row = rows[i];
@@ -2215,10 +2228,37 @@ window.addEventListener('DOMContentLoaded', () => {
                     const mx = (w.bbox.x0 + w.bbox.x1) / 2;
                     return mx >= col.left && mx < col.right;
                 }).map(w => w.text).join(' ').trim();
+                const isIn = (w, col) => {
+                    const mx = (w.bbox.x0 + w.bbox.x1) / 2;
+                    return mx >= col.left && mx < col.right;
+                };
+
+                /* The name is built from confident AND faint words together —
+                   see the note on faintWords — and the doubled readings that
+                   pulls in are separated by their distance from the row's own
+                   figures. See mmOcrRows.trimEchoes(). */
+                const nameCol = columns.find(c => c.type === 'name');
+                let rowWords = row.words;
+                if (nameCol) {
+                    const faintName = (row.faint || []).filter(w => isIn(w, nameCol));
+                    if (faintName.length) {
+                        rowWords = row.words.concat(faintName)
+                                            .sort((a, b) => a.bbox.x0 - b.bbox.x0);
+                    }
+                    if (window.mmOcrRows && mmOcrRows.trimEchoes) {
+                        try {
+                            const tr = mmOcrRows.trimEchoes({ words: rowWords }, nameCol);
+                            if (tr.dropped.length) {
+                                rowWords = tr.words;
+                                _ocrEchoes.push(tr.dropped.join(' '));
+                            }
+                        } catch (te) { console.warn('[OCR] echo trim skipped:', te); }
+                    }
+                }
 
                 for (const col of columns) {
                     if (col.type === 'skip') continue;
-                    const cellWords = inCol(row.words, col);
+                    const cellWords = inCol(rowWords, col);
                     // Merge into existing cell (handles multi-word columns)
                     if (cellWords) cell[col.type] = (cell[col.type] ? cell[col.type]+' ' : '') + cellWords;
                 }
@@ -2453,6 +2493,7 @@ window.addEventListener('DOMContentLoaded', () => {
             if (freeFixed) console.log('[OCR] free qty separated from quantity on', freeFixed, 'row(s)');
             if (freeBled)  console.log('[OCR] free qty dropped as column bleed on', freeBled, 'row(s)');
 
+            if (_ocrEchoes.length) console.log('[OCR] doubled name readings dropped:', _ocrEchoes.join(' | '));
             console.log('[OCR] rows kept:', dataRows.length, '| discarded:', _ocrDropped.length, _ocrDropped);
             console.log('[OCR] kept:', dataRows.map(r => r[0]).join(' | '));
 
@@ -2491,7 +2532,8 @@ window.addEventListener('DOMContentLoaded', () => {
                     x1: Math.round(w.bbox.x1), y1: Math.round(w.bbox.y1)
                 })),
                 parsed: dataRows.map(r => r.slice()),
-                dropped: _ocrDropped, noName: _ocrNoName, faintFilled: _ocrFaint
+                dropped: _ocrDropped, noName: _ocrNoName,
+                faintFilled: _ocrFaint, echoesDropped: _ocrEchoes
             };
 
             _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack','Amount','HSN','Free'];
