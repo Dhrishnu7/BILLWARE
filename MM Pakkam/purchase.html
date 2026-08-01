@@ -2652,9 +2652,20 @@ window.addEventListener('DOMContentLoaded', () => {
                     'These were filled from text the scan was unsure of — check them first: ' +
                     Object.keys(_ff).map(k => `${k} on ${_ff[k]} line(s)`).join(', '));
             }
-            if (nameFix && nameFix.changed) {
+            if (nameFix && nameFix.notes && nameFix.notes.length) {
                 issues.messages.unshift(
-                    `${nameFix.changed} product name(s) matched to what you already buy: ` + nameFix.notes.join('; '));
+                    `${nameFix.notes.length} product name(s) matched to what you already buy: ` + nameFix.notes.join('; '));
+            }
+            /* Said separately and said plainly. These are NOT products this
+               shop has bought before — the spelling was corrected against a
+               list of common brands, which is a much weaker claim, and
+               dressing it up as purchase history is how a wrong name gets
+               nodded through. */
+            if (nameFix && nameFix.listNotes && nameFix.listNotes.length) {
+                issues.messages.unshift(
+                    `${nameFix.listNotes.length} name(s) were corrected to a common brand spelling — ` +
+                    `you have NOT bought these before, so check them against the invoice: ` +
+                    nameFix.listNotes.join('; '));
             }
             if (nameFix && nameFix.questions.length) {
                 issues.messages.unshift(

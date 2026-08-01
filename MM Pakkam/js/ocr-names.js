@@ -263,19 +263,35 @@
 
     /* Rows are the parser's shape; the product name is column 0. */
     function matchRows(rows, known, fallback) {
-        var changed = 0, notes = [], asks = [];
+        var changed = 0, notes = [], asks = [], listNotes = [];
         (rows || []).forEach(function (row) {
             var r = match(row[0], known, fallback);
             if (r.changed) {
                 changed++;
-                if (notes.length < 10) notes.push(r.from + ' → ' + r.name);
+                /* Kept apart, because the two are not worth the same to the
+                   person checking. A match against the shop's own history
+                   says "you have bought this before". A match against the
+                   common brand list says only "this is a real brand and the
+                   letters are close" — the shop may never have stocked it,
+                   and telling them otherwise invites a nod-through.
+
+                   The name is shown cleaned rather than raw: the serial
+                   number bleeds in from the left-hand column, so the note
+                   read "4 AZTHRAL 500 → AZITHRAL 500" and the 4 is not part
+                   of anything. */
+                var note = clean(r.from) + ' → ' + r.name;
+                if (/common brand/.test(r.why)) {
+                    if (listNotes.length < 10) listNotes.push(note);
+                } else if (notes.length < 10) {
+                    notes.push(note);
+                }
             }
             if (r.suggestion && notes.length + asks.length < 14) {
                 asks.push(r.name + ' — did you mean ' + r.suggestion + '? (not changed)');
             }
             row[0] = r.name;
         });
-        return { changed: changed, notes: notes, questions: asks };
+        return { changed: changed, notes: notes, listNotes: listNotes, questions: asks };
     }
 
     window.mmOcrNames = {
