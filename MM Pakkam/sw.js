@@ -1,6 +1,6 @@
 // â”€â”€ Billware Service Worker â”€â”€
 // IMPORTANT: Change CACHE_NAME on every deploy so installed apps get the latest version
-const CACHE_NAME = 'mm-pakkam-v283';
+const CACHE_NAME = 'mm-pakkam-v284';
 
 // Pages and assets to cache for offline use + instant navigation
 const PRECACHE_URLS = [
@@ -20,6 +20,7 @@ const PRECACHE_URLS = [
     '/directory.html',
     '/shop-setup.html',
     '/js/auth.js',
+    '/js/sw-update.js',
     '/js/supabase.js',
     '/js/modal.js',
     '/js/keyboard-nav.js',
@@ -139,7 +140,15 @@ self.addEventListener('fetch', event => {
 
 // â”€â”€ Message handler: force skip waiting when told by the page â”€â”€
 self.addEventListener('message', event => {
-    if (event.data && event.data.type === 'SKIP_WAITING') {
+    if (!event.data) return;
+    if (event.data.type === 'SKIP_WAITING') {
         self.skipWaiting();
+    }
+    /* The running version, answered by the only thing that knows it for
+       certain. Reading it off the worker rather than writing it into a page
+       means there is one number to bump on a deploy, and no way for a page
+       to claim a version it is not actually running. */
+    if (event.data.type === 'GET_VERSION' && event.ports && event.ports[0]) {
+        event.ports[0].postMessage({ version: CACHE_NAME.replace(/^mm-pakkam-/, '') });
     }
 });

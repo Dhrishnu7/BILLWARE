@@ -607,6 +607,7 @@
     </style>
     <script src="js/modal.js"></script>
     <script src="js/auth.js?v=3"></script>
+    <script src="js/sw-update.js"></script>
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
@@ -1593,6 +1594,16 @@
                 warn.style.display = 'none';
             }
         }
+
+        /* Asked by js/sw-update.js before it reloads the page for a new
+           version. A bill in progress lives only in these rows — nothing is
+           written anywhere until Save Bill — so a reload here loses real work
+           at a counter with a customer standing at it. When this says yes,
+           the update waits behind a button instead. */
+        window.mmHasUnsavedWork = function () {
+            const t = document.getElementById('medicineRows');
+            return !!(t && t.querySelectorAll('tr').length);
+        };
 
         function addRow() {
             rowCount++;
@@ -3320,7 +3331,7 @@
         <span id="pwaInstallClose" style="margin-left:6px;opacity:0.7;font-size:1rem;padding:0 4px;" title="Dismiss">&times;</span>
     </div>
     <script>
-        if ('serviceWorker' in navigator) {
+        if (!window.mmSwManaged && 'serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
                     .then(reg => {

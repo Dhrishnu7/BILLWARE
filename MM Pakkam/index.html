@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="js/modal.js"></script>
     <script src="js/auth.js?v=3"></script>
+    <script src="js/sw-update.js"></script>
     <script src="js/notifications.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -663,6 +664,13 @@
     <!-- Footer -->
     <footer>
         &copy; 2026 Billware. All rights reserved.
+        <!-- Filled by js/sw-update.js from the running service worker, so it
+             is the version actually EXECUTING on this machine rather than the
+             one the page thinks it is. Diagnosing a shop's "I don't have that
+             update" needed view-source and a console before this. -->
+        <span style="opacity:0.55;margin-left:0.5rem;font-size:0.72rem;">
+            <span id="mmVersion">—</span>
+        </span>
     </footer>
 
     <!-- PWA Install Banner -->
@@ -676,7 +684,7 @@
     </style>
     <script>
         // ── Service Worker — auto-reload on new version ──
-        if ('serviceWorker' in navigator) {
+        if (!window.mmSwManaged && 'serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
                     .then(reg => {

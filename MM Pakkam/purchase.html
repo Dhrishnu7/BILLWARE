@@ -537,6 +537,7 @@
     <script src="js/ocr-rows.js"></script>
     <script src="js/med-names.js"></script>
     <script src="js/auth.js?v=3"></script>
+    <script src="js/sw-update.js"></script>
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
@@ -3559,7 +3560,7 @@ window.addEventListener('DOMContentLoaded', () => {
     </script>
 
     <script>
-        if ('serviceWorker' in navigator) {
+        if (!window.mmSwManaged && 'serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
                     .then(reg => {

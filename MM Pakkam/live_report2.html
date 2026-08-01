@@ -826,6 +826,7 @@
 
     </style>
     <script src="js/auth.js?v=3"></script>
+    <script src="js/sw-update.js"></script>
     <script src="js/notifications.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -3299,7 +3300,7 @@
 
 
     <script>
-        if ('serviceWorker' in navigator) {
+        if (!window.mmSwManaged && 'serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
                     .then(reg => {

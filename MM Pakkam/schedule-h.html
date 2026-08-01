@@ -1095,6 +1095,7 @@
     <script src="js/modal.js"></script>
     <!-- xlsx (Excel import) is lazy-loaded on demand via mmLoadScript() so it never blocks page load. -->
     <script src="js/auth.js?v=3"></script>
+    <script src="js/sw-update.js"></script>
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
@@ -4225,7 +4226,7 @@
 
 
         // SW Registration
-        if ('serviceWorker' in navigator) {
+        if (!window.mmSwManaged && 'serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
                     .then(reg => {
