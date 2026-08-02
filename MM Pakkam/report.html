@@ -1437,6 +1437,31 @@
         </div>
     </div>
 
+    <!-- ═══ DUPLICATE PURCHASES ═══
+         Removing real purchase records is destructive and irreversible from
+         here, so the pairs are laid out side by side and the shop confirms a
+         count before anything happens. -->
+    <div class="modal-overlay modal-stacked" id="dupModal" style="display:none;" onclick="if(event.target===this) closeDupPurchases()">
+        <div class="modal-content" style="max-width:660px;">
+            <div class="modal-header">
+                <div class="modal-title">🔍 Duplicate purchase entries</div>
+                <button class="modal-close" onclick="closeDupPurchases()">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+                <div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:10px 13px;font-size:0.8rem;line-height:1.55;margin-bottom:0.9rem;">
+                    <b>Take a Backup first.</b> Deleting these lowers your stock, your purchase totals
+                    and the input credit claimed — which is correct, because they were counted twice —
+                    but it cannot be undone from this screen.
+                </div>
+                <div id="dupBody"></div>
+            </div>
+            <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;">
+                <button class="search-btn" onclick="closeDupPurchases()" style="background:#f1f5f9;color:#475569;">Cancel</button>
+                <button class="search-btn" id="dupDelBtn" onclick="deleteDupPurchases()" style="background:#b91c1c;">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ═══ GSTR-1 ═══
          A month at a time, because that is what the return is. Uses its own
          month picker rather than the report's From/To, so a half-month range
@@ -4132,6 +4157,8 @@
 
             if (act.kind === 'returns') { location.href = 'inventory.html#tab-returns'; return; }
 
+            if (act.kind === 'dupPurchases') { openDupPurchases(act.groups || []); return; }
+
             if (act.kind === 'purchase') {
                 const items = (act.items || []).filter(x => x && x.productName);
                 if (!items.length) { showToast('Nothing to pre-fill.', 'error'); return; }
@@ -4151,6 +4178,106 @@
                 if (typeof mmAudit === 'function') mmAudit('Purchase prefill sent', items.length + ' items', 'from Accounts');
                 location.href = 'purchase.html';
             }
+        }
+
+        /* ── Duplicate purchases: review, then remove ──────────────────────
+           Deleting forty-odd rows through the trash icons one at a time is
+           miserable and easy to get wrong, and getting it wrong here destroys
+           real purchase records. So the pairs are shown side by side, the copy
+           to be removed is pre-ticked (never the one carrying a bill number),
+           and nothing is deleted until the shop has looked at the list and
+           confirmed the count. */
+        let _dupGroups = [];
+        function openDupPurchases(groups) {
+            _dupGroups = groups || [];
+            if (!_dupGroups.length) { mmAlert('No duplicates to review.'); return; }
+            renderDupList();
+            const m = document.getElementById('dupModal');
+            m.classList.add('open'); m.style.display = 'flex';
+        }
+        function closeDupPurchases() {
+            const m = document.getElementById('dupModal');
+            m.classList.remove('open'); m.style.display = 'none';
+        }
+        function renderDupList() {
+            let n = 0, val = 0;
+            const html = _dupGroups.map((g, gi) => {
+                const rows = g.drop.map((d, di) => {
+                    n++; val += d.amount;
+                    return `<label style="display:flex;align-items:center;gap:10px;padding:7px 12px;border-top:1px solid #f1f5f9;cursor:pointer;">
+                        <input type="checkbox" class="dupChk" data-g="${gi}" data-d="${di}" checked onchange="updateDupCount()" style="width:16px;height:16px;">
+                        <span style="flex:1;font-size:0.83rem;">
+                            <b style="color:#991b1b;">Remove this copy</b>
+                            <span style="color:#94a3b8;"> — bill no ${d.billNo ? accEsc(d.billNo) : '<i>(none)</i>'}</span>
+                        </span>
+                        <span style="font-variant-numeric:tabular-nums;font-weight:700;">${accInr(d.amount)}</span>
+                    </label>`;
+                }).join('');
+                return `<div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:0.7rem;">
+                    <div style="background:#f8fafc;padding:9px 12px;">
+                        <div style="font-weight:800;font-size:0.87rem;color:#0f172a;">${accEsc(g.keep.product)}</div>
+                        <div style="font-size:0.76rem;color:#64748b;margin-top:2px;">
+                            ${accDate(g.keep.date)} · ${accEsc(g.keep.firm || 'no supplier')} ·
+                            qty ${g.keep.qty} @ ${accInr(g.keep.rate)}${g.keep.batch ? ' · batch ' + accEsc(g.keep.batch) : ''}
+                        </div>
+                    </div>
+                    <div style="padding:7px 12px;font-size:0.83rem;background:#f0fdf4;">
+                        <b style="color:#166534;">Keeping</b>
+                        <span style="color:#64748b;"> — bill no ${g.keep.billNo ? accEsc(g.keep.billNo) : '<i>(none)</i>'}</span>
+                        <span style="float:right;font-variant-numeric:tabular-nums;font-weight:700;">${accInr(g.keep.amount)}</span>
+                    </div>
+                    ${rows}
+                </div>`;
+            }).join('');
+            document.getElementById('dupBody').innerHTML =
+                `<p style="font-size:0.83rem;color:#475569;line-height:1.6;margin:0 0 0.9rem;">
+                    Each block is one purchase line the app found more than once — same supplier, same day, same medicine,
+                    same quantity, same price. The copy with a bill number is kept. Untick anything you want to keep.
+                 </p>${html}`;
+            updateDupCount();
+        }
+        function updateDupCount() {
+            let n = 0, val = 0;
+            document.querySelectorAll('#dupBody .dupChk:checked').forEach(c => {
+                const g = _dupGroups[+c.dataset.g]; if (!g) return;
+                const d = g.drop[+c.dataset.d];     if (!d) return;
+                n++; val += d.amount;
+            });
+            const btn = document.getElementById('dupDelBtn');
+            btn.textContent = n ? `Delete ${n} duplicate${n === 1 ? '' : 's'} (${accInr(val)})` : 'Nothing selected';
+            btn.disabled = !n;
+            btn.style.opacity = n ? '' : '.45';
+        }
+        async function deleteDupPurchases() {
+            const picked = [];
+            document.querySelectorAll('#dupBody .dupChk:checked').forEach(c => {
+                const g = _dupGroups[+c.dataset.g]; if (!g) return;
+                const d = g.drop[+c.dataset.d];     if (!d || d.id === null) return;
+                picked.push(d);
+            });
+            if (!picked.length) return;
+            const val = picked.reduce((s, d) => s + d.amount, 0);
+            if (!await mmConfirm(
+                `Delete ${picked.length} duplicate purchase line(s) worth ${accInr(val)}?\n\n` +
+                `Your stock, purchase totals and input credit will all drop by that amount — which is the point, ` +
+                `because they were counted twice.\n\nThis cannot be undone from here. Make sure you have taken a Backup.`,
+                { title: '🗑️ Remove duplicates', danger: true, okText: 'Delete them' })) return;
+
+            const btn = document.getElementById('dupDelBtn');
+            btn.disabled = true; btn.textContent = 'Deleting…';
+            let done = 0, failed = 0;
+            for (const d of picked) {
+                try { (await dbDeletePurchase(d.id)) ? done++ : failed++; }
+                catch (e) { failed++; }
+            }
+            if (typeof mmAudit === 'function') mmAudit('Duplicate purchases removed', done + ' lines', accInr(val));
+            // Pull the truth back down before redrawing, or the statement would
+            // still be reading the local copy we just deleted from the cloud.
+            try { if (typeof dbSyncCoreData === 'function') await dbSyncCoreData(); } catch (e) {}
+            closeDupPurchases();
+            renderAccounts();
+            showToast(failed ? `${done} removed, ${failed} failed — reload and try again.`
+                             : `✅ ${done} duplicate line(s) removed.`, failed ? 'error' : 'success');
         }
 
         function plRow(label, value, cls, opts) {

@@ -345,8 +345,15 @@
             byMode[mode] += grand || lineSum;
         });
 
-        /* ── Purchases ── */
+        /* ── Purchases ──
+           Also fingerprinted as we go, to catch the same supplier line entered
+           twice. The Purchase screen's own duplicate warning only ever fired
+           when a bill number was present on BOTH copies, so an invoice keyed in
+           once without a number and again with one sailed straight past it —
+           doubling the stock, the payable and the input credit claimed. Nothing
+           else in the app would ever have said so. */
         var pTaxable = 0, pTax = 0, pCount = 0;
+        var sigs = {};
         readJson('mm_purchases').forEach(function (p) {
             if (!inRange(p.date, from, to)) return;
             pCount++;
@@ -355,7 +362,57 @@
             var taxable = num(p.quantity) * num(p.rate);
             pTaxable += taxable;
             pTax     += taxable * num(p.gst) / 100;
+
+            /* Deliberately EXCLUDES the bill number: that is the one field the
+               two copies differ in, so keying on it is what hid them. Same
+               supplier, same day, same goods, same quantity, same price is a
+               duplicate until a human says otherwise. */
+            var sg = [d10(p.date), key(p.firm), key(p.productName || p.product_name),
+                      key(p.batchNo || p.batch_no), num(p.quantity), num(p.rate)].join('|');
+            if (!sigs[sg]) sigs[sg] = [];
+            sigs[sg].push({
+                id:      (p.id !== undefined && p.id !== null) ? p.id : null,
+                billNo:  String(p.billNo || p.bill_no || '').trim(),
+                date:    d10(p.date),
+                firm:    String(p.firm || '').trim(),
+                product: String(p.productName || p.product_name || ''),
+                batch:   String(p.batchNo || p.batch_no || ''),
+                qty:     num(p.quantity),
+                rate:    num(p.rate),
+                amount:  r2(taxable)
+            });
         });
+
+        /* Groups of two or more identical lines. One copy is the real one; the
+           rest are removable.
+
+           WHICH ONE SURVIVES MATTERS, and getting it backwards deletes the
+           good record and keeps the poor one. Ranked by how complete the row
+           is: a bill number is worth more than none, and a row that has
+           reached the server (has an id) is worth more than one that has not —
+           because a row with no id CANNOT be deleted, so keeping one of those
+           would strand the duplicate forever while removing its better twin.
+           Rows with no id are therefore never offered for deletion either. */
+        var dupGroups = [], dupExtra = 0, dupValue = 0;
+        function completeness(r) { return (r.billNo ? 2 : 0) + (r.id !== null ? 1 : 0); }
+        Object.keys(sigs).forEach(function (k) {
+            var g = sigs[k];
+            if (g.length < 2) return;
+            var sorted = g.slice().sort(function (a, b) { return completeness(b) - completeness(a); });
+            var keep = sorted[0], drop = sorted.slice(1).filter(function (r) { return r.id !== null; });
+            if (!drop.length) return;
+            dupGroups.push({ keep: keep, drop: drop });
+            dupExtra += drop.length;
+            dupValue += drop.reduce(function (s, r) { return s + r.amount; }, 0);
+        });
+        if (dupExtra) {
+            warn((dupExtra === 1
+                    ? '1 purchase line worth ' + inr(dupValue) + ' looks like a duplicate'
+                    : dupExtra + ' purchase lines worth ' + inr(dupValue) + ' look like duplicates') +
+                ' — the same supplier, day, medicine, quantity and price entered more than once. ' +
+                'Each copy doubles your stock, your payable and the input credit claimed against it.',
+                { kind: 'dupPurchases', label: '🔍 Review duplicates', groups: dupGroups });
+        }
 
         /* ── Returns ── */
         var salesRet = { taxable: 0, tax: 0, gross: 0, count: 0 };

@@ -1019,12 +1019,14 @@
                across financial years, and a shop splitting one delivery across
                two entries is legitimate. It only has to be impossible to do by
                accident. */
+            let prior = [];
+            try { prior = JSON.parse(localStorage.getItem('mm_purchases') || '[]') || []; } catch (e) {}
+            const _lc = v => String(v || '').trim().toLowerCase();
+
             if (billNo && firm) {
-                let prior = [];
-                try { prior = JSON.parse(localStorage.getItem('mm_purchases') || '[]') || []; } catch (e) {}
                 const same = prior.filter(p =>
-                    String(p.billNo || '').trim().toLowerCase() === billNo.toLowerCase() &&
-                    String(p.firm   || '').trim().toLowerCase() === firm.toLowerCase());
+                    _lc(p.billNo || p.bill_no) === billNo.toLowerCase() &&
+                    _lc(p.firm) === firm.toLowerCase());
 
                 if (same.length) {
                     const when = String(same[0].date || '').slice(0, 10);
@@ -1039,6 +1041,41 @@
                         { title: 'This invoice looks like a duplicate', okText: 'Save anyway', variant: 'warn' });
                     if (!ok) { _isSaving = false; return; }
                 }
+            }
+
+            /* ── The same check WITHOUT relying on the bill number ───────────
+               The test above matches on bill number + supplier, so it is blind
+               to the one case that actually happened: an invoice keyed in once
+               with no bill number and again with one. Neither copy could see
+               the other, and a shop ended up with every June invoice twice —
+               double the stock, double the payable, double the input credit,
+               and nothing anywhere saying so until a profit & loss was run
+               weeks later.
+
+               So the goods themselves are compared: same supplier, same date,
+               same medicine, same quantity, same rate. A shop legitimately
+               splitting one delivery across two entries still gets through —
+               it warns, it does not block. */
+            const dupLines = records.filter(r => prior.some(p =>
+                String(p.date || '').slice(0, 10) === String(r.date || '').slice(0, 10) &&
+                _lc(p.firm) === _lc(r.firm) &&
+                _lc(p.productName || p.product_name) === _lc(r.productName) &&
+                (parseFloat(p.quantity) || 0) === (parseFloat(r.quantity) || 0) &&
+                (parseFloat(p.rate)     || 0) === (parseFloat(r.rate)     || 0)
+            ));
+            if (dupLines.length) {
+                const value = dupLines.reduce((s, r) =>
+                    s + (parseFloat(r.quantity) || 0) * (parseFloat(r.rate) || 0), 0);
+                const names = dupLines.slice(0, 4).map(r => r.productName).filter(Boolean).join(', ');
+                const ok = await mmConfirm(
+                    `${dupLines.length} of these line(s) are already in your records for the same supplier and date — ` +
+                    `same medicine, same quantity, same rate` +
+                    (value ? `, worth about ₹${value.toFixed(2)}` : '') + `.\n\n` +
+                    (names ? names + (dupLines.length > 4 ? ', …' : '') + '\n\n' : '') +
+                    `Saving again doubles your stock and the input credit claimed on it. ` +
+                    `Continue only if this really is a second, separate delivery.`,
+                    { title: 'These items look already entered', okText: 'Save anyway', variant: 'warn' });
+                if (!ok) { _isSaving = false; return; }
             }
 
             if (hasEmptyName) {
