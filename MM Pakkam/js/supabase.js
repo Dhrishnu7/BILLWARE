@@ -2003,6 +2003,60 @@ async function dbSetCreditLimit(limit) {
 }
 window.dbSetCreditLimit = dbSetCreditLimit;
 
+/* Opening stock — the owner's own valuation of the goods on the shelves when
+   the shop started keeping records here. Written on its own, like the credit
+   limit above, so saving it from the Accounts view cannot blank out a profile
+   the shop set up months ago.
+
+   The Accounts view computes opening and closing stock from the purchase
+   history. That is right for a shop whose history goes back far enough, and
+   too low for one that started mid-life — it was already holding goods no
+   purchase record ever saw, so gross profit comes out too high. A physical
+   count beats a computation over incomplete data, so this figure wins when it
+   exists and the report says which one it used.
+   Needs migrations/add_opening_stock.sql. */
+async function dbSetOpeningStock(value, asOfDate) {
+    const user = _currentUser();
+    if (!user) return { success: false, message: 'Not logged in.' };
+    const { error } = await _supabase.from('shop_profiles').upsert({
+        user_id: user,
+        opening_stock: Number(value) || 0,
+        opening_stock_date: asOfDate || null,
+        updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+    if (error) { console.error('opening stock save:', error); return { success: false, message: error.message }; }
+    try {
+        localStorage.setItem('mm_opening_stock', String(Number(value) || 0));
+        localStorage.setItem('mm_opening_stock_date', asOfDate || '');
+    } catch (e) {}
+    return { success: true };
+}
+window.dbSetOpeningStock = dbSetOpeningStock;
+
+/* Reads the cached figure first so the P&L renders instantly and still works
+   offline, then refreshes from the profile in the background. Never throws:
+   before the migration is run this simply reports "not entered". */
+async function dbSyncOpeningStock() {
+    let cached = { value: 0, date: '' };
+    try {
+        cached.value = parseFloat(localStorage.getItem('mm_opening_stock')) || 0;
+        cached.date  = localStorage.getItem('mm_opening_stock_date') || '';
+    } catch (e) {}
+    try {
+        const p = await dbGetShopProfile();
+        if (p && p.opening_stock !== undefined) {
+            cached.value = Number(p.opening_stock) || 0;
+            cached.date  = p.opening_stock_date || '';
+            try {
+                localStorage.setItem('mm_opening_stock', String(cached.value));
+                localStorage.setItem('mm_opening_stock_date', cached.date);
+            } catch (e) {}
+        }
+    } catch (e) {}
+    return cached;
+}
+window.dbSyncOpeningStock = dbSyncOpeningStock;
+
 // The shop's own town + PIN, which the profile form never asked for and which
 // an e-invoice cannot be built without. Written on its own — same reason as
 // the credit limit above — so saving them from the e-invoice screen cannot

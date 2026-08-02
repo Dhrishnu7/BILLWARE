@@ -1,7 +1,7 @@
 /* ══════════════════════════════════════════════════════════════════════
    CHECK_migrations_applied.sql — which migrations actually ran?
    ══════════════════════════════════════════════════════════════════════
-   Twenty-five migration files have accumulated, each one delivered as
+   Twenty-six migration files have accumulated, each one delivered as
    "run this in Supabase" and each one relying on someone remembering. If
    even one was missed, the feature that needs it does not fail loudly at
    deploy — it fails at a shop counter, weeks later, as a save that does
@@ -46,6 +46,7 @@ expected_columns(tbl, col, migration) AS (VALUES
     ('schedule_h_register', 'schedule_class', 'add_schedule_h_register_columns.sql'),
     ('shop_profiles',       'city',           'add_customer_gstin.sql'),
     ('shop_profiles',       'credit_limit',   'add_credit_limit_column.sql'),
+    ('shop_profiles',       'opening_stock',  'add_opening_stock.sql'),
     ('shop_profiles',       'pincode',        'add_customer_gstin.sql')
 )
 

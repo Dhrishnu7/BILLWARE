@@ -713,6 +713,8 @@
     <script src="js/gst-validate.js"></script>
     <script src="js/prefile-check.js"></script>
     <script src="js/gstr3b.js"></script>
+    <script src="js/pnl.js"></script>
+    <script src="js/daybook.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
@@ -763,6 +765,10 @@
                     <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
                     Audit Trail
                 </button>
+                <button class="view-btn" id="btnViewAccounts" onclick="switchViewMode('accounts')">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4h16v16H4z"/><path stroke-linecap="round" d="M8 9h8M8 13h8M8 17h4"/></svg>
+                    Accounts
+                </button>
             </div>
         </div>
 
@@ -782,6 +788,67 @@
                         <tbody id="auditBody"><tr><td colspan="5" style="text-align:center; padding:1.6rem; color:#94a3b8;">Open this tab to load activity…</td></tr></tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+
+        <!-- 📒 ACCOUNTS VIEW — Profit & Loss, Cash Flow, Day Book -->
+        <style>
+            .acc-bar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:0.7rem;margin-bottom:1rem;}
+            .acc-bar label{display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.03em;}
+            .acc-bar input[type=date]{padding:0.45rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:0.84rem;}
+            .acc-chip{padding:0.42rem 0.75rem;border:1.5px solid #e2e8f0;background:#fff;border-radius:999px;font-size:0.78rem;font-weight:700;color:#475569;cursor:pointer;font-family:inherit;}
+            .acc-chip:hover{border-color:#0d9488;color:#0d9488;}
+            .acc-act{padding:0.45rem 0.85rem;border:none;border-radius:9px;background:#0d9488;color:#fff;font-size:0.8rem;font-weight:700;cursor:pointer;font-family:inherit;}
+            .acc-act.ghost{background:#f1f5f9;color:#475569;}
+            .acc-warn{background:#fffbeb;border:1.5px solid #fcd34d;border-radius:10px;padding:0.65rem 0.9rem;margin-bottom:0.6rem;font-size:0.82rem;color:#92400e;line-height:1.5;}
+            .acc-bad{background:#fef2f2;border-color:#fca5a5;color:#991b1b;}
+            .acc-ok{background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:0.6rem 0.9rem;margin-bottom:0.9rem;font-size:0.82rem;color:#166534;}
+            .pl{width:100%;max-width:720px;margin:0 auto;border-collapse:collapse;font-size:0.9rem;}
+            .pl td{padding:0.42rem 0.7rem;}
+            .pl td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+            .pl tr.head td{font-weight:800;color:#0f172a;padding-top:1.1rem;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;}
+            .pl tr.sub td{color:#475569;}
+            .pl tr.tot td{border-top:1.5px solid #cbd5e1;font-weight:800;color:#0f172a;}
+            .pl tr.grand td{border-top:2.5px solid #0f172a;border-bottom:2.5px solid #0f172a;font-weight:900;font-size:1rem;}
+            .pl .pct{color:#64748b;font-weight:700;font-size:0.8rem;padding-left:0.5rem;}
+            .acc-hint{font-size:0.78rem;color:#94a3b8;margin:0.2rem 0 1rem;line-height:1.55;}
+            .cashgrid{display:flex;flex-wrap:wrap;gap:1rem;}
+            .cashcol{flex:1;min-width:270px;}
+            .db-in{color:#15803d;font-weight:700;}
+            .db-out{color:#b91c1c;font-weight:700;}
+            @media print{
+                header,.view-toggle-wrap,.acc-bar,.acc-noprint,.page-header p,.breadcrumb{display:none !important;}
+                .table-card{box-shadow:none !important;border:none !important;}
+            }
+        </style>
+        <div id="accountsView" style="display:none; width:100%;">
+            <div class="table-card">
+                <div class="table-header" style="flex-wrap:wrap; gap:0.6rem;">
+                    <div class="table-title">📒 Accounts &mdash; statements for you and your accountant</div>
+                    <div class="table-tabs acc-noprint">
+                        <button class="tab-btn active" id="accTabPnl"  onclick="switchAccTab('pnl')">Profit &amp; Loss</button>
+                        <button class="tab-btn"        id="accTabCash" onclick="switchAccTab('cash')">Cash Flow</button>
+                        <button class="tab-btn"        id="accTabDay"  onclick="switchAccTab('day')">Day Book</button>
+                    </div>
+                </div>
+
+                <div class="acc-bar acc-noprint">
+                    <div><label>From</label><input type="date" id="accFrom" onchange="syncAccPeriod('from')"></div>
+                    <div><label>To</label><input type="date" id="accTo" onchange="syncAccPeriod('to')"></div>
+                    <button class="acc-chip" onclick="accPreset('month')">This month</button>
+                    <button class="acc-chip" onclick="accPreset('last')">Last month</button>
+                    <button class="acc-chip" onclick="accPreset('quarter')">This quarter</button>
+                    <button class="acc-chip" onclick="accPreset('fy')">This FY</button>
+                    <div style="flex:1;"></div>
+                    <button class="acc-act ghost" onclick="openOpeningStock()">⚙️ Opening stock</button>
+                    <button class="acc-act ghost" onclick="accExportExcel()">⬇ Excel</button>
+                    <button class="acc-act" onclick="window.print()">🖨️ Print</button>
+                </div>
+
+                <div id="accWarnings"></div>
+                <div id="accPnl"></div>
+                <div id="accCash" style="display:none;"></div>
+                <div id="accDay"  style="display:none;"></div>
             </div>
         </div>
 
@@ -3636,11 +3703,15 @@
             document.getElementById('btnViewAnalytics').classList.toggle('active', mode === 'analytics');
             const auditBtn = document.getElementById('btnViewAudit');
             if (auditBtn) auditBtn.classList.toggle('active', mode === 'audit');
+            const accBtn = document.getElementById('btnViewAccounts');
+            if (accBtn) accBtn.classList.toggle('active', mode === 'accounts');
 
             document.getElementById('tabularView').style.display = mode === 'tabular' ? 'flex' : 'none';
             document.getElementById('analyticsView').style.display = mode === 'analytics' ? 'block' : 'none';
             const auditView = document.getElementById('auditView');
             if (auditView) auditView.style.display = mode === 'audit' ? 'block' : 'none';
+            const accView = document.getElementById('accountsView');
+            if (accView) accView.style.display = mode === 'accounts' ? 'block' : 'none';
 
             if (mode === 'analytics') {
                 generateAnalytics(currentData);
@@ -3648,6 +3719,435 @@
             if (mode === 'audit') {
                 loadAudit();
             }
+            if (mode === 'accounts') {
+                loadAccounts();
+            }
+        }
+
+        /* ══════════════════════════════════════════════════════════════
+           ACCOUNTS VIEW — Profit & Loss, Cash Flow, Day Book
+
+           All three read js/pnl.js and js/daybook.js, which compute from the
+           same caches every other export reads. Nothing here writes anything
+           except the owner's opening-stock figure.
+
+           The period lives in the SAME fromDate/toDate inputs the tabular
+           view uses — those inputs are inside #tabularView and therefore
+           hidden here, so this view carries its own visible copy and keeps
+           the two in step. One source of truth, two places to set it.
+        ══════════════════════════════════════════════════════════════ */
+        let _accTab = 'pnl';
+        let _accData = null;
+        let _accDay = null;
+        let _accOpening = { value: 0, date: '' };
+        let _accDayFilter = 'all';
+
+        function accInr(v) {
+            return (window.mmPnl && mmPnl.inr) ? mmPnl.inr(v)
+                 : '₹' + (Number(v) || 0).toFixed(2);
+        }
+        function accEsc(s) { const d = document.createElement('div'); d.textContent = (s == null ? '' : s); return d.innerHTML; }
+        function accDate(s) {
+            if (!s) return '—';
+            try {
+                return new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            } catch (e) { return s; }
+        }
+
+        async function loadAccounts() {
+            // Cached first so the statement paints instantly and works
+            // offline; the profile refresh follows and re-renders if it
+            // brought a different figure. Done before the period is settled so
+            // the very first render already has the owner's own figure.
+            try {
+                if (typeof dbSyncOpeningStock === 'function') {
+                    _accOpening = await dbSyncOpeningStock();
+                }
+            } catch (e) {}
+
+            // Seed this view's period from the shared inputs the first time.
+            const f = document.getElementById('fromDate').value || '';
+            const t = document.getElementById('toDate').value || '';
+            const af = document.getElementById('accFrom'), at = document.getElementById('accTo');
+            if (!af.value) af.value = f;
+            if (!at.value) at.value = t;
+            /* A statement needs a closed period. The tabular view is happy with
+               an open-ended range ("everything up to today"), but an opening
+               and closing stock have to be as at a DATE, so default to this
+               month whenever either end is missing. accPreset() renders. */
+            if (!af.value || !at.value) { accPreset('month'); return; }
+
+            renderAccounts();
+        }
+
+        function syncAccPeriod(which) {
+            const af = document.getElementById('accFrom').value || '';
+            const at = document.getElementById('accTo').value || '';
+            document.getElementById('fromDate').value = af;
+            document.getElementById('toDate').value   = at;
+            renderAccounts();
+        }
+
+        function accPreset(kind) {
+            const now = new Date();
+            let y = now.getFullYear(), m = now.getMonth();
+            const pad = n => (n < 10 ? '0' : '') + n;
+            let sy, sm, ey, em;
+            if (kind === 'month')      { sy = ey = y; sm = em = m; }
+            else if (kind === 'last')  { let lm = m - 1, ly = y; if (lm < 0) { lm = 11; ly--; } sy = ey = ly; sm = em = lm; }
+            else if (kind === 'quarter') { sy = ey = y; sm = m - (m % 3); em = sm + 2; }
+            else { // Indian financial year: 1 April to 31 March
+                const fyStart = m >= 3 ? y : y - 1;
+                document.getElementById('accFrom').value = fyStart + '-04-01';
+                document.getElementById('accTo').value   = (fyStart + 1) + '-03-31';
+                syncAccPeriod();
+                return;
+            }
+            const lastDay = new Date(ey, em + 1, 0).getDate();
+            document.getElementById('accFrom').value = `${sy}-${pad(sm + 1)}-01`;
+            document.getElementById('accTo').value   = `${ey}-${pad(em + 1)}-${pad(lastDay)}`;
+            syncAccPeriod();
+        }
+
+        function switchAccTab(t) {
+            _accTab = t;
+            ['pnl', 'cash', 'day'].forEach(k => {
+                document.getElementById('accTab' + k.charAt(0).toUpperCase() + k.slice(1)).classList.toggle('active', k === t);
+                document.getElementById('acc' + k.charAt(0).toUpperCase() + k.slice(1)).style.display = (k === t) ? 'block' : 'none';
+            });
+        }
+
+        function renderAccounts() {
+            const from = document.getElementById('accFrom').value || '';
+            const to   = document.getElementById('accTo').value   || '';
+            if (!window.mmPnl) {
+                document.getElementById('accPnl').innerHTML = '<p class="acc-hint">Accounts module failed to load. Reload the page.</p>';
+                return;
+            }
+            _accData = mmPnl.build({
+                from: from, to: to,
+                openingStock: _accOpening.value,
+                openingStockDate: _accOpening.date
+            });
+            _accDay = (window.mmDayBook) ? mmDayBook.load({ from: from, to: to }) : { rows: [], totals: {}, days: [] };
+
+            renderAccWarnings();
+            renderPnl();
+            renderCashFlow();
+            renderDayBook();
+            switchAccTab(_accTab);
+        }
+
+        /* Warnings and footing checks share one strip at the top. A statement
+           that quietly excludes something is worse than one that says so. */
+        function renderAccWarnings() {
+            const d = _accData;
+            const el = document.getElementById('accWarnings');
+            let html = '';
+            const failed = (d.checks || []).filter(c => !c.ok);
+            failed.forEach(c => {
+                html += `<div class="acc-warn acc-bad"><b>⚠️ ${accEsc(c.name)} — FAILED.</b> ${accEsc(c.detail)}</div>`;
+            });
+            (d.warnings || []).forEach(w => {
+                html += `<div class="acc-warn">${accEsc(w)}</div>`;
+            });
+            if (!html && d.sales.count) {
+                html = `<div class="acc-ok">✅ ${d.checks.length} arithmetic checks passed — every total below is re-derived independently.</div>`;
+            }
+            el.innerHTML = html;
+        }
+
+        function plRow(label, value, cls, opts) {
+            opts = opts || {};
+            const pct = opts.pct != null ? `<span class="pct">${opts.pct.toFixed(1)}%</span>` : '';
+            const click = opts.drill ? ` style="cursor:pointer;" onclick="accDrill('${opts.drill}')" title="Show the transactions behind this"` : '';
+            return `<tr class="${cls || ''}"${click}><td>${label}</td><td class="n">${accInr(value)}${pct}</td></tr>`;
+        }
+
+        function renderPnl() {
+            const d = _accData;
+            if (!d.sales.count && !d.purchases.count) {
+                document.getElementById('accPnl').innerHTML =
+                    '<p class="acc-hint">No sales or purchases in this period. Pick a different range above.</p>';
+                return;
+            }
+            const src = d.stock.openingSource === 'entered'
+                ? `<span class="pct" style="color:#0d9488;">entered</span>`
+                : `<span class="pct">computed</span>`;
+
+            let rows = '';
+            rows += `<tr class="head"><td colspan="2">Trading</td></tr>`;
+            rows += plRow('Sales (net of GST)', d.sales.taxable, 'sub', { drill: 'Sale' });
+            if (d.salesReturns.taxable) rows += plRow('Less: Sales returns', -d.salesReturns.taxable, 'sub', { drill: 'Credit Note' });
+            rows += plRow('<b>Net sales</b>', d.netSales, 'tot');
+
+            rows += `<tr class="head"><td colspan="2">Cost of goods sold</td></tr>`;
+            rows += `<tr class="sub"><td>Opening stock (at cost) ${src}</td><td class="n">${accInr(d.stock.opening)}</td></tr>`;
+            rows += plRow('Add: Purchases (net of GST)', d.purchases.taxable, 'sub', { drill: 'Purchase' });
+            if (d.purchaseReturns.taxable) rows += plRow('Less: Purchase returns', -d.purchaseReturns.taxable, 'sub', { drill: 'Debit Note' });
+            rows += plRow('Less: Closing stock (at cost)', -d.stock.closing, 'sub');
+            rows += plRow('<b>Cost of goods sold</b>', d.cogs, 'tot');
+
+            rows += `<tr class="grand"><td>GROSS PROFIT</td><td class="n">${accInr(d.grossProfit)}<span class="pct">${d.grossPct.toFixed(1)}%</span></td></tr>`;
+
+            rows += `<tr class="head"><td colspan="2">Expenses</td></tr>`;
+            if (!d.expenses.rows.length) {
+                rows += `<tr class="sub"><td colspan="2" style="color:#94a3b8;">No expenses recorded in this period. Until rent, salaries and power are entered on the Accounts page, net profit below is really gross profit.</td></tr>`;
+            }
+            d.expenses.rows.forEach(r => {
+                rows += `<tr class="sub" style="cursor:pointer;" onclick="accDrill('Expense')"><td>${accEsc(r.category)}</td><td class="n">${accInr(r.amount)}</td></tr>`;
+            });
+            rows += plRow('<b>Total expenses</b>', d.expenses.total, 'tot');
+            if (Math.abs(d.roundOff) >= 0.01) {
+                rows += plRow('Round-off on bills', d.roundOff, 'sub');
+            }
+            rows += `<tr class="grand"><td>NET PROFIT</td><td class="n">${accInr(d.netProfit)}<span class="pct">${d.netPct.toFixed(1)}%</span></td></tr>`;
+
+            let extra = '';
+
+            /* The two ways of measuring gross profit, and what their gap
+               means. This is the number a shop cannot get anywhere else:
+               stock that left without being sold. */
+            if (Math.abs(d.marginGap) >= 1) {
+                const worse = d.marginGap > 0;
+                extra += `<div class="acc-warn" style="max-width:720px;margin:1.2rem auto 0;">
+                    <b>Two measures of gross profit disagree by ${accInr(Math.abs(d.marginGap))}.</b><br>
+                    Item margin (sale − purchase price, per item sold) says <b>${accInr(d.itemMargin)}</b>.
+                    Stock movement (opening + purchases − closing) says <b>${accInr(d.grossProfit)}</b>.
+                    ${worse
+                        ? 'Stock left the shop without being sold — expiry, breakage, samples, theft, or purchases that were never entered. The stock-movement figure is the one your accountant will use.'
+                        : 'More stock is on the shelves than the purchase records explain — usually stock entered without a purchase bill, or a return added back twice.'}
+                </div>`;
+            }
+
+            if (d.excludedReturns.count) {
+                extra += `<div class="acc-warn acc-bad" style="max-width:720px;margin:0.6rem auto 0;">
+                    ${d.excludedReturns.count} return(s) worth ${accInr(d.excludedReturns.gross)} are excluded above because their original bill's GST rate could not be read. They appear in the Day Book, flagged.
+                </div>`;
+            }
+
+            const stockNote = `<p class="acc-hint" style="max-width:720px;margin:1.2rem auto 0;">
+                Opening stock is valued as at ${accDate(d.stock.openingAsOf)}, closing as at ${accDate(d.stock.closingAsOf)}, both at the most recent purchase cost.
+                ${d.stock.openingSource === 'entered'
+                    ? `Using the figure you entered (${accInr(d.stock.openingManual)}); the purchase history alone computes ${accInr(d.stock.openingComputed)}.`
+                    : `Computed from the purchase history. If the shop was trading before that history begins, set the real figure with <b>⚙️ Opening stock</b> — otherwise gross profit here is overstated.`}
+            </p>`;
+
+            document.getElementById('accPnl').innerHTML =
+                `<div style="text-align:center;margin-bottom:0.4rem;">
+                    <div style="font-weight:900;font-size:1.05rem;color:#0f172a;">Profit &amp; Loss</div>
+                    <div style="font-size:0.82rem;color:#64748b;">${accDate(d.period.from)} to ${accDate(d.period.to)} · ${d.sales.count} bills</div>
+                 </div>
+                 <table class="pl">${rows}</table>${extra}${stockNote}`;
+        }
+
+        function renderCashFlow() {
+            const d = _accData, c = d.cash;
+            let inRows = '';
+            inRows += `<tr class="sub"><td>Counter — cash</td><td class="n">${accInr(c.byMode.cash)}</td></tr>`;
+            inRows += `<tr class="sub"><td>Counter — UPI</td><td class="n">${accInr(c.byMode.upi)}</td></tr>`;
+            inRows += `<tr class="sub"><td>Counter — card</td><td class="n">${accInr(c.byMode.card)}</td></tr>`;
+            inRows += `<tr class="sub"><td>Khata payments received</td><td class="n">${accInr(c.khata)}</td></tr>`;
+            inRows += `<tr class="tot"><td><b>Total in</b></td><td class="n">${accInr(c.inTotal)}</td></tr>`;
+
+            let outRows = '';
+            outRows += `<tr class="sub"><td>Paid to suppliers</td><td class="n">${accInr(c.suppliers)}</td></tr>`;
+            outRows += `<tr class="sub"><td>Expenses paid</td><td class="n">${accInr(c.expenses)}</td></tr>`;
+            outRows += `<tr class="tot"><td><b>Total out</b></td><td class="n">${accInr(c.outTotal)}</td></tr>`;
+
+            let bridge = '';
+            c.bridge.forEach(b => {
+                bridge += `<tr class="sub"${b.residual ? ' style="color:#b45309;"' : ''}><td>${accEsc(b.label)}</td><td class="n">${accInr(b.amount)}</td></tr>`;
+            });
+            bridge += `<tr class="grand"><td>NET CASH MOVEMENT</td><td class="n">${accInr(c.net)}</td></tr>`;
+
+            document.getElementById('accCash').innerHTML =
+                `<div style="text-align:center;margin-bottom:0.9rem;">
+                    <div style="font-weight:900;font-size:1.05rem;color:#0f172a;">Cash Flow</div>
+                    <div style="font-size:0.82rem;color:#64748b;">${accDate(d.period.from)} to ${accDate(d.period.to)}</div>
+                 </div>
+                 <div class="cashgrid">
+                    <div class="cashcol"><table class="pl" style="max-width:none;"><tr class="head"><td colspan="2">Money in</td></tr>${inRows}</table></div>
+                    <div class="cashcol"><table class="pl" style="max-width:none;"><tr class="head"><td colspan="2">Money out</td></tr>${outRows}</table></div>
+                 </div>
+                 <div style="max-width:720px;margin:1.4rem auto 0;">
+                    <table class="pl"><tr class="head"><td colspan="2">Why profit is not the same as cash</td></tr>${bridge}</table>
+                    <p class="acc-hint">Profit counts a credit sale the day it is billed; cash arrives when the customer pays.
+                    Each line above converts one into the other. ${c.bridge.some(b => b.residual)
+                        ? '<b>An unexplained difference is shown</b> — it usually means a payment or bill was recorded with a date outside this period, or a return was refunded in a way the app did not capture.'
+                        : 'Every rupee of the difference is accounted for.'}</p>
+                 </div>`;
+        }
+
+        function accDrill(kind) {
+            _accDayFilter = kind;
+            switchAccTab('day');
+            renderDayBook();
+            const el = document.getElementById('accDay');
+            if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function accDayFilter(kind) { _accDayFilter = kind; renderDayBook(); }
+
+        function renderDayBook() {
+            const d = _accDay;
+            const kinds = ['all', 'Sale', 'Purchase', 'Expense', 'Receipt', 'Payment', 'Credit Note', 'Debit Note'];
+            const chips = kinds.map(k => {
+                const on = _accDayFilter === k;
+                return `<button class="acc-chip" style="${on ? 'border-color:#0d9488;color:#0d9488;background:#f0fdfa;' : ''}"
+                    onclick="accDayFilter('${k}')">${k === 'all' ? 'All' : accEsc(k)}</button>`;
+            }).join(' ');
+
+            const rows = (d.rows || []).filter(r => _accDayFilter === 'all' || r.kind === _accDayFilter);
+            let body = '';
+            let lastDate = '';
+            rows.forEach(r => {
+                if (r.date !== lastDate) {
+                    lastDate = r.date;
+                    body += `<tr style="background:#f8fafc;"><td colspan="7" style="font-weight:800;color:#334155;padding:0.5rem 0.7rem;">${accDate(r.date)}</td></tr>`;
+                }
+                const cash = r.cash > 0 ? `<span class="db-in">+${accInr(r.cash).replace('₹', '₹')}</span>`
+                          : r.cash < 0 ? `<span class="db-out">${accInr(r.cash)}</span>`
+                          : '<span style="color:#cbd5e1;">—</span>';
+                body += `<tr${r.flag ? ' style="background:#fff7ed;"' : ''}>
+                    <td style="white-space:nowrap;color:#64748b;">${accEsc(r.time || '')}</td>
+                    <td style="font-weight:700;">${accEsc(r.kind)}</td>
+                    <td>${accEsc(r.ref)}</td>
+                    <td>${accEsc(r.party)}</td>
+                    <td>${accEsc(r.mode)}</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;">${accInr(r.amount)}</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;">${cash}</td>
+                </tr>`;
+                if (r.note) {
+                    body += `<tr><td></td><td colspan="6" style="color:#94a3b8;font-size:0.78rem;padding-top:0;">${accEsc(r.note)}</td></tr>`;
+                }
+            });
+            if (!rows.length) body = '<tr><td colspan="7" style="text-align:center;padding:1.6rem;color:#94a3b8;">Nothing in this period.</td></tr>';
+
+            document.getElementById('accDay').innerHTML =
+                `<div style="text-align:center;margin-bottom:0.7rem;">
+                    <div style="font-weight:900;font-size:1.05rem;color:#0f172a;">Day Book</div>
+                    <div style="font-size:0.82rem;color:#64748b;">${accDate(_accData.period.from)} to ${accDate(_accData.period.to)} · ${d.totals.count} entries</div>
+                 </div>
+                 <div class="acc-noprint" style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.8rem;justify-content:center;">${chips}</div>
+                 <div style="overflow-x:auto;">
+                    <table class="report-table" style="min-width:720px;">
+                        <thead><tr><th>Time</th><th>Type</th><th>Ref</th><th>Party</th><th>Mode</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Cash</th></tr></thead>
+                        <tbody>${body}</tbody>
+                    </table>
+                 </div>
+                 <p class="acc-hint" style="text-align:center;">
+                    Cash in ${accInr(d.totals.in)} · cash out ${accInr(d.totals.out)} · net ${accInr(d.totals.net)}.
+                    The Cash column is a <b>movement</b>, not a drawer balance — the app is never told what was in the till this morning,
+                    and inventing an opening balance would be worse than leaving it out.
+                 </p>`;
+        }
+
+        /* Opening stock. Two questions in one prompt would be a bad modal, so
+           it is asked as two — the value, then the date it applies to. */
+        async function openOpeningStock() {
+            const cur = _accOpening.value || 0;
+            const val = await mmPrompt(
+                'What were the goods on your shelves worth (at cost) when you started keeping records in Billware?\n\n' +
+                'Leave 0 to let the app compute it from your purchase history.\n' +
+                'Enter the real figure if the shop was already trading before that history begins — otherwise gross profit is overstated.',
+                (cur > 0 ? String(cur) : ''),
+                { title: '⚙️ Opening Stock', placeholder: 'e.g. 410000', okText: 'Next' }
+            );
+            if (val === null) return;
+            const amount = Math.max(0, parseFloat(String(val).replace(/[^0-9.]/g, '')) || 0);
+
+            let asOf = _accOpening.date || '';
+            if (amount > 0) {
+                const dv = await mmPrompt(
+                    'What date does that figure apply to? (YYYY-MM-DD)\n\n' +
+                    'Usually the first day of the financial year, or the day you started using the app.\n' +
+                    'It is only used for periods starting on or after this date.',
+                    asOf || (new Date().getFullYear() + '-04-01'),
+                    { title: '⚙️ Opening Stock — as on', placeholder: 'YYYY-MM-DD', okText: 'Save' }
+                );
+                if (dv === null) return;
+                asOf = String(dv).trim().slice(0, 10);
+                if (asOf && !/^\d{4}-\d{2}-\d{2}$/.test(asOf)) {
+                    mmAlert('That date is not in YYYY-MM-DD form. Nothing was saved.');
+                    return;
+                }
+            } else { asOf = ''; }
+
+            _accOpening = { value: amount, date: asOf };
+            try {
+                localStorage.setItem('mm_opening_stock', String(amount));
+                localStorage.setItem('mm_opening_stock_date', asOf);
+            } catch (e) {}
+            let saved = true;
+            if (typeof dbSetOpeningStock === 'function') {
+                try { const r = await dbSetOpeningStock(amount, asOf || null); saved = !!(r && r.success); }
+                catch (e) { saved = false; }
+            }
+            if (typeof mmAudit === 'function') mmAudit('Opening stock set', accInr(amount), asOf);
+            renderAccounts();
+            if (typeof mmAlert === 'function') {
+                mmAlert(saved
+                    ? (amount > 0 ? `✅ Opening stock set to ${accInr(amount)} as on ${asOf || '—'}.`
+                                  : '✅ Opening stock cleared — the app will compute it from your purchases.')
+                    : '⚠️ Saved on this device, but the server refused it. If this persists, migrations/add_opening_stock.sql has not been run yet.');
+            }
+        }
+
+        /* Excel: one workbook, one sheet per statement, so the whole thing can
+           go to the accountant in a single attachment. */
+        const ACC_XLSX_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        async function accExportExcel() {
+            if (!_accData) return;
+            if (typeof XLSX === 'undefined') {
+                try { await mmLoadScript(ACC_XLSX_CDN); }
+                catch (e) { showToast('❌ Could not load the Excel library. Check your connection.', 'error'); return; }
+            }
+            const d = _accData;
+            const N = v => Number((Number(v) || 0).toFixed(2));
+
+            const pnl = [
+                ['Profit & Loss'], ['Period', d.period.from + ' to ' + d.period.to], [],
+                ['Sales (net of GST)', N(d.sales.taxable)],
+                ['Less: Sales returns', N(-d.salesReturns.taxable)],
+                ['NET SALES', N(d.netSales)], [],
+                ['Opening stock (' + d.stock.openingSource + ')', N(d.stock.opening)],
+                ['Add: Purchases (net of GST)', N(d.purchases.taxable)],
+                ['Less: Purchase returns', N(-d.purchaseReturns.taxable)],
+                ['Less: Closing stock', N(-d.stock.closing)],
+                ['COST OF GOODS SOLD', N(d.cogs)], [],
+                ['GROSS PROFIT', N(d.grossProfit)],
+                ['Gross margin %', N(d.grossPct)], []
+            ];
+            d.expenses.rows.forEach(r => pnl.push([r.category, N(r.amount)]));
+            pnl.push(['TOTAL EXPENSES', N(d.expenses.total)]);
+            if (Math.abs(d.roundOff) >= 0.01) pnl.push(['Round-off on bills', N(d.roundOff)]);
+            pnl.push(['NET PROFIT', N(d.netProfit)], ['Net margin %', N(d.netPct)], []);
+            pnl.push(['Item-margin cross-check', N(d.itemMargin)], ['Difference (stock that left unsold)', N(d.marginGap)]);
+            if (d.warnings.length) { pnl.push([], ['Notes']); d.warnings.forEach(w => pnl.push([w])); }
+
+            const c = d.cash;
+            const cash = [
+                ['Cash Flow'], ['Period', d.period.from + ' to ' + d.period.to], [],
+                ['MONEY IN'], ['Counter — cash', N(c.byMode.cash)], ['Counter — UPI', N(c.byMode.upi)],
+                ['Counter — card', N(c.byMode.card)], ['Khata payments received', N(c.khata)],
+                ['Total in', N(c.inTotal)], [],
+                ['MONEY OUT'], ['Paid to suppliers', N(c.suppliers)], ['Expenses paid', N(c.expenses)],
+                ['Total out', N(c.outTotal)], [],
+                ['WHY PROFIT IS NOT CASH']
+            ];
+            c.bridge.forEach(b => cash.push([b.label, N(b.amount)]));
+            cash.push(['NET CASH MOVEMENT', N(c.net)]);
+
+            const day = [['Date', 'Time', 'Type', 'Ref', 'Party', 'Mode', 'Amount', 'Cash', 'Note']];
+            (_accDay.rows || []).forEach(r => day.push([r.date, r.time || '', r.kind, r.ref, r.party, r.mode, N(r.amount), N(r.cash), r.note || '']));
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pnl),  'Profit & Loss');
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(cash), 'Cash Flow');
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(day),  'Day Book');
+            XLSX.writeFile(wb, `Accounts_${d.period.from || 'start'}_to_${d.period.to || 'end'}.xlsx`);
+            if (typeof mmAudit === 'function') mmAudit('Accounts exported', 'Excel', d.period.from + '..' + d.period.to);
         }
 
         /* ── Audit Trail ── */
