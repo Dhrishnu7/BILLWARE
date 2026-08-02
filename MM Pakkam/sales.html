@@ -1887,7 +1887,36 @@
             const counter = parseInt(localStorage.getItem('mm_bill_counter') || '0') + 1;
             localStorage.setItem('mm_bill_counter', String(counter));
 
-            const grandTotal = document.getElementById('grandTotal').textContent;
+            /* ── The bill total is CALCULATED, not read off the screen ───────
+               This used to be `document.getElementById('grandTotal').textContent`.
+               Whatever that element happened to be showing became the stored
+               total, so if it had not been refreshed at the moment Save was
+               pressed the bill was saved with the wrong figure — silently, and
+               with the line items perfectly correct beside it. A real bill,
+               SS-011, went in with lines totalling 44.80 and a stored total of
+               ZERO. Nothing complained; the pre-filing check found it later.
+
+               A wrong total is not a display problem. It is what the khata
+               credits the customer, what the day-end cash reconciliation
+               counts, what the Tally voucher debits the party, and what the
+               printed bill says. So it is derived from the same rows being
+               saved, and rounded the same way the screen rounds it.
+
+               The screen value is still read — but only to cross-check. If the
+               two disagree the shop is asked, because the one thing worse than
+               a wrong total is a wrong total nobody mentioned. */
+            const _lineSum   = medicines.reduce((s, m) => s + (parseFloat(m.total) || 0), 0);
+            const _computed  = Math.round(_lineSum);
+            const _displayed = parseFloat(String(document.getElementById('grandTotal').textContent).replace(/[^0-9.]/g, ''));
+            if (!isNaN(_displayed) && Math.abs(_displayed - _computed) > 0.5) {
+                const goOn = await mmConfirm(
+                    'The total on screen (₹' + _displayed.toFixed(2) + ') does not match this bill\'s own items (₹' + _computed.toFixed(2) + ').\n\n' +
+                    'The items are what will be saved, so ₹' + _computed.toFixed(2) + ' is the figure that will be used.\n\n' +
+                    'Check the bill before saving if that is not what you expect.',
+                    { title: '⚠️ Total does not match the items', okText: 'Save with ₹' + _computed.toFixed(2), cancelText: 'Go back' });
+                if (!goOn) { _isSaving = false; btn.disabled = false; btn.innerHTML = '💾 Save Bill'; return; }
+            }
+            const grandTotal = _computed.toFixed(2);
 
             const billInput = document.getElementById('billNo').value;
             let finalBillNo = billInput;
