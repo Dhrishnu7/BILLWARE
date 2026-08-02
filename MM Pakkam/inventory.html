@@ -1549,26 +1549,98 @@
     }
     function cancelPurchaseReturn() { _prLot = null; document.getElementById('purReturnCard').classList.add('ret-hidden'); }
 
-    /* ── History ── */
+    /* ── History ──
+       Every line also carries a way to undo the return it belongs to. Until
+       this existed a return taken by mistake was permanent: the stock stayed
+       wrong for ever, and a credit note the shop never meant to issue kept
+       reappearing in the GSTR-1 with no way to withdraw it. */
+    let _retHist = {};
+    function retNoteKey(a) {
+        let n = {}; try { n = JSON.parse(a.note || '{}'); } catch (e) {}
+        const isSale = a.reason === 'sales_return';
+        const no = String((isSale ? n.cn : n.dn) || '').trim();
+        // Notes taken before numbering fall back to what identifies them:
+        // the document they reverse, on the day they were taken.
+        return (isSale ? 'C' : 'D') + (no || ('~' + (n.ref || '') + '|' + (n.date || '')));
+    }
     function renderReturnsHistory() {
         const rows = retAdjustments().filter(a => a.reason === 'sales_return' || a.reason === 'purchase_return')
             .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
         const body = document.getElementById('historyBody');
         if (!rows.length) { body.innerHTML = '<div class="ret-empty">No returns yet.</div>'; return; }
-        let html = '<table class="ret-tbl"><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Party</th><th>Medicine</th><th>Qty</th><th>Amount</th></tr></thead><tbody>';
+
+        _retHist = {};
+        rows.forEach(a => { const k = retNoteKey(a); (_retHist[k] = _retHist[k] || []).push(a); });
+
+        let html = '<table class="ret-tbl"><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Party</th><th>Medicine</th><th>Qty</th><th>Amount</th><th></th></tr></thead><tbody>';
         rows.forEach(a => {
             let n = {}; try { n = JSON.parse(a.note || '{}'); } catch (e) {}
             const isSale = a.reason === 'sales_return';
             const noteNo = isSale ? (n.cn || '') : (n.dn || '');
+            const k = retNoteKey(a);
+            const lines = (_retHist[k] || []).length;
             html += '<tr><td>' + retEsc(n.date || (a.created_at || '').slice(0, 10)) + '</td>'
                 + '<td><span class="ret-badge ' + (isSale ? 'ret-b-sale' : 'ret-b-pur') + '">' + (isSale ? 'Sales' : 'Purchase') + '</span></td>'
                 + '<td>' + retEsc(noteNo || '—') + (n.ref ? ' <span class="ret-muted">/ ' + retEsc(n.ref) + '</span>' : '') + '</td>'
                 + '<td>' + retEsc(n.party || '—') + '</td>'
                 + '<td>' + retEsc(a.product_name || '') + ' <span class="ret-muted">' + retEsc(a.batch_no || '') + '</span></td>'
                 + '<td>' + (parseFloat(a.qty_delta) > 0 ? '+' : '') + (parseFloat(a.qty_delta) || 0) + '</td>'
-                + '<td>' + retMoney(n.amount || 0) + '</td></tr>';
+                + '<td>' + retMoney(n.amount || 0) + '</td>'
+                + '<td style="text-align:right;white-space:nowrap;">'
+                + '<button onclick="deleteReturnNote(\'' + retEsc(k).replace(/'/g, "\\'") + '\')" '
+                + 'title="Undo this whole return' + (lines > 1 ? ' (' + lines + ' lines)' : '') + '" '
+                + 'style="background:#fff1f2;color:#e11d48;border:1px solid #fecdd3;border-radius:8px;'
+                + 'padding:3px 9px;font-size:0.75rem;font-weight:700;cursor:pointer;font-family:inherit;">🗑 Undo</button>'
+                + '</td></tr>';
         });
         body.innerHTML = html + '</tbody></table>';
+    }
+
+    /* Undoes the WHOLE note, never one line of it. A return is a document: half
+       a credit note is not a smaller credit note, it is a broken one — the
+       stock comes back for some medicines and not others, and the GSTR-1 gets
+       an entry that foots against nothing. */
+    async function deleteReturnNote(key) {
+        const rows = _retHist[key] || [];
+        if (!rows.length) return;
+        let n = {}; try { n = JSON.parse(rows[0].note || '{}'); } catch (e) {}
+        const isSale = rows[0].reason === 'sales_return';
+        const no = String((isSale ? n.cn : n.dn) || '').trim() || '(unnumbered)';
+        const amount = rows.reduce((s, a) => {
+            let x = {}; try { x = JSON.parse(a.note || '{}'); } catch (e) {}
+            return s + (parseFloat(x.amount) || 0);
+        }, 0);
+        const noId = rows.filter(a => a.id === undefined || a.id === null || a.id === '').length;
+
+        if (!await mmConfirm(
+            'Undo ' + (isSale ? 'credit note ' : 'debit note ') + no + '?\n\n' +
+            rows.length + ' line(s), about ₹' + amount.toFixed(2) + '.\n\n' +
+            (isSale
+                ? 'The stock this return put BACK will be taken out again, and the credit note will stop appearing in your GSTR-1 and Tally exports.'
+                : 'The stock this return took OUT will be put back, and the debit note will stop appearing in your exports.') +
+            '\n\nDo this only if the return was entered by mistake. If the goods really did change hands, leave it.',
+            { title: '🗑 Undo this return', danger: true, okText: 'Undo it' })) return;
+
+        let done = 0, failed = 0;
+        for (const a of rows) {
+            if (a.id === undefined || a.id === null || a.id === '') { failed++; continue; }
+            try {
+                const r = await dbDeleteStockAdjustment(a.id);
+                r && r.success ? done++ : failed++;
+            } catch (e) { failed++; }
+        }
+        if (typeof mmAudit === 'function') mmAudit('Return undone', no, done + ' line(s)');
+        try { if (typeof dbSyncCoreData === 'function') await dbSyncCoreData(); } catch (e) {}
+        renderReturnsHistory();
+        // The ledger is built from the adjustments we just removed, so it has
+        // to be rebuilt or the shelf figures stay at yesterday's answer.
+        try { if (typeof buildStockData === 'function') buildStockData(); } catch (e) {}
+        try { if (typeof renderStockTable === 'function') renderStockTable(''); } catch (e) {}
+        const msg = failed
+            ? done + ' line(s) undone, ' + failed + ' failed' + (noId ? ' (never reached the server)' : '')
+            : '✅ Return ' + no + ' undone — stock corrected.';
+        if (typeof showToast === 'function') showToast(msg);
+        else if (typeof mmAlert === 'function') mmAlert(msg);
     }
 
     // ═══════════════════════════════════════════════════════

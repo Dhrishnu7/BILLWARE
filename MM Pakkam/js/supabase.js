@@ -1352,6 +1352,31 @@ async function dbAddStockAdjustment(row) {
     return { success: true, data: data?.[0] || null };
 }
 
+/* Removes one stock adjustment — which is how a return is undone.
+
+   Until now nothing in the app could delete one, so a return taken by
+   mistake was permanent: the stock stayed wrong for ever and a credit note
+   the shop never meant to issue kept turning up in the GSTR-1. Stock is
+   computed as purchases − sales + adjustments, so deleting the row reverses
+   its effect exactly, with no compensating entry to get wrong.
+
+   The local cache is pruned too, so the change shows before the next sync. */
+async function dbDeleteStockAdjustment(id) {
+    const user = _currentUser();
+    if (!user) return { success: false, message: 'Not logged in.' };
+    if (id === undefined || id === null || id === '') return { success: false, message: 'This entry has no id — it never reached the server.' };
+    const { error } = await _supabase.from('stock_adjustments').delete().eq('id', id).eq('user_id', user);
+    if (error) { console.error('stock adjustment delete:', error); return { success: false, message: error.message }; }
+    try {
+        if (typeof mmLsGet === 'function' && typeof mmLsSet === 'function') {
+            const local = mmLsGet('stockAdjustments') || [];
+            mmLsSet('stockAdjustments', local.filter(a => String(a.id) !== String(id)));
+        }
+    } catch (e) {}
+    return { success: true };
+}
+window.dbDeleteStockAdjustment = dbDeleteStockAdjustment;
+
 // Retries any stock adjustment that was saved locally but failed to reach
 // Supabase (e.g. made before the 'stock_adjustments' table existed yet, or
 // while offline). Safe to call repeatedly.
