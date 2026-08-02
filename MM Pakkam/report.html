@@ -828,8 +828,53 @@
             .pl tr.grand td{border-top:2.5px solid #0f172a;border-bottom:2.5px solid #0f172a;font-weight:900;font-size:1rem;}
             .pl .pct{color:#64748b;font-weight:700;font-size:0.8rem;padding-left:0.5rem;}
             .acc-hint{font-size:0.78rem;color:#94a3b8;margin:0.2rem 0 1rem;line-height:1.55;}
-            .cashgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:1rem;max-width:860px;margin:0 auto;}
-            .cashcol{flex:1;min-width:270px;}
+            /* Cash Flow. The two halves used to be bare tables side by side,
+               so "Total out" landed level with "Counter — card" and the whole
+               thing read as two unrelated lists. They are panels now, stretched
+               to a common height with the totals pinned to the bottom edge, so
+               the two bottom lines sit on the same rule and can be compared at
+               a glance — which is the only reason to show them side by side. */
+            .cf-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:0.8rem;max-width:860px;margin:0 auto 1.3rem;}
+            .cf-kpi{border:1.5px solid #e2e8f0;border-radius:14px;padding:0.8rem 1rem;background:#fff;}
+            .cf-kpi .k-l{font-size:0.7rem;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:#64748b;}
+            .cf-kpi .k-v{font-size:1.2rem;font-weight:900;margin-top:0.22rem;font-variant-numeric:tabular-nums;color:#0f172a;}
+            .cf-kpi.in{background:#f0fdf4;border-color:#bbf7d0;}  .cf-kpi.in  .k-v{color:#15803d;}
+            .cf-kpi.out{background:#fef2f2;border-color:#fecaca;} .cf-kpi.out .k-v{color:#b91c1c;}
+            .cf-kpi.net{background:#f8fafc;}
+
+            .cashgrid{display:flex;flex-wrap:wrap;align-items:stretch;justify-content:center;gap:1rem;max-width:860px;margin:0 auto;}
+            .cashcol{flex:1 1 300px;min-width:280px;display:flex;}
+            .cf-panel{display:flex;flex-direction:column;width:100%;border:1.5px solid #e2e8f0;border-radius:14px;background:#fff;overflow:hidden;}
+            .cf-head{padding:0.58rem 0.95rem;font-size:0.74rem;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;}
+            .cf-panel.in  .cf-head{background:#f0fdf4;color:#166534;border-bottom:1.5px solid #dcfce7;}
+            .cf-panel.out .cf-head{background:#fef2f2;color:#991b1b;border-bottom:1.5px solid #fee2e2;}
+            .cf-row{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;padding:0.48rem 0.95rem;font-size:0.87rem;color:#334155;}
+            .cf-row b{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600;color:#0f172a;}
+            /* A zero is information, but it is not news — greyed so the eye
+               goes to the lines that actually moved. */
+            .cf-row.zero, .cf-row.zero b{color:#cbd5e1;}
+            .cf-total{margin-top:auto;display:flex;justify-content:space-between;gap:1rem;
+                      padding:0.62rem 0.95rem;border-top:2px solid #0f172a;font-weight:800;color:#0f172a;font-size:0.92rem;}
+            .cf-total b{font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+            .cf-bridge{max-width:860px;margin:1.4rem auto 0;border:1.5px solid #e2e8f0;border-radius:14px;overflow:hidden;background:#fff;}
+            .cf-bridge .cf-head{background:#f1f5f9;color:#334155;border-bottom:1.5px solid #e2e8f0;}
+            .cf-bridge .cf-row + .cf-row{border-top:1px solid #f8fafc;}
+            .cf-bridge .cf-row.resid{background:#fffbeb;color:#92400e;} .cf-bridge .cf-row.resid b{color:#92400e;}
+            .cf-grand{display:flex;justify-content:space-between;gap:1rem;padding:0.75rem 0.95rem;
+                      font-weight:900;font-size:1rem;color:#fff;}
+            .cf-grand.up{background:#15803d;} .cf-grand.down{background:#b91c1c;}
+            .cf-grand b{font-variant-numeric:tabular-nums;}
+            @media(max-width:620px){.cf-kpis{grid-template-columns:1fr;}}
+            /* Browsers drop background colours when printing, which would leave
+               white text on white paper. Ink the type instead. */
+            @media print{
+                .cf-grand{background:#fff !important;color:#0f172a !important;
+                          border-top:2.5px solid #0f172a;border-bottom:2.5px solid #0f172a;}
+                .cf-kpi, .cf-kpi.in, .cf-kpi.out{background:#fff !important;}
+                .cf-kpi .k-v{color:#0f172a !important;}
+                .cf-panel .cf-head{background:#fff !important;color:#0f172a !important;}
+            }
             .db-in{color:#15803d;font-weight:700;}
             .db-out{color:#b91c1c;font-weight:700;}
             /* Printed letterhead. Hidden on screen — on screen you already
@@ -4148,40 +4193,66 @@
 
         function renderCashFlow() {
             const d = _accData, c = d.cash;
-            let inRows = '';
-            inRows += `<tr class="sub"><td>Counter — cash</td><td class="n">${accInr(c.byMode.cash)}</td></tr>`;
-            inRows += `<tr class="sub"><td>Counter — UPI</td><td class="n">${accInr(c.byMode.upi)}</td></tr>`;
-            inRows += `<tr class="sub"><td>Counter — card</td><td class="n">${accInr(c.byMode.card)}</td></tr>`;
-            inRows += `<tr class="sub"><td>Khata payments received</td><td class="n">${accInr(c.khata)}</td></tr>`;
-            inRows += `<tr class="tot"><td><b>Total in</b></td><td class="n">${accInr(c.inTotal)}</td></tr>`;
+            const cfRow = (label, amt) =>
+                `<div class="cf-row${Math.abs(amt) < 0.005 ? ' zero' : ''}"><span>${label}</span><b>${accInr(amt)}</b></div>`;
 
-            let outRows = '';
-            outRows += `<tr class="sub"><td>Paid to suppliers</td><td class="n">${accInr(c.suppliers)}</td></tr>`;
-            outRows += `<tr class="sub"><td>Expenses paid</td><td class="n">${accInr(c.expenses)}</td></tr>`;
-            outRows += `<tr class="tot"><td><b>Total out</b></td><td class="n">${accInr(c.outTotal)}</td></tr>`;
+            const inRows =
+                cfRow('Counter — cash', c.byMode.cash) +
+                cfRow('Counter — UPI',  c.byMode.upi) +
+                cfRow('Counter — card', c.byMode.card) +
+                cfRow('Khata payments received', c.khata);
+
+            const outRows =
+                cfRow('Paid to suppliers', c.suppliers) +
+                cfRow('Expenses paid',     c.expenses);
 
             let bridge = '';
             c.bridge.forEach(b => {
-                bridge += `<tr class="sub"${b.residual ? ' style="color:#b45309;"' : ''}><td>${accEsc(b.label)}</td><td class="n">${accInr(b.amount)}</td></tr>`;
+                bridge += `<div class="cf-row${b.residual ? ' resid' : ''}"><span>${accEsc(b.label)}</span><b>${accInr(b.amount)}</b></div>`;
             });
-            bridge += `<tr class="grand"><td>NET CASH MOVEMENT</td><td class="n">${accInr(c.net)}</td></tr>`;
+
+            const up = c.net >= 0;
 
             document.getElementById('accCash').innerHTML =
-                `<div class="acc-doctitle" style="text-align:center;margin-bottom:0.9rem;">
+                `<div class="acc-doctitle" style="text-align:center;margin-bottom:1rem;">
                     <div style="font-weight:900;font-size:1.05rem;color:#0f172a;">Cash Flow</div>
                     <div style="font-size:0.82rem;color:#64748b;">${accDate(d.period.from)} to ${accDate(d.period.to)}</div>
                  </div>
-                 <div class="cashgrid">
-                    <div class="cashcol"><table class="pl" style="max-width:none;"><tr class="head"><td colspan="2">Money in</td></tr>${inRows}</table></div>
-                    <div class="cashcol"><table class="pl" style="max-width:none;"><tr class="head"><td colspan="2">Money out</td></tr>${outRows}</table></div>
+
+                 <div class="cf-kpis">
+                    <div class="cf-kpi in"><div class="k-l">Money in</div><div class="k-v">${accInr(c.inTotal)}</div></div>
+                    <div class="cf-kpi out"><div class="k-l">Money out</div><div class="k-v">${accInr(c.outTotal)}</div></div>
+                    <div class="cf-kpi net"><div class="k-l">Net movement</div>
+                        <div class="k-v" style="color:${up ? '#15803d' : '#b91c1c'};">${accInr(c.net)}</div></div>
                  </div>
-                 <div style="max-width:720px;margin:1.4rem auto 0;">
-                    <table class="pl"><tr class="head"><td colspan="2">Why profit is not the same as cash</td></tr>${bridge}</table>
-                    <p class="acc-hint">Profit counts a credit sale the day it is billed; cash arrives when the customer pays.
+
+                 <div class="cashgrid">
+                    <div class="cashcol">
+                        <div class="cf-panel in">
+                            <div class="cf-head">💵 Money in</div>
+                            ${inRows}
+                            <div class="cf-total"><span>Total in</span><b>${accInr(c.inTotal)}</b></div>
+                        </div>
+                    </div>
+                    <div class="cashcol">
+                        <div class="cf-panel out">
+                            <div class="cf-head">💸 Money out</div>
+                            ${outRows}
+                            <div class="cf-total"><span>Total out</span><b>${accInr(c.outTotal)}</b></div>
+                        </div>
+                    </div>
+                 </div>
+
+                 <div class="cf-bridge">
+                    <div class="cf-head">Why profit is not the same as cash</div>
+                    ${bridge}
+                    <div class="cf-grand ${up ? 'up' : 'down'}"><span>NET CASH MOVEMENT</span><b>${accInr(c.net)}</b></div>
+                 </div>
+                 <p class="acc-hint" style="max-width:860px;margin:0.7rem auto 0;text-align:center;">
+                    Profit counts a credit sale the day it is billed; cash arrives when the customer pays.
                     Each line above converts one into the other. ${c.bridge.some(b => b.residual)
                         ? '<b>An unexplained difference is shown</b> — it usually means a payment or bill was recorded with a date outside this period, or a return was refunded in a way the app did not capture.'
-                        : 'Every rupee of the difference is accounted for.'}</p>
-                 </div>`;
+                        : 'Every rupee of the difference is accounted for.'}</p>`;
         }
 
         function accDrill(kind) {
