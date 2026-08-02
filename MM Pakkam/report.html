@@ -3548,6 +3548,29 @@
             }
 
             if (ok) {
+                /* Prune the LOCAL cache too. This table is drawn from the cloud
+                   rows, but the Profit & Loss, the Day Book, GSTR-1, Tally and
+                   every stock figure read localStorage instead. Deleting only
+                   from the server left the bill in that cache, so it kept
+                   appearing everywhere else — and the next sync then preserved
+                   it as "offline work", which is how a deleted bill came back
+                   from the dead. Both halves are fixed; this is the half that
+                   makes the change visible immediately. */
+                try {
+                    if (type === 'sales') {
+                        const no = raw && (raw.bill_no || raw.billNo);
+                        if (no) {
+                            const list = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+                            localStorage.setItem('mm_sales',
+                                JSON.stringify(list.filter(b => String(b && b.billNo) !== String(no))));
+                        }
+                    } else {
+                        const list = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+                        localStorage.setItem('mm_purchases',
+                            JSON.stringify(list.filter(p => String(p && p.id) !== String(id))));
+                    }
+                } catch (e) { console.warn('local cache prune failed:', e); }
+
                 delete _rawBillsMap[id];
                 delete _rawPurchasesMap[id];
                 allData     = allData.filter(r => !(r.id == id && r.type === type));

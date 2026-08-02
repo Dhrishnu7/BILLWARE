@@ -1667,18 +1667,39 @@ async function dbSyncCoreData() {
 
         if (bills && bills.length) {
             const normalized = _mmNormalizeBills(bills);
-            // Preserve any bill saved locally that hasn't reached the cloud yet
-            // (offline/pending sync) — the cloud copy wins once it exists.
             const cloudBillNos  = new Set(normalized.map(b => b.billNo));
             const existingLocal = JSON.parse(localStorage.getItem('mm_sales') || '[]');
-            /* Requiring a billNo is what makes this self-healing. A genuine
-               offline bill always has one (sales.html assigns it before saving),
-               so nothing real is lost — but the raw cloud rows written by the
-               old dbSyncDown have none, and would otherwise be preserved as
-               "unsynced" for ever. This purges them on the next sync. */
-            const localOnly = existingLocal.filter(b => b && b.billNo && !cloudBillNos.has(b.billNo));
-            const dropped   = existingLocal.length - localOnly.length - normalized.length;
-            if (dropped > 0) console.log('[Sync] cleared', dropped, 'duplicate bill record(s) left by the old sync');
+
+            /* WHICH LOCAL BILLS SURVIVE A SYNC — and why this is not a guess.
+
+               This used to keep every local bill the cloud did not have, on the
+               reasoning that it must be offline work waiting to upload. But a
+               bill that was DELETED on the server looks exactly the same:
+               present locally, absent in the cloud. So it was preserved, every
+               sync, for ever. Deleting a bill appeared to work and the bill
+               came back — still counted in stock, the P&L, GSTR-1 and Tally.
+               Found in testing when five duplicate bills refused to die.
+
+               Offline bills are not a guess: sales.html queues them under
+               mm_<user>_pending_sales when the save fails, and
+               dbSyncPendingOfflineData() uploads them from there. So THAT is
+               the authority. Local-but-not-in-cloud AND not in the queue means
+               deleted, and it goes. */
+            const pendingNos = new Set();
+            try {
+                [`mm_${user}_pending_sales`, 'mm_pending_sales'].forEach(k => {
+                    (JSON.parse(localStorage.getItem(k) || '[]') || []).forEach(b => {
+                        const no = b && (b.billNo || b.bill_no);
+                        if (no) pendingNos.add(no);
+                    });
+                });
+            } catch (e) {}
+
+            const localOnly = existingLocal.filter(b =>
+                b && b.billNo && !cloudBillNos.has(b.billNo) && pendingNos.has(b.billNo));
+            const removed = existingLocal.filter(b =>
+                b && b.billNo && !cloudBillNos.has(b.billNo) && !pendingNos.has(b.billNo)).length;
+            if (removed > 0) console.log('[Sync] dropped', removed, 'bill(s) deleted on the server');
             localStorage.setItem('mm_sales', JSON.stringify([...normalized, ...localOnly]));
         }
 
