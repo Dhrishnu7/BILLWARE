@@ -1104,6 +1104,33 @@
     }
 
 
+    /* ═══════════════════════════════════════════════════════
+       EXPIRY DATE — one formatter, tolerant of both shapes
+
+       An expiry arrives in two forms and the same shop sees both. The Purchase
+       screen's <input type="month"> gives "2028-06"; the cloud column is a
+       DATE, so once a purchase has synced it comes back "2028-06-01". Three
+       copies of this formatter did `new Date(exp + '-01')`, which is right for
+       the first and produces "2028-06-01-01" — an Invalid Date — for the
+       second. So every expiry in the Master Ledger, the Expiry Checker and the
+       Substitute Finder read "Invalid Date" from the first sync onward.
+
+       Nothing crashed and no total was wrong, which is why it survived: it
+       only ever cost a pharmacist the ability to see what was about to expire.
+       Built from parts now rather than string concatenation, and it shows the
+       raw value rather than the word "Invalid" if it cannot parse it — an
+       unrecognised date is still information; "Invalid Date" is not.
+    ═══════════════════════════════════════════════════════ */
+    function mmFmtExpiry(exp) {
+        if (!exp) return '<span style="color:#94a3b8;">&mdash;</span>';
+        const s = String(exp).trim();
+        const p = s.split('-');
+        const y = parseInt(p[0], 10), m = parseInt(p[1], 10);
+        if (!y || !m || m < 1 || m > 12) return s;
+        try { return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }); }
+        catch (e) { return s; }
+    }
+
     // ═══════════════════════════════════════════════════════
     // TAB SWITCHER
     // ═══════════════════════════════════════════════════════
@@ -2339,8 +2366,7 @@
 
         function fmtExp(exp) {
             if (!exp) return '&mdash;';
-            try { return new Date(exp + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }); }
-            catch(e) { return exp; }
+            return mmFmtExpiry(exp);
         }
 
         function renderCard(r, badge) {
@@ -2560,8 +2586,7 @@
 
         const fmtExp = exp => {
             if (!exp) return '<span style="color:#94a3b8;">&mdash;</span>';
-            try { return new Date(exp + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }); }
-            catch(e) { return exp; }
+            return mmFmtExpiry(exp);
         };
 
         let html = '';
@@ -2824,8 +2849,7 @@
 
         const fmtExp = exp => {
             if (!exp) return '<span style="color:#94a3b8;">&mdash;</span>';
-            try { return new Date(exp + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }); }
-            catch(e) { return exp; }
+            return mmFmtExpiry(exp);
         };
 
         tbody.innerHTML = dead.sort((a, b) => b.current - a.current).map((row, idx) => {
