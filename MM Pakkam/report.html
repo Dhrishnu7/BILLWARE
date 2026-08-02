@@ -827,9 +827,41 @@
             .cashcol{flex:1;min-width:270px;}
             .db-in{color:#15803d;font-weight:700;}
             .db-out{color:#b91c1c;font-weight:700;}
+            /* Printed letterhead. Hidden on screen — on screen you already
+               know whose shop it is; on paper the accountant does not. */
+            #accPrintHead{display:none;}
+            #accPrintHead .ph-shop{font-size:1.25rem;font-weight:900;letter-spacing:0.02em;color:#0f172a;}
+            #accPrintHead .ph-doc{font-size:1rem;font-weight:700;color:#334155;margin-top:0.15rem;}
+            #accPrintHead .ph-sub{font-size:0.8rem;color:#64748b;margin-top:0.2rem;}
+            #accPrintHead hr{border:none;border-top:2px solid #0f172a;margin:0.6rem 0 1.1rem;}
+
             @media print{
-                header,.view-toggle-wrap,.acc-bar,.acc-noprint,.page-header p,.breadcrumb{display:none !important;}
-                .table-card{box-shadow:none !important;border:none !important;}
+                /* Chrome, navigation — and the advice. The warning boxes are
+                   there to tell the OWNER what to go and fix; they are not
+                   part of the statement, and printing them puts working notes
+                   in front of whoever the statement is handed to. They still
+                   travel in the Excel export, which is where a note belongs. */
+                header,.view-toggle-wrap,.acc-bar,.acc-noprint,.page-header,
+                #accWarnings,.acc-warn,.acc-ok,.acc-hint,.acc-doctitle,
+                #accountsView .table-header{display:none !important;}
+
+                #accPrintHead{display:block !important;text-align:center;}
+
+                body{background:#fff !important;}
+                .page-content{padding:0 !important;}
+                #accountsView .table-card{
+                    box-shadow:none !important;border:none !important;background:#fff !important;
+                    max-width:none !important;padding:0 !important;
+                    backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
+                    animation:none !important;opacity:1 !important;overflow:visible !important;
+                }
+                .pl{max-width:none;font-size:0.86rem;}
+                /* Do not split a total away from the line above it. */
+                .pl tr{page-break-inside:avoid;}
+                .pl tr.head td{page-break-after:avoid;}
+                .report-table{font-size:0.76rem;}
+                .report-table tr{page-break-inside:avoid;}
+                @page{margin:14mm 12mm;}
             }
         </style>
         <div id="accountsView" style="display:none; width:100%;">
@@ -858,6 +890,7 @@
                     <button class="acc-act" onclick="window.print()">🖨️ Print</button>
                 </div>
 
+                <div id="accPrintHead"></div>
                 <div id="accWarnings"></div>
                 <div id="accPnl"></div>
                 <div id="accCash" style="display:none;"></div>
@@ -3828,6 +3861,34 @@
                 document.getElementById('accTab' + k.charAt(0).toUpperCase() + k.slice(1)).classList.toggle('active', k === t);
                 document.getElementById('acc' + k.charAt(0).toUpperCase() + k.slice(1)).style.display = (k === t) ? 'block' : 'none';
             });
+            updateAccPrintHead();
+        }
+
+        /* The letterhead that only exists on paper. Whoever receives a printed
+           statement needs to know whose shop it is, which statement it is and
+           what period it covers — none of which the screen has to say, because
+           on screen you are already standing in your own shop.
+
+           It also carries the ONE piece of provenance that is not advice: which
+           opening-stock figure the statement used. That belongs on the document;
+           "go and fix your purchase entries" does not. */
+        function updateAccPrintHead() {
+            const el = document.getElementById('accPrintHead');
+            if (!el || !_accData) return;
+            const d = _accData;
+            const sp = window.mmShopProfile || {};
+            const shop = sp.shop_name || localStorage.getItem('mm_storeName') || localStorage.getItem('storeName') || 'My Store';
+            const names = { pnl: 'Profit & Loss', cash: 'Cash Flow Statement', day: 'Day Book' };
+            const basis = d.stock.openingSource === 'entered'
+                ? 'Opening stock as entered by the owner'
+                : 'Opening stock computed from purchase history';
+            const extra = _accTab === 'pnl' ? ' &middot; ' + basis : '';
+            el.innerHTML =
+                `<div class="ph-shop">${accEsc(shop)}</div>
+                 <div class="ph-doc">${accEsc(names[_accTab] || 'Accounts')}</div>
+                 <div class="ph-sub">${accDate(d.period.from)} to ${accDate(d.period.to)}${extra}</div>
+                 <div class="ph-sub">Generated ${accDate(new Date().toISOString().slice(0, 10))}</div>
+                 <hr>`;
         }
 
         function renderAccounts() {
@@ -3947,7 +4008,7 @@
             </p>`;
 
             document.getElementById('accPnl').innerHTML =
-                `<div style="text-align:center;margin-bottom:0.4rem;">
+                `<div class="acc-doctitle" style="text-align:center;margin-bottom:0.4rem;">
                     <div style="font-weight:900;font-size:1.05rem;color:#0f172a;">Profit &amp; Loss</div>
                     <div style="font-size:0.82rem;color:#64748b;">${accDate(d.period.from)} to ${accDate(d.period.to)} · ${d.sales.count} bills</div>
                  </div>
@@ -3975,7 +4036,7 @@
             bridge += `<tr class="grand"><td>NET CASH MOVEMENT</td><td class="n">${accInr(c.net)}</td></tr>`;
 
             document.getElementById('accCash').innerHTML =
-                `<div style="text-align:center;margin-bottom:0.9rem;">
+                `<div class="acc-doctitle" style="text-align:center;margin-bottom:0.9rem;">
                     <div style="font-weight:900;font-size:1.05rem;color:#0f172a;">Cash Flow</div>
                     <div style="font-size:0.82rem;color:#64748b;">${accDate(d.period.from)} to ${accDate(d.period.to)}</div>
                  </div>
@@ -4038,7 +4099,7 @@
             if (!rows.length) body = '<tr><td colspan="7" style="text-align:center;padding:1.6rem;color:#94a3b8;">Nothing in this period.</td></tr>';
 
             document.getElementById('accDay').innerHTML =
-                `<div style="text-align:center;margin-bottom:0.7rem;">
+                `<div class="acc-doctitle" style="text-align:center;margin-bottom:0.7rem;">
                     <div style="font-weight:900;font-size:1.05rem;color:#0f172a;">Day Book</div>
                     <div style="font-size:0.82rem;color:#64748b;">${accDate(_accData.period.from)} to ${accDate(_accData.period.to)} · ${d.totals.count} entries</div>
                  </div>
@@ -4049,8 +4110,14 @@
                         <tbody>${body}</tbody>
                     </table>
                  </div>
+                 <!-- The figures are part of the document and must survive
+                      printing; only the sentence explaining them is advice. -->
+                 <table class="pl" style="margin-top:1rem;">
+                    <tr class="tot"><td>Cash in</td><td class="n">${accInr(d.totals.in)}</td></tr>
+                    <tr class="tot"><td>Cash out</td><td class="n">${accInr(d.totals.out)}</td></tr>
+                    <tr class="grand"><td>NET CASH MOVEMENT</td><td class="n">${accInr(d.totals.net)}</td></tr>
+                 </table>
                  <p class="acc-hint" style="text-align:center;">
-                    Cash in ${accInr(d.totals.in)} · cash out ${accInr(d.totals.out)} · net ${accInr(d.totals.net)}.
                     The Cash column is a <b>movement</b>, not a drawer balance — the app is never told what was in the till this morning,
                     and inventing an opening balance would be worse than leaving it out.
                  </p>`;
