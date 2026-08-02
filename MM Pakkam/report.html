@@ -2325,9 +2325,22 @@
                        <div style="font-size:0.81rem;line-height:1.6;">Across <b>${c.blockFindings}</b> kind(s) of problem, in <b>${c.bills}</b> bill(s). Fix these before you upload anything.</div>
                    </div>`;
 
+            /* Every kind of problem carries the button that resolves it.
+               Naming a fault and leaving the shop to find the screen that
+               cures it is most of the work — and the fixers for HSN, GST
+               rates and buyer GSTINs already existed; two of them were simply
+               never wired to the list that reports the fault. */
+            const FIXB = FIXB_G + 'margin-left:6px;font-size:0.73rem;padding:3px 11px;';
             const fixBtn = (kind) => {
-                if (kind === 'hsn')   return `<button onclick="openHsnFixer()" style="background:#0d9488;color:#fff;border:none;border-radius:8px;padding:3px 11px;font-weight:700;font-size:0.73rem;font-family:inherit;cursor:pointer;margin-left:6px;">Fix HSN codes →</button>`;
-                if (kind === 'gstin') return `<button onclick="openGstinFix()" style="background:#0d9488;color:#fff;border:none;border-radius:8px;padding:3px 11px;font-weight:700;font-size:0.73rem;font-family:inherit;cursor:pointer;margin-left:6px;">Correct them →</button>`;
+                const b = (fn, label) => `<button onclick="${fn}" style="${FIXB}">${label} →</button>`;
+                if (kind === 'hsn')       return b('fixFromCheck(\'hsn\')',  'Fix HSN codes');
+                if (kind === 'rate')      return b('fixFromCheck(\'rate\')', 'Fix GST rates');
+                if (kind === 'gstin')     return b('openGstinFix()',         'Correct them');
+                if (kind === 'shop')      return b('goFix(\'shop-setup.html\')',              'Open Shop Setup');
+                if (kind === 'shoppos')   return b('fixFromCheck(\'shoppos\')',               'Set town &amp; PIN');
+                if (kind === 'returns')   return b('goFix(\'inventory.html#tab-returns\')',   'Open Returns');
+                if (kind === 'suppliers') return b('goFix(\'directory.html#tab-suppliers\')', 'Open Suppliers');
+                if (kind === 'bills')     return b('findBillsFromCheck()',   'Find these bills');
                 return '';
             };
 
@@ -2430,6 +2443,63 @@
                     ${body}
                     ${notes}
                 </div>`;
+        }
+
+        /* ── Acting on a pre-filing finding ───────────────────────────────
+           Simple navigation: leave the modal open behind us is pointless, and
+           a deep link puts the shop on the exact tab rather than the front
+           page of another screen. */
+        /* One button style for every "and here is where you fix it" control,
+           so they read as the same affordance wherever they appear. */
+        const FIXB_G = 'background:#0d9488;color:#fff;border:none;border-radius:8px;padding:4px 12px;font-weight:700;font-size:0.75rem;font-family:inherit;cursor:pointer;';
+
+        function goFix(url) {
+            try { closePreFile(); } catch (e) {}
+            try { closeTallyModal(); } catch (e) {}
+            location.href = url;
+        }
+
+        function findBillsFromCheck() {
+            closePreFile();
+            switchViewMode('tabular');
+            const el = document.getElementById('billSearchInput');
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => el.focus(), 300);
+            }
+        }
+
+        /* The HSN and GST-rate fixers read _gstrBuilt, which only exists once
+           the GSTR-1 panel has been opened for a month. Reached from the
+           pre-filing check that has not happened, so the return is built here
+           for the month the period starts in — and the shop is told when the
+           period covers more than one month, because these fix a month at a
+           time and silently fixing only the first would be worse. */
+        function ensureGstrForFix() {
+            if (_gstrBuilt && _gstrBuilt.summary) return true;
+            const from = document.getElementById('fromDate').value || '';
+            const to   = document.getElementById('toDate').value   || '';
+            if (!from) { mmAlert('Pick a From date first, then run the check again.'); return false; }
+            const month = from.slice(0, 7);
+            const shop  = window.mmShopProfile || {};
+            try {
+                _gstrBuilt = mmGstr1.build({ month: month, gstin: String(shop.gstin || '').trim().toUpperCase() });
+            } catch (e) {
+                mmAlert('Could not read that month\'s bills: ' + (e && e.message ? e.message : e));
+                return false;
+            }
+            if (to && to.slice(0, 7) !== month) {
+                showToast(`Fixing ${month} only — these repair one month at a time.`, 'info');
+            }
+            return true;
+        }
+
+        function fixFromCheck(kind) {
+            if (kind === 'shoppos') { closePreFile(); openEinvModal(); return; }
+            if (!ensureGstrForFix()) return;
+            closePreFile();
+            if (kind === 'hsn')  openHsnFixer();
+            if (kind === 'rate') openRateFixer();
         }
 
         /* ── Buyer GSTIN fixer ──────────────────────────────────────────── */
@@ -2958,12 +3028,19 @@
                     <b style="display:block;margin-bottom:5px;">${res.unbalanced.length} voucher(s) do not balance — Tally would reject them:</b>
                     ${res.unbalanced.slice(0, 12).map(u => '• ' + _te(u)).join('<br>')}
                     ${res.unbalanced.length > 12 ? `<br><i>…and ${res.unbalanced.length - 12} more</i>` : ''}
-                    <br><br>The download is blocked. Send me this message — it means a bill's figures do not add up.
+                    <br><br>The download is blocked: a bill's own figures do not add up, and a file Tally refuses is worse than no file.
+                    <div style="margin-top:9px;display:flex;gap:7px;flex-wrap:wrap;">
+                        <button onclick="closeTallyModal();findBillsFromCheck();" style="${FIXB_G}">Find these bills →</button>
+                        <button onclick="closeTallyModal();openPreFile();" style="${FIXB_G}">Run the full check →</button>
+                    </div>
                 </div>` : ''}
                 ${(res.returnProblems || []).length ? `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:10px 13px;font-size:0.78rem;line-height:1.6;margin-bottom:0.8rem;">
                     <b style="display:block;margin-bottom:4px;">These returns were LEFT OUT — their original bill could not be found, so the GST rate is unknown:</b>
                     ${res.returnProblems.map(p => '• ' + _te(p)).join('<br>')}
                     <br><br>Guessing a tax rate would put a wrong figure in your books, so they are skipped rather than estimated.
+                    <div style="margin-top:9px;">
+                        <button onclick="goFix('inventory.html#tab-returns')" style="${FIXB_G}">Open Returns →</button>
+                    </div>
                 </div>` : ''}
                 <div style="font-size:0.76rem;color:#64748b;line-height:1.5;margin-bottom:0.7rem;">
                     Check a few bill numbers and amounts against your own records. <b>Dr</b> = money in / owed to you or a cost;

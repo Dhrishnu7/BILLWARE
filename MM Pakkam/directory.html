@@ -604,6 +604,17 @@
             const sc = document.getElementById('suppCount'); if (sc) sc.textContent = _allSuppliers.length;
         }
 
+        /* Deep link: directory.html#tab-suppliers opens that tab straight
+           away, so the pre-filing check's "Open Suppliers" button lands on the
+           list holding the bad GSTIN instead of the customer list. */
+        window.addEventListener('DOMContentLoaded', () => {
+            const h = String(location.hash || '').replace(/^#/, '');
+            if (h.indexOf('tab-') !== 0) return;
+            const tab = h.slice(4);
+            if (['customers', 'doctors', 'suppliers'].indexOf(tab) < 0) return;
+            setTimeout(() => { try { switchTab(tab); } catch (e) {} }, 80);
+        });
+
         // ── Tabs ──
         function switchTab(tab) {
             _activeTab = tab;

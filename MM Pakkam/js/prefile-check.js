@@ -89,7 +89,7 @@
         if (!str(shop.address_line1)) shopRows.push({ label: 'Address missing', detail: 'Required on every invoice.' });
         add(blocks, 'shop', 'Your own shop details',
             'These appear on every document. One problem here stops the whole file.',
-            shopRows);
+            shopRows, 'shop');
 
         /* ── 2. Bill-level structure ────────────────────────────────── */
         var noLines = [], badNo = [], dupNo = [], mismatch = [];
@@ -135,14 +135,14 @@
             }
         }
         add(blocks, 'noLines', 'Bills with no items',
-            'An invoice with no lines cannot be filed or exported.', noLines);
+            'An invoice with no lines cannot be filed or exported.', noLines, 'bills');
         add(blocks, 'dupNo', 'Repeated bill numbers',
-            'An invoice number must be unique for the financial year.', dupNo);
+            'An invoice number must be unique for the financial year.', dupNo, 'bills');
         add(blocks, 'badNo', 'Bill numbers the portal will not accept',
-            'Rule 46: at most 16 characters, letters, digits, "/" and "-" only.', badNo);
+            'Rule 46: at most 16 characters, letters, digits, "/" and "-" only.', badNo, 'bills');
         add(blocks, 'mismatch', 'Bills whose total does not match their lines',
             'Every export foots the lines against the total. These would be refused, ' +
-            'and one of the two numbers is wrong in your books.', mismatch);
+            'and one of the two numbers is wrong in your books.', mismatch, 'bills');
 
         /* ── 3. Line-level tax data ─────────────────────────────────── */
         var noHsn = {}, badHsn = {}, badRate = {};
@@ -180,7 +180,7 @@
             Object.keys(badRate).map(function (r) {
                 return { label: r + '%',
                          detail: badRate[r].n + ' line(s) — e.g. ' + badRate[r].eg.join(', ') };
-            }));
+            }), 'rate');
 
         /* ── 4. Buyers ──────────────────────────────────────────────────
            Only customers who actually appear on a bill in this period. A
@@ -234,7 +234,7 @@
                         return at > 0
                             ? { label: s.slice(0, at), detail: s.slice(at + 1).replace(/^\s+/, '') }
                             : { label: 'return', detail: s };
-                    }));
+                    }), 'returns');
             } catch (e) { /* returns module absent or mid-upgrade; not fatal here */ }
         }
 
@@ -248,14 +248,14 @@
             if (!sr.ok) badSup.push({ label: str(su.name) + ' — ' + g3, detail: sr.reason });
         }
         add(warns, 'badSupplier', 'Supplier GSTINs that cannot be right',
-            'These do not affect your GSTR-1, but input credit is claimed against them.', badSup);
+            'These do not affect your GSTR-1, but input credit is claimed against them.', badSup, 'suppliers');
 
         var posRows = [];
         if (!str(shop.city))    posRows.push({ label: 'Town / city not saved', detail: 'Needed only for e-invoice and e-way bills.' });
         if (!str(shop.pincode)) posRows.push({ label: 'PIN code not saved',    detail: 'Needed only for e-invoice and e-way bills.' });
         add(warns, 'shopPos', 'Shop town / PIN not recorded',
             'GSTR-1 and Tally do not need these. e-Invoice and e-way bills cannot be built without them.',
-            posRows);
+            posRows, 'shoppos');
 
         var counts = {
             bills: bills.length,
