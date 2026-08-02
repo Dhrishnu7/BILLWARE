@@ -4107,60 +4107,184 @@
             }
         }
 
-        /* Excel: one workbook, one sheet per statement, so the whole thing can
-           go to the accountant in a single attachment. */
-        const ACC_XLSX_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-        async function accExportExcel() {
-            if (!_accData) return;
-            if (typeof XLSX === 'undefined') {
-                try { await mmLoadScript(ACC_XLSX_CDN); }
-                catch (e) { showToast('❌ Could not load the Excel library. Check your connection.', 'error'); return; }
+        /* Excel — SpreadsheetML (.xls), the same hand-built format the GST
+           report and the Schedule H register already use.
+
+           Written by hand rather than through the xlsx library on purpose:
+           aoa_to_sheet produces a grid with no column widths, so every label
+           was cut off at "Sales (net o…" and the accountant's first job was
+           dragging column A. SpreadsheetML carries widths, fonts, fills and
+           number formats, and needs no CDN — so the export also works during
+           an outage, which a shop's month-end usually cannot wait out. */
+        function accExportExcel() {
+            if (!_accData) { showToast('Open the Accounts view first.', 'error'); return; }
+            const d = _accData, c = d.cash;
+            const sp = window.mmShopProfile || {};
+            const storeName = sp.shop_name || localStorage.getItem('mm_storeName') || localStorage.getItem('storeName') || 'My Store';
+
+            const MF = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            function fmtDate(s) {
+                const p = String(s || '').slice(0, 10).split('-');
+                if (p.length !== 3) return String(s || '');
+                return p[2] + ' ' + (MF[parseInt(p[1], 10) - 1] || p[1]) + ' ' + p[0];
             }
-            const d = _accData;
-            const N = v => Number((Number(v) || 0).toFixed(2));
+            function r2(n) { return (parseFloat(n) || 0).toFixed(2); }
+            function xe(v) {
+                return String(v === null || v === undefined ? '' : v)
+                    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            }
+            function sc(v, sid) { return '<Cell' + (sid ? ' ss:StyleID="' + sid + '"' : '') + '><Data ss:Type="String">' + xe(v) + '</Data></Cell>'; }
+            function nc(v, sid) { return '<Cell' + (sid ? ' ss:StyleID="' + sid + '"' : '') + '><Data ss:Type="Number">' + r2(v) + '</Data></Cell>'; }
+            function ec()       { return '<Cell/>'; }
+            function row(cells) { return '<Row>' + cells.join('') + '</Row>\n'; }
+            function erow()     { return '<Row ss:Height="7"/>\n'; }
 
-            const pnl = [
-                ['Profit & Loss'], ['Period', d.period.from + ' to ' + d.period.to], [],
-                ['Sales (net of GST)', N(d.sales.taxable)],
-                ['Less: Sales returns', N(-d.salesReturns.taxable)],
-                ['NET SALES', N(d.netSales)], [],
-                ['Opening stock (' + d.stock.openingSource + ')', N(d.stock.opening)],
-                ['Add: Purchases (net of GST)', N(d.purchases.taxable)],
-                ['Less: Purchase returns', N(-d.purchaseReturns.taxable)],
-                ['Less: Closing stock', N(-d.stock.closing)],
-                ['COST OF GOODS SOLD', N(d.cogs)], [],
-                ['GROSS PROFIT', N(d.grossProfit)],
-                ['Gross margin %', N(d.grossPct)], []
-            ];
-            d.expenses.rows.forEach(r => pnl.push([r.category, N(r.amount)]));
-            pnl.push(['TOTAL EXPENSES', N(d.expenses.total)]);
-            if (Math.abs(d.roundOff) >= 0.01) pnl.push(['Round-off on bills', N(d.roundOff)]);
-            pnl.push(['NET PROFIT', N(d.netProfit)], ['Net margin %', N(d.netPct)], []);
-            pnl.push(['Item-margin cross-check', N(d.itemMargin)], ['Difference (stock that left unsold)', N(d.marginGap)]);
-            if (d.warnings.length) { pnl.push([], ['Notes']); d.warnings.forEach(w => pnl.push([w])); }
+            let X = '<?xml version="1.0" encoding="UTF-8"?>\n'
+                  + '<?mso-application progid="Excel.Sheet"?>\n'
+                  + '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"'
+                  + ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n';
 
-            const c = d.cash;
-            const cash = [
-                ['Cash Flow'], ['Period', d.period.from + ' to ' + d.period.to], [],
-                ['MONEY IN'], ['Counter — cash', N(c.byMode.cash)], ['Counter — UPI', N(c.byMode.upi)],
-                ['Counter — card', N(c.byMode.card)], ['Khata payments received', N(c.khata)],
-                ['Total in', N(c.inTotal)], [],
-                ['MONEY OUT'], ['Paid to suppliers', N(c.suppliers)], ['Expenses paid', N(c.expenses)],
-                ['Total out', N(c.outTotal)], [],
-                ['WHY PROFIT IS NOT CASH']
-            ];
-            c.bridge.forEach(b => cash.push([b.label, N(b.amount)]));
-            cash.push(['NET CASH MOVEMENT', N(c.net)]);
+            /* Same palette as the GST report so the two attachments look like
+               they came from one system. */
+            X += '<Styles>\n'
+              +  '<Style ss:ID="s0"/>\n'
+              +  '<Style ss:ID="title"><Font ss:Bold="1" ss:Size="13" ss:Color="#1E3A5F"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/></Style>\n'
+              +  '<Style ss:ID="info"><Font ss:Italic="1" ss:Size="9" ss:Color="#64748B"/><NumberFormat ss:Format="@"/></Style>\n'
+              +  '<Style ss:ID="sec"><Font ss:Bold="1" ss:Size="10" ss:Color="#FFFFFF"/><Interior ss:Color="#1E40AF" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left"/></Style>\n'
+              +  '<Style ss:ID="hL"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#BFDBFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:WrapText="1"/></Style>\n'
+              +  '<Style ss:ID="hR"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#BFDBFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right" ss:WrapText="1"/></Style>\n'
+              +  '<Style ss:ID="dL"><Font ss:Size="9"/><Alignment ss:Horizontal="Left"/><NumberFormat ss:Format="@"/></Style>\n'
+              +  '<Style ss:ID="dN"><Font ss:Size="9"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>\n'
+              +  '<Style ss:ID="dP"><Font ss:Size="9" ss:Color="#64748B"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="0.0&quot;%&quot;"/></Style>\n'
+              /* Sub-total (light blue) and grand total (solid blue) */
+              +  '<Style ss:ID="stL"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left"/><NumberFormat ss:Format="@"/></Style>\n'
+              +  '<Style ss:ID="stN"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>\n'
+              +  '<Style ss:ID="gtL"><Font ss:Bold="1" ss:Size="10" ss:Color="#FFFFFF"/><Interior ss:Color="#1E40AF" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left"/></Style>\n'
+              +  '<Style ss:ID="gtN"><Font ss:Bold="1" ss:Size="10" ss:Color="#FFFFFF"/><Interior ss:Color="#1E40AF" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>\n'
+              /* Profit green / loss red, so the bottom line is readable at a glance */
+              +  '<Style ss:ID="pfL"><Font ss:Bold="1" ss:Size="10" ss:Color="#FFFFFF"/><Interior ss:Color="#15803D" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left"/></Style>\n'
+              +  '<Style ss:ID="pfN"><Font ss:Bold="1" ss:Size="10" ss:Color="#FFFFFF"/><Interior ss:Color="#15803D" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>\n'
+              +  '<Style ss:ID="lsL"><Font ss:Bold="1" ss:Size="10" ss:Color="#FFFFFF"/><Interior ss:Color="#B91C1C" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left"/></Style>\n'
+              +  '<Style ss:ID="lsN"><Font ss:Bold="1" ss:Size="10" ss:Color="#FFFFFF"/><Interior ss:Color="#B91C1C" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>\n'
+              /* Warnings — amber, and wrapped so a long sentence stays readable */
+              +  '<Style ss:ID="wrn"><Font ss:Size="9" ss:Color="#92400E"/><Interior ss:Color="#FEF9C3" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Top" ss:WrapText="1"/><NumberFormat ss:Format="@"/></Style>\n'
+              +  '<Style ss:ID="dtxt"><NumberFormat ss:Format="@"/><Alignment ss:Horizontal="Left"/><Font ss:Size="9"/></Style>\n'
+              +  '</Styles>\n';
 
-            const day = [['Date', 'Time', 'Type', 'Ref', 'Party', 'Mode', 'Amount', 'Cash', 'Note']];
-            (_accDay.rows || []).forEach(r => day.push([r.date, r.time || '', r.kind, r.ref, r.party, r.mode, N(r.amount), N(r.cash), r.note || '']));
+            const period = fmtDate(d.period.from) + '   to   ' + fmtDate(d.period.to);
 
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pnl),  'Profit & Loss');
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(cash), 'Cash Flow');
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(day),  'Day Book');
-            XLSX.writeFile(wb, `Accounts_${d.period.from || 'start'}_to_${d.period.to || 'end'}.xlsx`);
+            /* ══ SHEET 1 — PROFIT & LOSS ══ */
+            X += '<Worksheet ss:Name="Profit and Loss">\n<Table>\n';
+            X += '<Column ss:Width="300"/>\n<Column ss:Width="115"/>\n<Column ss:Width="70"/>\n';
+            const P3 = s => [sc('', s), sc('', s), sc('', s)];
+            let t1 = P3('title'); t1[0] = sc('PROFIT & LOSS  —  ' + storeName, 'title'); X += row(t1);
+            let t2 = P3('info');  t2[0] = sc('Period:   ' + period, 'info'); X += row(t2);
+            let t3 = P3('info');  t3[0] = sc('Generated:   ' + fmtDate(new Date().toISOString()), 'info'); X += row(t3);
+            X += erow();
+
+            let s1 = P3('sec'); s1[0] = sc('TRADING', 'sec'); X += row(s1);
+            X += row([sc('Sales (net of GST)', 'dL'),  nc(d.sales.taxable, 'dN'), ec()]);
+            if (d.salesReturns.taxable) X += row([sc('Less: Sales returns', 'dL'), nc(-d.salesReturns.taxable, 'dN'), ec()]);
+            X += row([sc('NET SALES', 'stL'), nc(d.netSales, 'stN'), sc('', 'stL')]);
+            X += erow();
+
+            let s2 = P3('sec'); s2[0] = sc('COST OF GOODS SOLD', 'sec'); X += row(s2);
+            X += row([sc('Opening stock at cost  (' + d.stock.openingSource + ', as at ' + fmtDate(d.stock.openingAsOf) + ')', 'dL'), nc(d.stock.opening, 'dN'), ec()]);
+            X += row([sc('Add: Purchases (net of GST)', 'dL'), nc(d.purchases.taxable, 'dN'), ec()]);
+            if (d.purchaseReturns.taxable) X += row([sc('Less: Purchase returns', 'dL'), nc(-d.purchaseReturns.taxable, 'dN'), ec()]);
+            X += row([sc('Less: Closing stock at cost  (as at ' + fmtDate(d.stock.closingAsOf) + ')', 'dL'), nc(-d.stock.closing, 'dN'), ec()]);
+            X += row([sc('COST OF GOODS SOLD', 'stL'), nc(d.cogs, 'stN'), sc('', 'stL')]);
+            X += erow();
+            X += row([sc('GROSS PROFIT', 'gtL'), nc(d.grossProfit, 'gtN'), nc(d.grossPct, 'dP')]);
+            X += erow();
+
+            let s3 = P3('sec'); s3[0] = sc('EXPENSES', 'sec'); X += row(s3);
+            X += row([sc('Category', 'hL'), sc('Amount (Rs)', 'hR'), sc('', 'hR')]);
+            if (!d.expenses.rows.length) X += row([sc('No expenses recorded in this period', 'dL'), nc(0, 'dN'), ec()]);
+            d.expenses.rows.forEach(r => { X += row([sc(r.category, 'dL'), nc(r.amount, 'dN'), ec()]); });
+            X += row([sc('TOTAL EXPENSES', 'stL'), nc(d.expenses.total, 'stN'), sc('', 'stL')]);
+            if (Math.abs(d.roundOff) >= 0.01) X += row([sc('Round-off on bills', 'dL'), nc(d.roundOff, 'dN'), ec()]);
+            X += erow();
+
+            const prof = d.netProfit >= 0;
+            X += row([sc(prof ? 'NET PROFIT' : 'NET LOSS', prof ? 'pfL' : 'lsL'),
+                      nc(d.netProfit, prof ? 'pfN' : 'lsN'), nc(d.netPct, 'dP')]);
+            X += erow();
+
+            let s4 = P3('sec'); s4[0] = sc('CROSS-CHECK  ·  TWO WAYS OF MEASURING GROSS PROFIT', 'sec'); X += row(s4);
+            X += row([sc('Item margin  (sale price - purchase price, per item sold)', 'dL'), nc(d.itemMargin, 'dN'), ec()]);
+            X += row([sc('Stock movement  (opening + purchases - closing)  <- the accountant’s figure', 'dL'), nc(d.grossProfit, 'dN'), ec()]);
+            X += row([sc('Difference  —  stock that left without being sold (expiry, breakage, unentered purchases)', 'stL'), nc(d.marginGap, 'stN'), sc('', 'stL')]);
+
+            if (d.warnings.length) {
+                X += erow();
+                let s5 = P3('sec'); s5[0] = sc('NOTES  ·  WHAT THIS STATEMENT CANNOT VOUCH FOR', 'sec'); X += row(s5);
+                d.warnings.forEach(w => { X += '<Row ss:Height="30">' + sc(w, 'wrn') + sc('', 'wrn') + sc('', 'wrn') + '</Row>\n'; });
+            }
+            X += '</Table>\n</Worksheet>\n';
+
+            /* ══ SHEET 2 — CASH FLOW ══ */
+            X += '<Worksheet ss:Name="Cash Flow">\n<Table>\n';
+            X += '<Column ss:Width="330"/>\n<Column ss:Width="115"/>\n';
+            const P2 = s => [sc('', s), sc('', s)];
+            let ct1 = P2('title'); ct1[0] = sc('CASH FLOW  —  ' + storeName, 'title'); X += row(ct1);
+            let ct2 = P2('info');  ct2[0] = sc('Period:   ' + period, 'info'); X += row(ct2);
+            X += erow();
+
+            let cs1 = P2('sec'); cs1[0] = sc('MONEY IN', 'sec'); X += row(cs1);
+            X += row([sc('Counter collections  —  Cash', 'dL'), nc(c.byMode.cash, 'dN')]);
+            X += row([sc('Counter collections  —  UPI',  'dL'), nc(c.byMode.upi,  'dN')]);
+            X += row([sc('Counter collections  —  Card', 'dL'), nc(c.byMode.card, 'dN')]);
+            X += row([sc('Khata payments received',      'dL'), nc(c.khata,       'dN')]);
+            X += row([sc('TOTAL IN', 'stL'), nc(c.inTotal, 'stN')]);
+            X += erow();
+
+            let cs2 = P2('sec'); cs2[0] = sc('MONEY OUT', 'sec'); X += row(cs2);
+            X += row([sc('Paid to suppliers', 'dL'), nc(c.suppliers, 'dN')]);
+            X += row([sc('Expenses paid',     'dL'), nc(c.expenses,  'dN')]);
+            X += row([sc('TOTAL OUT', 'stL'), nc(c.outTotal, 'stN')]);
+            X += erow();
+
+            let cs3 = P2('sec'); cs3[0] = sc('WHY PROFIT IS NOT THE SAME AS CASH', 'sec'); X += row(cs3);
+            c.bridge.forEach(b => { X += row([sc(b.label, 'dL'), nc(b.amount, 'dN')]); });
+            const up = c.net >= 0;
+            X += row([sc('NET CASH MOVEMENT', up ? 'pfL' : 'lsL'), nc(c.net, up ? 'pfN' : 'lsN')]);
+            X += '</Table>\n</Worksheet>\n';
+
+            /* ══ SHEET 3 — DAY BOOK ══ */
+            X += '<Worksheet ss:Name="Day Book">\n<Table>\n';
+            X += '<Column ss:Width="100"/>\n<Column ss:Width="60"/>\n<Column ss:Width="80"/>\n<Column ss:Width="90"/>\n'
+              +  '<Column ss:Width="160"/>\n<Column ss:Width="60"/>\n<Column ss:Width="95"/>\n<Column ss:Width="95"/>\n'
+              +  '<Column ss:Width="95"/>\n<Column ss:Width="200"/>\n';
+            const P10 = s => { const a = []; for (let i = 0; i < 10; i++) a.push(sc('', s)); return a; };
+            let dt1 = P10('title'); dt1[0] = sc('DAY BOOK  —  ' + storeName, 'title'); X += row(dt1);
+            let dt2 = P10('info');  dt2[0] = sc('Period:   ' + period, 'info'); X += row(dt2);
+            let dt3 = P10('info');  dt3[0] = sc('The Cash column is a MOVEMENT, not a drawer balance — the app is never told what was in the till at the start.', 'info'); X += row(dt3);
+            X += erow();
+            X += row([sc('Date','hL'), sc('Time','hL'), sc('Type','hL'), sc('Ref','hL'), sc('Party','hL'),
+                      sc('Mode','hL'), sc('Amount (Rs)','hR'), sc('Cash In/Out (Rs)','hR'), sc('Running (Rs)','hR'), sc('Note','hL')]);
+            (_accDay.rows || []).forEach(r => {
+                X += row([sc(fmtDate(r.date), 'dtxt'), sc(r.time || '', 'dL'), sc(r.kind, 'dL'), sc(r.ref, 'dL'),
+                          sc(r.party, 'dL'), sc(r.mode, 'dL'), nc(r.amount, 'dN'), nc(r.cash, 'dN'),
+                          nc(r.running, 'dN'), sc(r.note || '', 'dL')]);
+            });
+            const T = _accDay.totals || {};
+            X += row([sc('TOTALS  (' + (T.count || 0) + ' entries)', 'gtL'), sc('', 'gtL'), sc('', 'gtL'), sc('', 'gtL'),
+                      sc('', 'gtL'), sc('', 'gtL'), sc('', 'gtL'), nc(T.in || 0, 'gtN'), nc(T.net || 0, 'gtN'), sc('in / net', 'gtL')]);
+            X += '</Table>\n</Worksheet>\n</Workbook>';
+
+            const blob = new Blob([X], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+            const url  = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const safe = storeName.replace(/[^a-zA-Z0-9]/g, '_');
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'Accounts_' + safe + '_' + (d.period.from || 'All') + '_to_' + (d.period.to || 'Today') + '.xls');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
             if (typeof mmAudit === 'function') mmAudit('Accounts exported', 'Excel', d.period.from + '..' + d.period.to);
+            showToast('Accounts exported — 3 sheets. Open in Excel for best view.', 'success');
         }
 
         /* ── Audit Trail ── */
