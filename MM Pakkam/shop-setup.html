@@ -328,8 +328,27 @@
                 <input type="text" id="addressLine1" placeholder="">
             </div>
             <div class="field">
-                <label>Address Line 2 (City, District, PIN)</label>
+                <label>Address Line 2 (Area, District)</label>
                 <input type="text" id="addressLine2" placeholder="">
+            </div>
+            <!-- Town and PIN are asked for separately, not left inside the
+                 address line. An e-invoice and an e-way bill cannot be built
+                 without them as their own values, and the shop used to have no
+                 way to enter them here at all — they could only be set from a
+                 fixer buried in the e-Invoice screen, which nobody finds until
+                 a filing fails. -->
+            <div class="row">
+                <div class="field">
+                    <label>Town / City <span>*</span></label>
+                    <input type="text" id="shopCity" placeholder="e.g. Coimbatore">
+                </div>
+                <div class="field">
+                    <label>PIN Code <span>*</span></label>
+                    <input type="text" id="shopPincode" placeholder="e.g. 641001" maxlength="6" inputmode="numeric">
+                </div>
+            </div>
+            <div style="font-size:0.76rem;color:#94a3b8;line-height:1.5;margin-top:-4px;">
+                Required for e-Invoice and e-Way bills. GSTR-1 and Tally do not need them.
             </div>
         </div>
 
@@ -607,6 +626,8 @@ function populateForm(data) {
     document.getElementById('phone').value         = data.phone          || '';
     document.getElementById('addressLine1').value  = data.address_line1  || '';
     document.getElementById('addressLine2').value  = data.address_line2  || '';
+    document.getElementById('shopCity').value      = data.city           || '';
+    document.getElementById('shopPincode').value   = data.pincode        || '';
     document.getElementById('dlNo').value          = data.dl_no          || '';
     document.getElementById('gstin').value         = data.gstin          || '';
     const terms = (data.terms || '').split('\n');
@@ -844,6 +865,8 @@ async function saveAndContinue() {
     const phone    = document.getElementById('phone').value.trim();
     const addr1    = document.getElementById('addressLine1').value.trim();
     const addr2    = document.getElementById('addressLine2').value.trim();
+    const city     = document.getElementById('shopCity').value.trim();
+    const pincode  = document.getElementById('shopPincode').value.trim();
     const dlNo     = document.getElementById('dlNo').value.trim();
     const gstin    = document.getElementById('gstin').value.trim().toUpperCase();
     const term1    = document.getElementById('term1').value.trim();
@@ -887,6 +910,8 @@ async function saveAndContinue() {
         shop_name:      shopName,
         address_line1:  addr1,
         address_line2:  addr2,
+        city:           city,
+        pincode:        pincode,
         phone:          phone,
         dl_no:          dlNo,
         gstin:          gstin,
