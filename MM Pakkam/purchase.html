@@ -3345,6 +3345,58 @@ window.addEventListener('DOMContentLoaded', () => {
         // ── Initialize: restore draft if available, else start with one blank item ──
         if (!restoreDraft()) addLineItem();
 
+        /* ── Items handed over from another page ───────────────────────────
+           The Accounts view can find medicines that were SOLD but never
+           purchased here — a supplier bill nobody keyed in. It sends the names
+           and quantities across rather than writing purchase records itself:
+           it knows what left the shelf, and nothing about what was paid, which
+           batch it came from or when it expires. Those have to come off the
+           real bill.
+
+           APPENDS rather than replaces. A half-typed purchase someone is in
+           the middle of must survive this; only a single untouched blank row
+           is reused. One-shot — the key is consumed immediately so a refresh
+           cannot duplicate the lines. */
+        (function consumePurchasePrefill() {
+            let pre = null;
+            try { pre = JSON.parse(localStorage.getItem('mm_purchase_prefill') || 'null'); } catch (e) {}
+            if (!pre || !Array.isArray(pre.items) || !pre.items.length) return;
+            try { localStorage.removeItem('mm_purchase_prefill'); } catch (e) {}
+
+            const container = document.getElementById('lineItemsContainer');
+            if (!container) return;
+            const rows = container.querySelectorAll('.line-item');
+            if (rows.length === 1) {
+                const nm = rows[0].querySelector('.li-productName');
+                const qt = rows[0].querySelector('.li-quantity');
+                if (nm && !nm.value.trim() && (!qt || !String(qt.value).trim())) {
+                    container.innerHTML = '';
+                    lineItemCounter = 0;
+                }
+            }
+
+            pre.items.forEach(it => {
+                lineItemCounter++;
+                const id = `item_${lineItemCounter}`;
+                container.insertAdjacentHTML('beforeend', createLineItemHTML(lineItemCounter));
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.querySelector('.li-productName').value = it.productName || '';
+                if (it.quantity) el.querySelector('.li-quantity').value = it.quantity;
+                const inputEl = el.querySelector('.li-productName');
+                if (inputEl && typeof DrugMaster !== 'undefined') DrugMaster.init(inputEl, el);
+                try { updatePurchaseHBadge(el); } catch (e) {}
+                try { calcItemTotal(id); } catch (e) {}
+            });
+            renumberItems();
+            updateGrandTotal();
+            saveDraft();
+            const first = container.querySelector('.line-item .li-batchNo');
+            if (first) setTimeout(() => first.focus(), 250);
+            showToast(`🧾 ${pre.items.length} item(s) pre-filled`,
+                      'Add the batch, rate and GST from the supplier bill, then Save All Purchases.');
+        })();
+
         // ── Supplier master: fill the Firm datalist + refresh it from the cloud ──
         function _populateSupplierList() {
             try {

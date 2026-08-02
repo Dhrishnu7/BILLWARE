@@ -201,7 +201,9 @@
             });
             if (remaining > 0.0001) {
                 oversoldUnits += remaining;
-                oversoldProducts.push(display[n] || n);
+                // Carry the quantity, not just the name: the whole point is to
+                // be able to hand a ready-made purchase line to the owner.
+                oversoldProducts.push({ name: display[n] || n, units: remaining });
             }
             list.forEach(function (it) { it.cur += it.b.adj; });
 
@@ -225,7 +227,7 @@
 
             units += prodUnits;
             value += prodValue;
-            if (prodNoCost > 0) { noCostUnits += prodNoCost; noCost.push(display[n] || n); }
+            if (prodNoCost > 0) { noCostUnits += prodNoCost; noCost.push({ name: display[n] || n, units: prodNoCost }); }
         });
 
         return {
@@ -282,15 +284,21 @@
         opts = opts || {};
         var from = d10(opts.from), to = d10(opts.to);
 
+        /* A warning is an object, not a sentence: { text, action }. A note that
+           says what is wrong and leaves the owner to work out where to fix it
+           is just nagging, so each one carries the action that resolves it and
+           the data that action needs — the purchase lines to enter, and so on.
+           `text` alone is what the Excel export and the printout use. */
         var warnings = [];
         var checks   = [];
+        function warn(text, action) { warnings.push({ text: text, action: action || null }); }
 
         /* ── Sales ── */
         var sales = readJson('mm_sales');
         var sTaxable = 0, sTax = 0, sLineSum = 0, sGrand = 0, sCount = 0, roundOff = 0;
         var byMode = { cash: 0, upi: 0, card: 0, credit: 0 };
         var itemMargin = 0, uncostedLines = 0, uncostedRevenue = 0;
-        var uncostedNames = {};
+        var uncostedNames = {};   // product -> quantity sold with no cost on record
         var costs = costIndex(to);
 
         sales.forEach(function (bill) {
@@ -320,7 +328,8 @@
                     // which overstates profit. Named, never silently zeroed.
                     uncostedLines++;
                     uncostedRevenue += taxable;
-                    uncostedNames[String(m.product || '?')] = true;
+                    var un = String(m.product || '?');
+                    uncostedNames[un] = (uncostedNames[un] || 0) + qty;
                 }
             });
             sLineSum += lineSum;
@@ -363,12 +372,13 @@
                     if (!n.usable) { excludedReturns.count++; excludedReturns.gross += num(n.gross); excludedReturns.notes.push(n.no); return; }
                     purchRet.taxable += n.taxable; purchRet.tax += n.tax; purchRet.gross += n.gross; purchRet.count++;
                 });
-            } catch (e) { warnings.push('Returns could not be read: ' + (e && e.message ? e.message : e)); }
+            } catch (e) { warn('Returns could not be read: ' + (e && e.message ? e.message : e)); }
         }
         if (excludedReturns.count) {
-            warnings.push(excludedReturns.count + ' return' + (excludedReturns.count === 1 ? '' : 's') +
+            warn(excludedReturns.count + ' return' + (excludedReturns.count === 1 ? '' : 's') +
                 ' worth ' + inr(excludedReturns.gross) + ' could not be valued (the original bill\'s GST rate is not readable) and are EXCLUDED from this statement — ' +
-                excludedReturns.notes.slice(0, 4).join(', ') + (excludedReturns.notes.length > 4 ? '…' : ''));
+                excludedReturns.notes.slice(0, 4).join(', ') + (excludedReturns.notes.length > 4 ? '…' : ''),
+                { kind: 'returns', label: '↩️ Open Returns' });
         }
 
         /* ── Expenses ── */
@@ -400,24 +410,34 @@
         var opening = useManual ? manualOpening : computedOpening.value;
 
         if (manualOpening > 0 && manualDate && from && manualDate > from) {
-            warnings.push('Your entered opening stock is dated ' + manualDate +
-                ', which is after this period starts — the computed figure is used instead.');
+            warn('Your entered opening stock is dated ' + manualDate +
+                ', which is after this period starts — the computed figure is used instead.',
+                { kind: 'openingStock', label: '⚙️ Change the date' });
         }
         if (!useManual && !computedOpening.value && sCount) {
-            warnings.push('Opening stock computes to zero. If the shop was trading before its purchase history begins, enter the real opening stock value so gross profit is not overstated.');
+            warn('Opening stock computes to zero. If the shop was trading before its purchase history begins, enter the real opening stock value so gross profit is not overstated.',
+                { kind: 'openingStock', label: '⚙️ Enter opening stock' });
         }
         if (closing.noCostUnits > 0) {
-            warnings.push(Math.round(closing.noCostUnits) + ' units in stock have no recorded purchase cost and are valued at zero, which understates closing stock and therefore understates profit.');
+            warn(Math.round(closing.noCostUnits) + ' units in stock have no recorded purchase cost and are valued at zero, which understates closing stock and therefore understates profit.',
+                { kind: 'purchase', label: '🧾 Enter these purchases',
+                  items: closing.noCostProducts.map(function (p) {
+                      return { productName: p.name, quantity: Math.max(1, Math.round(p.units)) };
+                  }) });
         }
         /* Sold more than was ever bought. Stock cannot go below zero, so the
            excess simply carries no cost and gross profit comes out too high.
            This is nearly always missing purchase entries — the shop billed
            goods whose supplier invoice was never keyed in. */
         if (closing.oversoldUnits > 0.5) {
-            var op = closing.oversoldProducts.slice(0, 4).join(', ');
-            warnings.push(Math.round(closing.oversoldUnits) + ' units were SOLD that were never purchased in this app (' +
+            var op = closing.oversoldProducts.slice(0, 4).map(function (p) { return p.name; }).join(', ');
+            warn(Math.round(closing.oversoldUnits) + ' units were SOLD that were never purchased in this app (' +
                 op + (closing.oversoldProducts.length > 4 ? ', …' : '') +
-                '). They carry no cost, so gross profit below is overstated. Usually a purchase bill that was never entered.');
+                '). They carry no cost, so gross profit below is overstated. Usually a purchase bill that was never entered.',
+                { kind: 'purchase', label: '🧾 Enter these purchases',
+                  items: closing.oversoldProducts.map(function (p) {
+                      return { productName: p.name, quantity: Math.max(1, Math.ceil(p.units)) };
+                  }) });
         }
 
         /* ── The trading account ── */
@@ -429,8 +449,12 @@
 
         var uncostedList = Object.keys(uncostedNames);
         if (uncostedLines) {
-            warnings.push(uncostedLines + ' sale line' + (uncostedLines === 1 ? '' : 's') +
-                ' (' + inr(uncostedRevenue) + ' of revenue) are for items with no purchase record, so the item-margin comparison below ignores their cost.');
+            warn(uncostedLines + ' sale line' + (uncostedLines === 1 ? '' : 's') +
+                ' (' + inr(uncostedRevenue) + ' of revenue) are for items with no purchase record, so the item-margin comparison below ignores their cost.',
+                { kind: 'purchase', label: '🧾 Enter these purchases',
+                  items: uncostedList.map(function (n) {
+                      return { productName: n, quantity: Math.max(1, Math.ceil(uncostedNames[n])) };
+                  }) });
         }
 
         /* ── Cash flow ──

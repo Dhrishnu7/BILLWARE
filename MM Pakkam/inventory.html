@@ -1107,6 +1107,17 @@
     // ═══════════════════════════════════════════════════════
     // TAB SWITCHER
     // ═══════════════════════════════════════════════════════
+    /* Deep link: inventory.html#tab-returns opens that tab straight away, so a
+       button on another page can point at the exact place the fix happens
+       instead of dropping the user on the Master Ledger to hunt for it. */
+    window.addEventListener('DOMContentLoaded', () => {
+        const h = String(location.hash || '').replace(/^#/, '');
+        if (h.indexOf('tab-') !== 0) return;
+        const name = h.slice(4);
+        if (!name || !document.getElementById('tab-' + name)) return;
+        setTimeout(() => { try { switchTab(name); } catch (e) {} }, 60);
+    });
+
     function switchTab(name) {
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));

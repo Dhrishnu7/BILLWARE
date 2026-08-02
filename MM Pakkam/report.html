@@ -813,6 +813,11 @@
             .acc-act.ghost{background:#f1f5f9;color:#475569;}
             .acc-warn{background:#fffbeb;border:1.5px solid #fcd34d;border-radius:10px;padding:0.65rem 0.9rem;margin-bottom:0.6rem;font-size:0.82rem;color:#92400e;line-height:1.5;}
             .acc-bad{background:#fef2f2;border-color:#fca5a5;color:#991b1b;}
+            .acc-fix{padding:0.42rem 0.9rem;border:none;border-radius:9px;background:#b45309;color:#fff;
+                     font-size:0.79rem;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.01em;}
+            .acc-fix:hover{background:#92400e;}
+            .acc-bad .acc-fix{background:#b91c1c;}
+            .acc-bad .acc-fix:hover{background:#991b1b;}
             .acc-ok{background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:0.6rem 0.9rem;margin-bottom:0.9rem;font-size:0.82rem;color:#166534;}
             .pl{width:100%;max-width:720px;margin:0 auto;border-collapse:collapse;font-size:0.9rem;}
             .pl td{padding:0.42rem 0.7rem;}
@@ -3922,13 +3927,62 @@
             failed.forEach(c => {
                 html += `<div class="acc-warn acc-bad"><b>⚠️ ${accEsc(c.name)} — FAILED.</b> ${accEsc(c.detail)}</div>`;
             });
-            (d.warnings || []).forEach(w => {
-                html += `<div class="acc-warn">${accEsc(w)}</div>`;
+            /* Each warning carries the action that resolves it. Telling an
+               owner "8 units were sold that were never purchased" and leaving
+               them to find the Purchase page, then re-type eight medicine
+               names off this screen, is most of the work — so the button does
+               that part. */
+            (d.warnings || []).forEach((w, i) => {
+                const text = (typeof w === 'string') ? w : (w && w.text) || '';
+                const act  = (typeof w === 'object' && w) ? w.action : null;
+                const n    = act && act.items ? act.items.length : 0;
+                html += `<div class="acc-warn">${accEsc(text)}` +
+                    (act ? `<div style="margin-top:0.6rem;"><button class="acc-fix" onclick="accFix(${i})">${accEsc(act.label)}${n ? ` (${n})` : ''}</button></div>` : '') +
+                    `</div>`;
             });
             if (!html && d.sales.count) {
                 html = `<div class="acc-ok">✅ ${d.checks.length} arithmetic checks passed — every total below is re-derived independently.</div>`;
             }
             el.innerHTML = html;
+        }
+
+        /* ── Acting on a warning ──────────────────────────────────────────
+           The purchase branch deliberately does NOT create purchase records.
+           The app knows WHAT was sold and HOW MANY, and nothing else — not the
+           cost, batch, expiry, GST rate or supplier. Inventing those would put
+           fabricated numbers into the books, the stock ledger and the GST
+           return, which is far worse than the gap it would paper over. So it
+           carries the names and quantities across and lets the owner enter the
+           supplier's real bill over the top.
+        ────────────────────────────────────────────────────────────────── */
+        async function accFix(i) {
+            const w = (_accData && _accData.warnings) ? _accData.warnings[i] : null;
+            const act = w && typeof w === 'object' ? w.action : null;
+            if (!act) return;
+
+            if (act.kind === 'openingStock') { openOpeningStock(); return; }
+
+            if (act.kind === 'returns') { location.href = 'inventory.html#tab-returns'; return; }
+
+            if (act.kind === 'purchase') {
+                const items = (act.items || []).filter(x => x && x.productName);
+                if (!items.length) { showToast('Nothing to pre-fill.', 'error'); return; }
+                const preview = items.slice(0, 8).map(x => `• ${x.productName} × ${x.quantity}`).join('\n');
+                const go = await mmConfirm(
+                    `Open the Purchase page with these ${items.length} item${items.length === 1 ? '' : 's'} already listed?\n\n` +
+                    preview + (items.length > 8 ? `\n…and ${items.length - 8} more` : '') +
+                    `\n\nThe names and quantities are filled in for you. You still enter the batch, rate and GST from the supplier's bill — the app does not know what you paid, and guessing it would put invented figures into your stock and your GST return.`,
+                    { title: '🧾 Enter the missing purchases', okText: 'Open Purchase page' }
+                );
+                if (!go) return;
+                try {
+                    localStorage.setItem('mm_purchase_prefill', JSON.stringify({
+                        items: items, source: 'accounts', at: new Date().toISOString()
+                    }));
+                } catch (e) { showToast('Could not hand the list over — storage is full.', 'error'); return; }
+                if (typeof mmAudit === 'function') mmAudit('Purchase prefill sent', items.length + ' items', 'from Accounts');
+                location.href = 'purchase.html';
+            }
         }
 
         function plRow(label, value, cls, opts) {
@@ -4286,7 +4340,10 @@
             if (d.warnings.length) {
                 X += erow();
                 let s5 = P3('sec'); s5[0] = sc('NOTES  ·  WHAT THIS STATEMENT CANNOT VOUCH FOR', 'sec'); X += row(s5);
-                d.warnings.forEach(w => { X += '<Row ss:Height="30">' + sc(w, 'wrn') + sc('', 'wrn') + sc('', 'wrn') + '</Row>\n'; });
+                d.warnings.forEach(w => {
+                    const t = (typeof w === 'string') ? w : (w && w.text) || '';
+                    X += '<Row ss:Height="30">' + sc(t, 'wrn') + sc('', 'wrn') + sc('', 'wrn') + '</Row>\n';
+                });
             }
             X += '</Table>\n</Worksheet>\n';
 
