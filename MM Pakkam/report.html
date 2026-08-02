@@ -834,22 +834,66 @@
                to a common height with the totals pinned to the bottom edge, so
                the two bottom lines sit on the same rule and can be compared at
                a glance — which is the only reason to show them side by side. */
-            .cf-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:0.8rem;max-width:860px;margin:0 auto 1.3rem;}
-            .cf-kpi{border:1.5px solid #e2e8f0;border-radius:14px;padding:0.8rem 1rem;background:#fff;}
-            .cf-kpi .k-l{font-size:0.7rem;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:#64748b;}
-            .cf-kpi .k-v{font-size:1.2rem;font-weight:900;margin-top:0.22rem;font-variant-numeric:tabular-nums;color:#0f172a;}
-            .cf-kpi.in{background:#f0fdf4;border-color:#bbf7d0;}  .cf-kpi.in  .k-v{color:#15803d;}
-            .cf-kpi.out{background:#fef2f2;border-color:#fecaca;} .cf-kpi.out .k-v{color:#b91c1c;}
-            .cf-kpi.net{background:#f8fafc;}
+            /* Shared statement furniture. All three tabs are one document
+               family, so the tiles, cards, rows, sub-totals and result bands
+               are defined once and used by each — a Profit & Loss that looks
+               nothing like the Cash Flow beside it reads as two products. */
+            .acc-kpis,.cf-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:0.8rem;max-width:860px;margin:0 auto 1.3rem;}
+            .acc-kpis.four{grid-template-columns:repeat(4,1fr);max-width:1000px;}
+            .acc-kpi,.cf-kpi{border:1.5px solid #e2e8f0;border-radius:14px;padding:0.8rem 1rem;background:#fff;}
+            .acc-kpi .k-l,.cf-kpi .k-l{font-size:0.7rem;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:#64748b;}
+            .acc-kpi .k-v,.cf-kpi .k-v{font-size:1.2rem;font-weight:900;margin-top:0.22rem;font-variant-numeric:tabular-nums;color:#0f172a;}
+            .acc-kpi .k-s{font-size:0.71rem;color:#94a3b8;margin-top:0.12rem;}
+            .acc-kpi.in,.cf-kpi.in{background:#f0fdf4;border-color:#bbf7d0;}  .acc-kpi.in  .k-v,.cf-kpi.in  .k-v{color:#15803d;}
+            .acc-kpi.out,.cf-kpi.out{background:#fef2f2;border-color:#fecaca;} .acc-kpi.out .k-v,.cf-kpi.out .k-v{color:#b91c1c;}
+            .acc-kpi.net,.cf-kpi.net{background:#f8fafc;}
+
+            .acc-card{max-width:860px;margin:0 auto;border:1.5px solid #e2e8f0;border-radius:14px;background:#fff;overflow:hidden;}
+            .acc-card.wide{max-width:1000px;}
+            .acc-tot{display:flex;justify-content:space-between;gap:1rem;padding:0.58rem 0.95rem;
+                     border-top:2px solid #cbd5e1;font-weight:800;color:#0f172a;font-size:0.9rem;}
+            .acc-tot b{font-variant-numeric:tabular-nums;white-space:nowrap;}
+            .acc-band{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+                      padding:0.72rem 0.95rem;font-weight:900;font-size:1rem;color:#fff;}
+            .acc-band b{font-variant-numeric:tabular-nums;white-space:nowrap;}
+            .acc-band.blue{background:#1e40af;} .acc-band.up{background:#15803d;} .acc-band.down{background:#b91c1c;}
+            .acc-band .pct{opacity:.85;font-weight:700;font-size:0.8rem;margin-left:0.45rem;}
+            /* Rows that drill into the day book announce themselves. */
+            .acc-row.lnk{cursor:pointer;}
+            .acc-row.lnk:hover{background:#f8fafc;}
+            .acc-row.lnk span::after{content:' ›';color:#cbd5e1;font-weight:800;}
+
+            /* Day book table. Its own class rather than .report-table, whose
+               header is tinted red for the sales report and clashed here. */
+            .db-wrap{max-width:1000px;margin:0 auto;overflow-x:auto;border:1.5px solid #e2e8f0;border-radius:14px;background:#fff;}
+            .db{width:100%;border-collapse:collapse;font-size:0.83rem;min-width:720px;}
+            .db th{background:#f1f5f9;color:#475569;font-size:0.69rem;font-weight:800;text-transform:uppercase;
+                   letter-spacing:0.05em;padding:0.55rem 0.75rem;text-align:left;border-bottom:1.5px solid #e2e8f0;white-space:nowrap;}
+            .db th.r{text-align:right;}
+            .db td{padding:0.5rem 0.75rem;border-bottom:1px solid #f1f5f9;vertical-align:top;color:#334155;}
+            .db td.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+            .db tr.day td{background:#f8fafc;font-weight:800;color:#0f172a;font-size:0.77rem;
+                          letter-spacing:0.03em;padding:0.42rem 0.75rem;border-bottom:1px solid #e2e8f0;}
+            .db .k{font-weight:700;color:#0f172a;}
+            /* The note used to occupy a whole extra row, which doubled the
+               length of the book for no information. */
+            .db .sub{display:block;font-size:0.72rem;color:#94a3b8;margin-top:1px;}
+            .db .muted{color:#cbd5e1;}
+            .db tr.flag td{background:#fff7ed;}
 
             .cashgrid{display:flex;flex-wrap:wrap;align-items:stretch;justify-content:center;gap:1rem;max-width:860px;margin:0 auto;}
             .cashcol{flex:1 1 300px;min-width:280px;display:flex;}
             .cf-panel{display:flex;flex-direction:column;width:100%;border:1.5px solid #e2e8f0;border-radius:14px;background:#fff;overflow:hidden;}
-            .cf-head{padding:0.58rem 0.95rem;font-size:0.74rem;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;}
+            .acc-head,.cf-head{padding:0.58rem 0.95rem;font-size:0.74rem;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;}
+            /* Inside a statement card a head is a section band, so it carries
+               its own fill; inside a cash-flow panel the fill comes from the
+               panel's own colour, below. */
+            .acc-head{background:#f1f5f9;color:#334155;border-top:1.5px solid #e2e8f0;border-bottom:1.5px solid #e2e8f0;}
+            .acc-card > .acc-head:first-child{border-top:none;}
             .cf-panel.in  .cf-head{background:#f0fdf4;color:#166534;border-bottom:1.5px solid #dcfce7;}
             .cf-panel.out .cf-head{background:#fef2f2;color:#991b1b;border-bottom:1.5px solid #fee2e2;}
-            .cf-row{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;padding:0.48rem 0.95rem;font-size:0.87rem;color:#334155;}
-            .cf-row b{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600;color:#0f172a;}
+            .acc-row,.cf-row{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;padding:0.48rem 0.95rem;font-size:0.87rem;color:#334155;}
+            .acc-row b,.cf-row b{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600;color:#0f172a;}
             /* A zero is information, but it is not news — greyed so the eye
                goes to the lines that actually moved. */
             .cf-row.zero, .cf-row.zero b{color:#cbd5e1;}
@@ -869,11 +913,13 @@
             /* Browsers drop background colours when printing, which would leave
                white text on white paper. Ink the type instead. */
             @media print{
-                .cf-grand{background:#fff !important;color:#0f172a !important;
+                .cf-grand,.acc-band{background:#fff !important;color:#0f172a !important;
                           border-top:2.5px solid #0f172a;border-bottom:2.5px solid #0f172a;}
-                .cf-kpi, .cf-kpi.in, .cf-kpi.out{background:#fff !important;}
-                .cf-kpi .k-v{color:#0f172a !important;}
-                .cf-panel .cf-head{background:#fff !important;color:#0f172a !important;}
+                .acc-band .pct{color:#475569 !important;opacity:1;}
+                .cf-kpi,.cf-kpi.in,.cf-kpi.out,.acc-kpi,.acc-kpi.in,.acc-kpi.out,.acc-kpi.net{background:#fff !important;}
+                .cf-kpi .k-v,.acc-kpi .k-v{color:#0f172a !important;}
+                .cf-panel .cf-head,.acc-head,.db th,.db tr.day td{background:#fff !important;color:#0f172a !important;}
+                .acc-row.lnk span::after{content:'' !important;}
             }
             .db-in{color:#15803d;font-weight:700;}
             .db-out{color:#b91c1c;font-weight:700;}
@@ -4121,37 +4167,55 @@
                     '<p class="acc-hint">No sales or purchases in this period. Pick a different range above.</p>';
                 return;
             }
+            /* Where the opening figure came from, said on the line itself —
+               it changes what the gross profit below means. */
+            const badge = (t, bg, fg) => `<span style="background:${bg};color:${fg};border-radius:20px;padding:1px 8px;`
+                + `font-size:0.68rem;font-weight:800;letter-spacing:0.03em;margin-left:6px;vertical-align:1px;">${t}</span>`;
             const src = d.stock.openingSource === 'entered'
-                ? `<span class="pct" style="color:#0d9488;">entered</span>`
-                : `<span class="pct">computed</span>`;
+                ? badge('ENTERED', '#ccfbf1', '#0f766e')
+                : badge('COMPUTED', '#f1f5f9', '#64748b');
+
+            const R = (label, amt, cls) =>
+                `<div class="acc-row${cls ? ' ' + cls : ''}"><span>${label}</span><b>${accInr(amt)}</b></div>`;
+            const D = (label, amt, kind) =>
+                `<div class="acc-row lnk" onclick="accDrill('${kind}')" title="Show the transactions behind this"><span>${label}</span><b>${accInr(amt)}</b></div>`;
+            const T = (label, amt) => `<div class="acc-tot"><span>${label}</span><b>${accInr(amt)}</b></div>`;
 
             let rows = '';
-            rows += `<tr class="head"><td colspan="2">Trading</td></tr>`;
-            rows += plRow('Sales (net of GST)', d.sales.taxable, 'sub', { drill: 'Sale' });
-            if (d.salesReturns.taxable) rows += plRow('Less: Sales returns', -d.salesReturns.taxable, 'sub', { drill: 'Credit Note' });
-            rows += plRow('<b>Net sales</b>', d.netSales, 'tot');
+            rows += `<div class="acc-head">Trading</div>`;
+            rows += D('Sales (net of GST)', d.sales.taxable, 'Sale');
+            if (d.salesReturns.taxable) rows += D('Less: Sales returns', -d.salesReturns.taxable, 'Credit Note');
+            rows += T('Net sales', d.netSales);
 
-            rows += `<tr class="head"><td colspan="2">Cost of goods sold</td></tr>`;
-            rows += `<tr class="sub"><td>Opening stock (at cost) ${src}</td><td class="n">${accInr(d.stock.opening)}</td></tr>`;
-            rows += plRow('Add: Purchases (net of GST)', d.purchases.taxable, 'sub', { drill: 'Purchase' });
-            if (d.purchaseReturns.taxable) rows += plRow('Less: Purchase returns', -d.purchaseReturns.taxable, 'sub', { drill: 'Debit Note' });
-            rows += plRow('Less: Closing stock (at cost)', -d.stock.closing, 'sub');
-            rows += plRow('<b>Cost of goods sold</b>', d.cogs, 'tot');
+            rows += `<div class="acc-head">Cost of goods sold</div>`;
+            rows += `<div class="acc-row"><span>Opening stock (at cost) ${src}</span><b>${accInr(d.stock.opening)}</b></div>`;
+            rows += D('Add: Purchases (net of GST)', d.purchases.taxable, 'Purchase');
+            if (d.purchaseReturns.taxable) rows += D('Less: Purchase returns', -d.purchaseReturns.taxable, 'Debit Note');
+            rows += R('Less: Closing stock (at cost)', -d.stock.closing);
+            rows += T('Cost of goods sold', d.cogs);
+            rows += `<div class="acc-band blue"><span>GROSS PROFIT</span><b>${accInr(d.grossProfit)}<span class="pct">${d.grossPct.toFixed(1)}%</span></b></div>`;
 
-            rows += `<tr class="grand"><td>GROSS PROFIT</td><td class="n">${accInr(d.grossProfit)}<span class="pct">${d.grossPct.toFixed(1)}%</span></td></tr>`;
-
-            rows += `<tr class="head"><td colspan="2">Expenses</td></tr>`;
+            rows += `<div class="acc-head">Expenses</div>`;
             if (!d.expenses.rows.length) {
-                rows += `<tr class="sub"><td colspan="2" style="color:#94a3b8;">No expenses recorded in this period. Until rent, salaries and power are entered on the Accounts page, net profit below is really gross profit.</td></tr>`;
+                rows += `<div class="acc-row" style="color:#94a3b8;"><span>No expenses recorded in this period — until rent, salaries and power are entered, the figure below is really gross profit.</span></div>`;
             }
-            d.expenses.rows.forEach(r => {
-                rows += `<tr class="sub" style="cursor:pointer;" onclick="accDrill('Expense')"><td>${accEsc(r.category)}</td><td class="n">${accInr(r.amount)}</td></tr>`;
-            });
-            rows += plRow('<b>Total expenses</b>', d.expenses.total, 'tot');
-            if (Math.abs(d.roundOff) >= 0.01) {
-                rows += plRow('Round-off on bills', d.roundOff, 'sub');
-            }
-            rows += `<tr class="grand"><td>NET PROFIT</td><td class="n">${accInr(d.netProfit)}<span class="pct">${d.netPct.toFixed(1)}%</span></td></tr>`;
+            d.expenses.rows.forEach(r => { rows += D(accEsc(r.category), r.amount, 'Expense'); });
+            rows += T('Total expenses', d.expenses.total);
+            if (Math.abs(d.roundOff) >= 0.01) rows += R('Round-off on bills', d.roundOff);
+            const prof = d.netProfit >= 0;
+            rows += `<div class="acc-band ${prof ? 'up' : 'down'}"><span>${prof ? 'NET PROFIT' : 'NET LOSS'}</span><b>${accInr(d.netProfit)}<span class="pct">${d.netPct.toFixed(1)}%</span></b></div>`;
+
+            const kpis =
+                `<div class="acc-kpis">
+                    <div class="acc-kpi"><div class="k-l">Net sales</div><div class="k-v">${accInr(d.netSales)}</div>
+                        <div class="k-s">${d.sales.count} bill${d.sales.count === 1 ? '' : 's'}, net of GST</div></div>
+                    <div class="acc-kpi"><div class="k-l">Gross profit</div>
+                        <div class="k-v" style="color:#1e40af;">${accInr(d.grossProfit)}</div>
+                        <div class="k-s">${d.grossPct.toFixed(1)}% of net sales</div></div>
+                    <div class="acc-kpi ${prof ? 'in' : 'out'}"><div class="k-l">${prof ? 'Net profit' : 'Net loss'}</div>
+                        <div class="k-v">${accInr(d.netProfit)}</div>
+                        <div class="k-s">after ${accInr(d.expenses.total)} of expenses</div></div>
+                 </div>`;
 
             let extra = '';
 
@@ -4188,7 +4252,8 @@
                     <div style="font-weight:900;font-size:1.05rem;color:#0f172a;">Profit &amp; Loss</div>
                     <div style="font-size:0.82rem;color:#64748b;">${accDate(d.period.from)} to ${accDate(d.period.to)} · ${d.sales.count} bills</div>
                  </div>
-                 <table class="pl">${rows}</table>${extra}${stockNote}`;
+                 ${kpis}
+                 <div class="acc-card">${rows}</div>${extra}${stockNote}`;
         }
 
         function renderCashFlow() {
@@ -4280,46 +4345,53 @@
             rows.forEach(r => {
                 if (r.date !== lastDate) {
                     lastDate = r.date;
-                    body += `<tr style="background:#f8fafc;"><td colspan="7" style="font-weight:800;color:#334155;padding:0.5rem 0.7rem;">${accDate(r.date)}</td></tr>`;
+                    body += `<tr class="day"><td colspan="7">${accDate(r.date)}</td></tr>`;
                 }
-                const cash = r.cash > 0 ? `<span class="db-in">+${accInr(r.cash).replace('₹', '₹')}</span>`
+                const cash = r.cash > 0 ? `<span class="db-in">+${accInr(r.cash)}</span>`
                           : r.cash < 0 ? `<span class="db-out">${accInr(r.cash)}</span>`
-                          : '<span style="color:#cbd5e1;">—</span>';
-                body += `<tr${r.flag ? ' style="background:#fff7ed;"' : ''}>
-                    <td style="white-space:nowrap;color:#64748b;">${accEsc(r.time || '')}</td>
-                    <td style="font-weight:700;">${accEsc(r.kind)}</td>
-                    <td>${accEsc(r.ref)}</td>
-                    <td>${accEsc(r.party)}</td>
-                    <td>${accEsc(r.mode)}</td>
-                    <td style="text-align:right;font-variant-numeric:tabular-nums;">${accInr(r.amount)}</td>
-                    <td style="text-align:right;font-variant-numeric:tabular-nums;">${cash}</td>
+                          : '<span class="muted">—</span>';
+                /* The note rides under the party instead of taking a row of
+                   its own — it used to double the length of the book. */
+                body += `<tr${r.flag ? ' class="flag"' : ''}>
+                    <td class="${r.time ? '' : 'muted'}" style="white-space:nowrap;">${accEsc(r.time ? r.time.slice(0, 5) : '—')}</td>
+                    <td class="k">${accEsc(r.kind)}</td>
+                    <td class="${r.ref && r.ref !== '—' ? '' : 'muted'}">${accEsc(r.ref)}</td>
+                    <td><span class="k">${accEsc(r.party)}</span>${r.note ? `<span class="sub">${accEsc(r.note)}</span>` : ''}</td>
+                    <td class="${r.mode && r.mode !== '—' ? '' : 'muted'}">${accEsc(r.mode)}</td>
+                    <td class="r">${accInr(r.amount)}</td>
+                    <td class="r">${cash}</td>
                 </tr>`;
-                if (r.note) {
-                    body += `<tr><td></td><td colspan="6" style="color:#94a3b8;font-size:0.78rem;padding-top:0;">${accEsc(r.note)}</td></tr>`;
-                }
             });
-            if (!rows.length) body = '<tr><td colspan="7" style="text-align:center;padding:1.6rem;color:#94a3b8;">Nothing in this period.</td></tr>';
+            if (!rows.length) body = '<tr><td colspan="7" style="text-align:center;padding:1.8rem;color:#94a3b8;">Nothing in this period.</td></tr>';
 
+            const up = d.totals.net >= 0;
             document.getElementById('accDay').innerHTML =
-                `<div class="acc-doctitle" style="text-align:center;margin-bottom:0.7rem;">
+                `<div class="acc-doctitle" style="text-align:center;margin-bottom:1rem;">
                     <div style="font-weight:900;font-size:1.05rem;color:#0f172a;">Day Book</div>
-                    <div style="font-size:0.82rem;color:#64748b;">${accDate(_accData.period.from)} to ${accDate(_accData.period.to)} · ${d.totals.count} entries</div>
+                    <div style="font-size:0.82rem;color:#64748b;">${accDate(_accData.period.from)} to ${accDate(_accData.period.to)}</div>
                  </div>
+
+                 <div class="acc-kpis four">
+                    <div class="acc-kpi"><div class="k-l">Entries</div><div class="k-v">${d.totals.count}</div>
+                        <div class="k-s">${d.days.length} day${d.days.length === 1 ? '' : 's'} with activity</div></div>
+                    <div class="acc-kpi in"><div class="k-l">Cash in</div><div class="k-v">${accInr(d.totals.in)}</div></div>
+                    <div class="acc-kpi out"><div class="k-l">Cash out</div><div class="k-v">${accInr(d.totals.out)}</div></div>
+                    <div class="acc-kpi net"><div class="k-l">Net movement</div>
+                        <div class="k-v" style="color:${up ? '#15803d' : '#b91c1c'};">${accInr(d.totals.net)}</div></div>
+                 </div>
+
                  <div class="acc-noprint" style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.8rem;justify-content:center;">${chips}</div>
-                 <div style="overflow-x:auto;">
-                    <table class="report-table" style="min-width:720px;">
-                        <thead><tr><th>Time</th><th>Type</th><th>Ref</th><th>Party</th><th>Mode</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Cash</th></tr></thead>
+
+                 <div class="db-wrap">
+                    <table class="db">
+                        <thead><tr><th>Time</th><th>Type</th><th>Ref</th><th>Party</th><th>Mode</th><th class="r">Amount</th><th class="r">Cash</th></tr></thead>
                         <tbody>${body}</tbody>
                     </table>
+                    <div class="acc-tot"><span>Cash in</span><b>${accInr(d.totals.in)}</b></div>
+                    <div class="acc-tot" style="border-top:1px solid #e2e8f0;"><span>Cash out</span><b>${accInr(d.totals.out)}</b></div>
+                    <div class="acc-band ${up ? 'up' : 'down'}"><span>NET CASH MOVEMENT</span><b>${accInr(d.totals.net)}</b></div>
                  </div>
-                 <!-- The figures are part of the document and must survive
-                      printing; only the sentence explaining them is advice. -->
-                 <table class="pl" style="margin-top:1rem;">
-                    <tr class="tot"><td>Cash in</td><td class="n">${accInr(d.totals.in)}</td></tr>
-                    <tr class="tot"><td>Cash out</td><td class="n">${accInr(d.totals.out)}</td></tr>
-                    <tr class="grand"><td>NET CASH MOVEMENT</td><td class="n">${accInr(d.totals.net)}</td></tr>
-                 </table>
-                 <p class="acc-hint" style="text-align:center;">
+                 <p class="acc-hint" style="max-width:1000px;margin:0.7rem auto 0;text-align:center;">
                     The Cash column is a <b>movement</b>, not a drawer balance — the app is never told what was in the till this morning,
                     and inventing an opening balance would be worse than leaving it out.
                  </p>`;
