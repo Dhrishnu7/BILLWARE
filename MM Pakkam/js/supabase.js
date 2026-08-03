@@ -1389,6 +1389,18 @@ window.dbDeleteStockAdjustment = dbDeleteStockAdjustment;
 //     cloud-confirmed row always has an `id`; a purely local one never got
 //     one. Once pushed, the next full dbGetStockAdjustments() fetch replaces
 //     the id-less local copy with the real cloud row, so nothing lingers.
+/* Identity of an adjustment, used to tell "not yet in the cloud" from "already
+   there under a different local shape". Handles both the snake_case cloud row
+   and the camelCase local record. */
+function _mmAdjKey(a) {
+    if (!a) return '';
+    const name  = String(a.product_name ?? a.productName ?? '').trim().toLowerCase();
+    const batch = String(a.batch_no     ?? a.batchNo     ?? '').trim().toLowerCase();
+    const delta = Number(a.qty_delta    ?? a.qtyDelta    ?? 0);
+    const note  = String(a.note ?? '');
+    return name + '|' + batch + '|' + delta + '|' + note;
+}
+
 async function dbSyncPendingStockAdjustments() {
     const user = _currentUser();
     if (!user) return 0;
@@ -1399,12 +1411,32 @@ async function dbSyncPendingStockAdjustments() {
 
     if (!pending.length && !legacyUnsynced.length) return 0;
 
+    /* NEITHER source proves the row is missing from the cloud. A pending entry
+       may have been inserted just before the page died, and older builds cached
+       an id-less copy even when the insert SUCCEEDED — so this function used to
+       re-insert rows that were already there, on every page load, for ever. One
+       sales return became three identical credit notes under a single CN
+       number, inflating stock and the refund total in the P&L, GSTR-1 and
+       Tally. Insert is not idempotent, so check before pushing: fetch what the
+       cloud already holds and skip anything that matches. The note carries the
+       credit-note number, which makes the key specific enough. If the check
+       itself fails, push NOTHING — pushing blind is what caused the damage. */
+    let already;
+    try {
+        const cloudRows = await dbGetStockAdjustments();
+        already = new Set((cloudRows || []).map(_mmAdjKey));
+    } catch (e) {
+        console.warn('[db] adjustment dedupe check failed; nothing pushed this round.', e);
+        return 0;
+    }
+
     let syncedCount = 0;
     const stillPending = [];
     for (const record of pending) {
+        if (already.has(_mmAdjKey(record))) continue;   // already in the cloud — drop it
         try {
             const res = await dbAddStockAdjustment(record);
-            if (res && res.success) syncedCount++;
+            if (res && res.success) { syncedCount++; already.add(_mmAdjKey(record)); }
             else stillPending.push(record);
         } catch (e) {
             stillPending.push(record);
@@ -1413,6 +1445,7 @@ async function dbSyncPendingStockAdjustments() {
     if (typeof mmLsSet === 'function') mmLsSet('pendingStockAdjustments', stillPending);
 
     for (const legacy of legacyUnsynced) {
+        if (already.has(_mmAdjKey(legacy))) continue;   // already in the cloud
         try {
             const res = await dbAddStockAdjustment({
                 productName: legacy.product_name || legacy.productName,
@@ -1423,7 +1456,7 @@ async function dbSyncPendingStockAdjustments() {
                 reason:      legacy.reason,
                 note:        legacy.note,
             });
-            if (res && res.success) syncedCount++;
+            if (res && res.success) { syncedCount++; already.add(_mmAdjKey(legacy)); }
         } catch (e) { /* will retry again next load */ }
     }
 

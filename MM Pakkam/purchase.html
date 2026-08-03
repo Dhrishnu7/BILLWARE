@@ -1258,10 +1258,15 @@
                         note: JSON.stringify({ ref: rec.billNo || '', firm: rec.firm || '', freeQty: freeQ, pack: pack, date: rec.date || '' })
                     };
                     let savedCloud = false;
-                    try { if (typeof dbAddStockAdjustment === 'function') { const r = await dbAddStockAdjustment(adj); if (r && r.success) savedCloud = true; } } catch (e) {}
+                    let cloudRow = null;
+                    try { if (typeof dbAddStockAdjustment === 'function') { const r = await dbAddStockAdjustment(adj); if (r && r.success) { savedCloud = true; cloudRow = r.data || null; } } } catch (e) {}
                     try {
                         const local = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
-                        local.unshift({ product_name: adj.productName, batch_no: adj.batchNo, qty_before: adj.qtyBefore, qty_after: adj.qtyAfter, qty_delta: adj.qtyDelta, reason: adj.reason, note: adj.note, created_at: new Date().toISOString() });
+                        // Keep the cloud id — an id-less cache entry is re-inserted
+                        // by dbSyncPendingStockAdjustments() on every page load.
+                        const cached = { product_name: adj.productName, batch_no: adj.batchNo, qty_before: adj.qtyBefore, qty_after: adj.qtyAfter, qty_delta: adj.qtyDelta, reason: adj.reason, note: adj.note, created_at: new Date().toISOString() };
+                        if (cloudRow && cloudRow.id) cached.id = cloudRow.id;
+                        local.unshift(cached);
                         if (typeof mmLsSet === 'function') mmLsSet('stockAdjustments', local);
                     } catch (e) {}
                     if (!savedCloud) {

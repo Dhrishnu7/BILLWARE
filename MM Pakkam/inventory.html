@@ -1289,13 +1289,20 @@
         const note   = JSON.stringify(noteObj);
         const record = { productName, batchNo, qtyBefore: before, qtyAfter: after, qtyDelta, reason, note };
         let savedToCloud = false;
+        let cloudRow = null;
         try {
             if (typeof dbAddStockAdjustment === 'function') {
                 const res = await dbAddStockAdjustment(record);
-                if (res && res.success) savedToCloud = true;
+                if (res && res.success) { savedToCloud = true; cloudRow = res.data || null; }
             }
         } catch (e) { console.warn('return adj cloud save failed:', e); }
+        /* Carry the cloud row's id into the cached copy. An id-less entry looks
+           UNSYNCED to dbSyncPendingStockAdjustments(), which re-inserts every
+           id-less cache entry on each page load — that turned one real return
+           into three identical credit notes sharing one CN number, inflating
+           both stock and the refund total in the P&L, GSTR-1 and Tally. */
         const localEntry = { product_name: productName, batch_no: batchNo, qty_before: before, qty_after: after, qty_delta: qtyDelta, reason, note, created_at: new Date().toISOString() };
+        if (cloudRow && cloudRow.id) localEntry.id = cloudRow.id;
         try {
             const local = retAdjustments();
             local.unshift(localEntry);
@@ -1849,7 +1856,15 @@
             }
             if (session && typeof dbGetStockAdjustments === 'function') {
                 const adj = await dbGetStockAdjustments();
-                if (Array.isArray(adj) && adj.length) _stockAdjustments = adj;
+                if (Array.isArray(adj) && adj.length) {
+                    _stockAdjustments = adj;
+                    /* Write the cloud rows — which carry ids — back over the
+                       cache. This was assigning the in-memory copy only, so an
+                       id-less entry left by an older build stayed in
+                       localStorage looking unsynced and got re-inserted on
+                       every single load. */
+                    if (typeof mmLsSet === 'function') mmLsSet('stockAdjustments', adj);
+                }
             }
             // Reorder-level overrides → cache locally for the To Buy tab.
             if (session && typeof dbGetReorderLevels === 'function') {
@@ -2196,18 +2211,22 @@
         const record = { productName: name, batchNo: batch, qtyBefore, qtyAfter, qtyDelta, reason, note };
 
         let savedToCloud = false;
+        let cloudRow = null;
         try {
             if (typeof dbAddStockAdjustment === 'function') {
                 const res = await dbAddStockAdjustment(record);
-                if (res && res.success) savedToCloud = true;
+                if (res && res.success) { savedToCloud = true; cloudRow = res.data || null; }
             }
         } catch(e) { console.warn('Stock adjustment cloud save failed:', e); }
 
+        // Keep the cloud id — see _saveReturnAdjustment; an id-less cache entry
+        // gets re-inserted by the pending-sync retry on every page load.
         const localEntry = {
             product_name: name, batch_no: batch,
             qty_before: qtyBefore, qty_after: qtyAfter, qty_delta: qtyDelta,
             reason, note, created_at: new Date().toISOString()
         };
+        if (cloudRow && cloudRow.id) localEntry.id = cloudRow.id;
 
         // Always mirror to scoped localStorage — works offline, and before the
         // Supabase 'stock_adjustments' table exists.
