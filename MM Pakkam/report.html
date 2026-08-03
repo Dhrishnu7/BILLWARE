@@ -2454,7 +2454,7 @@
                 if (kind === 'gstin')     return b('openGstinFix()',         'Correct them');
                 if (kind === 'shop')      return b('goFix(\'shop-setup.html\')',              'Open Shop Setup');
                 if (kind === 'shoppos')   return b('fixFromCheck(\'shoppos\')',               'Set town &amp; PIN');
-                if (kind === 'returns')   return b('goFix(\'inventory.html#tab-returns\')',   'Open Returns');
+                if (kind === 'returns')   return b('goFix(\'inventory.html#tab-returns:history\')',   'Open Returns');
                 if (kind === 'suppliers') return b('goFix(\'directory.html#tab-suppliers\')', 'Open Suppliers');
                 if (kind === 'bills')     return b('findBillsFromCheck()',   'Find these bills');
                 return '';
@@ -3155,7 +3155,7 @@
                     ${res.returnProblems.map(p => '• ' + _te(p)).join('<br>')}
                     <br><br>Guessing a tax rate would put a wrong figure in your books, so they are skipped rather than estimated.
                     <div style="margin-top:9px;">
-                        <button onclick="goFix('inventory.html#tab-returns')" style="${FIXB_G}">Open Returns →</button>
+                        <button onclick="goFix('inventory.html#tab-returns:history')" style="${FIXB_G}">Open Returns →</button>
                     </div>
                 </div>` : ''}
                 <div style="font-size:0.76rem;color:#64748b;line-height:1.5;margin-bottom:0.7rem;">
@@ -4178,7 +4178,7 @@
 
             if (act.kind === 'openingStock') { openOpeningStock(); return; }
 
-            if (act.kind === 'returns') { location.href = 'inventory.html#tab-returns'; return; }
+            if (act.kind === 'returns') { location.href = 'inventory.html#tab-returns:history'; return; }
 
             if (act.kind === 'dupPurchases') { openDupPurchases(act.groups || []); return; }
 

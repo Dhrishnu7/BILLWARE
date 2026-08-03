@@ -1137,12 +1137,23 @@
     /* Deep link: inventory.html#tab-returns opens that tab straight away, so a
        button on another page can point at the exact place the fix happens
        instead of dropping the user on the Master Ledger to hunt for it. */
+    /* An optional ":sub" picks the sub-tab as well — #tab-returns:history lands
+       on the notes already taken, which is where a bad one gets corrected.
+       Without it the fix button dropped the user on the CREATE screen, inviting
+       them to raise a SECOND return instead of fixing the first. */
     window.addEventListener('DOMContentLoaded', () => {
         const h = String(location.hash || '').replace(/^#/, '');
         if (h.indexOf('tab-') !== 0) return;
-        const name = h.slice(4);
+        const parts = h.slice(4).split(':');
+        const name  = parts[0];
+        const sub   = parts[1] || '';
         if (!name || !document.getElementById('tab-' + name)) return;
-        setTimeout(() => { try { switchTab(name); } catch (e) {} }, 60);
+        setTimeout(() => {
+            try {
+                switchTab(name);
+                if (sub && name === 'returns' && typeof retSwitch === 'function') retSwitch(sub);
+            } catch (e) {}
+        }, 60);
     });
 
     function switchTab(name) {

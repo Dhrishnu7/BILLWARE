@@ -417,25 +417,54 @@
         /* ── Returns ── */
         var salesRet = { taxable: 0, tax: 0, gross: 0, count: 0 };
         var purchRet = { taxable: 0, tax: 0, gross: 0, count: 0 };
-        var excludedReturns = { count: 0, gross: 0, notes: [] };
+        var excludedReturns = { count: 0, gross: 0, notes: [], profitEffect: 0 };
+
+        /* A return with no readable GST rate is dropped from the trading
+           section above. The GOODS still moved, though, and closing stock is
+           computed from stock records rather than from this statement — so the
+           stock half is still counted while the sales half is not, and gross
+           profit shifts by the cost of those goods with nothing to offset it.
+           Saying "EXCLUDED from this statement" was therefore only half true,
+           and it hid a real overstatement. Measure the shift so the warning can
+           state it. A sales return puts stock back (closing stock up, COGS
+           down, profit UP); a purchase return takes stock away (profit DOWN). */
+        function excludeReturn(n, isSale) {
+            excludedReturns.count++;
+            excludedReturns.gross += num(n.gross);
+            excludedReturns.notes.push(n.no);
+            (n.lines || []).forEach(function (l) {
+                var c = costs.unitCost(l.product, l.batch) * num(l.qty);
+                excludedReturns.profitEffect += isSale ? c : -c;
+            });
+        }
+
         if (window.mmReturns && typeof window.mmReturns.load === 'function') {
             try {
                 var rets = window.mmReturns.load({ from: from, to: to });
                 rets.creditNotes.forEach(function (n) {
-                    if (!n.usable) { excludedReturns.count++; excludedReturns.gross += num(n.gross); excludedReturns.notes.push(n.no); return; }
+                    if (!n.usable) { excludeReturn(n, true); return; }
                     salesRet.taxable += n.taxable; salesRet.tax += n.tax; salesRet.gross += n.gross; salesRet.count++;
                 });
                 rets.debitNotes.forEach(function (n) {
-                    if (!n.usable) { excludedReturns.count++; excludedReturns.gross += num(n.gross); excludedReturns.notes.push(n.no); return; }
+                    if (!n.usable) { excludeReturn(n, false); return; }
                     purchRet.taxable += n.taxable; purchRet.tax += n.tax; purchRet.gross += n.gross; purchRet.count++;
                 });
             } catch (e) { warn('Returns could not be read: ' + (e && e.message ? e.message : e)); }
         }
         if (excludedReturns.count) {
-            warn(excludedReturns.count + ' return' + (excludedReturns.count === 1 ? '' : 's') +
-                ' worth ' + inr(excludedReturns.gross) + ' could not be valued (the original bill\'s GST rate is not readable) and are EXCLUDED from this statement — ' +
-                excludedReturns.notes.slice(0, 4).join(', ') + (excludedReturns.notes.length > 4 ? '…' : ''),
-                { kind: 'returns', label: '↩️ Open Returns' });
+            var exN      = excludedReturns.count;
+            var exOne    = exN === 1;
+            var exEffect = r2(excludedReturns.profitEffect);
+            var exText   = exN + ' return' + (exOne ? ' is' : 's are') + ' missing a GST rate' +
+                ' (the original bill cannot be read), so ' + (exOne ? 'its' : 'their') + ' value of ' +
+                inr(excludedReturns.gross) + ' is NOT deducted above — ' +
+                excludedReturns.notes.slice(0, 4).join(', ') + (excludedReturns.notes.length > 4 ? '…' : '') + '.';
+            if (Math.abs(exEffect) >= 0.01) {
+                exText += ' The goods still moved, so closing stock DOES include them: gross profit here is ' +
+                    (exEffect > 0 ? 'OVERSTATED' : 'UNDERSTATED') + ' by about ' + inr(Math.abs(exEffect)) +
+                    ' until ' + (exOne ? 'it is' : 'they are') + ' fixed.';
+            }
+            warn(exText, { kind: 'returns', label: '↩️ Open Returns' });
         }
 
         /* ── Expenses ── */
