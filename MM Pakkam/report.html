@@ -2073,13 +2073,22 @@
                     </div>
                     <table style="width:100%;border-collapse:collapse;font-size:0.84rem;">
                         <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Bills</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${s.bills} &nbsp;(${s.lines} lines)</td></tr>
-                        <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Invoice series</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${_te(s.firstInv)} → ${_te(s.lastInv)}</td></tr>
-                        <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Taxable value</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${money(s.taxable)}</td></tr>
-                        <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Tax (CGST + SGST)</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${money(s.tax)}</td></tr>
+                        <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Invoice series</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${_te(s.firstInv)} → ${_te(s.lastInv)}${s.cancelledDocs ? `<br><span style="font-weight:600;font-size:0.74rem;color:#b45309;">${s.cancelledDocs} number(s) unused — filed as cancelled</span>` : ''}</td></tr>
+                        <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Taxable value</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${money(s.taxableGross)}</td></tr>
+                        <tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#64748b;">Tax (CGST + SGST)</td><td style="padding:7px 13px;text-align:right;font-weight:700;">${money(s.taxGross)}</td></tr>
                         <tr style="border-top:1px solid #f1f5f9;background:#f8fafc;"><td style="padding:7px 13px;font-weight:800;">Invoice total</td><td style="padding:7px 13px;text-align:right;font-weight:800;">${money(s.grandTotal)}</td></tr>
                         ${s.creditNotes ? `<tr style="border-top:1px solid #f1f5f9;"><td style="padding:7px 13px;color:#b45309;">Less: credit notes (${s.creditNotes})</td><td style="padding:7px 13px;text-align:right;font-weight:700;color:#b45309;">− ${money(s.creditNoteValue)}</td></tr>
                         <tr style="border-top:1px solid #f1f5f9;background:#f8fafc;"><td style="padding:7px 13px;font-weight:800;">Net of refunds</td><td style="padding:7px 13px;text-align:right;font-weight:800;">${money(s.grandTotal - s.creditNoteValue)}</td></tr>` : ''}
                     </table>
+                    ${s.creditNotes ? `<div style="padding:8px 13px;border-top:1px solid #f1f5f9;background:#fcfdff;font-size:0.74rem;color:#64748b;line-height:1.5;">
+                        The rows above are the month <b>before</b> the refund. What actually goes into the file
+                        is the net: <b>${money(s.taxable)}</b> taxable + <b>${money(s.tax)}</b> tax
+                        = <b>${money(s.filedTotal)}</b>.
+                        ${Math.abs(s.filedTotal - (s.grandTotal - s.creditNoteValue)) >= 0.005
+                            ? `<br>That is ${money(Math.abs(s.filedTotal - (s.grandTotal - s.creditNoteValue)))} away from
+                               ${money(s.grandTotal - s.creditNoteValue)} above, because each HSN row is rounded to
+                               paise before it is sent. The portal will total the file to the first figure.` : ''}
+                    </div>` : ''}
                     <div style="padding:9px 13px;border-top:1px solid #f1f5f9;font-size:0.78rem;color:#64748b;">
                         <b>B2CS</b> ${s.rates} tax rate(s) · ${money(s.b2csValue)}
                         &nbsp;·&nbsp; <b>HSN summary</b> ${s.hsnRows} row(s)

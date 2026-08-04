@@ -204,6 +204,13 @@
            reconciliation. */
         var cdnrMap = {};        // ctin -> [note]
         var cnCount = 0, cnValue = 0, cnProblems = [];
+        /* The refund's own taxable value and tax, kept separately. The B2CS and
+           HSN figures below have the credit note taken OUT of them, so without
+           these there is no way to state what the month looked like before the
+           refund — and a summary that shows a "Less: credit notes" line under
+           figures the refund has already been removed from deducts it twice to
+           the eye. */
+        var cnTaxable = 0, cnTax = 0;
         if (window.mmReturns) {
             var rets = mmReturns.load({ from: month + '-01', to: month + '-31' });
             cnProblems = rets.problems;
@@ -218,6 +225,10 @@
                     var rk = String(rate);
                     var half = l.tax / 2;
                     if (!MM_GST_SLABS_SET[rate]) badRates[rate] = (badRates[rate] || 0) + 1;
+                    // Counted for every note, registered buyer or not: the HSN
+                    // summary below is reduced either way.
+                    cnTaxable += l.taxable;
+                    cnTax     += l.tax;
 
                     if (ctin2) {
                         if (!noteRates[rk]) noteRates[rk] = { rt: rate, txval: 0, camt: 0, samt: 0 };
@@ -297,15 +308,38 @@
         }).sort(function (a, b) { return String(a.hsn_sc).localeCompare(String(b.hsn_sc)); })
           .map(function (h, i) { h.num = i + 1; return h; });
 
-        // Invoice series. Sorted as text because bill numbers carry prefixes.
+        /* Invoice series. Sorted as text because bill numbers carry prefixes.
+
+           This table must account for EVERY serial number in the range it
+           declares. Reporting "SS-002 to SS-008, 6 issued, 0 cancelled" is a
+           contradiction — seven numbers were used and only six explained — and
+           an unexplained break in the series is exactly what the Documents
+           Issued table exists to surface. A bill deleted after it was raised is
+           what leaves that gap, and the return's own word for it is CANCELLED.
+
+           Only done where the numbers form a series this can actually read: one
+           shared prefix and a numeric tail. Anything else is left exactly as it
+           was rather than guessed at, because a wrongly declared cancellation is
+           worse than a gap. */
         var docs = [];
+        var cancelledDocs = 0;
         if (invNos.length) {
             var sorted = invNos.slice().sort();
+            var firstNo = sorted[0], lastNo = sorted[sorted.length - 1];
+            var totnum = sorted.length;
+            var mF = /^(.*?)(\d+)$/.exec(firstNo), mL = /^(.*?)(\d+)$/.exec(lastNo);
+            if (mF && mL && mF[1] === mL[1]) {
+                var span = parseInt(mL[2], 10) - parseInt(mF[2], 10) + 1;
+                // span < totnum would mean duplicate numbers, a different
+                // problem entirely — never silently "fixed" here.
+                if (span > totnum) { cancelledDocs = span - totnum; totnum = span; }
+            }
             docs = [{
                 doc_num: 1,        // 1 = invoices for outward supply
                 docs: [{
-                    num: 1, from: sorted[0], to: sorted[sorted.length - 1],
-                    totnum: sorted.length, cancel: 0, net_issue: sorted.length
+                    num: 1, from: firstNo, to: lastNo,
+                    totnum: totnum, cancel: cancelledDocs,
+                    net_issue: totnum - cancelledDocs
                 }]
             }];
         }
@@ -327,14 +361,41 @@
         return {
             json: json,
             month: month,
-            summary: {
+            summary: (function () {
+            /* Two families of figure, and confusing them is how a summary stops
+               adding up. `taxable`/`tax` are what is FILED — net of refunds,
+               straight off the HSN summary, so they tie to the file byte for
+               byte. `taxableGross`/`taxGross` are the month BEFORE refunds, the
+               only figures a "Less: credit notes" line can honestly sit under.
+
+               The gross pair is DERIVED from grandTotal rather than added up:
+               grandTotal is what the bills actually totalled, so fixing taxable
+               and taking tax as the remainder makes the column foot exactly
+               instead of drifting a paisa on rounded HSN rows. Same rule as the
+               notes in js/returns-data.js — round two, derive the third. */
+            var filedTaxable = r2(hsn.reduce(function (s, x) { return s + x.txval; }, 0));
+            var filedTax     = r2(hsn.reduce(function (s, x) { return s + x.camt + x.samt; }, 0));
+            var grandR       = r2(grand);
+            var grossTaxable = r2(filedTaxable + cnTaxable);
+            return {
                 bills: bills.length,
                 lines: lineCount,
-                grandTotal: r2(grand),
-                // Totals come from the HSN summary, which covers B2B and B2CS
-                // alike — the two together are the month's whole outward supply.
-                taxable: r2(hsn.reduce(function (s, x) { return s + x.txval; }, 0)),
-                tax:     r2(hsn.reduce(function (s, x) { return s + x.camt + x.samt; }, 0)),
+                grandTotal: grandR,
+                taxable: filedTaxable,
+                tax:     filedTax,
+                taxableGross: grossTaxable,
+                taxGross:     r2(grandR - grossTaxable),
+                /* What the portal will total the file to. Each HSN row is
+                   rounded to paise before it is sent, so the sum of the rows
+                   can sit a paisa away from the shop's own books. That is real
+                   — the portal computes this figure, not the books one — so it
+                   is stated rather than smoothed over, and the difference is
+                   named on screen instead of turning up as an unexplained
+                   reconciliation failure. */
+                filedTotal: r2(filedTaxable + filedTax),
+                creditNoteTaxable: r2(cnTaxable),
+                creditNoteTax:     r2(cnTax),
+                cancelledDocs: cancelledDocs,
                 rates:   b2cs.length,
                 hsnRows: hsn.length,
                 missingHsn: missingHsn,
@@ -344,7 +405,13 @@
                 b2bBuyers: b2b.length,
                 b2bInvoices: b2bInvCount,
                 b2bValue: r2(b2bValue),
-                b2csValue: r2(grand - b2bValue),
+                /* Totalled from the B2CS rows themselves. Deriving it as
+                   grand − b2bValue mixed a gross figure with net rows and
+                   overstated counter sales by the whole credit note, so the
+                   value printed beside the rate chips did not match them. */
+                b2csValue: r2(b2cs.reduce(function (s, r) {
+                    return s + r.txval + r.camt + r.samt;
+                }, 0)),
                 firstInv: docs.length ? docs[0].docs[0].from : '',
                 lastInv:  docs.length ? docs[0].docs[0].to   : '',
                 creditNotes: cnCount,
@@ -356,7 +423,8 @@
                    B2CS line harshly, so it is surfaced rather than hidden. */
                 negativeRates: b2cs.filter(function (r) { return r.txval < 0; })
                                    .map(function (r) { return r.rt; })
-            },
+            };
+            })(),
             b2cs: b2cs,
             b2b: b2b,
             cdnr: cdnr,
