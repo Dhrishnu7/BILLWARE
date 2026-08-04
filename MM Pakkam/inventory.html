@@ -1055,7 +1055,7 @@
                     <div class="ret-hidden" id="purReturnCard" style="margin-top:1rem;border-top:1px dashed #cbd5e1;padding-top:1rem;">
                         <h3 style="font-weight:800;">Returning to <span id="prFirm"></span></h3>
                         <p class="ret-muted" id="prMeta"></p>
-                        <table class="ret-tbl"><thead><tr><th>Medicine</th><th>Batch</th><th>In stock</th><th>Return qty</th><th>Value &#8377;</th></tr></thead><tbody id="prItems"></tbody></table>
+                        <table class="ret-tbl"><thead><tr><th>Medicine</th><th>Batch</th><th>In stock</th><th>Return qty</th><th>Taxable &#8377;</th></tr></thead><tbody id="prItems"></tbody></table>
                         <div style="margin-top:1rem;"><label>Reason</label>
                             <select class="ret-in" id="prReason" style="max-width:240px;">
                                 <option value="expired">Expired</option><option value="near_expiry">Near expiry</option>
@@ -1512,6 +1512,22 @@
     }
 
     /* ── Purchase return ── */
+
+    /* The DOCUMENT total of a return note — what the other party will read off
+       the paper. A sales return's stored amount is already tax-INCLUSIVE; a
+       purchase return's is tax-EXCLUSIVE (the asymmetry documented in
+       js/returns-data.js). Quoting the stored figure for both made the Confirm
+       dialog promise a supplier ₹141.00 while the debit note that reached them
+       said ₹157.92. Every screen that shows a return's money goes through here,
+       so the screen and the note can no longer disagree.
+       A note taken before v253 carries no `gst`; then the tax is genuinely
+       unknown and the stored amount is all there is to show. */
+    function retNoteTotal(n, isSale) {
+        const amt = parseFloat(n && n.amount) || 0;
+        if (isSale) return amt;
+        return amt * (1 + (parseFloat(n && n.gst) || 0) / 100);
+    }
+
     let _prLot = null, _purLots = [];
     function findPurchases() {
         const q = (document.getElementById('purSearch').value || '').trim().toLowerCase();
@@ -1556,7 +1572,11 @@
         if (q > max) { q = max; inp.value = max; }
         const val = q * unitCost;
         tr.querySelector('.pr-line').textContent = retMoney(val);
-        document.getElementById('prSummary').innerHTML = 'Returning <b>' + q + '</b> unit(s) · Value <span class="amt">' + retMoney(val) + '</span>';
+        const gst = parseFloat(_prLot && _prLot.gst) || 0;
+        const gross = retNoteTotal({ amount: val, gst: gst }, false);
+        document.getElementById('prSummary').innerHTML = 'Returning <b>' + q + '</b> unit(s) · Taxable ' + retMoney(val)
+            + (gst ? ' + GST ' + gst + '% ' + retMoney(gross - val) : '')
+            + ' · Debit note <span class="amt">' + retMoney(gross) + '</span>';
         document.getElementById('prBtn').disabled = q <= 0;
     }
     async function processPurchaseReturn() {
@@ -1567,7 +1587,12 @@
         const unitCost = parseFloat(tr.dataset.unitcost) || 0;
         const name = (_prLot.productName || _prLot.product_name || ''), batch = (_prLot.batchNo || _prLot.batch_no || ''), firm = _prLot.firm || 'Supplier';
         const reason = document.getElementById('prReason').value, value = q * unitCost;
-        const ok = await mmConfirm('Return ' + q + ' unit(s) of ' + name + ' to ' + firm + '?\n\n' + retMoney(value) + ' debit note. Stock will be removed.', { title: '↪️ Confirm Purchase Return', okText: 'Yes, process' });
+        const prGst = Number(_prLot.gst) || 0;
+        // The figure quoted here is the one the supplier will see on the note.
+        const gross = retNoteTotal({ amount: value, gst: prGst }, false);
+        const ok = await mmConfirm('Return ' + q + ' unit(s) of ' + name + ' to ' + firm + '?\n\n'
+            + (prGst ? 'Taxable ' + retMoney(value) + ' + GST ' + prGst + '% ' + retMoney(gross - value) + '\n' : '')
+            + retMoney(gross) + ' debit note. Stock will be removed.', { title: '↪️ Confirm Purchase Return', okText: 'Yes, process' });
         if (!ok) return;
         const btn = document.getElementById('prBtn');
         btn.disabled = true; btn.textContent = 'Processing…';
@@ -1580,11 +1605,11 @@
                the goods, not to the paperwork, so it is captured at source. */
             await _saveReturnAdjustment(name, batch, -q, 'purchase_return', {
                 ref: _prLot.billNo || _prLot.bill_no || '', dn: dnNo, party: firm, amount: value, reason,
-                gst: Number(_prLot.gst) || 0, hsn: _prLot.hsn || '',
+                gst: prGst, hsn: _prLot.hsn || '',
                 date: retToday()
             });
-            if (typeof mmAudit === 'function') mmAudit('Purchase return', firm + ' · ' + retMoney(value), dnNo);
-            retToast('Purchase return done — ' + dnNo, retMoney(value) + ' debit note, stock removed.');
+            if (typeof mmAudit === 'function') mmAudit('Purchase return', firm + ' · ' + retMoney(gross), dnNo);
+            retToast('Purchase return done — ' + dnNo, retMoney(gross) + ' debit note, stock removed.');
             cancelPurchaseReturn();
             document.getElementById('purSearch').value = '';
             document.getElementById('purList').innerHTML = '';
@@ -1617,7 +1642,7 @@
         _retHist = {};
         rows.forEach(a => { const k = retNoteKey(a); (_retHist[k] = _retHist[k] || []).push(a); });
 
-        let html = '<table class="ret-tbl"><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Party</th><th>Medicine</th><th>Qty</th><th>Amount</th><th></th></tr></thead><tbody>';
+        let html = '<table class="ret-tbl"><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Party</th><th>Medicine</th><th>Qty</th><th title="What the note itself says — taxable plus GST">Note total</th><th></th></tr></thead><tbody>';
         rows.forEach(a => {
             let n = {}; try { n = JSON.parse(a.note || '{}'); } catch (e) {}
             const isSale = a.reason === 'sales_return';
@@ -1630,7 +1655,7 @@
                 + '<td>' + retEsc(n.party || '—') + '</td>'
                 + '<td>' + retEsc(a.product_name || '') + ' <span class="ret-muted">' + retEsc(a.batch_no || '') + '</span></td>'
                 + '<td>' + (parseFloat(a.qty_delta) > 0 ? '+' : '') + (parseFloat(a.qty_delta) || 0) + '</td>'
-                + '<td>' + retMoney(n.amount || 0) + '</td>'
+                + '<td>' + retMoney(retNoteTotal(n, isSale)) + '</td>'
                 + '<td style="text-align:right;white-space:nowrap;">'
                 + '<button onclick="deleteReturnNote(\'' + retEsc(k).replace(/'/g, "\\'") + '\')" '
                 + 'title="Undo this whole return' + (lines > 1 ? ' (' + lines + ' lines)' : '') + '" '
@@ -1653,7 +1678,7 @@
         const no = String((isSale ? n.cn : n.dn) || '').trim() || '(unnumbered)';
         const amount = rows.reduce((s, a) => {
             let x = {}; try { x = JSON.parse(a.note || '{}'); } catch (e) {}
-            return s + (parseFloat(x.amount) || 0);
+            return s + retNoteTotal(x, isSale);
         }, 0);
         const noId = rows.filter(a => a.id === undefined || a.id === null || a.id === '').length;
 
