@@ -3422,7 +3422,22 @@
             generateReport();
         }
 
-        // Wrapper for Generate button with visual feedback
+        /* Wrapper for the Generate button.
+
+           It used to say "Loading" for a tenth of a second and change back,
+           which on any normal machine is invisible — pressing Generate looked
+           like it had done nothing, so people pressed it again and wondered.
+           And the case that most needed saying out loud was the quietest: a
+           date range matching NOTHING left the table showing the PREVIOUS
+           result, so the screen looked like a successful report for the wrong
+           period. It now always says what it found and over what dates. */
+        function _genDate(d) {
+            if (!d) return '';
+            var p = String(d).split('-');
+            if (p.length !== 3) return d;
+            var M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return p[2] + ' ' + (M[parseInt(p[1], 10) - 1] || p[1]) + ' ' + p[0];
+        }
         function runGenerate() {
             const btn = document.getElementById('generateBtn');
             if (btn) {
@@ -3435,6 +3450,16 @@
                     btn.innerHTML = '<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35"/></svg> Generate';
                     btn.disabled = false;
                 }
+                const n = (typeof currentData !== 'undefined' && currentData) ? currentData.length : 0;
+                const f = (document.getElementById('fromDate') || {}).value || '';
+                const t = (document.getElementById('toDate')   || {}).value || '';
+                const range = (f || t)
+                    ? ((f ? _genDate(f) : 'the start') + ' → ' + (t ? _genDate(t) : 'today'))
+                    : 'all dates';
+                showToast(
+                    n ? ('✓ ' + n + ' record' + (n === 1 ? '' : 's') + '  ·  ' + range)
+                      : ('Nothing found for ' + range + ' — widen the dates or change the type'),
+                    n ? 'success' : 'error');
             }, 100);
         }
 
