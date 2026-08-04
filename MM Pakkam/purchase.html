@@ -1023,6 +1023,35 @@
             try { prior = JSON.parse(localStorage.getItem('mm_purchases') || '[]') || []; } catch (e) {}
             const _lc = v => String(v || '').trim().toLowerCase();
 
+            /* ── Whose invoice is this? ──────────────────────────────────────
+               A purchase saved with no supplier and no bill number is a
+               liability belonging to nobody. It never shows up against a
+               supplier in the ledger, the Tally export has to post it to a
+               generic creditors account, and any input credit on it is claimed
+               with no GSTIN behind it — which is precisely what a GSTR-2B
+               reconciliation exists to catch.
+
+               One of these turned up during testing: ₹141.75 dated 2 August,
+               party shown as the placeholder "Supplier", no bill number, and
+               nobody could say where it had come from or what it was for.
+
+               A WARNING, not a block: an over-the-counter buy with no invoice
+               is a real thing in a pharmacy. It only has to be impossible to do
+               without noticing. */
+            if (!firm || !billNo) {
+                const missing = (!firm && !billNo) ? 'no supplier name and no bill number'
+                              : (!firm ? 'no supplier name' : 'no bill number');
+                const tax = records.reduce((s, r) => s +
+                    (parseFloat(r.quantity) || 0) * (parseFloat(r.rate) || 0) * (parseFloat(r.gst) || 0) / 100, 0);
+                const ok = await mmConfirm(
+                    `This purchase has ${missing}.\n\n` +
+                    (!firm ? `Without a supplier it will not appear in anyone's ledger, and your accountant cannot match it to an invoice. ` : '') +
+                    (!billNo ? `Without a bill number there is nothing to check it against later. ` : '') +
+                    (tax > 0 ? `\n\nThe ₹${tax.toFixed(2)} of input credit on it would be claimed with no GSTIN behind it.` : ''),
+                    { title: 'This purchase belongs to nobody', okText: 'Save anyway', variant: 'warn' });
+                if (!ok) { _isSaving = false; return; }
+            }
+
             if (billNo && firm) {
                 const same = prior.filter(p =>
                     _lc(p.billNo || p.bill_no) === billNo.toLowerCase() &&
