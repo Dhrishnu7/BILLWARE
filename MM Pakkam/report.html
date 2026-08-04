@@ -6038,9 +6038,7 @@
                     ? (mmLsGet('sales') || [])
                     : JSON.parse(localStorage.getItem('mm_sales') || '[]');
             }
-            const customers = (typeof mmLsGet === 'function')
-                ? (mmLsGet('customers') || [])
-                : JSON.parse(localStorage.getItem('mm_customers') || '[]');
+            const customers = _custList();
 
             const queryTerms = query.split(/\\s+/).filter(t => t.length > 0);
 
@@ -6114,10 +6112,28 @@
             table.style.display = 'table';
         }
 
+        /* The customer list, from wherever it actually is.
+
+           Customers are WRITTEN to the unscoped `mm_customers` (js/supabase.js),
+           but these two readers asked mmLsGet, which reads the scoped
+           `mm_<user>_customers` — a key nothing writes. The `||` fallback never
+           fired either, because mmLsGet is always defined. So the list came back
+           EMPTY every time: searching a bill by the customer's phone number
+           silently found nothing, and a reprinted bill lost its delivery
+           address. Found by the T7 accounts dump, which showed 10 customers
+           unscoped and 0 scoped. Prefer the scoped store when it has anything,
+           fall back to the one that is actually written. */
+        function _custList() {
+            let scoped = [];
+            try { if (typeof mmLsGet === 'function') scoped = mmLsGet('customers') || []; } catch (e) {}
+            if (scoped.length) return scoped;
+            try { return JSON.parse(localStorage.getItem('mm_customers') || '[]') || []; } catch (e) { return []; }
+        }
+
         function getBillHTML(bill) {
             let deliveryAddress = String(bill.deliveryAddress || "").trim();
             if (!deliveryAddress && bill.customerName) {
-                const customers = (typeof mmLsGet === 'function') ? (mmLsGet('customers') || []) : JSON.parse(localStorage.getItem('mm_customers') || '[]');
+                const customers = _custList();
                 const cust = customers.find(c => String(c.name || "").trim().toLowerCase() === String(bill.customerName || "").trim().toLowerCase());
                 if (cust) deliveryAddress = cust.address || '';
             }
