@@ -2069,13 +2069,14 @@
                     + 'so give the duplicate a new number before filing.');
             }
             if (s.interstateB2b && s.interstateB2b.length) {
-                block.push('Sold to a registered buyer in another state: '
+                warn.push('Sold to a registered buyer in another state: '
                     + s.interstateB2b.map(x => `<b>${_te(x.billNo)}</b> (${_te(x.ctin)}, state ${_te(x.state)})`).join(', ')
-                    + '. That is an <b>IGST</b> supply at the buyer\'s place of supply, but the bill '
-                    + 'charged CGST + SGST here in state ' + _te(mmGstr1.posOf(gstin)) + '. '
-                    + 'Filing it either way would be wrong — as billed the portal rejects it, and '
-                    + 'switching it to IGST would report tax that was never collected. '
-                    + 'Raise this invoice directly on the portal, or correct the sale first.');
+                    + '. These are filed as <b>IGST</b> at the buyer\'s place of supply, which is correct — '
+                    + 'the same tax, under the right head. '
+                    + '<b>But the printed bill shows CGST + SGST</b>, because the till has no IGST. '
+                    + 'The money matches to the paisa, so nothing is over- or under-paid, but the buyer\'s '
+                    + 'copy will not agree with what they see in their GSTR-2B. Reissue those invoices '
+                    + 'if the buyer queries it.');
             }
             if (s.negativeRates && s.negativeRates.length) {
                 warn.push('Refunds exceed sales this month at ' + s.negativeRates.map(r => `<b>${r}%</b>`).join(', ')
@@ -2904,6 +2905,9 @@
                                     style="flex:1;min-width:130px;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.82rem;outline:none;">
                                 <input type="text" maxlength="6" inputmode="numeric" placeholder="Delivery PIN" value="${_te(t.toPin != null ? t.toPin : (r.toPin || ''))}" oninput="einvSetT(${i},'toPin',this.value)"
                                     style="flex:1;min-width:110px;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.82rem;outline:none;">
+                                ${r.isB2B ? '' : `<input type="text" maxlength="2" inputmode="numeric" placeholder="State code (${_te(_einvHomeState())} = here)" value="${_te(t.toState || '')}" oninput="einvSetT(${i},'toState',this.value)"
+                                    title="The first two digits of a GSTIN in that state. Leave blank if the goods stay in your own state — the portal checks this against the delivery PIN."
+                                    style="flex:1;min-width:110px;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.82rem;outline:none;">`}
                                 <input type="text" placeholder="Vehicle no (e.g. TN01AB1234)" value="${_te(t.vehicleNo || '')}" oninput="einvSetT(${i},'vehicleNo',this.value)"
                                     style="flex:1;min-width:150px;padding:0.4rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.82rem;outline:none;text-transform:uppercase;">
                                 <input type="number" placeholder="Distance km (0 = auto)" value="${_te(t.distance || '')}" oninput="einvSetT(${i},'distance',this.value)"
@@ -2936,6 +2940,13 @@
             const r = _einvRows[i]; if (!r) return;
             const t = _einvTransport[r.billNo] || (_einvTransport[r.billNo] = {});
             t[field] = val;
+        }
+
+        /* The shop's own state code, shown as the placeholder on the delivery
+           state box so leaving it blank has a visible meaning. */
+        function _einvHomeState() {
+            const g = String((window.mmShopProfile || {}).gstin || '').trim();
+            return /^\d{2}/.test(g) ? g.slice(0, 2) : '--';
         }
 
         /* ── Buyer address fixer ───────────────────────────────────────── */
@@ -3076,6 +3087,7 @@
             ['purchLedger',  'Purchase ledger',         'stock bought'],
             ['cgstOut',      'Output CGST ledger',      'GST collected on sales'],
             ['sgstOut',      'Output SGST ledger',      ''],
+            ['igstOut',      'Output IGST ledger',      'used only for a sale to a registered buyer in another state'],
             ['cgstIn',       'Input CGST ledger',       'GST paid on purchases'],
             ['sgstIn',       'Input SGST ledger',       ''],
             ['cashLedger',   'Cash ledger',             ''],

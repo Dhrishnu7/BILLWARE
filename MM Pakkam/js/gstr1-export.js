@@ -128,6 +128,16 @@
             var ctin = (cid && reg.byId[cid])
                     || reg.byName[key(bill.customerName || bill.customer_name || '')]
                     || '';
+            /* An inter-state supply to a registered buyer is IGST, at the
+               BUYER's place of supply. It is the SAME MONEY under a different
+               head — 12% is 12% whether it is split into two 6% halves or
+               filed whole — so re-heading it reports nothing that was not
+               collected. js/einvoice-export.js has always done exactly this;
+               the return and the e-invoice now agree.
+               What is genuinely wrong in that case is the printed bill, which
+               shows CGST + SGST because the till has no notion of IGST. That
+               is warned about rather than silently papered over. */
+            var interState = !!ctin && !!pos && ctin.slice(0, 2) !== pos;
             var invRates = {};     // rate -> totals, for this one B2B invoice
             var invVal = 0;
 
@@ -181,17 +191,21 @@
                 var hk = (hsn || 'UNSPECIFIED') + '|' + rate;
                 if (!hsnMap[hk]) {
                     hsnMap[hk] = { hsn_sc: hsn, desc: String(m.product || '').slice(0, 30),
-                                   rt: rate, qty: 0, txval: 0, camt: 0, samt: 0 };
+                                   rt: rate, qty: 0, intra: 0, inter: 0 };
                 }
-                hsnMap[hk].qty   += Number(m.qty) || 0;
-                hsnMap[hk].txval += txval;
-                hsnMap[hk].camt  += half;
-                hsnMap[hk].samt  += half;
+                /* Kept apart by supply type so each tax head can be derived
+                   from its own taxable value. One HSN row can legitimately
+                   carry both — a medicine sold over the counter and shipped to
+                   another state in the same month — but IGST worked out from a
+                   total that includes intra-state sales would be nonsense. */
+                hsnMap[hk].qty += Number(m.qty) || 0;
+                if (interState) hsnMap[hk].inter += txval;
+                else            hsnMap[hk].intra += txval;
             });
 
             // Close off this bill as a B2B invoice if the buyer is registered.
             if (ctin && invVal > 0) {
-                if (pos && ctin.slice(0, 2) !== pos) {
+                if (interState) {
                     interstateB2b.push({ billNo: String(bill.billNo || ''), ctin: ctin,
                                          state: ctin.slice(0, 2) });
                 }
@@ -200,14 +214,20 @@
                     inum: String(bill.billNo || ''),
                     idt: idt(bill.date),
                     val: r2(invVal),
-                    pos: pos,
+                    // Place of supply is the BUYER's state on an inter-state sale.
+                    pos: interState ? ctin.slice(0, 2) : pos,
                     rchrg: 'N',
                     inv_typ: 'R',
                     itms: Object.keys(invRates).map(function (rk, i) {
-                        var v = invRates[rk], tv = r2(v.txval), h = halfTax(tv, v.rt);
-                        return { num: i + 1, itm_det: {
-                            rt: v.rt, txval: tv, camt: h, samt: h, csamt: 0
-                        } };
+                        var v = invRates[rk], tv = r2(v.txval);
+                        var det = { rt: v.rt, txval: tv, csamt: 0 };
+                        if (interState) {
+                            det.iamt = r2(tv * v.rt / 100);
+                        } else {
+                            det.camt = halfTax(tv, v.rt);
+                            det.samt = det.camt;
+                        }
+                        return { num: i + 1, itm_det: det };
                     })
                 });
                 b2bInvCount++;
@@ -242,6 +262,8 @@
                 if (!n.usable) return;                  // never guess a rate
                 var ctin2 = (n.customerId != null && reg.byId[String(n.customerId)])
                          || reg.byName[key(n.customerName || n.party)] || '';
+                // A note follows the supply it reverses: inter-state stays IGST.
+                var noteInterState = !!ctin2 && !!pos && ctin2.slice(0, 2) !== pos;
                 var noteRates = {};
 
                 n.lines.forEach(function (l) {
@@ -273,12 +295,11 @@
                     var hk2 = (hsn2 || 'UNSPECIFIED') + '|' + rate;
                     if (!hsnMap[hk2]) {
                         hsnMap[hk2] = { hsn_sc: hsn2, desc: String(l.product || '').slice(0, 30),
-                                        rt: rate, qty: 0, txval: 0, camt: 0, samt: 0 };
+                                        rt: rate, qty: 0, intra: 0, inter: 0 };
                     }
-                    hsnMap[hk2].qty   -= Number(l.qty) || 0;
-                    hsnMap[hk2].txval -= l.taxable;
-                    hsnMap[hk2].camt  -= half;
-                    hsnMap[hk2].samt  -= half;
+                    hsnMap[hk2].qty -= Number(l.qty) || 0;
+                    if (noteInterState) hsnMap[hk2].inter -= l.taxable;
+                    else                hsnMap[hk2].intra -= l.taxable;
                 });
 
                 cnCount++;
@@ -290,15 +311,20 @@
                         ntty: 'C',                       // C = credit note
                         nt_num: n.no,
                         nt_dt: idt(n.date),
-                        pos: pos,
+                        pos: noteInterState ? ctin2.slice(0, 2) : pos,
                         rchrg: 'N',
                         inv_typ: 'R',
                         val: r2(n.gross),
                         itms: Object.keys(noteRates).map(function (rk, i) {
-                            var v = noteRates[rk], tv = r2(v.txval), h = halfTax(tv, v.rt);
-                            return { num: i + 1, itm_det: {
-                                rt: v.rt, txval: tv, camt: h, samt: h, csamt: 0
-                            } };
+                            var v = noteRates[rk], tv = r2(v.txval);
+                            var det = { rt: v.rt, txval: tv, csamt: 0 };
+                            if (noteInterState) {
+                                det.iamt = r2(tv * v.rt / 100);
+                            } else {
+                                det.camt = halfTax(tv, v.rt);
+                                det.samt = det.camt;
+                            }
+                            return { num: i + 1, itm_det: det };
                         })
                     });
                 }
@@ -322,11 +348,13 @@
         }).sort(function (a, b) { return a.rt - b.rt; });
 
         var hsn = Object.keys(hsnMap).map(function (k, i) {
-            var v = hsnMap[k], tv = r2(v.txval), h = halfTax(tv, v.rt);
+            var v = hsnMap[k];
+            var intra = r2(v.intra), inter = r2(v.inter);
+            var h = halfTax(intra, v.rt);
             return {
                 num: i + 1, hsn_sc: v.hsn_sc, desc: v.desc, uqc: 'NOS',
-                qty: r2(v.qty), rt: v.rt, txval: tv,
-                iamt: 0, camt: h, samt: h, csamt: 0
+                qty: r2(v.qty), rt: v.rt, txval: r2(intra + inter),
+                iamt: r2(inter * v.rt / 100), camt: h, samt: h, csamt: 0
             };
         }).sort(function (a, b) { return String(a.hsn_sc).localeCompare(String(b.hsn_sc)); })
           .map(function (h, i) { h.num = i + 1; return h; });
@@ -411,7 +439,8 @@
                instead of drifting a paisa on rounded HSN rows. Same rule as the
                notes in js/returns-data.js — round two, derive the third. */
             var filedTaxable = r2(hsn.reduce(function (s, x) { return s + x.txval; }, 0));
-            var filedTax     = r2(hsn.reduce(function (s, x) { return s + x.camt + x.samt; }, 0));
+            // iamt included: an inter-state month's tax lives there, not in the halves.
+            var filedTax     = r2(hsn.reduce(function (s, x) { return s + x.camt + x.samt + x.iamt; }, 0));
             var grandR       = r2(grand);
             var grossTaxable = r2(filedTaxable + cnTaxable);
             return {

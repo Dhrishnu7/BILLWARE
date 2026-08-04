@@ -40,6 +40,13 @@
         sgstOut:      'Output SGST',
         cgstIn:       'Input CGST',
         sgstIn:       'Input SGST',
+        /* Inter-state sales are IGST, not two halves of the same tax. Until
+           this existed a sale to a registered buyer in another state was
+           posted to Output CGST + Output SGST — the right total under two
+           wrong heads, in the books the accountant actually files from, with
+           nothing anywhere saying so. The e-invoice has always got this right;
+           the GSTR-1 export now does too. */
+        igstOut:      'Output IGST',
         cashLedger:   'Cash',
         bankLedger:   'Bank',
         walkIn:       'Cash',          // party ledger for counter sales
@@ -117,6 +124,27 @@
         return { cg: cg, sg: r2(tax - cg) };
     }
 
+    /* Which sales are inter-state, and therefore IGST. Read the same way every
+       other export reads it: the buyer's GSTIN state against the shop's own.
+       A customer with no GSTIN is a counter sale and always intra-state. */
+    function homeState() {
+        var sp = window.mmShopProfile || {};
+        var g = String(sp.gstin || '').trim();
+        return /^\d{2}/.test(g) ? g.slice(0, 2) : '';
+    }
+    function gstinIndex() {
+        var byId = {}, byName = {};
+        try {
+            (JSON.parse(localStorage.getItem('mm_customers') || '[]') || []).forEach(function (c) {
+                var g = String(c.gstin || '').trim().toUpperCase();
+                if (g.length !== 15) return;
+                if (c.id != null) byId[String(c.id)] = g;
+                if (c.name) byName[String(c.name).trim().toLowerCase()] = g;
+            });
+        } catch (e) {}
+        return { byId: byId, byName: byName };
+    }
+
     /* ── Group the flat line-item rows back into whole bills ──
        The app stores sales per medicine; a voucher is per BILL. Rows arrive
        with taxable/tax/total already worked out per line, because sales and
@@ -130,12 +158,14 @@
         rows.forEach(function (r) {
             var key = (r.billNo || '-') + '|' + (r.date || '');
             if (!map[key]) {
-                map[key] = { billNo: r.billNo || '-', date: r.date || '', party: r.party || '', taxable: 0, tax: 0, total: 0 };
+                map[key] = { billNo: r.billNo || '-', date: r.date || '', party: r.party || '',
+                             inter: false, taxable: 0, tax: 0, total: 0 };
             }
             map[key].taxable += Number(r.taxable) || 0;
             map[key].tax     += Number(r.tax)     || 0;
             map[key].total   += Number(r.total)   || 0;
             if (!map[key].party && r.party) map[key].party = r.party;
+            if (r.inter) map[key].inter = true;   // supply type belongs to the whole bill
         });
         return Object.keys(map).map(function (k) {
             var b = map[k];
@@ -187,8 +217,15 @@
             var rawSales = [];
             try { rawSales = JSON.parse(localStorage.getItem('mm_sales') || '[]'); } catch (e) {}
             var sRows = [];
+            var home = homeState(), gidx = gstinIndex();
             rawSales.forEach(function (bill) {
                 if (!inRange(bill.date)) return;
+                var cid  = (bill.customerId != null) ? String(bill.customerId)
+                         : (bill.customer_id != null ? String(bill.customer_id) : '');
+                var ctin = (cid && gidx.byId[cid])
+                        || gidx.byName[String(bill.customerName || bill.customer_name || '').trim().toLowerCase()]
+                        || '';
+                var inter = !!ctin && !!home && ctin.slice(0, 2) !== home;
                 (bill.medicines || []).forEach(function (m) {
                     /* Work BACKWARDS from the line total, exactly as the GSTR-1
                        and e-invoice exports do. The old code multiplied qty ×
@@ -203,6 +240,7 @@
                     sRows.push({
                         billNo: bill.billNo, date: bill.date,
                         party: bill.customerName || bill.customer_name || '',
+                        inter: inter,
                         taxable: taxable, tax: total - taxable, total: total
                     });
                 });
@@ -214,11 +252,18 @@
                 var plain = [{ ledger: party, amount: b.total, debit: true },
                              { ledger: cfg.salesLedger, amount: b.taxable, debit: false }];
                 if (b.tax > 0) {
-                    var hs = halves(b.tax);
-                    lines.push(entry(cfg.cgstOut, hs.cg, false));
-                    lines.push(entry(cfg.sgstOut, hs.sg, false));
-                    plain.push({ ledger: cfg.cgstOut, amount: hs.cg, debit: false });
-                    plain.push({ ledger: cfg.sgstOut, amount: hs.sg, debit: false });
+                    if (b.inter) {
+                        // One IGST line, not two halves — see igstOut above.
+                        var ig = r2(b.tax);
+                        lines.push(entry(cfg.igstOut, ig, false));
+                        plain.push({ ledger: cfg.igstOut, amount: ig, debit: false });
+                    } else {
+                        var hs = halves(b.tax);
+                        lines.push(entry(cfg.cgstOut, hs.cg, false));
+                        lines.push(entry(cfg.sgstOut, hs.sg, false));
+                        plain.push({ ledger: cfg.cgstOut, amount: hs.cg, debit: false });
+                        plain.push({ ledger: cfg.sgstOut, amount: hs.sg, debit: false });
+                    }
                 }
                 body += voucher('Sales', b.date, b.billNo, party, lines);
                 note('Sales', b.date, b.billNo, party, b.total, plain);

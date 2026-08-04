@@ -430,9 +430,19 @@
                 if (!toPlace) row.ewbProblems.push('a destination town is needed for the e-way bill');
                 row.toPlace = toPlace; row.toPin = toPin;
 
+                /* Where the goods END UP, as a state code. For a registered
+                   buyer the GSTIN says it. For a counter sale nothing in the
+                   app knows it, and it used to be assumed to be the shop's own
+                   state — so a consignment sent to Kerala went up declaring a
+                   Kerala PIN against Tamil Nadu, and the portal validates the
+                   two against each other. Now asked for, defaulting to home. */
+                var typedState = String(t.toState || '').trim();
+                if (typedState && !/^\d{2}$/.test(typedState)) {
+                    row.ewbProblems.push('destination state code must be 2 digits');
+                }
                 if (!problems.length && !sProbs.length && !row.ewbProblems.length) {
                     ewbBuilt++;
-                    var toState = isB2B ? stateOf(ctin) : s.stcd;
+                    var toState = isB2B ? stateOf(ctin) : (typedState || s.stcd);
                     ewbs.push({
                         userGstin: s.gstin,
                         supplyType: 'O',
