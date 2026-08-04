@@ -1467,17 +1467,46 @@ window.dbSyncPendingStockAdjustments = dbSyncPendingStockAdjustments;
 /* ─────────────────────────────────────────────────────
    BILLS  (sales)
 ───────────────────────────────────────────────────── */
+/* The next invoice number: one past the HIGHEST ever used, never a count.
+
+   Counting the bills reissued a number the moment one was deleted. A shop with
+   SS-002..SS-006 and SS-008 — six bills, because SS-007 had been deleted — got
+   "SS-007" again for the next sale, and the sale after that would have been
+   "SS-008", a number already on a bill. A duplicate invoice number is not a
+   cosmetic problem: GST requires them unique and sequential, the portal rejects
+   the WHOLE GSTR-1 upload over one (RET291107), and the two bills are
+   indistinguishable afterwards.
+
+   Taking the maximum also leaves a deleted bill's number as a permanent GAP,
+   which is correct: the gap is then declared as a cancelled document in the
+   GSTR-1 "documents issued" table rather than silently reused.
+
+   Local bills are considered too, so a sale made offline cannot hand out a
+   number the cloud has not heard about yet. */
 async function dbNextBillNo() {
     const user = _currentUser();
-    if (!user) return 'MM-001';
-    // Count this user's existing bills to generate next number
-    const { count } = await _supabase
-        .from('bills')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user);
-    // Use shop profile invoice prefix if available, fallback to 'MM'
     const prefix = window.mmShopProfile?.invoice_prefix || 'MM';
-    return prefix + '-' + String((count || 0) + 1).padStart(3, '0');
+    const re = new RegExp('^' + prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-(\\d+)$', 'i');
+    let highest = 0;
+    const consider = (no) => {
+        const m = re.exec(String(no || '').trim());
+        if (m) { const n = parseInt(m[1], 10); if (n > highest) highest = n; }
+    };
+
+    if (user) {
+        // Only the one column, and only this prefix — the table can be large.
+        const { data, error } = await _supabase
+            .from('bills').select('bill_no')
+            .eq('user_id', user).like('bill_no', prefix + '-%');
+        if (error) console.warn('[db] dbNextBillNo:', error.message);
+        else (data || []).forEach(r => consider(r.bill_no));
+    }
+    try {
+        (JSON.parse(localStorage.getItem('mm_sales') || '[]') || [])
+            .forEach(b => consider(b.billNo || b.bill_no));
+    } catch (e) {}
+
+    return prefix + '-' + String(highest + 1).padStart(3, '0');
 }
 async function dbGetBills(fromDate, toDate) {
     const user = _currentUser();
