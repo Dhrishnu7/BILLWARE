@@ -43,6 +43,13 @@
         cashLedger:   'Cash',
         bankLedger:   'Bank',
         walkIn:       'Cash',          // party ledger for counter sales
+        /* And the same thing for the other side. A purchase saved without a
+           supplier still has to be posted somewhere, and this was hardcoded —
+           on a screen whose whole premise is that every ledger name must match
+           the accountant's company exactly or the import fails. One company
+           calling it "Sundry Creditors A/c" was enough to bounce the voucher,
+           with nothing in the UI to change. */
+        supplierFallback: 'Sundry Creditors',
         expensePrefix: '',             // e.g. "Indirect Exp - " if the CA groups them
         /* Most CAs keep returns in their own ledgers so gross sales stay
            visible; some just post them back against Sales/Purchase. Both are
@@ -242,7 +249,7 @@
                 };
             });
             groupBills(pRows).forEach(function (b) {
-                var party = b.party && b.party.trim() ? b.party.trim() : 'Sundry Creditors';
+                var party = b.party && b.party.trim() ? b.party.trim() : cfg.supplierFallback;
                 var lines = [entry(cfg.purchLedger, b.taxable, true)];  // stock bought = debit
                 var plainP = [{ ledger: cfg.purchLedger, amount: b.taxable, debit: true }];
                 if (b.tax > 0) {
@@ -308,7 +315,7 @@
 
             rets.debitNotes.forEach(function (n) {
                 if (!n.usable) return;
-                var sup = (n.party && n.party.trim()) ? n.party.trim() : 'Sundry Creditors';
+                var sup = (n.party && n.party.trim()) ? n.party.trim() : cfg.supplierFallback;
                 // Reverse of a purchase: the supplier owes us, stock and input
                 // tax go back out.
                 var lines = [entry(sup, n.gross, true)];
