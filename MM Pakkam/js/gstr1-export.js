@@ -30,6 +30,19 @@
 
     function r2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 
+    /* CGST (or SGST) for one row, computed FROM the rounded taxable value.
+
+       The portal re-derives this itself and rejects the file if it disagrees —
+       RET191205, "the tax amount of each line item should be equal to taxable
+       value * tax rate rounded to 2 digits". Backing the tax out of an
+       inclusive total and halving it is arithmetically the same thing but not
+       the same rounding, so the two can part company by a paisa on a line the
+       shop will never spot. The portal's rule is the one that decides whether
+       the return is accepted, so it is the rule used here. */
+    function halfTax(txvalRounded, rate) {
+        return r2((Number(txvalRounded) || 0) * (Number(rate) || 0) / 200);
+    }
+
     // Every GSTIN starts with its state code; the place of supply for a
     // counter sale is the shop's own state.
     function posOf(gstin) {
@@ -96,6 +109,14 @@
         var missingHsn = 0;
         var b2bInvCount = 0;
         var b2bValue = 0;
+        /* Sales to a registered buyer in ANOTHER state. Such a supply is IGST,
+           at the buyer's place of supply — and this app bills CGST + SGST at
+           the shop's own state and has no IGST anywhere in it. Silently filing
+           it as intra-state would be rejected (RET191150/RET191179), and
+           silently converting it to IGST would be worse: it would report tax
+           the shop never charged and never collected. So it is refused, named,
+           and left to a human. */
+        var interstateB2b = [];
 
         bills.forEach(function (bill) {
             if (bill.billNo) invNos.push(String(bill.billNo));
@@ -170,6 +191,10 @@
 
             // Close off this bill as a B2B invoice if the buyer is registered.
             if (ctin && invVal > 0) {
+                if (pos && ctin.slice(0, 2) !== pos) {
+                    interstateB2b.push({ billNo: String(bill.billNo || ''), ctin: ctin,
+                                         state: ctin.slice(0, 2) });
+                }
                 if (!b2bMap[ctin]) b2bMap[ctin] = [];
                 b2bMap[ctin].push({
                     inum: String(bill.billNo || ''),
@@ -179,10 +204,9 @@
                     rchrg: 'N',
                     inv_typ: 'R',
                     itms: Object.keys(invRates).map(function (rk, i) {
-                        var v = invRates[rk];
+                        var v = invRates[rk], tv = r2(v.txval), h = halfTax(tv, v.rt);
                         return { num: i + 1, itm_det: {
-                            rt: v.rt, txval: r2(v.txval),
-                            camt: r2(v.camt), samt: r2(v.samt), csamt: 0
+                            rt: v.rt, txval: tv, camt: h, samt: h, csamt: 0
                         } };
                     })
                 });
@@ -271,10 +295,9 @@
                         inv_typ: 'R',
                         val: r2(n.gross),
                         itms: Object.keys(noteRates).map(function (rk, i) {
-                            var v = noteRates[rk];
+                            var v = noteRates[rk], tv = r2(v.txval), h = halfTax(tv, v.rt);
                             return { num: i + 1, itm_det: {
-                                rt: v.rt, txval: r2(v.txval),
-                                camt: r2(v.camt), samt: r2(v.samt), csamt: 0
+                                rt: v.rt, txval: tv, camt: h, samt: h, csamt: 0
                             } };
                         })
                     });
@@ -291,19 +314,19 @@
         });
 
         var b2cs = Object.keys(b2csMap).map(function (k) {
-            var v = b2csMap[k];
+            var v = b2csMap[k], tv = r2(v.txval), h = halfTax(tv, v.rt);
             return {
                 sply_ty: 'INTRA', typ: 'OE', pos: pos, rt: v.rt,
-                txval: r2(v.txval), camt: r2(v.camt), samt: r2(v.samt), csamt: 0
+                txval: tv, camt: h, samt: h, csamt: 0
             };
         }).sort(function (a, b) { return a.rt - b.rt; });
 
         var hsn = Object.keys(hsnMap).map(function (k, i) {
-            var v = hsnMap[k];
+            var v = hsnMap[k], tv = r2(v.txval), h = halfTax(tv, v.rt);
             return {
                 num: i + 1, hsn_sc: v.hsn_sc, desc: v.desc, uqc: 'NOS',
-                qty: r2(v.qty), rt: v.rt, txval: r2(v.txval),
-                iamt: 0, camt: r2(v.camt), samt: r2(v.samt), csamt: 0
+                qty: r2(v.qty), rt: v.rt, txval: tv,
+                iamt: 0, camt: h, samt: h, csamt: 0
             };
         }).sort(function (a, b) { return String(a.hsn_sc).localeCompare(String(b.hsn_sc)); })
           .map(function (h, i) { h.num = i + 1; return h; });
@@ -321,6 +344,20 @@
            shared prefix and a numeric tail. Anything else is left exactly as it
            was rather than guessed at, because a wrongly declared cancellation is
            worse than a gap. */
+        /* One invoice number used twice. The portal rejects the second outright
+           (RET291107) and the whole upload fails with it, so it is caught here
+           where the shop can still see which bills collided. Duplicates are not
+           hypothetical in this app — bills have come back from the dead before
+           (v298) and a restore can re-add what is already there. */
+        var dupInvNos = (function () {
+            var seen = {}, dups = {};
+            invNos.forEach(function (n) {
+                var k = key(n);
+                if (seen[k]) dups[n] = (dups[n] || 1) + 1; else seen[k] = 1;
+            });
+            return Object.keys(dups);
+        })();
+
         var docs = [];
         var cancelledDocs = 0;
         if (invNos.length) {
@@ -396,6 +433,8 @@
                 creditNoteTaxable: r2(cnTaxable),
                 creditNoteTax:     r2(cnTax),
                 cancelledDocs: cancelledDocs,
+                interstateB2b: interstateB2b,
+                dupInvNos: dupInvNos,
                 rates:   b2cs.length,
                 hsnRows: hsn.length,
                 missingHsn: missingHsn,

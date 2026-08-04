@@ -2055,6 +2055,24 @@
                     + s.creditNoteProblems.map(p => _te(p)).join('; ')
                     + '. Without the original there is no GST rate to apply, and guessing one would misstate the return.');
             }
+            /* Two rules the portal enforces on upload and rejects the whole
+               file for. Both are cheaper to find here than in an error report
+               three days before the deadline. */
+            if (s.dupInvNos && s.dupInvNos.length) {
+                block.push('These bill numbers are used more than once: '
+                    + s.dupInvNos.map(n => `<b>${_te(n)}</b>`).join(', ')
+                    + '. The portal accepts an invoice number only once and rejects the upload, '
+                    + 'so give the duplicate a new number before filing.');
+            }
+            if (s.interstateB2b && s.interstateB2b.length) {
+                block.push('Sold to a registered buyer in another state: '
+                    + s.interstateB2b.map(x => `<b>${_te(x.billNo)}</b> (${_te(x.ctin)}, state ${_te(x.state)})`).join(', ')
+                    + '. That is an <b>IGST</b> supply at the buyer\'s place of supply, but the bill '
+                    + 'charged CGST + SGST here in state ' + _te(mmGstr1.posOf(gstin)) + '. '
+                    + 'Filing it either way would be wrong — as billed the portal rejects it, and '
+                    + 'switching it to IGST would report tax that was never collected. '
+                    + 'Raise this invoice directly on the portal, or correct the sale first.');
+            }
             if (s.negativeRates && s.negativeRates.length) {
                 warn.push('Refunds exceed sales this month at ' + s.negativeRates.map(r => `<b>${r}%</b>`).join(', ')
                     + '. That is legal but unusual — check the figures in the offline utility before submitting.');
