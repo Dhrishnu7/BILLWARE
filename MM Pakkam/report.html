@@ -5232,15 +5232,28 @@
                 verdict = `<div class="acc-hint" style="margin-top:9px;">Counted, but there are no cash entries for ${_te(day)} to check it against.</div>`;
             }
 
+            /* The day's takings, said BEFORE anything is typed.
+               The KPIs directly above this box show the movement for the whole
+               PERIOD, and a count is for one DAY. Reading the big number and
+               using it is the obvious mistake, and the box used to reveal the
+               day's figure only after the count had been saved and judged. */
+            const hint = (moved === null)
+                ? '<span style="color:#94a3b8;">No cash entries on this day.</span>'
+                : `Takings on <b>${_te(day)}</b>: <b>${accInr(moved)}</b>${
+                     opening ? ` — with a ${accInr(opening)} float the drawer should hold <b>${accInr(opening + moved)}</b>` : ''}.
+                   <span style="color:#94a3b8;">This is one day, not the period above.</span>`;
+
             box.innerHTML = `
                 <div style="border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;">
-                    <div style="font-weight:800;color:#0f172a;font-size:0.9rem;margin-bottom:8px;">💰 Count the drawer</div>
+                    <div style="font-weight:800;color:#0f172a;font-size:0.9rem;margin-bottom:4px;">💰 Count the drawer</div>
+                    <div id="tillHint" style="font-size:0.79rem;color:#475569;margin-bottom:9px;line-height:1.5;">${hint}</div>
                     <div style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:flex-end;">
                         <div><label style="display:block;font-size:0.72rem;color:#64748b;font-weight:700;">Day</label>
                             <input type="date" id="tillDay" value="${_te(day)}" max="${_te(_tillToday())}" onchange="renderTill()"
                                 style="padding:0.42rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:9px;font-size:0.85rem;"></div>
                         <div><label style="display:block;font-size:0.72rem;color:#64748b;font-weight:700;">Float at start</label>
                             <input type="number" step="0.01" id="tillOpen" value="${opening ? opening.toFixed(2) : ''}" placeholder="0.00"
+                                oninput="renderTillHint()"
                                 style="width:120px;padding:0.42rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:9px;font-size:0.85rem;text-align:right;"></div>
                         <div><label style="display:block;font-size:0.72rem;color:#64748b;font-weight:700;">Counted at close</label>
                             <input type="number" step="0.01" id="tillCount" value="${counted ? counted.toFixed(2) : ''}" placeholder="0.00"
@@ -5250,6 +5263,22 @@
                     ${moved === null ? '<div class="acc-hint" style="margin-top:7px;">No cash entries for this day in the range above.</div>' : ''}
                     ${verdict}
                 </div>`;
+        }
+
+        /* Update only the hint line as the float is typed. Re-rendering the
+           whole box on every keystroke would take the cursor out of the field
+           the shop is typing into. */
+        function renderTillHint() {
+            const el = document.getElementById('tillHint');
+            if (!el) return;
+            const day = (document.getElementById('tillDay') || {}).value || _tillToday();
+            const moved = _tillExpected(day);
+            const opening = parseFloat((document.getElementById('tillOpen') || {}).value) || 0;
+            el.innerHTML = (moved === null)
+                ? '<span style="color:#94a3b8;">No cash entries on this day.</span>'
+                : `Takings on <b>${_te(day)}</b>: <b>${accInr(moved)}</b>${
+                     opening ? ` — with a ${accInr(opening)} float the drawer should hold <b>${accInr(opening + moved)}</b>` : ''}.
+                   <span style="color:#94a3b8;">This is one day, not the period above.</span>`;
         }
 
         async function saveTill() {
