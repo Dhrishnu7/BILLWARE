@@ -1453,6 +1453,16 @@
                     ref: _srBill.billNo, cn: cnNo, party: _srBill.customerName || 'Walk-in',
                     amount: r.amount, mode, reason,
                     gst: r.gst, hsn: r.hsn,
+                    /* The BUYER's id, stamped on the note itself. It decides
+                       whether this files as CDNR against a registered buyer or
+                       simply reduces counter sales — and until now it was only
+                       ever read back off the original bill, so deleting that
+                       bill left the note to be matched by NAME alone. The id
+                       exists precisely because names survive neither a typo nor
+                       a rename. Same reasoning as v253 stamping the GST rate: a
+                       document must not depend on another document that can be
+                       deleted afterwards. */
+                    custId: (_srBill.customerId != null) ? _srBill.customerId : null,
                     date: retToday()
                 });
                 // If it's a Schedule H drug, reverse the OUT in the H register too.

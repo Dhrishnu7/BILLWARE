@@ -250,7 +250,7 @@
            does not carry it. The app still keeps the link for the shop's own
            reconciliation. */
         var cdnrMap = {};        // ctin -> [note]
-        var cnCount = 0, cnValue = 0, cnProblems = [];
+        var cnCount = 0, cnValue = 0, cnProblems = [], cnNotices = [];
         /* The refund's own taxable value and tax, kept separately. The B2CS and
            HSN figures below have the credit note taken OUT of them, so without
            these there is no way to state what the month looked like before the
@@ -261,6 +261,7 @@
         if (window.mmReturns) {
             var rets = mmReturns.load({ from: month + '-01', to: month + '-31' });
             cnProblems = rets.problems;
+            cnNotices  = rets.notices || [];
             rets.creditNotes.forEach(function (n) {
                 if (!n.usable) return;                  // never guess a rate
                 var ctin2 = (n.customerId != null && reg.byId[String(n.customerId)])
@@ -489,6 +490,7 @@
                 creditNoteValue: r2(cnValue),
                 cdnrBuyers: cdnr.length,
                 creditNoteProblems: cnProblems,
+                creditNoteNotices:  cnNotices,
                 /* A rate whose refunds exceed its sales for the month. Legal
                    and occasionally real, but the portal treats a negative
                    B2CS line harshly, so it is surfaced rather than hidden. */

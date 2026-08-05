@@ -2082,6 +2082,17 @@
                     + s.creditNoteProblems.map(p => _te(p)).join('; ')
                     + '. Without the original there is no GST rate to apply, and guessing one would misstate the return.');
             }
+            /* Filable, but the buyer was matched by name because the original
+               bill is gone. A WARNING, never a block: excluding the note would
+               report a sale the shop actually refunded. */
+            if (s.creditNoteNotices && s.creditNoteNotices.length) {
+                warn.push('Credit note buyer matched by name: '
+                    + s.creditNoteNotices.map(p => _te(p)).join('; ')
+                    + '. It still files, but if that customer has since been renamed — or two '
+                    + 'customers share the name — it could go against the wrong buyer, or drop '
+                    + 'out of CDNR and reduce counter sales instead. Check the name is exactly '
+                    + 'the one on the customer record.');
+            }
             /* Two rules the portal enforces on upload and rejects the whole
                file for. Both are cheaper to find here than in an error report
                three days before the deadline. */
@@ -4157,10 +4168,31 @@
                         return;
                     }
 
+                    /* EVERY field a bill carries, audited against the object
+                       sales.html builds. This payload is written out by hand,
+                       so anything left off silently takes dbSaveBill's default —
+                       and four separate bugs have now come out of exactly that:
+                       paymentMode (v312, restored a credit sale as cash),
+                       the khata balance (v312), savedAt (v316, claimed the bill
+                       was sold at the moment it was restored) and customerId.
+
+                       The full list, so the next change can be diffed against it:
+                         billNo · date · customerName · customerId · doctorName
+                         · grandTotal · paymentMode · savedAt · medicines[]
+                       and per line: product · batch · exp · pack · qty · mrp
+                         · rate · gst · discount · total · hsn
+
+                       If sales.html gains a field, it belongs here too. */
                     const payload = {
                         billNo:       d.bill_no       || d.billNo       || '',
                         date:         d.date          || '',
                         customerName: d.customer_name || d.customerName || '',
+                        /* The buyer's id, not just their name. GSTR-1 decides
+                           B2B from it precisely because it survives a typo or a
+                           rename; dropping it on restore quietly demoted a
+                           registered buyer to name-matching. */
+                        customerId:   (d.customer_id != null) ? d.customer_id
+                                    : ((d.customerId != null) ? d.customerId : null),
                         doctorName:   d.doctor_name   || d.doctorName   || '',
                         grandTotal:   d.grand_total   || d.grandTotal   || 0,
                         // Was missing, and dbSaveBill defaults to 'cash' — so restoring

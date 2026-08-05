@@ -147,6 +147,17 @@
                     reason: note.reason || '',
                     lines: [],
                     problems: [],
+                    /* Who the note is against. Declared here so the shape is
+                       explicit — customerId is what makes a CDNR entry survive
+                       a rename, customerName is the fallback. */
+                    customerName: null,
+                    customerId: null,
+                    /* Set when the buyer could only be matched by NAME: no id
+                       on the note and no original bill left to read one from.
+                       Deliberately NOT a `problem` — problems make a note
+                       unusable and drop it from the return entirely, which
+                       would be far worse than filing it against a name. */
+                    buyerFromNameOnly: false,
                     taxable: 0, tax: 0, gross: 0
                 };
             }
@@ -171,10 +182,21 @@
             }
 
             if (isSale) {
-                /* The original bill is still read even when the rate is already
-                   known, because it is the only place the BUYER's identity
-                   lives — and that decides whether this files as a CDNR entry
-                   or reduces counter sales. */
+                /* WHO the note is against decides whether it files as a CDNR
+                   entry against a registered buyer or simply reduces counter
+                   sales. Three sources, in falling order of trust:
+
+                   1. the id stamped on the NOTE (v319 onward) — survives the
+                      original bill being deleted AND the customer being renamed
+                   2. the original bill, for notes issued before that
+                   3. the party name recorded on the note
+
+                   The bill used to be the ONLY source, so deleting it dropped a
+                   registered buyer to name-matching without saying so. Name
+                   matching is what customer ids exist to avoid. */
+                if (note.custId !== undefined && note.custId !== null && note.custId !== '') {
+                    n.customerId = note.custId;
+                }
                 var bill = bills[key(n.ref)];
                 if (bill) {
                     var bl = findBillLine(bill, product, batch);
@@ -182,12 +204,26 @@
                         if (!bl) n.problems.push('"' + product + '" is not on bill ' + n.ref + ' any more');
                         else { rate = num(bl.gst); hsn = String(bl.hsn || '').trim(); }
                     }
-                    n.customerName = bill.customerName || bill.customer_name || n.party;
-                    n.customerId   = (bill.customerId != null) ? bill.customerId
-                                   : (bill.customer_id != null ? bill.customer_id : null);
-                    n.origDate     = String(bill.date || '').slice(0, 10);
-                } else if (rate === null) {
-                    n.problems.push('original bill ' + (n.ref || '(none recorded)') + ' no longer exists, so its GST rate cannot be read');
+                    if (n.customerName == null) n.customerName = bill.customerName || bill.customer_name || n.party;
+                    if (n.customerId == null) {
+                        n.customerId = (bill.customerId != null) ? bill.customerId
+                                     : (bill.customer_id != null ? bill.customer_id : null);
+                    }
+                    n.origDate = String(bill.date || '').slice(0, 10);
+                } else {
+                    if (rate === null) {
+                        n.problems.push('original bill ' + (n.ref || '(none recorded)') + ' no longer exists, so its GST rate cannot be read');
+                    }
+                    /* The bill is gone. Keep the buyer the note itself recorded
+                       rather than losing them: a B2B credit note that quietly
+                       becomes a counter-sales reduction understates CDNR and
+                       leaves the buyer's own 2B short of a credit they are
+                       owed. Flagged, never blocked. */
+                    if (n.customerName == null) n.customerName = n.party || null;
+                    if (n.customerId == null && n.customerName
+                        && !/^walk[\s-]?in$/i.test(String(n.customerName))) {
+                        n.buyerFromNameOnly = true;
+                    }
                 }
             } else if (rate === null) {
                 /* Purchases in this app carry no bill number — every Tally
@@ -243,7 +279,17 @@
             creditNotes: all.filter(function (n) { return n.type === 'credit'; }),
             debitNotes:  all.filter(function (n) { return n.type === 'debit'; }),
             problems:    all.filter(function (n) { return !n.usable; })
-                            .map(function (n) { return n.no + ': ' + (n.problems[0] || 'a line has no GST rate'); })
+                            .map(function (n) { return n.no + ': ' + (n.problems[0] || 'a line has no GST rate'); }),
+            /* Filable, but worth a look. Kept apart from `problems` on purpose:
+               anything in there makes a note unusable and drops it out of the
+               return, which is the wrong answer for a note that is merely
+               matched by name. */
+            notices:     all.filter(function (n) { return n.buyerFromNameOnly; })
+                            .map(function (n) {
+                                return n.no + ': original bill ' + (n.ref || '(none recorded)')
+                                     + ' is gone, so this note is matched to "' + (n.customerName || '?')
+                                     + '" by name alone';
+                            })
         };
     }
 
