@@ -5589,9 +5589,29 @@
             const body = document.getElementById('itemMovementBody');
             if (!body) return;
             const q = (filter || '').trim().toLowerCase();
-            const src = (_accData && Array.isArray(_accData.items) && _accData.items.length)
-                ? _accData.items
-                : (window._itemMovementData || []);
+
+            /* Work the margins out HERE rather than borrowing them from the
+               Accounts view. Relying on _accData meant this table only showed
+               a Profit column if the shop had happened to open another tab
+               first, in the right order — and when it did not, it said
+               "generate Accounts for margins" at somebody who had just done
+               exactly that. A screen that answers "what earns me money" has to
+               answer it on its own.
+
+               Still mmPnl.build, so it is still the same costIndex the Profit
+               & Loss uses and the two cannot disagree. _accData is preferred
+               only because it is already built for the same range. */
+            let items = (_accData && Array.isArray(_accData.items) && _accData.items.length)
+                ? _accData.items : null;
+            if (!items && window.mmPnl && typeof mmPnl.build === 'function') {
+                try {
+                    const fEl = document.getElementById('fromDate');
+                    const tEl = document.getElementById('toDate');
+                    const built = mmPnl.build({ from: (fEl && fEl.value) || '', to: (tEl && tEl.value) || '' });
+                    if (built && Array.isArray(built.items) && built.items.length) items = built.items;
+                } catch (e) { console.warn('item margins:', e); }
+            }
+            const src = items || (window._itemMovementData || []);
             const rows = src.filter(r => !q || String(r.name || '').toLowerCase().includes(q));
             if (!rows.length) {
                 body.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.4rem; color:#94a3b8;">'
@@ -5619,7 +5639,11 @@
                             + (unknown ? 'unknown' : m(r.profit)) + '</td>'
                         + '<td style="text-align:right; color:' + (unknown ? '#b45309' : (pos ? '#059669' : '#dc2626')) + ';">'
                             + (unknown ? '—' : (Math.round((Number(r.pct) || 0) * 10) / 10) + '%') + '</td>'
-                        : '<td colspan="3" style="text-align:right; color:#94a3b8; font-size:0.78rem;">generate Accounts for margins</td>')
+                        /* Only reachable if mmPnl failed to load at all — the
+                           table computes its own margins otherwise. Says what
+                           is wrong rather than telling the shop to do something
+                           that would not help. */
+                        : '<td colspan="3" style="text-align:right; color:#94a3b8; font-size:0.78rem;">cost data unavailable — hard-refresh the page</td>')
                     + '</tr>';
             }).join('');
         }
