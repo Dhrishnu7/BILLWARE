@@ -302,15 +302,21 @@
             if (!fd || fd <= today) continue;
             futRows.push({
                 label: str(fb.billNo) || '(no number)',
-                detail: 'dated ' + fd + ' — ' + daysAfter(today, fd) + ' day(s) from now'
+                detail: 'dated ' + fd + ' — ' + daysAfter(today, fd) + ' day(s) from now',
+                /* Carried so the repair screen can act on the row without
+                   matching bills back by number, which is the sort of join
+                   that breaks the moment two bills share one. */
+                billNo: str(fb.billNo), date: fd,
+                customer: str(fb.customerName) || 'Walk-in',
+                total: num(fb.grandTotal)
             });
         }
         futRows.sort(function (a, b) { return a.label < b.label ? -1 : 1; });
         add(warns, 'futureDated', 'Bills dated in the future',
             'These file, but they are dated after today, so they belong to a period you cannot file yet — '
             + 'and they are missing from any report that stops at today, including the checks above. '
-            + 'Open each one and correct the date to the day the goods were supplied.',
-            futRows, null);
+            + 'Correct each one to the day the goods were actually supplied.',
+            futRows, 'billdate');
 
         var counts = {
             bills: bills.length,

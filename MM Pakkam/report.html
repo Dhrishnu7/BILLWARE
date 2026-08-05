@@ -1581,6 +1581,33 @@
         </div>
     </div>
 
+    <!-- ═══ Correct a bill's date ═══
+         The only screen that changes anything on a saved bill, and it changes
+         one field. Deleting and re-keying was the alternative, and that burns
+         the invoice number: GSTR-1 then has to declare the gap as a cancelled
+         document for a bill that was never cancelled. -->
+    <div class="modal-overlay modal-stacked" id="dateFixModal" style="display:none;" onclick="if(event.target===this) closeDateFix()">
+        <div class="modal-content" style="max-width:680px;">
+            <div class="modal-header">
+                <div class="modal-title">📅 Correct these bill dates</div>
+                <button class="modal-close" onclick="closeDateFix()">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:10px;padding:10px 13px;font-size:0.8rem;line-height:1.55;margin-bottom:0.9rem;">
+                    Under GST the invoice date is the <b>date of supply</b> — the day the goods
+                    actually went out. Where the Audit Trail recorded when the bill was saved,
+                    that day is offered below; check it against the paper before accepting it.
+                    <b>Only the date changes.</b> Amounts, items, tax and the bill number are untouched.
+                </div>
+                <div id="dateFixList"></div>
+            </div>
+            <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;">
+                <button class="search-btn" onclick="closeDateFix()" style="background:#f1f5f9;color:#475569;">Cancel</button>
+                <button class="search-btn" id="dateFixSaveBtn" onclick="saveDateFixes()">✓ Save dates</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ═══ e-Invoice / e-Way bill ═══
          Uses the report's own From/To, unlike GSTR-1: these are per-invoice
          documents, not a monthly return, so any range is a legitimate ask.
@@ -2489,6 +2516,7 @@
                 if (kind === 'returns')   return b('goFix(\'inventory.html#tab-returns:history\')',   'Open Returns');
                 if (kind === 'suppliers') return b('goFix(\'directory.html#tab-suppliers\')', 'Open Suppliers');
                 if (kind === 'bills')     return b('findBillsFromCheck()',   'Find these bills');
+                if (kind === 'billdate')  return b('openDateFix()',          'Correct the dates');
                 return '';
             };
 
@@ -2678,6 +2706,168 @@
             const m = document.getElementById('gstinFixModal');
             m.classList.add('open'); m.style.display = 'flex';
         }
+        /* ══════════════════════════════════════════════════════════════════
+           CORRECT A BILL'S DATE
+
+           A slipped date box used to be unfixable. The date was written once
+           at insert and there was no UPDATE on the bills table anywhere, so
+           the only remedy was to delete the bill and key it again — which
+           burns its invoice number and leaves a gap GSTR-1 must then declare
+           as a cancelled document, for a bill nobody cancelled.
+
+           The Audit Trail is what makes this safe rather than a guess: every
+           save writes `Sale billed` with the bill number as its ref and a
+           real timestamp, so the day the bill was ACTUALLY made can be read
+           back and offered. That is how six bills dated 04–08 Aug were shown
+           to have all been billed on the 2nd.
+        ══════════════════════════════════════════════════════════════════ */
+        let _dateFix = [];
+
+        function _mmTodayLocal() {
+            const d = new Date(), p = n => (n < 10 ? '0' : '') + n;
+            return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+        }
+
+        /* When was this bill really saved? Reads the audit entry whose ref is
+           the bill number. Returns { date, when } or null — null is normal
+           for a bill older than the audit log, and the row simply asks for a
+           date instead of suggesting one. */
+        function _billedOn(billNo) {
+            const no = String(billNo || '').trim().toLowerCase();
+            if (!no) return null;
+            let log = [];
+            try { log = JSON.parse(localStorage.getItem('mm_audit_log') || '[]') || []; } catch (e) { return null; }
+            const hit = log.filter(a => a && String(a.ref || '').trim().toLowerCase() === no
+                                     && /billed|sale/i.test(String(a.action || '')))
+                           .sort((a, b) => String(a.at).localeCompare(String(b.at)))[0];
+            if (!hit || !hit.at) return null;
+            const t = new Date(hit.at);
+            if (isNaN(t)) return null;
+            const p = n => (n < 10 ? '0' : '') + n;
+            return {
+                date: t.getFullYear() + '-' + p(t.getMonth() + 1) + '-' + p(t.getDate()),
+                when: t.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+            };
+        }
+
+        async function openDateFix() {
+            const f = (_preFile && (_preFile.warns || []).filter(x => x.id === 'futureDated')[0]) || null;
+            _dateFix = f ? f.rows.slice() : [];
+            if (!_dateFix.length) { mmAlert('Nothing to correct — no bill is dated after today.'); return; }
+
+            // The audit log is merged local+cloud by loadAudit(); pull it in so a
+            // device that has not opened the Audit Trail tab can still suggest dates.
+            try { if (typeof loadAudit === 'function' && !_auditData.length) await loadAudit(); } catch (e) {}
+
+            document.getElementById('dateFixList').innerHTML = _dateFix.map((b, i) => {
+                const src = _billedOn(b.billNo);
+                const sug = src ? src.date : '';
+                return `
+                <div style="border:1px solid #e2e8f0;border-radius:11px;padding:10px 12px;margin-bottom:8px;">
+                    <div style="font-weight:800;font-size:0.87rem;color:#0f172a;">
+                        ${_te(b.billNo || b.label)}
+                        <span style="font-weight:600;color:#64748b;font-size:0.78rem;"> · ${_te(b.customer || '')} · ₹${(Number(b.total) || 0).toFixed(2)}</span>
+                    </div>
+                    <div style="font-size:0.74rem;color:#92400e;line-height:1.5;margin:3px 0 6px;">Currently ${_te(b.detail)}</div>
+                    ${src
+                        ? `<div style="font-size:0.74rem;color:#065f46;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:5px 8px;margin-bottom:6px;line-height:1.5;">
+                               Audit Trail says this bill was saved on <b>${_te(src.when)}</b>.</div>`
+                        : `<div style="font-size:0.74rem;color:#64748b;margin-bottom:6px;line-height:1.5;">
+                               No audit entry for this bill — enter the correct date from the paper copy.</div>`}
+                    <input type="date" id="dfix_${i}" value="${_te(sug)}" max="${_te(_mmTodayLocal())}"
+                        data-orig="${_te(b.date || '')}" data-bill="${_te(b.billNo || '')}"
+                        style="width:100%;box-sizing:border-box;padding:0.45rem 0.65rem;border:1.5px solid #e2e8f0;border-radius:9px;font-size:0.88rem;outline:none;">
+                </div>`;
+            }).join('');
+
+            const m = document.getElementById('dateFixModal');
+            m.classList.add('open'); m.style.display = 'flex';
+        }
+        function closeDateFix() {
+            const m = document.getElementById('dateFixModal');
+            m.classList.remove('open'); m.style.display = 'none';
+        }
+
+        async function saveDateFixes() {
+            const btn = document.getElementById('dateFixSaveBtn');
+            const original = btn.textContent;
+            btn.disabled = true; btn.textContent = 'Saving…';
+
+            const today = _mmTodayLocal();
+            let saved = 0, untouched = 0, rejected = 0, failed = 0, notFound = 0;
+
+            /* Bill number → cloud id, fetched WITHOUT a date range.
+               _rawBillsMap cannot be used here: it only holds what the current
+               report range returned, and a future-dated bill is outside that
+               range by definition — which is the very reason this screen
+               exists. Using it would have reported every row as "not found". */
+            const idByNo = {};
+            try {
+                Object.values(_rawBillsMap).forEach(b => {
+                    const n = String(b.bill_no || b.billNo || ''); if (n) idByNo[n] = b.id;
+                });
+                if (typeof dbGetBills === 'function') {
+                    (await dbGetBills()).forEach(b => {
+                        const n = String(b.bill_no || ''); if (n) idByNo[n] = b.id;
+                    });
+                }
+            } catch (e) { console.warn('bill id lookup failed:', e); }
+
+            for (let i = 0; i < _dateFix.length; i++) {
+                const el = document.getElementById('dfix_' + i);
+                if (!el) continue;
+                const val  = String(el.value || '').slice(0, 10);
+                const orig = String(el.dataset.orig || '').slice(0, 10);
+                const no   = String(el.dataset.bill || '');
+
+                if (!val || val === orig) { untouched++; continue; }
+                /* Refuse to swap one future date for another — the whole point
+                   of this screen. max= on the input handles the picker, but a
+                   typed value gets through it on some browsers. */
+                if (val > today) { rejected++; continue; }
+
+                const billId = idByNo[no];
+                if (billId == null) { notFound++; continue; }
+
+                let ok = false;
+                try {
+                    const res = await dbUpdateBillDate(billId, val);
+                    ok = !!(res && res.success);
+                } catch (e) { console.warn('date fix failed:', e); }
+
+                if (!ok) { failed++; continue; }
+
+                /* Move it in the local cache too. The P&L, Day Book, GSTR-1 and
+                   Tally all read localStorage, so a cloud-only correction would
+                   leave every one of them still filing the wrong month. */
+                try {
+                    const list = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+                    list.forEach(b => { if (b && String(b.billNo) === no) b.date = val; });
+                    localStorage.setItem('mm_sales', JSON.stringify(list));
+                } catch (e) { console.warn('local date fix failed:', e); }
+                if (raw) raw.date = val;
+
+                /* Audited without exception. Changing the date on an issued
+                   invoice moves it between GST periods, so who did it, when,
+                   and what it was before all have to survive the change. */
+                if (typeof mmAudit === 'function') mmAudit('Bill date corrected', no + ' · ' + orig + ' → ' + val, no);
+                saved++;
+            }
+
+            btn.disabled = false; btn.textContent = original;
+
+            const parts = [];
+            if (saved)     parts.push(saved + ' corrected');
+            if (untouched) parts.push(untouched + ' left as they were');
+            if (rejected)  parts.push(rejected + ' refused (still dated after today)');
+            if (notFound)  parts.push(notFound + ' not found in this period — widen the date range and try again');
+            if (failed)    parts.push(failed + ' failed to save');
+
+            closeDateFix();
+            if (saved) { await loadData(); refreshPreFile(); }
+            showToast(parts.join(' · ') || 'Nothing changed.', (failed || rejected || notFound) ? 'error' : 'success');
+        }
+
         function closeGstinFix() {
             const m = document.getElementById('gstinFixModal');
             m.classList.remove('open'); m.style.display = 'none';

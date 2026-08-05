@@ -1583,6 +1583,32 @@ async function dbGetBills(fromDate, toDate) {
     if (error) { console.error('bills fetch:', error); return []; }
     return data;
 }
+/* Correct a bill's DATE, and nothing else.
+
+   The only UPDATE on the bills table in the app, and deliberately the
+   narrowest one possible. Until now a date was written once at insert and
+   could never be changed — so a bill entered on the wrong day could only be
+   repaired by deleting it and keying it again, which burns its invoice number
+   and leaves a permanent gap that GSTR-1 then has to declare as a cancelled
+   document. That is a heavy price for a slipped date box.
+
+   Only the date moves. Amounts, lines, tax and the invoice number are all
+   left alone, so nothing here can change what the bill says it sold or what
+   it charged — the two things a correction must never touch silently.
+   Callers are expected to audit the change; mmAudit is not called here so
+   that the entry can name where the correction came from. */
+async function dbUpdateBillDate(billId, newDate) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbUpdateBillDate: no user, aborting.'); return { success: false, message: 'Not logged in.' }; }
+    const d = String(newDate || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return { success: false, message: 'Date must be YYYY-MM-DD.' };
+    const { error } = await _supabase.from('bills')
+        .update({ date: d }).eq('id', billId).eq('user_id', user);
+    if (error) { console.error('bill date update:', error); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbUpdateBillDate = dbUpdateBillDate;
+
 async function dbSaveBill(bill) {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbSaveBill: no user, aborting.'); return { success: false, message: 'Not logged in.' }; }
