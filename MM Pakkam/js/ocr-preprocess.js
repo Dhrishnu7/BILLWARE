@@ -265,6 +265,70 @@
     }
 
     // ── drop lone black pixels (thermal speckle, paper grain) ──
+    /* ── ERASE THE TABLE'S RULED LINES ──────────────────────────────────
+       An invoice is a grid, and Tesseract cannot see a grid — it sees the cell
+       borders as strokes and welds them onto the characters inside. That is
+       precisely what the diagnosis showed: the text AROUND the table read
+       cleanly while the body came back saturated with | [ ] EE IT, which are
+       borders, not letters.
+
+       So the rules are removed before recognition. Two passes, horizontal then
+       vertical, on the binary plane where 0 is ink.
+
+       THE PART THAT MATTERS: a pixel is only erased if the ink is THIN across
+       the line — nothing solid a few pixels above and below a horizontal rule,
+       or left and right of a vertical one. Where a character crosses a rule
+       there IS ink on both sides, so that pixel stays. Erasing whole runs
+       blindly would take the middle out of every letter the grid touches, and
+       a table of gutted characters is worse than a table of border noise.
+
+       The vertical pass reads the horizontally-cleaned map, so a grid
+       intersection cannot protect itself by being a corner.
+    ────────────────────────────────────────────────────────────────────── */
+    function removeRules(b, w, h) {
+        var out = new Uint8ClampedArray(b);
+        // A rule spans much of a cell; a letter stroke never does.
+        var minH = Math.max(40, Math.floor(w * 0.22));
+        var minV = Math.max(40, Math.floor(h * 0.04));
+        // How thick a printed rule can be at this resolution.
+        var maxT = Math.max(2, Math.round(Math.min(w, h) / 700));
+        var x, y, s, run, p, a, c;
+
+        for (y = 0; y < h; y++) {
+            x = 0;
+            while (x < w) {
+                if (b[y * w + x] !== 0) { x++; continue; }
+                s = x;
+                while (x < w && b[y * w + x] === 0) x++;
+                run = x - s;
+                if (run < minH) continue;
+                for (p = s; p < x; p++) {
+                    a = (y - maxT - 1 >= 0) ? b[(y - maxT - 1) * w + p] : 255;
+                    c = (y + maxT + 1 < h)  ? b[(y + maxT + 1) * w + p] : 255;
+                    if (a !== 0 && c !== 0) out[y * w + p] = 255;
+                }
+            }
+        }
+
+        var out2 = new Uint8ClampedArray(out);
+        for (x = 0; x < w; x++) {
+            y = 0;
+            while (y < h) {
+                if (out[y * w + x] !== 0) { y++; continue; }
+                s = y;
+                while (y < h && out[y * w + x] === 0) y++;
+                run = y - s;
+                if (run < minV) continue;
+                for (p = s; p < y; p++) {
+                    a = (x - maxT - 1 >= 0) ? out[p * w + (x - maxT - 1)] : 255;
+                    c = (x + maxT + 1 < w)  ? out[p * w + (x + maxT + 1)] : 255;
+                    if (a !== 0 && c !== 0) out2[p * w + x] = 255;
+                }
+            }
+        }
+        return out2;
+    }
+
     function despeckle(b, w, h) {
         var out = new Uint8ClampedArray(b);
         for (var y = 1; y < h - 1; y++) {
@@ -484,6 +548,9 @@
         if (mode === 'dotmatrix') g = blur3(g, w, h, 1);
 
         var bin = adaptiveThreshold(g, w, h, opts.winFrac, opts.tPct);
+        /* Rules first, then despeckle: erasing a line leaves crumbs where
+           characters touched it, and despeckle is exactly what clears them. */
+        if (opts.rules !== false) bin = removeRules(bin, w, h);
         if (opts.despeckle !== false) bin = despeckle(bin, w, h);
 
         grayToCtx(ctx, bin, w, h);
