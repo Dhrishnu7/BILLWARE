@@ -3116,12 +3116,20 @@ window.addEventListener('DOMContentLoaded', () => {
         }
 
         /* `proceed` is the name of the function that continues the import.
-           It used to be hard-coded to _autoImportOCR, which meant a scan with
-           any warning at all skipped the column mapper — and now that a
-           restored decimal point is itself a warning, that would be almost
-           every scan. The layout parser passes 'showInvMapper'. */
+
+           The DEFAULT is now the mapper, not the auto-import. It was the other
+           way round, and one call site was fixed to pass 'showInvMapper' while
+           the other was left to the default — so on that path a button reading
+           "Continue (check the values)" gave no opportunity to check any
+           value. It loaded a garbled scan straight into the form, past the
+           preview and past the "save scan data" link that would have let the
+           shop report it.
+
+           A screen that has just listed what went wrong must not then act
+           without being looked at, and defaulting to the safe branch is the
+           only way a future call site cannot get this wrong by omission. */
         function _showOCRWarning(messages, blocked, proceed) {
-            proceed = proceed || '_autoImportOCR';
+            proceed = proceed || 'showInvMapper';
             const old = document.getElementById('ocrScanWarning');
             if (old) old.remove();
 
