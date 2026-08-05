@@ -1345,6 +1345,44 @@ function mmBackupRemindersOn() { return String(mmConfig('backup_reminders', 'on'
 window.mmBackupRemindersOn = mmBackupRemindersOn;
 
 /* ─────────────────────────────────────────────────────
+   READ A LOCAL CACHE, FROM WHICHEVER KEY ACTUALLY HOLDS IT
+
+   Two localStorage conventions grew side by side: a SCOPED one,
+   mm_<tenant>_<name> via mmLsGet/mmLsSet, and an UNSCOPED one, mm_<name>,
+   written directly. Some stores use one, some the other, and for `sales` and
+   `purchases` the two halves never met — every writer used the unscoped key
+   and every reader asked for the scoped one.
+
+   Seven read sites across Report and Inventory, zero matching writes. Each
+   had a fallback that looked like it covered exactly this:
+
+       (typeof mmLsGet === 'function') ? (mmLsGet('sales') || [])
+                                       : localStorage.getItem('mm_sales')
+
+   but mmLsGet is ALWAYS defined, so the fallback was unreachable and every
+   one of those reads returned []. The "instant paint from the local cache"
+   on both pages painted nothing, both pages were blank offline, and a bill
+   could not be found for reprinting without the network. Silent, because an
+   empty cache is indistinguishable from a shop with no data yet.
+
+   Prefers the scoped store when it holds anything — so this keeps working if
+   a writer is moved to scoped later — and otherwise reads the key that is
+   actually being written. Same shape as _custList() in report.html, which
+   fixed the customers half of this in v310.
+───────────────────────────────────────────────────── */
+function mmCacheGet(name) {
+    let scoped = null;
+    try { if (typeof mmLsGet === 'function') scoped = mmLsGet(name); } catch (e) {}
+    if (Array.isArray(scoped) && scoped.length) return scoped;
+    try {
+        const raw = JSON.parse(localStorage.getItem('mm_' + name) || '[]');
+        if (Array.isArray(raw) && raw.length) return raw;
+    } catch (e) {}
+    return Array.isArray(scoped) ? scoped : [];
+}
+window.mmCacheGet = mmCacheGet;
+
+/* ─────────────────────────────────────────────────────
    WHEN SOMETHING WAS SAVED — one place, and it never guesses
 
    Two rules, both learned from getting them wrong:

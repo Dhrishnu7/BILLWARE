@@ -1847,21 +1847,12 @@
 
     async function loadData() {
         // ── Step 1: Instant paint from the local cache — no waiting on the network ──
-        if (_dbPurchases.length === 0) {
-            _dbPurchases = (typeof mmLsGet === 'function')
-                ? (mmLsGet('purchases') || [])
-                : JSON.parse(localStorage.getItem('mm_purchases') || '[]');
-        }
-        if (_dbBills.length === 0) {
-            _dbBills = (typeof mmLsGet === 'function')
-                ? (mmLsGet('sales') || [])
-                : JSON.parse(localStorage.getItem('mm_sales') || '[]');
-        }
-        if (_stockAdjustments.length === 0) {
-            _stockAdjustments = (typeof mmLsGet === 'function')
-                ? (mmLsGet('stockAdjustments') || [])
-                : JSON.parse(localStorage.getItem('mm_stockAdjustments') || '[]');
-        }
+        // mmCacheGet reads whichever key actually holds each store. These asked
+        // mmLsGet for a scoped key that nothing writes, so the "instant paint"
+        // below painted an empty page, and offline it never filled in at all.
+        if (_dbPurchases.length === 0)      _dbPurchases      = mmCacheGet('purchases');
+        if (_dbBills.length === 0)          _dbBills          = mmCacheGet('sales');
+        if (_stockAdjustments.length === 0) _stockAdjustments = mmCacheGet('stockAdjustments');
         _renderInventory();
         _dataLoaded = true;
 

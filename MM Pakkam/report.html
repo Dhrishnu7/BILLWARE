@@ -1815,9 +1815,9 @@
         // before loadData() does its (slower) session-restore + Supabase fetch and
         // re-paints. Uses the same local mapping as loadData()'s localStorage branch.
         function _renderReportFromLocal() {
-            const rawPurchases = (typeof mmLsGet === 'function')
-                ? (mmLsGet('purchases') || [])
-                : JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+            // mmCacheGet, not mmLsGet: the scoped key these used to read is
+            // never written, so this whole "instant paint" painted nothing.
+            const rawPurchases = mmCacheGet('purchases');
             const mappedPurchases = rawPurchases.map(p => {
                 const qty = parseFloat(p.quantity) || 0;
                 const rate = parseFloat(p.rate) || 0;
@@ -1825,9 +1825,7 @@
                 const total = (qty * rate) * (1 + (gst / 100));
                 return { billNo: p.billNo || p.bill_no || '-', date: p.date || '', type: 'purchase', product: p.productName || p.product_name || '-', qty, rate, gst, total };
             });
-            const rawSales = (typeof mmLsGet === 'function')
-                ? (mmLsGet('sales') || [])
-                : JSON.parse(localStorage.getItem('mm_sales') || '[]');
+            const rawSales = mmCacheGet('sales');
             const mappedSales = [];
             rawSales.forEach(bill => {
                 if (Array.isArray(bill.medicines)) {
@@ -1837,9 +1835,7 @@
                 }
             });
             if (_stockAdjustments.length === 0) {
-                _stockAdjustments = (typeof mmLsGet === 'function')
-                    ? (mmLsGet('stockAdjustments') || [])
-                    : JSON.parse(localStorage.getItem('mm_stockAdjustments') || '[]');
+                _stockAdjustments = mmCacheGet('stockAdjustments');
             }
             if (!mappedSales.length && !mappedPurchases.length) return; // nothing cached yet
             allData = [...mappedSales, ...mappedPurchases].sort((a, b) => {
@@ -3512,9 +3508,7 @@
                 console.warn("Supabase fetch failed, using localStorage fallback:", err);
             }
             if (_stockAdjustments.length === 0) {
-                _stockAdjustments = (typeof mmLsGet === 'function')
-                    ? (mmLsGet('stockAdjustments') || [])
-                    : JSON.parse(localStorage.getItem('mm_stockAdjustments') || '[]');
+                _stockAdjustments = mmCacheGet('stockAdjustments');
             }
 
             let mappedPurchases = [];
@@ -3534,10 +3528,9 @@
                     };
                 });
             } else {
-                // Fallback to localStorage — use scoped key if mmLsGet is available
-                const rawPurchases = (typeof mmLsGet === 'function')
-                    ? (mmLsGet('purchases') || [])
-                    : JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+                // Offline / Supabase unreachable. This is the path that returned
+                // nothing, so the page just looked empty instead of degraded.
+                const rawPurchases = mmCacheGet('purchases');
                 mappedPurchases = rawPurchases.map(p => {
                     const qty = parseFloat(p.quantity) || 0;
                     const rate = parseFloat(p.rate) || 0;
@@ -3574,10 +3567,8 @@
                     }
                 });
             } else {
-                // Fallback to localStorage — use scoped key if mmLsGet is available
-                const rawSales = (typeof mmLsGet === 'function')
-                    ? (mmLsGet('sales') || [])
-                    : JSON.parse(localStorage.getItem('mm_sales') || '[]');
+                // Offline / Supabase unreachable — see mmCacheGet.
+                const rawSales = mmCacheGet('sales');
                 rawSales.forEach(bill => {
                     if (Array.isArray(bill.medicines)) {
                         bill.medicines.forEach(m => {
@@ -6280,9 +6271,9 @@
             if (_allBillsFromDB.length > 0) {
                 _allSalesForSearch = _allBillsFromDB;
             } else {
-                _allSalesForSearch = (typeof mmLsGet === 'function')
-                    ? (mmLsGet('sales') || [])
-                    : JSON.parse(localStorage.getItem('mm_sales') || '[]');
+                // Without this reading the key that is actually written, a bill
+                // could not be found for reprinting with the network down.
+                _allSalesForSearch = mmCacheGet('sales');
             }
             const customers = _custList();
 
