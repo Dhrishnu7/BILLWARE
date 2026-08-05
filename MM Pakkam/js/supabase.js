@@ -1705,8 +1705,15 @@ async function dbSaveBill(bill) {
         if (withPM) p.payment_mode = bill.paymentMode || 'cash';
         /* The moment the bill was taken, as distinct from the date it is FOR.
            A back-dated bill is a real thing, so the two are not the same
-           field and one must never be derived from the other. */
-        if (withSA) p.saved_at = bill.savedAt || new Date().toISOString();
+           field and one must never be derived from the other.
+
+           null and undefined mean different things here. undefined is a fresh
+           sale — nobody passed a time, so now IS the time. null is a caller
+           that looked and found none (restoreFromBin, on a bill older than
+           this column), and it must stay empty: stamping "now" would claim
+           the bill was taken at the moment it was restored. */
+        if (withSA) p.saved_at = (bill.savedAt === null) ? null
+                               : (bill.savedAt || new Date().toISOString());
         return p;
     };
     let _withPM = true, _withSA = true;

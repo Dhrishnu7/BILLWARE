@@ -4171,6 +4171,17 @@
                         // money into "Collections by Payment Mode", out of the Day Book's
                         // receivables and out of the customer's statement.
                         paymentMode:  d.payment_mode  || d.paymentMode  || 'cash',
+                        /* Keep the ORIGINAL save time. Without it dbSaveBill
+                           stamps "now", so a restored bill claimed it was
+                           billed at the moment somebody pressed Restore — and
+                           since the statement orders by that timestamp, the
+                           bill jumped to the end and the running balance told
+                           a story that never happened.
+                           null, not undefined, when the bill predates the
+                           saved_at column: undefined means "use now", null
+                           means "there genuinely isn't one", and inventing a
+                           time is the bug this whole area keeps producing. */
+                        savedAt:      d.saved_at || d.savedAt || null,
                         medicines:    (d.bill_items || d.medicines || []).map(m => ({
                             product:  m.product  || '', batch:    m.batch    || '',
                             exp:      m.exp      || '', pack: m.pack || 0, qty:      Number(m.qty) || 0,
