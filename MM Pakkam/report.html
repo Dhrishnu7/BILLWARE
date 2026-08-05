@@ -4873,11 +4873,66 @@
             return `<tr class="${cls || ''}"${click}><td>${label}</td><td class="n">${accInr(value)}${pct}</td></tr>`;
         }
 
+        /* AGAINST LAST TIME. The comparison is the information — an absolute
+           figure tells an owner nothing they can act on.
+
+           Three deliberate choices:
+           · A period with NO trading to compare against is not reported as
+             "−100%". It is reported as having nothing to compare with, because
+             a percentage against zero is arithmetic, not meaning.
+           · Direction is coloured, but nothing is called good or bad.
+             Purchases up is not bad; it may be stocking for a season.
+           · The dates of the comparison period are printed. A comparison whose
+             other half is unstated is not checkable.
+
+           Pulled out of renderPnl so the EMPTY period can show it too. That is
+           the moment it matters most: "no sales this period" is a fact, "no
+           sales, against ₹891 in the ten days before" is the one worth acting
+           on, and the early return was hiding exactly that. */
+        function _pnlComparison(d) {
+            if (!_accPrev) return '';
+            const p = _accPrev;
+            const cmp = (label, now, was, invert) => {
+                const diff = now - was;
+                const hasBase = Math.abs(was) >= 0.01;
+                const pct = hasBase ? (diff / Math.abs(was) * 100) : 0;
+                const flat = Math.abs(diff) < 0.01;
+                const good = invert ? (diff < 0) : (diff > 0);
+                const col = flat ? '#64748b' : (good ? '#059669' : '#dc2626');
+                const arrow = flat ? '' : (diff > 0 ? '▲' : '▼');
+                return `<div style="flex:1 1 150px;min-width:140px;padding:9px 12px;border-right:1px solid #f1f5f9;">
+                    <div style="font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;font-weight:700;">${label}</div>
+                    <div style="font-size:0.95rem;font-weight:800;color:#0f172a;margin-top:2px;">${accInr(now)}</div>
+                    <div style="font-size:0.75rem;font-weight:700;color:${col};margin-top:2px;">
+                        ${hasBase
+                            ? `${arrow} ${accInr(Math.abs(diff))} (${Math.abs(pct).toFixed(1)}%)`
+                            : (Math.abs(now) < 0.01 ? 'no trading either period' : 'nothing to compare with')}
+                    </div>
+                    <div style="font-size:0.7rem;color:#cbd5e1;margin-top:1px;">was ${accInr(was)}</div>
+                </div>`;
+            };
+            return `<div style="max-width:720px;margin:1.2rem auto 0;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                <div style="background:#f8fafc;padding:8px 12px;font-size:0.78rem;color:#475569;border-bottom:1px solid #e2e8f0;">
+                    Compared with <b>${_te(p.periodLabel)}</b> &nbsp;·&nbsp; ${_te(p.from)} to ${_te(p.to)}
+                </div>
+                <div style="display:flex;flex-wrap:wrap;">
+                    ${cmp('Net sales', d.netSales, p.netSales)}
+                    ${cmp('Gross profit', d.grossProfit, p.grossProfit)}
+                    ${cmp('Expenses', d.expenses.total, p.expenses.total, true)}
+                    ${cmp('Net profit', d.netProfit, p.netProfit)}
+                </div>
+            </div>`;
+        }
+
         function renderPnl() {
             const d = _accData;
             if (!d.sales.count && !d.purchases.count) {
+                /* Empty period — but STILL show the comparison. A shop looking
+                   at a blank fortnight needs to know whether the one before it
+                   was blank too. */
                 document.getElementById('accPnl').innerHTML =
-                    '<p class="acc-hint">No sales or purchases in this period. Pick a different range above.</p>';
+                    '<p class="acc-hint">No sales or purchases in this period. Pick a different range above.</p>'
+                    + _pnlComparison(d);
                 return;
             }
             /* Where the opening figure came from, said on the line itself —
@@ -4932,50 +4987,9 @@
 
             let extra = '';
 
-            /* AGAINST LAST TIME. The comparison is the information — an
-               absolute figure tells an owner nothing they can act on.
-
-               Three deliberate choices:
-               · A period with NO trading is not reported as "−100%". It is
-                 reported as having no trading, because a percentage against
-                 zero is arithmetic, not meaning.
-               · Direction is coloured, but nothing is called good or bad.
-                 Purchases up is not bad; it may be stocking for a season.
-               · The dates of the comparison period are printed. A comparison
-                 whose other half is unstated is not checkable. */
-            if (_accPrev) {
-                const p = _accPrev;
-                const cmp = (label, now, was, invert) => {
-                    const diff = now - was;
-                    const hasBase = Math.abs(was) >= 0.01;
-                    const pct = hasBase ? (diff / Math.abs(was) * 100) : 0;
-                    const flat = Math.abs(diff) < 0.01;
-                    const good = invert ? (diff < 0) : (diff > 0);
-                    const col = flat ? '#64748b' : (good ? '#059669' : '#dc2626');
-                    const arrow = flat ? '' : (diff > 0 ? '▲' : '▼');
-                    return `<div style="flex:1 1 150px;min-width:140px;padding:9px 12px;border-right:1px solid #f1f5f9;">
-                        <div style="font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;font-weight:700;">${label}</div>
-                        <div style="font-size:0.95rem;font-weight:800;color:#0f172a;margin-top:2px;">${accInr(now)}</div>
-                        <div style="font-size:0.75rem;font-weight:700;color:${col};margin-top:2px;">
-                            ${hasBase
-                                ? `${arrow} ${accInr(Math.abs(diff))} (${Math.abs(pct).toFixed(1)}%)`
-                                : (Math.abs(now) < 0.01 ? 'no trading either period' : 'nothing to compare with')}
-                        </div>
-                        <div style="font-size:0.7rem;color:#cbd5e1;margin-top:1px;">was ${accInr(was)}</div>
-                    </div>`;
-                };
-                extra += `<div style="max-width:720px;margin:1.2rem auto 0;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-                    <div style="background:#f8fafc;padding:8px 12px;font-size:0.78rem;color:#475569;border-bottom:1px solid #e2e8f0;">
-                        Compared with <b>${_te(p.periodLabel)}</b> &nbsp;·&nbsp; ${_te(p.from)} to ${_te(p.to)}
-                    </div>
-                    <div style="display:flex;flex-wrap:wrap;">
-                        ${cmp('Net sales', d.netSales, p.netSales)}
-                        ${cmp('Gross profit', d.grossProfit, p.grossProfit)}
-                        ${cmp('Expenses', d.expenses.total, p.expenses.total, true)}
-                        ${cmp('Net profit', d.netProfit, p.netProfit)}
-                    </div>
-                </div>`;
-            }
+            // One copy of the comparison, so the empty-period branch above
+            // and this one cannot drift apart.
+            extra += _pnlComparison(d);
 
             /* The two ways of measuring gross profit, and what their gap
                means. This is the number a shop cannot get anywhere else:
