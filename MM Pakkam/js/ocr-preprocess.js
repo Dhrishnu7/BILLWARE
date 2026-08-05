@@ -34,8 +34,82 @@
 (function () {
     'use strict';
 
-    var MIN_LONG = 1600;   // upscale smaller images to at least this
+    /* 1600 was too low, and measurably so. A full A4 invoice at 1600px on the
+       long edge puts the table text around 10px tall; Tesseract wants roughly
+       three times that. Worse, an image EXACTLY 1600 long got no upscale at
+       all — the test photo was 900x1600 and sailed through untouched, and not
+       one amount on it was read.
+
+       Measured on that photo with the harness: as-is 4 of 30 known figures,
+       cropped and tripled 8 of 30. Still poor, because you cannot invent
+       detail that was never captured, but twice as much of it survives. */
+    var MIN_LONG = 2600;   // upscale smaller images to at least this
     var MAX_LONG = 3200;   // and never work bigger than this (memory + speed)
+
+    /* CROP TO THE PAGE.
+
+       A phone photo of an invoice on a table is mostly table. The test photo
+       gave the paper about 55% of the frame, so the text got barely half the
+       pixels the camera actually spent on it. Cropping to the paper is free
+       resolution — no better camera, no steadier hand.
+
+       Deliberately conservative. It finds the bright band the page occupies by
+       row and column mean brightness, and REFUSES the crop if the result is
+       less than 30% of the frame or barely smaller than it — a crop that eats
+       the invoice is far worse than no crop, and a photo already filled by the
+       page has nothing to gain. */
+    function cropToPage(bmp) {
+        var w = bmp.width, h = bmp.height;
+        if (!w || !h) return null;
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        var ctx = c.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(bmp, 0, 0);
+        var d;
+        try { d = ctx.getImageData(0, 0, w, h).data; } catch (e) { return null; }
+
+        var rowMean = new Float64Array(h), colMean = new Float64Array(w);
+        var x, y, i, s;
+        for (y = 0; y < h; y++) {
+            s = 0;
+            for (x = 0; x < w; x++) {
+                i = (y * w + x) * 4;
+                s += d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+            }
+            rowMean[y] = s / w;
+        }
+        for (x = 0; x < w; x++) {
+            s = 0;
+            for (y = 0; y < h; y++) {
+                i = (y * w + x) * 4;
+                s += d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+            }
+            colMean[x] = s / h;
+        }
+
+        // The 90th percentile is "paper"; anything much darker is not.
+        var all = [];
+        for (y = 0; y < h; y++) all.push(rowMean[y]);
+        for (x = 0; x < w; x++) all.push(colMean[x]);
+        all.sort(function (a, b) { return a - b; });
+        var thr = all[Math.floor(all.length * 0.9)] * 0.88;
+
+        var y0 = 0, y1 = h - 1, x0 = 0, x1 = w - 1;
+        while (y0 < y1 && rowMean[y0] < thr) y0++;
+        while (y1 > y0 && rowMean[y1] < thr) y1--;
+        while (x0 < x1 && colMean[x0] < thr) x0++;
+        while (x1 > x0 && colMean[x1] < thr) x1--;
+
+        var cw = x1 - x0 + 1, ch = y1 - y0 + 1;
+        if (cw < w * 0.3 || ch < h * 0.3) return null;          // ate the invoice
+        if (cw > w * 0.97 && ch > h * 0.97) return null;        // nothing to gain
+
+        var out = document.createElement('canvas');
+        out.width = cw; out.height = ch;
+        out.getContext('2d', { willReadFrequently: true })
+           .drawImage(c, x0, y0, cw, ch, 0, 0, cw, ch);
+        return { canvas: out, box: [x0, y0, cw, ch] };
+    }
 
     // ── decode any File/Blob/Image/Canvas into a canvas ──
     function toBitmap(source) {
@@ -346,6 +420,17 @@
            deskew, thresholding window, despeckle — assumes text runs across
            the image. */
         if (opts.rotate90) bmp = rotate90(bmp, opts.rotate90);
+
+        /* Crop to the paper BEFORE scaling, so the upscale is spent on the
+           invoice rather than on the tablecloth around it. */
+        var cropBox = null;
+        if (opts.crop !== false) {
+            try {
+                var cp = cropToPage(bmp);
+                if (cp) { bmp = cp.canvas; cropBox = cp.box; }
+            } catch (e) { /* a failed crop must never stop the scan */ }
+        }
+
         var scaled = drawScaled(bmp);
         var canvas = scaled.canvas;
         var w = canvas.width, h = canvas.height;
@@ -361,8 +446,13 @@
 
         var meta = {
             width: w, height: h, scale: scaled.scale, mode: mode,
+            /* Recorded so a bad scan can be diagnosed from the saved JSON
+               without the photo: whether the page was found, and how much of
+               the frame it was actually using. */
+            crop: cropBox, mode_: undefined,
             contrast: st.contrast, inkRatio: +st.inkRatio.toFixed(4), skewDeg: 0
         };
+        delete meta.mode_;
 
         if (mode === 'none') {
             meta.ms = Math.round(((performance && performance.now) ? performance.now() : Date.now()) - t0);
