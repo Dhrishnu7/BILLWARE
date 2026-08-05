@@ -4526,14 +4526,32 @@
            balance sheet built from this would need a plug figure to foot, and
            an authoritative-looking wrong number is worse than no number.
         ══════════════════════════════════════════════════════════════════ */
-        function renderPosition() {
+        async function renderPosition() {
             const box = document.getElementById('accPos');
             if (!box) return;
             if (!window.mmPosition) {
                 box.innerHTML = '<div style="padding:1.5rem;color:#991b1b;">This panel did not load. Hard-refresh the page (Ctrl+Shift+R).</div>';
                 return;
             }
-            const d = mmPosition.build();
+            box.innerHTML = '<div style="padding:1.5rem;color:#94a3b8;">Working it out…</div>';
+
+            /* Supplier payments merged with the cloud, exactly as the Khata
+               page does it. The local cache is only complete once that page
+               has been opened on this device — reading it blind reported a
+               fully settled supplier as still owing the whole ₹696.80. */
+            let pays = [];
+            try { pays = JSON.parse(localStorage.getItem('mm_supplier_payments') || '[]') || []; } catch (e) {}
+            try {
+                if (typeof dbGetSupplierPayments === 'function') {
+                    const cloud = await dbGetSupplierPayments();
+                    const byId = new Map();
+                    [...pays, ...(cloud || [])].forEach(p => { if (p && p.id && !byId.has(p.id)) byId.set(p.id, p); });
+                    pays = [...byId.values()];
+                    try { localStorage.setItem('mm_supplier_payments', JSON.stringify(pays)); } catch (e) {}
+                }
+            } catch (e) { console.warn('supplier payments fetch:', e); }
+
+            const d = mmPosition.build({ supplierPayments: pays });
             const money = n => (n < 0 ? '−₹' : '₹') + Math.abs(Number(n) || 0).toFixed(2);
             const row = (label, sub, val, sign) => `
                 <tr>

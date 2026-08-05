@@ -121,17 +121,22 @@
             stock = num(s && s.value);
         }
 
-        // What customers owe. Same > 0 filter the Khata page paints from.
+        /* What customers owe. mmCustomerList unions BOTH local stores: the
+           scoped one holds only customers touched by a settlement, and
+           preferring it reported one account owing Rs 16 against a Khata page
+           showing Rs 811.58. Same > 0 filter the Khata page paints from. */
+        var custs = (typeof mmCustomerList === 'function') ? mmCustomerList() : cache('customers');
         var debtors = 0, debtorCount = 0;
-        cache('customers').forEach(function (c) {
+        custs.forEach(function (c) {
             var b = num(c && c.balance);
             if (b > 0) { debtors += b; debtorCount++; }
         });
 
-        // What suppliers are owed. Negative balances (an overpaid supplier)
-        // are NOT netted off — that is money out, not a reduction of what is
-        // owed to somebody else.
-        var sup = suppliers(readJson('mm_supplier_payments'));
+        /* What suppliers are owed. Payments are passed IN when the caller has
+           merged the cloud copy — the local cache is only complete after the
+           Khata page has been opened, and reading it blind reported a settled
+           supplier as still owing the whole Rs 696.80. */
+        var sup = suppliers(opts.supplierPayments || readJson('mm_supplier_payments'));
         var creditors = 0, creditorCount = 0;
         sup.data.forEach(function (x) {
             if (x.balance > 0.005) { creditors += x.balance; creditorCount++; }
@@ -157,6 +162,27 @@
             if (monthOf(p.date) !== month) return;
             inTax += num(p.quantity) * num(p.rate) * num(p.gst) / 100;  // purchase rates are exclusive
         });
+
+        /* RETURNS. Without these the figure was wrong by exactly the tax on
+           the month's notes: a credit note reduces the tax collected, a debit
+           note reduces the credit claimable. Checked against the GSTR-3B
+           worksheet, which does account for them — the panel read -198.15
+           where the worksheet read -182.42, and the gap was precisely the
+           debit note's 16.92 less the credit note's 1.20.
+
+           mmReturns is the only place a note's tax is known, and it is the
+           same source GSTR-3B uses, so the two cannot drift apart again. */
+        var cnTax = 0, dnTax = 0;
+        if (window.mmReturns && typeof mmReturns.load === 'function') {
+            try {
+                var rets = mmReturns.load({ from: month + '-01', to: month + '-31' });
+                (rets.creditNotes || []).forEach(function (n) { if (n.usable) cnTax += num(n.tax); });
+                (rets.debitNotes  || []).forEach(function (n) { if (n.usable) dnTax += num(n.tax); });
+            } catch (e) { /* a missing returns module must not break the panel */ }
+        }
+        outTax -= cnTax;
+        inTax  -= dnTax;
+
         var gstNet = outTax - inTax;
 
         var working = stock + debtors - creditors - Math.max(0, gstNet);
@@ -168,6 +194,7 @@
             debtors: r2(debtors), debtorCount: debtorCount,
             creditors: r2(creditors), creditorCount: creditorCount,
             outputTax: r2(outTax), inputTax: r2(inTax), gstNet: r2(gstNet),
+            creditNoteTax: r2(cnTax), debitNoteTax: r2(dnTax),
             working: r2(working),
             /* Stated, not implied. Every one of these is a real part of the
                shop's finances that this app does not hold, and the reader has

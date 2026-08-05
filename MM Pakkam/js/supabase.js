@@ -1392,8 +1392,11 @@ window.mmTaxHead = mmTaxHead;
    time — then by name for older bills that predate it. */
 function mmBillBuyerGstin(bill) {
     if (!bill) return '';
+    /* mmCustomerList, not mmCacheGet: the scoped customers store is a PARTIAL
+       copy, and preferring it would hide the buyer whose GSTIN decides whether
+       this bill files as B2B. */
     let list = [];
-    try { list = mmCacheGet('customers'); } catch (e) {}
+    try { list = mmCustomerList(); } catch (e) {}
     if (bill.customerId != null) {
         const byId = list.find(c => c && String(c.id) === String(bill.customerId));
         if (byId) return String(byId.gstin || '');
@@ -1431,6 +1434,34 @@ window.mmBillBuyerGstin = mmBillBuyerGstin;
    actually being written. Same shape as _custList() in report.html, which
    fixed the customers half of this in v310.
 ───────────────────────────────────────────────────── */
+/* EVERY customer this device knows, from BOTH stores.
+
+   mmCacheGet is wrong for customers and this is what it cost: it prefers the
+   scoped store whenever that store holds anything, which assumes a store that
+   exists is COMPLETE. mm_<user>_customers is not — only customers touched by a
+   settlement or a balance adjustment are ever written there. So one settled
+   customer in the scoped store masked the entire unscoped list, and the
+   "Where You Stand" panel reported ONE account owing Rs 16 against a Khata
+   page showing Rs 811.58 across several.
+
+   Union, matched on lowercased name, unscoped first because that is the store
+   dbSyncCoreData fills from the cloud and therefore the complete one. Anything
+   the scoped store knows that it does not is appended rather than dropped. */
+function mmCustomerList() {
+    const out = [], seen = {};
+    const take = (list) => {
+        (list || []).forEach(c => {
+            const k = String(c && c.name || '').trim().toLowerCase();
+            if (!k || seen[k]) return;
+            seen[k] = true; out.push(c);
+        });
+    };
+    try { take(JSON.parse(localStorage.getItem('mm_customers') || '[]')); } catch (e) {}
+    try { if (typeof mmLsGet === 'function') take(mmLsGet('customers') || []); } catch (e) {}
+    return out;
+}
+window.mmCustomerList = mmCustomerList;
+
 function mmCacheGet(name) {
     let scoped = null;
     try { if (typeof mmLsGet === 'function') scoped = mmLsGet(name); } catch (e) {}
