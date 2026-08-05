@@ -2812,76 +2812,121 @@
             const today = _mmTodayLocal();
             let saved = 0, untouched = 0, rejected = 0, failed = 0, notFound = 0;
 
-            /* Bill number → cloud id, fetched WITHOUT a date range.
-               _rawBillsMap cannot be used here: it only holds what the current
-               report range returned, and a future-dated bill is outside that
-               range by definition — which is the very reason this screen
-               exists. Using it would have reported every row as "not found". */
-            const idByNo = {};
+            /* EVERYTHING here is inside try/finally. The first version was not,
+               and a stray reference to a variable that no longer existed threw
+               mid-loop: the first bill was corrected, the rest were skipped, and
+               because the throw escaped an async function the button sat on
+               "Saving…" for ever with no error anywhere a shop could see it.
+               A save button must come back no matter what happens. */
             try {
-                Object.values(_rawBillsMap).forEach(b => {
-                    const n = String(b.bill_no || b.billNo || ''); if (n) idByNo[n] = b.id;
-                });
-                if (typeof dbGetBills === 'function') {
-                    (await dbGetBills()).forEach(b => {
-                        const n = String(b.bill_no || ''); if (n) idByNo[n] = b.id;
-                    });
+                /* Read every box FIRST, then write. Deciding and doing in one
+                   pass is what let a failure halfway through leave the job
+                   half done with nothing on screen to say so. */
+                const wanted = [];
+                for (let i = 0; i < _dateFix.length; i++) {
+                    const el = document.getElementById('dfix_' + i);
+                    if (!el) continue;
+                    const val  = String(el.value || '').slice(0, 10);
+                    const orig = String(el.dataset.orig || '').slice(0, 10);
+                    const no   = String(el.dataset.bill || '');
+                    if (!val || val === orig) { untouched++; continue; }
+                    /* Refuse to swap one future date for another — the whole
+                       point of this screen. max= handles the picker, but a
+                       typed value gets past it on some browsers. */
+                    if (val > today) { rejected++; continue; }
+                    wanted.push({ no, val, orig });
                 }
-            } catch (e) { console.warn('bill id lookup failed:', e); }
 
-            for (let i = 0; i < _dateFix.length; i++) {
-                const el = document.getElementById('dfix_' + i);
-                if (!el) continue;
-                const val  = String(el.value || '').slice(0, 10);
-                const orig = String(el.dataset.orig || '').slice(0, 10);
-                const no   = String(el.dataset.bill || '');
+                if (wanted.length) {
+                    /* Bill number → cloud id. _rawBillsMap only holds what the
+                       current report range returned, and a future-dated bill is
+                       outside that range by definition — which is the very
+                       reason this screen exists. So the cloud is asked, but
+                       only for the two columns needed, and only for the bills
+                       still unaccounted for. */
+                    const idByNo = {};
+                    Object.values(_rawBillsMap).forEach(b => {
+                        const n = String(b.bill_no || b.billNo || ''); if (n) idByNo[n] = b.id;
+                    });
+                    if (wanted.some(w => idByNo[w.no] == null) && typeof dbBillIdsByNo === 'function') {
+                        try { Object.assign(idByNo, await dbBillIdsByNo()); }
+                        catch (e) { console.warn('bill id lookup failed:', e); }
+                    }
 
-                if (!val || val === orig) { untouched++; continue; }
-                /* Refuse to swap one future date for another — the whole point
-                   of this screen. max= on the input handles the picker, but a
-                   typed value gets through it on some browsers. */
-                if (val > today) { rejected++; continue; }
+                    /* In parallel. Three bills billed sequentially is three
+                       round trips waiting on each other for no reason. */
+                    btn.textContent = 'Saving ' + wanted.length + '…';
+                    const results = await Promise.all(wanted.map(async w => {
+                        const billId = idByNo[w.no];
+                        if (billId == null) return { w, state: 'notFound' };
+                        try {
+                            const res = await dbUpdateBillDate(billId, w.val);
+                            return { w, state: (res && res.success) ? 'ok' : 'failed' };
+                        } catch (e) { console.warn('date fix failed:', e); return { w, state: 'failed' }; }
+                    }));
 
-                const billId = idByNo[no];
-                if (billId == null) { notFound++; continue; }
+                    const done = [];
+                    results.forEach(r => {
+                        if (r.state === 'ok') { done.push(r.w); saved++; }
+                        else if (r.state === 'notFound') notFound++;
+                        else failed++;
+                    });
 
-                let ok = false;
-                try {
-                    const res = await dbUpdateBillDate(billId, val);
-                    ok = !!(res && res.success);
-                } catch (e) { console.warn('date fix failed:', e); }
+                    /* Move them in the local cache too — ONE read and ONE write
+                       for the whole batch. The P&L, Day Book, GSTR-1 and Tally
+                       all read localStorage, so a cloud-only correction leaves
+                       every one of them still filing the wrong month. */
+                    if (done.length) {
+                        try {
+                            const byNo = {};
+                            done.forEach(w => { byNo[w.no] = w.val; });
+                            const list = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+                            list.forEach(b => {
+                                const nv = b && byNo[String(b.billNo)];
+                                if (nv) b.date = nv;
+                            });
+                            localStorage.setItem('mm_sales', JSON.stringify(list));
+                            Object.values(_rawBillsMap).forEach(b => {
+                                const nv = byNo[String(b.bill_no || b.billNo || '')];
+                                if (nv) b.date = nv;
+                            });
+                        } catch (e) { console.warn('local date fix failed:', e); }
 
-                if (!ok) { failed++; continue; }
-
-                /* Move it in the local cache too. The P&L, Day Book, GSTR-1 and
-                   Tally all read localStorage, so a cloud-only correction would
-                   leave every one of them still filing the wrong month. */
-                try {
-                    const list = JSON.parse(localStorage.getItem('mm_sales') || '[]');
-                    list.forEach(b => { if (b && String(b.billNo) === no) b.date = val; });
-                    localStorage.setItem('mm_sales', JSON.stringify(list));
-                } catch (e) { console.warn('local date fix failed:', e); }
-                if (raw) raw.date = val;
-
-                /* Audited without exception. Changing the date on an issued
-                   invoice moves it between GST periods, so who did it, when,
-                   and what it was before all have to survive the change. */
-                if (typeof mmAudit === 'function') mmAudit('Bill date corrected', no + ' · ' + orig + ' → ' + val, no);
-                saved++;
+                        /* Audited without exception. Changing the date on an
+                           issued invoice moves it between GST periods, so who
+                           did it, when, and what it was before all have to
+                           survive the change. */
+                        done.forEach(w => {
+                            if (typeof mmAudit === 'function') {
+                                mmAudit('Bill date corrected', w.no + ' · ' + w.orig + ' → ' + w.val, w.no);
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('saveDateFixes:', e);
+                failed++;
+            } finally {
+                btn.disabled = false; btn.textContent = original;
             }
-
-            btn.disabled = false; btn.textContent = original;
 
             const parts = [];
             if (saved)     parts.push(saved + ' corrected');
             if (untouched) parts.push(untouched + ' left as they were');
             if (rejected)  parts.push(rejected + ' refused (still dated after today)');
-            if (notFound)  parts.push(notFound + ' not found in this period — widen the date range and try again');
+            if (notFound)  parts.push(notFound + ' not found — the bill may have been deleted');
             if (failed)    parts.push(failed + ' failed to save');
 
+            /* Tell them and get out of the way FIRST. The corrections are
+               already written; reloading the whole report afterwards is
+               cosmetic, and making the shop watch it happen behind a modal is
+               what made this feel broken. */
             closeDateFix();
-            if (saved) { await loadData(); refreshPreFile(); }
             showToast(parts.join(' · ') || 'Nothing changed.', (failed || rejected || notFound) ? 'error' : 'success');
+            if (saved) {
+                loadData().then(() => { try { refreshPreFile(); } catch (e) {} })
+                          .catch(e => console.warn('reload after date fix:', e));
+            }
         }
 
         function closeGstinFix() {

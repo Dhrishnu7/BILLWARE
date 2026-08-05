@@ -1805,6 +1805,23 @@ async function dbGetBills(fromDate, toDate) {
     if (error) { console.error('bills fetch:', error); return []; }
     return data;
 }
+/* Bill number → id, for every bill the shop has. Two columns and nothing else.
+
+   dbGetBills() selects '*, bill_items(*)', so using it to answer "which id is
+   SS-006" drags every line of every bill the shop has ever written across the
+   wire. That is a lot of milliseconds for a number. */
+async function dbBillIdsByNo() {
+    const user = _currentUser();
+    if (!user) return {};
+    const { data, error } = await _supabase.from('bills')
+        .select('id, bill_no').eq('user_id', user);
+    if (error) { console.warn('[db] bill id lookup:', error.message); return {}; }
+    const map = {};
+    (data || []).forEach(r => { const n = String(r.bill_no || ''); if (n) map[n] = r.id; });
+    return map;
+}
+window.dbBillIdsByNo = dbBillIdsByNo;
+
 /* Correct a bill's DATE, and nothing else.
 
    The only UPDATE on the bills table in the app, and deliberately the
