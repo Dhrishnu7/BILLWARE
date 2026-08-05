@@ -196,8 +196,14 @@ async function dbUpdateCustomerBalance(name, phone, address, balance) {
     const existing = existingRows?.[0] || null;
 
     if (existing) {
-        // Update balance (add to existing outstanding)
-        const newBal = (parseFloat(existing.balance) || 0) + cBal;
+        // Update balance (add to existing outstanding). Clamped at zero: a
+        // negative delta (sales return refunded to khata, a deleted credit bill)
+        // must never drive the cloud below nothing owed. Every reader already
+        // treats a negative balance as meaningless — dbGetKhataData filters
+        // .gt('balance', 0) and khata.html filters balance > 0 — and the local
+        // stores have always clamped, so an unclamped cloud value just made the
+        // two disagree and left the merge below to paper over it.
+        const newBal = Math.max(0, (parseFloat(existing.balance) || 0) + cBal);
         const { error } = await _supabase.from('customers')
             .update({ balance: newBal })
             .eq('id', existing.id).eq('user_id', user);
@@ -206,11 +212,70 @@ async function dbUpdateCustomerBalance(name, phone, address, balance) {
     } else {
         // Create new customer with balance
         const { error } = await _supabase.from('customers')
-            .insert({ name: cName, phone: cPhone, address: cAddr, balance: cBal, user_id: user });
+            .insert({ name: cName, phone: cPhone, address: cAddr, balance: Math.max(0, cBal), user_id: user });
         if (error) { console.error('customer insert with balance:', error); return { success: false }; }
         return { success: true };
     }
 }
+
+/* Move a customer's outstanding by `delta` in ALL THREE stores at once —
+   Supabase, the unscoped mm_customers that sales.html writes, and the scoped
+   mm_<user>_customers that khata's settle writes.
+
+   Lowering only one store does not work here. _mmMergeCustomerBalances() and
+   khata's own merge both keep the HIGHER of cloud and local (a sync must never
+   lose money that is owed), so a reduction applied to one store is silently
+   undone by the other on the next page load. Anything that reduces a balance
+   has to reduce every copy of it. Clamped at zero, matched case-insensitively
+   by name — the cloud lookup inside dbUpdateCustomerBalance is case-SENSITIVE,
+   so pass the name exactly as it is stored. */
+async function mmAdjustCustomerBalance(name, phone, address, delta) {
+    const nm = String(name || '').trim();
+    const d  = parseFloat(delta) || 0;
+    if (!nm || !d) return false;
+    const key = nm.toLowerCase();
+
+    const bumpLocal = (list) => {
+        const c = (list || []).find(x => String(x && x.name || '').trim().toLowerCase() === key);
+        if (c) c.balance = Math.max(0, (parseFloat(c.balance) || 0) + d);
+        else if (d > 0) (list || []).push({ name: nm, phone: phone || '', address: address || '', balance: d });
+        return list || [];
+    };
+
+    // Unscoped store — what sales.html writes and khata reads first.
+    try {
+        const raw = JSON.parse(localStorage.getItem('mm_customers') || '[]');
+        localStorage.setItem('mm_customers', JSON.stringify(bumpLocal(raw)));
+    } catch (e) { console.warn('[db] balance adjust (unscoped) failed:', e); }
+
+    // Scoped store — only touched if it already knows this customer, so we do
+    // not start populating a store nothing else writes.
+    try {
+        if (typeof mmLsGet === 'function' && typeof mmLsSet === 'function') {
+            const scoped = mmLsGet('customers') || [];
+            if (scoped.some(x => String(x && x.name || '').trim().toLowerCase() === key)) {
+                mmLsSet('customers', bumpLocal(scoped));
+            }
+        }
+    } catch (e) { console.warn('[db] balance adjust (scoped) failed:', e); }
+
+    let ok = false;
+    try {
+        const res = await dbUpdateCustomerBalance(nm, phone || '', address || '', d);
+        ok = !!(res && res.success);
+    } catch (e) { console.warn('[db] balance adjust (cloud) failed:', e); }
+
+    // Same retry queue the credit sale uses, so an offline adjustment is not lost.
+    if (!ok && typeof mmLsGet === 'function' && typeof mmLsSet === 'function') {
+        try {
+            const q = mmLsGet('pendingBalanceUpdates') || [];
+            q.push({ name: nm, phone: phone || '', address: address || '', balance: d });
+            mmLsSet('pendingBalanceUpdates', q);
+        } catch (e) {}
+    }
+    return ok;
+}
+window.mmAdjustCustomerBalance = mmAdjustCustomerBalance;
 
 // Retries any credit-sale balance update that failed to reach Supabase (offline,
 // transient error, etc.) so the Khata page — which trusts Supabase's balance

@@ -868,8 +868,17 @@
                         // No id (came from localStorage) — look up by name to get id, then update
                         const user = (typeof _currentUser === 'function') ? _currentUser() : null;
                         if (user) {
-                            const { data: existing } = await _supabase.from('customers')
-                                .select('id').eq('name', cust.name).eq('user_id', user).maybeSingle();
+                            // .limit(1), NOT .maybeSingle(): maybeSingle() returns an
+                            // ERROR (and null data) when more than one row matches the
+                            // name, which fell straight through to the insert below —
+                            // creating a THIRD customer row carrying the settled
+                            // balance while the original kept the old one, so the
+                            // payment looked like it had never been taken. Exactly the
+                            // bug already fixed in dbUpdateCustomerBalance().
+                            const { data: existingRows } = await _supabase.from('customers')
+                                .select('id').eq('name', cust.name).eq('user_id', user)
+                                .order('id', { ascending: true }).limit(1);
+                            const existing = existingRows && existingRows[0];
                             if (existing) {
                                 await _supabase.from('customers').update({ balance: cust.balance }).eq('id', existing.id);
                                 cust.id = existing.id; // cache for next time

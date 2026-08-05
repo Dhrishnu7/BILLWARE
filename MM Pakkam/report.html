@@ -3585,8 +3585,29 @@
             }
         }
 
+        /* A credit bill is also a khata debit. If the bill goes and the balance
+           stays, the customer keeps owing for a sale that no longer exists —
+           and the Statement quietly reports the difference as "Balance brought
+           forward · earlier bills", a debt with no bill behind it, on a page
+           that gets printed and sent to the customer over WhatsApp.
+           Returns the { name, amount } the khata has to move, or null. */
+        function _creditBillKhata(raw) {
+            if (!raw) return null;
+            const mode = String(raw.payment_mode || raw.paymentMode || '').toLowerCase();
+            if (mode !== 'credit') return null;
+            const name = String(raw.customer_name || raw.customerName || '').trim();
+            const amt  = parseFloat(String(raw.grand_total != null ? raw.grand_total : raw.grandTotal).replace(/[^0-9.]/g, '')) || 0;
+            if (!name || !amt) return null;
+            return { name: name, amount: amt };
+        }
+
         async function deleteRecord(type, id, btn) {
-            if (!await mmConfirm(`Delete this ${type === 'sales' ? 'sale' : 'purchase'} record? It will go to the Bin for 30 days.`, { danger: true, okText: 'Delete' })) return;
+            const rawPre  = type === 'sales' ? _rawBillsMap[id] : _rawPurchasesMap[id];
+            const khataPre = type === 'sales' ? _creditBillKhata(rawPre) : null;
+            const khataNote = khataPre
+                ? `\n\nThis was a CREDIT bill, so ₹${khataPre.amount.toFixed(2)} will also come off ${khataPre.name}'s khata balance.`
+                : '';
+            if (!await mmConfirm(`Delete this ${type === 'sales' ? 'sale' : 'purchase'} record? It will go to the Bin for 30 days.${khataNote}`, { danger: true, okText: 'Delete' })) return;
 
             btn.disabled = true;
             btn.innerHTML = '⏳';
@@ -3640,6 +3661,13 @@
                     }
                 } catch (e) { console.warn('local cache prune failed:', e); }
 
+                // Take the bill back off the customer's khata (see _creditBillKhata).
+                if (khataPre && typeof mmAdjustCustomerBalance === 'function') {
+                    try { await mmAdjustCustomerBalance(khataPre.name, '', '', -khataPre.amount); }
+                    catch (e) { console.warn('khata adjust on delete failed:', e); }
+                    if (typeof mmAudit === 'function') mmAudit('Khata adjusted (bill deleted)', khataPre.name + ' · −₹' + khataPre.amount.toFixed(2));
+                }
+
                 delete _rawBillsMap[id];
                 delete _rawPurchasesMap[id];
                 allData     = allData.filter(r => !(r.id == id && r.type === type));
@@ -3651,7 +3679,9 @@
                     row.style.transform = 'translateX(20px)';
                     setTimeout(() => { renderTable(activeTab); updateSummary(currentData); }, 360);
                 }
-                showToast(`🗑️ Moved to Bin. Restore anytime within 30 days.`, 'success');
+                showToast(khataPre
+                    ? `🗑️ Moved to Bin. ₹${khataPre.amount.toFixed(2)} taken off ${khataPre.name}'s khata.`
+                    : `🗑️ Moved to Bin. Restore anytime within 30 days.`, 'success');
                 // If bin panel is open, re-render it
                 if (document.getElementById('binPanel').classList.contains('open')) renderBin();
             } else {
@@ -3946,6 +3976,11 @@
                         customerName: d.customer_name || d.customerName || '',
                         doctorName:   d.doctor_name   || d.doctorName   || '',
                         grandTotal:   d.grand_total   || d.grandTotal   || 0,
+                        // Was missing, and dbSaveBill defaults to 'cash' — so restoring
+                        // a credit sale silently turned it into a cash one, which moved
+                        // money into "Collections by Payment Mode", out of the Day Book's
+                        // receivables and out of the customer's statement.
+                        paymentMode:  d.payment_mode  || d.paymentMode  || 'cash',
                         medicines:    (d.bill_items || d.medicines || []).map(m => ({
                             product:  m.product  || '', batch:    m.batch    || '',
                             exp:      m.exp      || '', pack: m.pack || 0, qty:      Number(m.qty) || 0,
@@ -3964,6 +3999,16 @@
                         }
                     }
                     ok = res && res.success;
+
+                    // Put the debit back on the khata, mirroring the deduction
+                    // deleteRecord() made. Delete and restore must be symmetric or
+                    // the round trip quietly writes off what the customer owes.
+                    const khata = ok ? _creditBillKhata(d) : null;
+                    if (khata && typeof mmAdjustCustomerBalance === 'function') {
+                        try { await mmAdjustCustomerBalance(khata.name, '', '', khata.amount); }
+                        catch (e) { console.warn('khata adjust on restore failed:', e); }
+                        if (typeof mmAudit === 'function') mmAudit('Khata adjusted (bill restored)', khata.name + ' · +₹' + khata.amount.toFixed(2));
+                    }
                 }
             } catch(e) { console.error('Restore error:', e); }
 
