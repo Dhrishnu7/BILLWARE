@@ -1781,9 +1781,66 @@ window.addEventListener('DOMContentLoaded', () => {
             return _tesseractLoading;
         }
 
+        /* IS THERE ENOUGH PICTURE HERE TO READ?
+
+           Asked BEFORE the two-minute scan, because the answer is usually no
+           and the shop deserves to hear it in a second rather than after a
+           progress bar and a page of nonsense.
+
+           This is the single biggest cause of a bad scan and it is invisible:
+           the two photos that finally explained an entire evening of "the OCR
+           is trash" were 1600x900 and 900x1600 — 1.4 megapixels, from a phone
+           that takes 12 or more. Exactly what WhatsApp compresses to. On an A4
+           page that leaves the table text about 11 pixels tall; Tesseract
+           wants twenty to thirty. Nothing downstream can recover from it: the
+           characters are wrong, so the header is not found, so the table
+           bounds are not found, so the letterhead arrives as a product.
+
+           The threshold is stated in the units the shop can act on — the long
+           side in pixels — and the likely cause is named, because "low
+           resolution" is not something anybody can do anything about, whereas
+           "don't send it through WhatsApp" is. */
+        function _checkImageSize(file) {
+            return new Promise(function (resolve) {
+                if (!file || !file.type || file.type.indexOf('image') !== 0) { resolve(null); return; }
+                var url = URL.createObjectURL(file);
+                var im = new Image();
+                im.onload = function () {
+                    var long = Math.max(im.naturalWidth, im.naturalHeight);
+                    URL.revokeObjectURL(url);
+                    resolve({ w: im.naturalWidth, h: im.naturalHeight, long: long });
+                };
+                im.onerror = function () { URL.revokeObjectURL(url); resolve(null); };
+                im.src = url;
+            });
+        }
+
         async function readInvOCR(file) {
-            // Show scanning UI
             const dz = document.getElementById('invDropZone');
+
+            const dim = await _checkImageSize(file);
+            if (dim && dim.long < 2000) {
+                const via = dim.long <= 1600
+                    ? '<br><b>1600 pixels is exactly what WhatsApp shrinks a photo to.</b> '
+                      + 'If this came through WhatsApp, send yourself the original instead — '
+                      + 'attach it as a <i>document</i> rather than a photo, or copy it off the phone with a cable.'
+                    : '';
+                const go = await mmConfirm(
+                    'This photo is ' + dim.w + ' × ' + dim.h + ' pixels.\n\n' +
+                    'An invoice needs about 2500 on the long side to be readable — the text here is ' +
+                    'only a few pixels tall, and the scan will almost certainly come out as nonsense.\n\n' +
+                    'Take the photo again with the invoice filling the frame, and use the original ' +
+                    'file straight from the camera.',
+                    { title: '⚠️ This picture is too small to read',
+                      okText: 'Scan it anyway', cancelText: 'I will get a better one' });
+                if (!go) {
+                    try { document.getElementById('invFileInput').value = ''; } catch (e) {}
+                    if (via) showToast('Tip', 'A photo sent over WhatsApp is shrunk to 1600px. Send the original as a document instead.');
+                    return;
+                }
+            }
+
+            // Show scanning UI
             const origHTML = dz.innerHTML;
             dz.innerHTML = `
                 <div style="padding:2rem;text-align:center;">
