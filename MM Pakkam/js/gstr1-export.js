@@ -135,7 +135,10 @@
                collected. js/einvoice-export.js has always done exactly this;
                the return and the e-invoice now agree.
                What is genuinely wrong in that case is the printed bill, which
-               shows CGST + SGST because the till has no notion of IGST. That
+               showed CGST + SGST, because the till had no notion of IGST. Fixed
+               in v318: the invoice now derives its head from mmTaxHead, the same
+               rule applied below, so the two cannot disagree. The finding stays
+               because a bill printed BEFORE that fix is still on paper. That
                is warned about rather than silently papered over. */
             var interState = !!ctin && !!pos && ctin.slice(0, 2) !== pos;
             var invRates = {};     // rate -> totals, for this one B2B invoice

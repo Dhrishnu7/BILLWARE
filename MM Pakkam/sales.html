@@ -2197,7 +2197,14 @@
                             && String(c.gstin || '').trim().length === 15);
             } catch (e) {}
             if (hit) {
-                el.textContent = '🧾 GST-registered buyer — this bill files as B2B (' + hit.gstin + ')';
+                /* Name the TAX HEAD here, not just B2B. An inter-state registered
+                   buyer is an IGST supply, and until v318 the bill was printed
+                   CGST+SGST while GSTR-1 filed it as IGST — the shop had no way
+                   to see the difference until a buyer queried their 2B. */
+                const th = (typeof mmTaxHead === 'function') ? mmTaxHead(hit.gstin) : { interState: false };
+                el.textContent = th.interState
+                    ? '🧾 Registered buyer in state ' + th.pos + ' — inter-state supply, this bill is IGST (' + hit.gstin + ')'
+                    : '🧾 GST-registered buyer — this bill files as B2B (' + hit.gstin + ')';
                 el.style.display = '';
             } else {
                 el.style.display = 'none';
@@ -2673,6 +2680,16 @@
             const invTermsRaw  = sp.terms || 'Goods once sold cannot be taken back or exchanged.\nMedicines should be stored as per manufacturer guidelines.\nSubject to local jurisdiction only.';
             const invTermsHtml = invTermsRaw.split('\n').filter(Boolean).map(t => `<li>${t}</li>`).join('');
 
+            /* IGST, or the two halves. mmTaxHead applies the SAME rule GSTR-1
+               and Tally use, so the buyer's copy can no longer disagree with
+               what gets filed against them. The arithmetic below is unchanged:
+               cgst + sgst is exactly netBase × gst/100, so an IGST bill shows
+               that one figure rather than a different one. */
+            const _taxHead = (typeof mmTaxHead === 'function')
+                ? mmTaxHead(typeof mmBillBuyerGstin === 'function' ? mmBillBuyerGstin(bill) : '')
+                : { interState: false, pos: '' };
+            const _isIgst = !!_taxHead.interState;
+
             // Correct calculations: base = qty × MRP
             let totalValue = 0, totalCGST = 0, totalSGST = 0, totalDiscount = 0;
             const rows = (bill.medicines || []).map((m, i) => {
@@ -2718,14 +2735,30 @@
                 _hsnGroups[key].sgst    += r.sgst;
             });
             const _hsnList = Object.values(_hsnGroups);
+
+            /* One IGST column at the full rate, or the two half-rate columns.
+               Built as strings so the table shape follows the tax head instead
+               of a CGST/SGST pair being printed on a supply that is neither. */
+            const _thS = 'padding: 8px; border: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; background:#f8fafc;';
+            const _tdS = 'padding: 8px; border: 1px solid #e2e8f0; text-align: center; color:#475569;';
+            const _tfS = 'padding: 8px; border: 1px solid #cbd5e1; text-align: right; font-weight: 700; color:#0f172a; background:#f8fafc;';
+            const _taxTh = _isIgst
+                ? `<th style="${_thS}">IGST</th>`
+                : `<th style="${_thS}">CGST</th><th style="${_thS}">SGST</th>`;
+            const _taxTd = (g) => _isIgst
+                ? `<td style="${_tdS}">${g.gstPct}% &nbsp; ₹${(g.cgst + g.sgst).toFixed(2)}</td>`
+                : `<td style="${_tdS}">${(g.gstPct/2)}% &nbsp; ₹${g.cgst.toFixed(2)}</td><td style="${_tdS}">${(g.gstPct/2)}% &nbsp; ₹${g.sgst.toFixed(2)}</td>`;
+            const _taxTf = _isIgst
+                ? `<td style="${_tfS}">₹${(totalCGST + totalSGST).toFixed(2)}</td>`
+                : `<td style="${_tfS}">₹${totalCGST.toFixed(2)}</td><td style="${_tfS}">₹${totalSGST.toFixed(2)}</td>`;
+
             const hsnSummaryHtml = _hsnList.length ? `
                 <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin-bottom: 30px;">
                     <thead>
                         <tr>
                             <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: left; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; background:#f8fafc;">HSN</th>
                             <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; background:#f8fafc;">Taxable Value</th>
-                            <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; background:#f8fafc;">CGST</th>
-                            <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; background:#f8fafc;">SGST</th>
+                            ${_taxTh}
                             <th style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; background:#f8fafc;">Total Tax</th>
                         </tr>
                     </thead>
@@ -2734,15 +2767,13 @@
                         <tr>
                             <td style="padding: 8px; border: 1px solid #e2e8f0; color:#0f172a; font-weight:600;">${g.hsn}</td>
                             <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; color:#475569;">₹${g.taxable.toFixed(2)}</td>
-                            <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color:#475569;">${(g.gstPct/2)}% &nbsp; ₹${g.cgst.toFixed(2)}</td>
-                            <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color:#475569;">${(g.gstPct/2)}% &nbsp; ₹${g.sgst.toFixed(2)}</td>
+                            ${_taxTd(g)}
                             <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; color:#0f172a; font-weight:600;">₹${(g.cgst+g.sgst).toFixed(2)}</td>
                         </tr>`).join('')}
                         <tr>
                             <td style="padding: 8px; border: 1px solid #cbd5e1; font-weight: 700; color:#0f172a; background:#f8fafc;">Total</td>
                             <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: right; font-weight: 700; color:#0f172a; background:#f8fafc;">₹${totalValue.toFixed(2)}</td>
-                            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: right; font-weight: 700; color:#0f172a; background:#f8fafc;">₹${totalCGST.toFixed(2)}</td>
-                            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: right; font-weight: 700; color:#0f172a; background:#f8fafc;">₹${totalSGST.toFixed(2)}</td>
+                            ${_taxTf}
                             <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: right; font-weight: 700; color:#0f172a; background:#f8fafc;">₹${(totalCGST+totalSGST).toFixed(2)}</td>
                         </tr>
                     </tbody>
@@ -2848,6 +2879,11 @@
                                             <td style="padding: 6px 0; color: #ef4444;">Discount</td>
                                             <td style="padding: 6px 0; text-align: right; color: #ef4444; font-weight: 500;">- ₹${totalDiscount.toFixed(2)}</td>
                                         </tr>` : ''}
+                                        ${_isIgst ? `
+                                        <tr>
+                                            <td style="padding: 6px 0; color: #64748b;">IGST</td>
+                                            <td style="padding: 6px 0; text-align: right; font-weight: 500;">₹${(totalCGST + totalSGST).toFixed(2)}</td>
+                                        </tr>` : `
                                         <tr>
                                             <td style="padding: 6px 0; color: #64748b;">CGST</td>
                                             <td style="padding: 6px 0; text-align: right; font-weight: 500;">₹${totalCGST.toFixed(2)}</td>
@@ -2855,7 +2891,7 @@
                                         <tr>
                                             <td style="padding: 6px 0; color: #64748b;">SGST</td>
                                             <td style="padding: 6px 0; text-align: right; font-weight: 500;">₹${totalSGST.toFixed(2)}</td>
-                                        </tr>
+                                        </tr>`}
                                         ${(function(){
                                             const _sub = (bill.medicines || []).reduce((s, m) => s + (parseFloat(m.total) || 0), 0);
                                             const _net = parseFloat(String(bill.grandTotal || bill.total || 0).replace(/[^0-9.]/g, '')) || 0;

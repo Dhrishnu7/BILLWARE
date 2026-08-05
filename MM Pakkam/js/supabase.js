@@ -1345,6 +1345,67 @@ function mmBackupRemindersOn() { return String(mmConfig('backup_reminders', 'on'
 window.mmBackupRemindersOn = mmBackupRemindersOn;
 
 /* ─────────────────────────────────────────────────────
+   WHICH TAX HEAD APPLIES — CGST+SGST, or IGST
+
+   A supply to a registered buyer in ANOTHER state is an IGST supply at the
+   buyer's place of supply. One rate, one head — 12% filed whole rather than
+   split into two 6% halves. Same money either way, but the head is what the
+   buyer's GSTR-2B matches against, so getting it wrong means their input
+   credit does not reconcile with your invoice.
+
+   The till had no notion of this at all: it billed and printed CGST+SGST on
+   every sale. v309 taught all three EXPORTS the difference — GSTR-1 emits
+   iamt, Tally posts one IGST ledger, the e-invoice always did — and then had
+   to warn that the printed bill still disagreed with them. This is the root
+   fix that warning was standing in for.
+
+   Deliberately DERIVED, never stored on the bill: gstr1-export.js works it
+   out live from the customer record, so a stored flag could drift out of step
+   with what actually gets filed. One rule, computed the same way everywhere.
+   The rule itself is copied from gstr1-export.js line for line — a registered
+   buyer whose state code differs from the shop's.
+
+   A walk-in is NOT inter-state even if they carry the goods away to another
+   state: with no GSTIN the place of supply is where the goods are handed
+   over, which is the shop. That is why a missing buyer GSTIN means intra.
+───────────────────────────────────────────────────── */
+function mmTaxHead(buyerGstin) {
+    const buyer = String(buyerGstin || '').trim().toUpperCase();
+    let shop = '';
+    try {
+        const sp = window.mmShopProfile || {};
+        shop = String(sp.gstin || '').trim().toUpperCase();
+        if (!shop && typeof mmLsGet === 'function') {
+            const c = mmLsGet('profile') || {};
+            shop = String(c.gstin || c.gst_no || '').trim().toUpperCase();
+        }
+    } catch (e) {}
+    const shopPos  = shop.length  === 15 ? shop.slice(0, 2)  : '';
+    const buyerPos = buyer.length === 15 ? buyer.slice(0, 2) : '';
+    const interState = !!buyerPos && !!shopPos && buyerPos !== shopPos;
+    return { interState: interState, pos: interState ? buyerPos : shopPos, buyerGstin: buyer };
+}
+window.mmTaxHead = mmTaxHead;
+
+/* The buyer's GSTIN for a saved bill. By customer id first — that survives a
+   typo or a later rename, which is why the id is stamped on the bill at save
+   time — then by name for older bills that predate it. */
+function mmBillBuyerGstin(bill) {
+    if (!bill) return '';
+    let list = [];
+    try { list = mmCacheGet('customers'); } catch (e) {}
+    if (bill.customerId != null) {
+        const byId = list.find(c => c && String(c.id) === String(bill.customerId));
+        if (byId) return String(byId.gstin || '');
+    }
+    const nm = String(bill.customerName || bill.customer_name || '').trim().toLowerCase();
+    if (!nm) return '';
+    const hit = list.find(c => String(c && c.name || '').trim().toLowerCase() === nm);
+    return hit ? String(hit.gstin || '') : '';
+}
+window.mmBillBuyerGstin = mmBillBuyerGstin;
+
+/* ─────────────────────────────────────────────────────
    READ A LOCAL CACHE, FROM WHICHEVER KEY ACTUALLY HOLDS IT
 
    Two localStorage conventions grew side by side: a SCOPED one,
