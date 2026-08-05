@@ -52,7 +52,15 @@
         if (t.length < 10 || t.indexOf('T') < 0) return '';
         var dt = new Date(t);
         if (isNaN(dt.getTime())) return t.length >= 19 ? t.slice(11, 19) : '';
-        var h = dt.getHours(), m = dt.getMinutes(), s = dt.getSeconds();
+        /* Shown in IST, whatever the machine believes it is. A laptop left on
+           another timezone would otherwise print a day book nobody in the shop
+           recognises. Done by arithmetic rather than
+           toLocaleTimeString({ timeZone: 'Asia/Kolkata' }) because this file
+           stays ES5 for the MSHTML harness, and older engines throw a
+           RangeError on any timeZone but UTC. India has no daylight saving, so
+           a flat +5:30 is exact all year. */
+        var ist = new Date(dt.getTime() + (dt.getTimezoneOffset() + 330) * 60000);
+        var h = ist.getHours(), m = ist.getMinutes(), s = ist.getSeconds();
         return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
     }
 

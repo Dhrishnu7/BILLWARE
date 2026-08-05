@@ -2653,8 +2653,13 @@
                 if (cust) deliveryAddress = cust.address || '';
             }
 
-            const fmtTime = new Date(bill.savedAt || Date.now()).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-            const fmtDate = new Date(bill.savedAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            /* The invoice DATE is the day the bill is FOR; the TIME is when it
+               was taken. Two different fields — deriving both from savedAt
+               printed a back-dated bill under today's date, and the
+               `|| Date.now()` behind it stamped the moment somebody pressed
+               Print as the time of sale on every reprint. */
+            const fmtDate = (typeof mmInvoiceDate === 'function') ? mmInvoiceDate(bill) : (bill.date || '');
+            const fmtTime = (typeof mmFmtTime === 'function') ? mmFmtTime(bill.savedAt) : '';
 
             // Shop profile — use stored values or fall back to defaults
             const sp = window.mmShopProfile || {};
@@ -2931,7 +2936,9 @@
             const shopName = sp.shop_name || 'Billware';
             const lines = [];
             lines.push('*' + shopName + '*');
-            lines.push('Bill: ' + (bill.billNo || '-') + '  |  ' + new Date(bill.savedAt || Date.now()).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }));
+            // The bill's own date, not the moment it is being shared.
+            lines.push('Bill: ' + (bill.billNo || '-') + '  |  ' +
+                ((typeof mmInvoiceDate === 'function') ? mmInvoiceDate(bill) : (bill.date || '')));
             if (bill.customerName) lines.push('Customer: ' + bill.customerName);
             lines.push('--------------------------');
             (bill.medicines || []).forEach(m => {

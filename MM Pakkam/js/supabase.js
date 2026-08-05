@@ -1344,6 +1344,80 @@ window.mmConfig = mmConfig;
 function mmBackupRemindersOn() { return String(mmConfig('backup_reminders', 'on')).toLowerCase() !== 'off'; }
 window.mmBackupRemindersOn = mmBackupRemindersOn;
 
+/* ─────────────────────────────────────────────────────
+   WHEN SOMETHING WAS SAVED — one place, and it never guesses
+
+   Two rules, both learned from getting them wrong:
+
+   1. A DATE IS NOT A TIME. '2026-08-05' parses as UTC midnight, which renders
+      as 5:30 am in IST — a plausible-looking time printed on records that
+      have no time at all. Anything without a 'T' returns EMPTY. A blank is
+      honest; 5:30 am is a lie the shop cannot detect.
+
+   2. Displayed in Asia/Kolkata explicitly, not in whatever the device thinks
+      it is. Timestamps are stored as UTC ISO, so a laptop left on a foreign
+      timezone would otherwise print a bill as taken at a time nobody in the
+      shop recognises. The clock the shop runs on is IST.
+───────────────────────────────────────────────────── */
+function _mmRealTs(v) {
+    const s = String(v == null ? '' : v);
+    if (s.indexOf('T') < 1) return null;      // date-only, or empty
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+}
+
+/* Same instant, shifted so the local getters read IST. India has no daylight
+   saving, so a flat +5:30 is exact all year. Used as the fallback when an
+   engine refuses the timeZone option — losing the time entirely would be a
+   worse answer than computing it. */
+function _mmIst(d) {
+    return new Date(d.getTime() + (d.getTimezoneOffset() + 330) * 60000);
+}
+
+// '2:44 pm', or '' when there is no real timestamp to show.
+function mmFmtTime(v) {
+    const d = _mmRealTs(v);
+    if (!d) return '';
+    try { return d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }); }
+    catch (e) {
+        const i = _mmIst(d), h = i.getHours(), m = i.getMinutes();
+        const h12 = (h % 12) || 12;
+        return h12 + ':' + (m < 10 ? '0' : '') + m + ' ' + (h < 12 ? 'am' : 'pm');
+    }
+}
+
+// '05 Aug 2026, 2:44 pm', or '' — for "saved on" lines.
+function mmFmtDateTime(v) {
+    const d = _mmRealTs(v);
+    if (!d) return '';
+    try {
+        return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric',
+                                           hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
+    } catch (e) { return ''; }
+}
+/* The date an invoice should PRINT — the day the bill is FOR, never the day
+   it happened to be saved. Built from the date PARTS rather than
+   new Date('2026-08-05'), which parses as UTC and prints as the 4th anywhere
+   west of Greenwich and, more to the point here, is the same trap that turned
+   a date into a 5:30 am time above. Falls back to the save timestamp only
+   when there is no date at all. */
+function mmInvoiceDate(bill) {
+    const s = String((bill && bill.date) || '').slice(0, 10);
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (m) {
+        try { return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
+        catch (e) { return s; }
+    }
+    const d = _mmRealTs(bill && bill.savedAt);
+    if (!d) return s;
+    try { return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }); }
+    catch (e) { return s; }
+}
+
+window.mmFmtTime = mmFmtTime;
+window.mmFmtDateTime = mmFmtDateTime;
+window.mmInvoiceDate = mmInvoiceDate;
+
 function mmAudit(action, detail, ref) {
     try {
         const actor = (typeof mmCurrentUser === 'function' && mmCurrentUser())
@@ -1616,7 +1690,7 @@ async function dbSaveBill(bill) {
 
     // payment_mode preserves Cash/Credit across the cloud round-trip. Built as a
     // helper so we can drop it and retry if the column isn't there yet (pre-migration).
-    const _billRow = (no, withPM) => {
+    const _billRow = (no, withPM, withSA) => {
         const p = {
             bill_no:       no,
             date:          bill.date,
@@ -1629,23 +1703,38 @@ async function dbSaveBill(bill) {
         // migrations/add_bill_customer_id.sql is unaffected.
         if (bill.customerId != null) p.customer_id = bill.customerId;
         if (withPM) p.payment_mode = bill.paymentMode || 'cash';
+        /* The moment the bill was taken, as distinct from the date it is FOR.
+           A back-dated bill is a real thing, so the two are not the same
+           field and one must never be derived from the other. */
+        if (withSA) p.saved_at = bill.savedAt || new Date().toISOString();
         return p;
     };
-    let _withPM = true;
+    let _withPM = true, _withSA = true;
     // Use .select() array form — NOT .single() — to avoid PGRST116 false errors
     // when RLS allows insert but restricts read-back.
-    let { data: billRows, error: billErr } = await _supabase.from('bills').insert(_billRow(billNo, _withPM)).select();
-    // Table may not have payment_mode yet (migration not run) — retry without it.
+    let { data: billRows, error: billErr } = await _supabase.from('bills').insert(_billRow(billNo, _withPM, _withSA)).select();
+    /* The table may not have these columns yet (migration not run). Drop only
+       the one the error actually names — dropping both would cost a shop that
+       HAS payment_mode its payment mode just because it lacks saved_at, and
+       that silently turns every credit sale into a cash one. */
     if (billErr && /column|schema cache|PGRST204/i.test(String(billErr.message || ''))) {
-        _withPM = false;
-        ({ data: billRows, error: billErr } = await _supabase.from('bills').insert(_billRow(billNo, _withPM)).select());
+        const msg = String(billErr.message || '');
+        if (/saved_at/i.test(msg))          _withSA = false;
+        else if (/payment_mode/i.test(msg)) _withPM = false;
+        else { _withSA = false; _withPM = false; }
+        ({ data: billRows, error: billErr } = await _supabase.from('bills').insert(_billRow(billNo, _withPM, _withSA)).select());
+        // One column named, the other still missing — drop what is left.
+        if (billErr && /column|schema cache|PGRST204/i.test(String(billErr.message || ''))) {
+            _withSA = false; _withPM = false;
+            ({ data: billRows, error: billErr } = await _supabase.from('bills').insert(_billRow(billNo, _withPM, _withSA)).select());
+        }
     }
     let billRow = billRows?.[0] || null;
 
     if (billErr || !billRow) {
         // Fallback: If there's a unique constraint violation, auto-generate a fallback ID
         billNo = 'MM-' + Date.now().toString().slice(-6) + '-' + Math.floor(Math.random()*1000);
-        let retry = await _supabase.from('bills').insert(_billRow(billNo, _withPM)).select();
+        let retry = await _supabase.from('bills').insert(_billRow(billNo, _withPM, _withSA)).select();
 
         if (retry.error || !retry.data?.[0]) {
             console.error('bill save retry failed:', retry.error);
@@ -1789,8 +1878,37 @@ function _mmNormalizeBills(rows) {
             total:    m.total    || 0,
             hsn:      m.hsn      || '',
         })),
-        savedAt: b.date
+        /* The bill's real save time, NOT its date.
+
+           This used to be `savedAt: b.date`, which destroyed the timestamp on
+           every cloud round-trip: sales.html stamps a proper ISO time at save,
+           and the first sync replaced it with a bare '2026-08-05'. Every
+           screen that shows a bill's time then parsed that as UTC MIDNIGHT and
+           printed 5:30 am — the IST offset, on every bill ever taken, looking
+           entirely plausible.
+
+           Order matters. The cloud column wins when it is there; otherwise any
+           real timestamp still sitting in the local cache is kept, so a device
+           that took the bill keeps the true time even before
+           migrations/add_bill_saved_at.sql has been run. Failing both, it is
+           left EMPTY — a bill with no known time must show no time at all
+           rather than a fabricated one. */
+        savedAt: b.saved_at || _mmLocalSavedAt(b.bill_no) || ''
     }));
+}
+
+/* The save time this device already knows for a bill, if it is a real
+   timestamp. Date-only values are rejected on purpose: they are what the old
+   `savedAt: b.date` left behind, and treating one as a time is the bug. */
+function _mmLocalSavedAt(billNo) {
+    const no = String(billNo || '');
+    if (!no) return '';
+    try {
+        const list = JSON.parse(localStorage.getItem('mm_sales') || '[]');
+        const hit = list.find(b => b && String(b.billNo) === no);
+        const t = hit && String(hit.savedAt || '');
+        return (t && t.indexOf('T') > 0) ? t : '';
+    } catch (e) { return ''; }
 }
 
 async function dbSyncCoreData() {

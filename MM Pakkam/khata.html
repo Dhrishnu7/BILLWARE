@@ -1449,11 +1449,11 @@
             if (isNaN(dt)) return s || '—';
             return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
         }
+        /* Delegates to the shared mmFmtTime, which returns '' for a date-only
+           value instead of parsing it as UTC midnight and printing 5:30 am —
+           which is what every bill on this statement used to show. */
         function _fmtStmtTime(iso) {
-            if (!iso) return '';
-            const dt = new Date(iso);
-            if (isNaN(dt)) return '';
-            return dt.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+            return (typeof mmFmtTime === 'function') ? mmFmtTime(iso) : '';
         }
 
         function _buildStatement(name, phone) {

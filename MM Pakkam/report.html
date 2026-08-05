@@ -6313,12 +6313,20 @@
                 return;
             }
 
-            // Sort by date desc
-            results.sort((a,b) => new Date(b.savedAt) - new Date(a.savedAt));
+            /* Newest first, by the bill's own date and then by the save time
+               within a day. Sorting on savedAt alone put every bill that has
+               no real timestamp at the Invalid-Date end of the list. */
+            results.sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))
+                                || String(b.savedAt || '').localeCompare(String(a.savedAt || '')));
 
             tbody.innerHTML = '';
             results.forEach(bill => {
-                const d = new Date(bill.savedAt).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:true});
+                /* Invoice date, plus the save time only when one is actually
+                   known. Previously this parsed a date-only savedAt and
+                   printed every bill as taken at 5:30 am. */
+                const t = (typeof mmFmtTime === 'function') ? mmFmtTime(bill.savedAt) : '';
+                const d = ((typeof mmInvoiceDate === 'function') ? mmInvoiceDate(bill) : (bill.date || ''))
+                        + (t ? ', ' + t : '');
                 
                 // Lookup phone again for display
                 let dispPhone = bill.customerPhone || '';
@@ -6373,8 +6381,13 @@
                 if (cust) deliveryAddress = cust.address || '';
             }
 
-            const fmtTime = new Date(bill.savedAt || Date.now()).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-            const fmtDate = new Date(bill.savedAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            /* The invoice DATE is the day the bill is FOR; the TIME is when it
+               was taken. Two different fields, and both were being derived
+               from savedAt with `|| Date.now()` behind them — so a reprint
+               stamped the moment somebody pressed Print as the time of sale,
+               and a back-dated bill printed under today's date. */
+            const fmtDate = (typeof mmInvoiceDate === 'function') ? mmInvoiceDate(bill) : (bill.date || '');
+            const fmtTime = (typeof mmFmtTime === 'function') ? mmFmtTime(bill.savedAt) : '';
 
             let totalValue = 0, totalCGST = 0, totalSGST = 0, totalDiscount = 0;
             const rows = (bill.medicines || []).map((m, i) => {

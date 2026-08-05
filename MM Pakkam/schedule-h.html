@@ -2727,7 +2727,9 @@
 
             tbody.innerHTML = filtered.map(entry => {
                 const dateStr = entry.date ? new Date(entry.date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-                const timeStr = entry.savedAt ? new Date(entry.savedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
+                // Shared formatter: blank when there is no real timestamp, rather
+                // than parsing a date-only value as UTC midnight and printing 5:30 am.
+                const timeStr = (typeof mmFmtTime === 'function') ? mmFmtTime(entry.savedAt) : '';
                 const type = entry.entryType || 'out';
                 const typeBadge = type === 'in'
                     ? `<span class="type-badge type-in">📥 In</span>`
