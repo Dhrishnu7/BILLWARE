@@ -4475,11 +4475,22 @@
             renderAccounts();
         }
 
+        /* Changing the Accounts period copies the dates into the report's own
+           From/To — and until now stopped there. So the inputs said one period
+           while the Tabular table and every Visual Analytics tile still showed
+           the previous one. That is worse than ignoring the new range: the
+           screen actively claimed a period it was not displaying. Same shape
+           as the bug v307 fixed on the Generate button.
+
+           generateReport() only re-filters data already in hand and re-renders
+           — no network — so there is no cost to keeping them in step. */
         function syncAccPeriod(which) {
             const af = document.getElementById('accFrom').value || '';
             const at = document.getElementById('accTo').value || '';
             document.getElementById('fromDate').value = af;
             document.getElementById('toDate').value   = at;
+            try { if (typeof generateReport === 'function') generateReport(); }
+            catch (e) { console.warn('report refresh on period change:', e); }
             renderAccounts();
         }
 

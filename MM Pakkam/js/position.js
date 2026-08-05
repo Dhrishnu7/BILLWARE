@@ -185,6 +185,29 @@
 
         var gstNet = outTax - inTax;
 
+        /* If the GSTR-3B worksheet is on the page, take ITS figures instead of
+           these. Not because the arithmetic above is wrong — it agrees to the
+           paisa on the money — but because 3B rounds each tax head BEFORE
+           adding them, and rounding once at the end lands a paisa away. Two
+           screens of one app showing -182.42 and -182.43 makes a shop distrust
+           both, and the one on the filing screen is the one to match.
+
+           The same principle as everything else here: use the module that owns
+           the figure rather than reproducing its arithmetic and hoping. */
+        var gstFrom = 'computed here';
+        if (window.mmGstr3b && typeof mmGstr3b.build === 'function') {
+            try {
+                var b3 = mmGstr3b.build({ period: month });
+                if (b3 && b3.outward && b3.itc) {
+                    outTax = num(b3.outputTax !== undefined ? b3.outputTax
+                                 : (num(b3.outward.cgst) + num(b3.outward.sgst) + num(b3.outward.igst)));
+                    inTax  = num(b3.itc.total);
+                    gstNet = outTax - inTax;
+                    gstFrom = 'GSTR-3B worksheet';
+                }
+            } catch (e) { /* fall back to the figures above */ }
+        }
+
         var working = stock + debtors - creditors - Math.max(0, gstNet);
 
         return {
@@ -195,6 +218,7 @@
             creditors: r2(creditors), creditorCount: creditorCount,
             outputTax: r2(outTax), inputTax: r2(inTax), gstNet: r2(gstNet),
             creditNoteTax: r2(cnTax), debitNoteTax: r2(dnTax),
+            gstSource: gstFrom,
             working: r2(working),
             /* Stated, not implied. Every one of these is a real part of the
                shop's finances that this app does not hold, and the reader has
