@@ -1078,8 +1078,8 @@
                 </div>
                 <div style="overflow-x:auto; max-height:360px; overflow-y:auto; margin-top:0.6rem;">
                     <table class="report-table" style="min-width:420px;">
-                        <thead><tr><th>Medicine</th><th style="text-align:right;">Qty Sold</th><th style="text-align:right;">Revenue</th></tr></thead>
-                        <tbody id="itemMovementBody"><tr><td colspan="3" style="text-align:center; padding:1.4rem; color:#94a3b8;">Generate a report to see movement.</td></tr></tbody>
+                        <thead><tr><th>Medicine</th><th style="text-align:right;">Qty Sold</th><th style="text-align:right;">Revenue</th><th style="text-align:right;">Cost</th><th style="text-align:right;">Profit</th><th style="text-align:right;">Margin</th></tr></thead>
+                        <tbody id="itemMovementBody"><tr><td colspan="6" style="text-align:center; padding:1.4rem; color:#94a3b8;">Generate a report to see movement.</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -4552,6 +4552,14 @@
             renderCashFlow();
             renderDayBook();
             switchAccTab(_accTab);
+            /* The Analytics item table reads its margins from _accData, so it
+               has to be repainted when that changes — otherwise the columns
+               stay on "generate Accounts for margins" even though the numbers
+               are now sitting right there. */
+            try {
+                const s = document.getElementById('itemMoveSearch');
+                renderItemMovement(s ? s.value : '');
+            } catch (e) {}
         }
 
         /* Warnings and footing checks share one strip at the top. A statement
@@ -5267,21 +5275,55 @@
             </div>`).join('');
         }
 
-        // Full item-wise sales movement — every medicine's qty sold + revenue, sortable.
+        /* Full item-wise sales movement — and what each medicine actually
+           EARNED, which is the question this table existed to nearly answer.
+
+           Ranked by profit, not revenue. A fast-moving item on a thin margin
+           sits near the top of a revenue list and nowhere near the top of
+           this one, and telling those two apart is the whole reason an owner
+           opens the screen.
+
+           The figures come from mmPnl, off the same cost index the Profit &
+           Loss uses, so the column here and the margin there cannot disagree.
+           Falls back to the old revenue-only data if the P&L has not been
+           generated for this period yet. */
         function renderItemMovement(filter) {
             const body = document.getElementById('itemMovementBody');
             if (!body) return;
             const q = (filter || '').trim().toLowerCase();
-            const rows = (window._itemMovementData || []).filter(r => !q || r.name.toLowerCase().includes(q));
+            const src = (_accData && Array.isArray(_accData.items) && _accData.items.length)
+                ? _accData.items
+                : (window._itemMovementData || []);
+            const rows = src.filter(r => !q || String(r.name || '').toLowerCase().includes(q));
             if (!rows.length) {
-                body.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:1.4rem; color:#94a3b8;">'
-                    + ((window._itemMovementData || []).length ? 'No matches.' : 'No sales in the selected period.') + '</td></tr>';
+                body.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.4rem; color:#94a3b8;">'
+                    + (src.length ? 'No matches.' : 'No sales in the selected period.') + '</td></tr>';
                 return;
             }
-            body.innerHTML = rows.map(r => '<tr>'
-                + '<td>' + _aEsc(r.name) + '</td>'
-                + '<td style="text-align:right; font-weight:700;">' + (Math.round(r.qty * 100) / 100) + '</td>'
-                + '<td style="text-align:right;">₹' + (Math.round(r.revenue * 100) / 100).toFixed(2) + '</td></tr>').join('');
+            const m = n => '₹' + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
+            body.innerHTML = rows.map(r => {
+                const hasCost = ('profit' in r);
+                /* An item with no purchase record has no cost, so its "profit"
+                   would be its entire revenue — the biggest earner in the shop,
+                   and the one an owner would go and buy more of. Say so
+                   instead of printing a number. */
+                const unknown = hasCost && r.costed === false;
+                const pos = (Number(r.profit) || 0) >= 0;
+                return '<tr>'
+                    + '<td>' + _aEsc(r.name)
+                    + (unknown ? ' <span title="No purchase record for this item, so its cost is unknown" style="color:#b45309;font-size:0.72rem;font-weight:700;">⚠ no cost</span>' : '')
+                    + '</td>'
+                    + '<td style="text-align:right; font-weight:700;">' + (Math.round((Number(r.qty) || 0) * 100) / 100) + '</td>'
+                    + '<td style="text-align:right;">' + m(r.revenue) + '</td>'
+                    + (hasCost
+                        ? '<td style="text-align:right; color:#64748b;">' + (unknown ? '—' : m(r.cost)) + '</td>'
+                        + '<td style="text-align:right; font-weight:700; color:' + (unknown ? '#b45309' : (pos ? '#059669' : '#dc2626')) + ';">'
+                            + (unknown ? 'unknown' : m(r.profit)) + '</td>'
+                        + '<td style="text-align:right; color:' + (unknown ? '#b45309' : (pos ? '#059669' : '#dc2626')) + ';">'
+                            + (unknown ? '—' : (Math.round((Number(r.pct) || 0) * 10) / 10) + '%') + '</td>'
+                        : '<td colspan="3" style="text-align:right; color:#94a3b8; font-size:0.78rem;">generate Accounts for margins</td>')
+                    + '</tr>';
+            }).join('');
         }
 
         function generateAnalytics(data) {

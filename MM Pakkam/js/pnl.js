@@ -301,6 +301,22 @@
         var uncostedNames = {};   // product -> quantity sold with no cost on record
         var costs = costIndex(to);
 
+        /* Per-product margin, accumulated in the SAME pass and off the SAME
+           cost index as the total above. It has to be the same source: the
+           Report page already had its own getUnitCost() for the analytics
+           tiles, so a third lookup here would give the owner two different
+           answers to "what did I make on this" depending which screen they
+           opened. The per-item figures now add up to itemMargin exactly. */
+        var byItem = {};
+        function itemSlot(name) {
+            var k = key(name) || '?';
+            if (!byItem[k]) {
+                byItem[k] = { name: String(name || '?').trim() || '?',
+                              qty: 0, revenue: 0, cost: 0, profit: 0, costed: true };
+            }
+            return byItem[k];
+        }
+
         sales.forEach(function (bill) {
             // Returns are held in the same list but are accounted for through
             // returns-data.js, which is the only place their tax is known.
@@ -320,8 +336,13 @@
 
                 var qty  = num(m.qty);
                 var cost = costs.unitCost(m.product, m.batch);
+                var slot = itemSlot(m.product);
+                slot.qty     += qty;
+                slot.revenue += taxable;
                 if (cost) {
-                    itemMargin += taxable - cost * qty;
+                    itemMargin  += taxable - cost * qty;
+                    slot.cost   += cost * qty;
+                    slot.profit += taxable - cost * qty;
                 } else if (qty > 0) {
                     // Sold something the app has no purchase record for. Its
                     // cost is unknown, so it contributes revenue and no cost —
@@ -330,6 +351,11 @@
                     uncostedRevenue += taxable;
                     var un = String(m.product || '?');
                     uncostedNames[un] = (uncostedNames[un] || 0) + qty;
+                    /* The whole product is marked, not just this line. A margin
+                       built from some of the sales and none of the cost reads
+                       as a spectacular earner, which is exactly the item an
+                       owner would then buy more of. */
+                    slot.costed = false;
                 }
             });
             sLineSum += lineSum;
@@ -652,6 +678,28 @@
             itemMargin:  r2(itemMargin),
             marginGap:   r2(itemMargin - grossProfit),
             uncosted:    { lines: uncostedLines, revenue: r2(uncostedRevenue), products: uncostedList },
+
+            /* Per-product margin, biggest earner first. Sorted by PROFIT, not
+               revenue — the question this answers is "what makes me money",
+               and the two orders are not the same list. A high-turnover item
+               at a thin margin sits near the top of a revenue ranking and
+               nowhere near the top of this one, which is the entire point. */
+            items: Object.keys(byItem).map(function (k) {
+                var s = byItem[k];
+                return {
+                    name:    s.name,
+                    qty:     r2(s.qty),
+                    revenue: r2(s.revenue),
+                    cost:    r2(s.cost),
+                    profit:  r2(s.profit),
+                    // Margin on the shop's own selling price, which is how a
+                    // pharmacy quotes it — not markup on cost.
+                    pct:     s.revenue ? r2(s.profit / s.revenue * 100) : 0,
+                    // False = no purchase record, so its profit is overstated
+                    // by the whole of its unknown cost. Never presented as fact.
+                    costed:  s.costed
+                };
+            }).sort(function (a, b) { return b.profit - a.profit; }),
 
             expenses:    { total: r2(expTotalPnl), rows: expenseRows, cashTotal: r2(expTotalCash), gstRemitted: r2(gstRemitted) },
             roundOff:    r2(roundOff),
