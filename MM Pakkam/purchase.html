@@ -956,6 +956,24 @@
             const firm   = document.getElementById('firm').value.trim();
             const date   = document.getElementById('purchaseDate').value;
 
+            /* Same guard as the Sales page. A purchase carries the SUPPLIER's
+               invoice date, which cannot be ahead of today either — and a
+               future-dated purchase hides the stock from every valuation that
+               stops at today, so closing stock and the P&L both understate it.
+               Asked, not blocked: back-dating a supplier bill is normal. */
+            const _todayStr = (() => { const d = new Date(), p = n => (n < 10 ? '0' : '') + n;
+                return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); })();
+            if (date && String(date).slice(0, 10) > _todayStr) {
+                const _ahead = Math.round((Date.parse(String(date).slice(0, 10) + 'T00:00:00Z') - Date.parse(_todayStr + 'T00:00:00Z')) / 86400000);
+                const goOn = await mmConfirm(
+                    'This purchase is dated ' + String(date).slice(0, 10) + ' — ' + _ahead + ' day(s) from now.\n\n' +
+                    'A future date hides the stock from every valuation that stops at today, so closing ' +
+                    'stock and profit will both look wrong until that day arrives.\n\n' +
+                    'Check the date on the supplier\'s invoice.',
+                    { title: '⚠️ This purchase is dated in the future', okText: 'Save it anyway', cancelText: 'Go back and fix the date' });
+                if (!goOn) { _isSaving = false; if (btn) { btn.disabled = false; } return; }
+            }
+
             // Gather all line items
             const records = [];
             const barcodeLinks = []; // {barcode, productName} to save for scan billing

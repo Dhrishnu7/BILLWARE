@@ -1918,6 +1918,33 @@
             }
             const grandTotal = _computed.toFixed(2);
 
+            /* A bill dated ahead of today is wrong on its face — under GST the
+               invoice date is the date of supply — and it hides itself
+               afterwards: it falls outside any report that stops at today, so
+               it is missing from the day's takings, from the pre-filing check,
+               and from the month a shop would think to look in.
+
+               Found in testing: six bills saved within FIVE MINUTES carried six
+               consecutive dates, three of them days ahead of when they were
+               billed. The box below defaults to today and resets to today after
+               every save, so nobody typed those — a stray scroll or arrow key on
+               a type="date" input walks the day up silently. Asked, not blocked:
+               the date field exists precisely so a bill can be back-dated, and a
+               shop that means it should be able to say so. */
+            const _saleDate = String(document.getElementById('saleDate').value || '').slice(0, 10);
+            const _todayStr = (() => { const d = new Date(), p = n => (n < 10 ? '0' : '') + n;
+                return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); })();
+            if (_saleDate && _saleDate > _todayStr) {
+                const _ahead = Math.round((Date.parse(_saleDate + 'T00:00:00Z') - Date.parse(_todayStr + 'T00:00:00Z')) / 86400000);
+                const goOn = await mmConfirm(
+                    'This bill is dated ' + _saleDate + ' — ' + _ahead + ' day(s) from now.\n\n' +
+                    'A future date puts the sale in a GST period you cannot file yet, and hides it from ' +
+                    'every report that stops at today, including the day\'s own takings.\n\n' +
+                    'Change the Date box to today unless you truly mean to date it ahead.',
+                    { title: '⚠️ This bill is dated in the future', okText: 'Save it anyway', cancelText: 'Go back and fix the date' });
+                if (!goOn) { _isSaving = false; btn.disabled = false; btn.innerHTML = '💾 Save Bill'; return; }
+            }
+
             const billInput = document.getElementById('billNo').value;
             let finalBillNo = billInput;
             try {

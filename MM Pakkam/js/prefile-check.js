@@ -41,6 +41,23 @@
         return window.mmGstValid || null;
     }
 
+    /* Today as YYYY-MM-DD in the SHOP's timezone. Deliberately not
+       toISOString().slice(0,10), which is UTC: in IST that reads as
+       yesterday for the first 5½ hours of every day, so a bill saved at
+       6 am would be reported as dated in the future. */
+    function todayLocal() {
+        var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+        return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
+
+    /* Whole days between two YYYY-MM-DD strings, parsed as UTC midnight on
+       both sides so daylight-saving and offsets cannot introduce a half day. */
+    function daysAfter(from, to) {
+        var a = Date.parse(from + 'T00:00:00Z'), b = Date.parse(to + 'T00:00:00Z');
+        if (isNaN(a) || isNaN(b)) return 0;
+        return Math.round((b - a) / 86400000);
+    }
+
     function inPeriod(d, from, to) {
         var s = str(d).slice(0, 10);
         if (!s) return false;
@@ -64,6 +81,12 @@
         var custs = ls('mm_customers', '[]') || [];
         var sups  = ls('mm_suppliers', '[]') || [];
         var shop  = window.mmShopProfile || {};
+
+        /* Kept before the period filter: a bill dated in the future falls
+           OUTSIDE every period a shop would sensibly check, so the filter
+           below is exactly what hides it. See the future-date warning at the
+           bottom of this function. */
+        var allBills = bills.slice();
 
         bills = bills.filter(function (b) { return inPeriod(b.date, from, to); });
 
@@ -257,8 +280,41 @@
             'GSTR-1 and Tally do not need these. e-Invoice and e-way bills cannot be built without them.',
             posRows, 'shoppos');
 
+        /* ── Bills dated in the future ───────────────────────────────────
+           Run over allBills, NOT the period-filtered list, because being
+           outside every sensible period is the whole problem: such a bill is
+           invisible to every other check on this screen, absent from any
+           report that runs "up to today", and it lands in the return for a
+           month that has not happened yet.
+
+           Found in testing: six bills saved within five minutes of each other
+           carried six consecutive dates, three of them ahead of the day they
+           were billed — the Sales page's date box defaults to today but
+           accepts anything, and a stray scroll on a type="date" input walks
+           the day up without anyone noticing. Under GST the invoice date is
+           the date of supply, so a date ahead of today is wrong on its face.
+           A WARNING, not a block: the portal accepts these, which is exactly
+           why nothing else catches them. */
+        var futRows = [];
+        var today = todayLocal();
+        for (var f1 = 0; f1 < allBills.length; f1++) {
+            var fb = allBills[f1], fd = str(fb.date).slice(0, 10);
+            if (!fd || fd <= today) continue;
+            futRows.push({
+                label: str(fb.billNo) || '(no number)',
+                detail: 'dated ' + fd + ' — ' + daysAfter(today, fd) + ' day(s) from now'
+            });
+        }
+        futRows.sort(function (a, b) { return a.label < b.label ? -1 : 1; });
+        add(warns, 'futureDated', 'Bills dated in the future',
+            'These file, but they are dated after today, so they belong to a period you cannot file yet — '
+            + 'and they are missing from any report that stops at today, including the checks above. '
+            + 'Open each one and correct the date to the day the goods were supplied.',
+            futRows, null);
+
         var counts = {
             bills: bills.length,
+            futureDated: futRows.length,
             blockFindings: blocks.length,
             warnFindings: warns.length,
             blockRows: blocks.reduce(function (n, f) { return n + f.rows.length; }, 0),
