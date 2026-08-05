@@ -1674,6 +1674,32 @@ window.addEventListener('DOMContentLoaded', () => {
            blank on two lines" and knowing whether those words were never read,
            read and thrown away by the confidence filter, or read and put in the
            wrong row. Stays on the machine unless someone chooses to share it. */
+        /* The save-the-scan link, on the screen that says the scan went badly.
+
+           It used to live ONLY on the preview, which you reach by pressing
+           Continue. So the one screen that announces a bad scan was the one
+           screen with no way to report it — and "Try another photo" / "Re-upload
+           Better Image", the obvious response to a bad scan, clears the file
+           input and the raw scan with it. The scans worth diagnosing were
+           exactly the ones being thrown away.
+
+           This is not a nicety. The OCR parser must never be changed from a
+           screenshot: it was once, and the guess shipped a regression that had
+           to be undone from a saved scan. The file IS the evidence. */
+        function _scanDataLink() {
+            if (!_ocrRaw) return '';
+            return `<div style='margin-top:0.9rem;padding-top:0.7rem;border-top:1px dashed rgba(0,0,0,0.15);'>
+                <button type="button" onclick="saveScanData()"
+                    style='background:none;border:none;padding:0;font-size:0.78rem;color:#0369a1;text-decoration:underline;cursor:pointer;font-family:inherit;font-weight:700;'>
+                    ⬇ Save scan data
+                </button>
+                <span style='font-size:0.75rem;color:#78716c;'>
+                    &nbsp;— save this BEFORE trying another photo, and send it with your report.
+                    It is the only record of what the scanner actually saw.
+                </span>
+            </div>`;
+        }
+
         function saveScanData() {
             if (!_ocrRaw) { showToast('Nothing to save', 'This was not a photo scan.'); return; }
             try {
@@ -3132,6 +3158,7 @@ window.addEventListener('DOMContentLoaded', () => {
                         style='flex:1;min-width:160px;padding:0.6rem;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;'>
                         🔄 Try another photo
                     </button></div>`;
+                html += _scanDataLink();
                 wrap.innerHTML = html;
             } else {
                 wrap.style.cssText = 'margin-top:1rem;padding:1rem 1.2rem;border-radius:12px;border:2px solid #fde68a;background:#fffbeb;font-size:0.82rem;';
@@ -3147,6 +3174,7 @@ window.addEventListener('DOMContentLoaded', () => {
                         🔄 Re-upload Better Image
                     </button>
                 </div>`;
+                html += _scanDataLink();
                 wrap.innerHTML = html;
             }
 
