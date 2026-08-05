@@ -1543,6 +1543,55 @@ function mmAudit(action, detail, ref) {
 }
 window.mmAudit = mmAudit;
 
+/* ─────────────────────────────────────────────────────
+   TILL COUNTS — what was actually in the drawer
+
+   Needs migrations/add_till_counts_table.sql. Without it these fail quietly
+   and the screen falls back to the local copy, which is the right degradation:
+   a shop that has not run the migration can still count its till on the
+   machine it counts it on.
+
+   One row per shop per day, upserted — a second count for a day is a
+   CORRECTION, not another count. Anything else would let a shop's cash be
+   recorded twice by someone re-entering a figure they mistyped.
+───────────────────────────────────────────────────── */
+async function dbGetTillCounts(fromDay, toDay) {
+    const user = _currentUser();
+    if (!user) return [];
+    let q = _supabase.from('till_counts').select('*').eq('user_id', user);
+    if (fromDay) q = q.gte('day', fromDay);
+    if (toDay)   q = q.lte('day', toDay);
+    const { data, error } = await q.order('day', { ascending: false });
+    if (error) { console.warn('[db] till counts fetch:', error.message); return []; }
+    return (data || []).map(r => ({
+        day: String(r.day || '').slice(0, 10),
+        opening: Number(r.opening) || 0,
+        counted: Number(r.counted) || 0,
+        note: r.note || '',
+        countedAt: r.counted_at || ''
+    }));
+}
+window.dbGetTillCounts = dbGetTillCounts;
+
+async function dbSaveTillCount(rec) {
+    const user = _currentUser();
+    if (!user) return { success: false, message: 'Not logged in.' };
+    const day = String(rec && rec.day || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { success: false, message: 'Bad date.' };
+    const row = {
+        user_id: user, day: day,
+        opening: Number(rec.opening) || 0,
+        counted: Number(rec.counted) || 0,
+        note: String(rec.note || ''),
+        counted_at: new Date().toISOString()
+    };
+    const { error } = await _supabase.from('till_counts')
+        .upsert(row, { onConflict: 'user_id,day' });
+    if (error) { console.warn('[db] till count save:', error.message); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbSaveTillCount = dbSaveTillCount;
+
 async function dbGetAuditLog(limit) {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbGetAuditLog: no user, aborting.'); return []; }

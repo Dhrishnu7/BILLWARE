@@ -4352,7 +4352,43 @@
         ══════════════════════════════════════════════════════════════ */
         let _accTab = 'pnl';
         let _accData = null;
+        let _accPrev = null;      // the same statement for the period before
         let _accDay = null;
+
+        /* THE PERIOD BEFORE THIS ONE.
+
+           An owner does not read ₹9,547 and know anything. They read it
+           against last month and immediately know whether to worry. Every
+           screen here was a single-period snapshot, which is the one thing
+           a shop owner never asks for.
+
+           Which "before" is not obvious, so it is chosen rather than assumed:
+           a whole calendar month compares to the whole calendar month before
+           it — that is what "last month" means to a shop, and Feb having 28
+           days does not make it a short month. Any other range compares to
+           the SAME NUMBER OF DAYS immediately before it, because a 10-day
+           range against a 31-day one would be a meaningless comparison
+           presented as an insight. The label says which was used. */
+        function _prevPeriod(from, to) {
+            const P = n => (n < 10 ? '0' : '') + n;
+            const mk = dt => dt.getFullYear() + '-' + P(dt.getMonth() + 1) + '-' + P(dt.getDate());
+            const f = new Date(from + 'T00:00:00'), t = new Date(to + 'T00:00:00');
+            if (isNaN(f) || isNaN(t) || t < f) return null;
+
+            const lastDayOf = (y, m) => new Date(y, m + 1, 0).getDate();
+            const wholeMonth = f.getDate() === 1
+                            && f.getFullYear() === t.getFullYear() && f.getMonth() === t.getMonth()
+                            && t.getDate() === lastDayOf(t.getFullYear(), t.getMonth());
+            if (wholeMonth) {
+                const pf = new Date(f.getFullYear(), f.getMonth() - 1, 1);
+                const pt = new Date(pf.getFullYear(), pf.getMonth(), lastDayOf(pf.getFullYear(), pf.getMonth()));
+                return { from: mk(pf), to: mk(pt), label: 'the month before' };
+            }
+            const days = Math.round((t - f) / 86400000) + 1;
+            const pt = new Date(f.getTime() - 86400000);
+            const pf = new Date(pt.getTime() - (days - 1) * 86400000);
+            return { from: mk(pf), to: mk(pt), label: 'the ' + days + ' day(s) before' };
+        }
         let _accOpening = { value: 0, date: '' };
         let _accDayFilter = 'all';
 
@@ -4533,7 +4569,10 @@
                  <hr>`;
         }
 
-        function renderAccounts() {
+        /* async since v322: the till counts are fetched before the Day Book
+           paints. Every caller fires and forgets, which is correct — nothing
+           downstream reads the DOM this builds. */
+        async function renderAccounts() {
             const from = document.getElementById('accFrom').value || '';
             const to   = document.getElementById('accTo').value   || '';
             if (!window.mmPnl) {
@@ -4547,9 +4586,30 @@
             });
             _accDay = (window.mmDayBook) ? mmDayBook.load({ from: from, to: to }) : { rows: [], totals: {}, days: [] };
 
+            /* The same statement for the period before, so the P&L can say
+               better or worse instead of just a number. The manual opening
+               stock is passed through unchanged — mmPnl only uses it when it
+               is dated at or before that period's start, so an opening figure
+               entered for THIS period cannot leak backwards into the last. */
+            _accPrev = null;
+            try {
+                const p = _prevPeriod(from, to);
+                if (p) {
+                    _accPrev = mmPnl.build({
+                        from: p.from, to: p.to,
+                        openingStock: _accOpening.value,
+                        openingStockDate: _accOpening.date
+                    });
+                    _accPrev.periodLabel = p.label;
+                    _accPrev.from = p.from; _accPrev.to = p.to;
+                }
+            } catch (e) { console.warn('previous period failed:', e); }
+
             renderAccWarnings();
             renderPnl();
             renderCashFlow();
+            // Counts must be in hand before the Day Book paints its till box.
+            try { await loadTillCounts(); } catch (e) {}
             renderDayBook();
             switchAccTab(_accTab);
             /* The Analytics item table reads its margins from _accData, so it
@@ -4798,6 +4858,51 @@
 
             let extra = '';
 
+            /* AGAINST LAST TIME. The comparison is the information — an
+               absolute figure tells an owner nothing they can act on.
+
+               Three deliberate choices:
+               · A period with NO trading is not reported as "−100%". It is
+                 reported as having no trading, because a percentage against
+                 zero is arithmetic, not meaning.
+               · Direction is coloured, but nothing is called good or bad.
+                 Purchases up is not bad; it may be stocking for a season.
+               · The dates of the comparison period are printed. A comparison
+                 whose other half is unstated is not checkable. */
+            if (_accPrev) {
+                const p = _accPrev;
+                const cmp = (label, now, was, invert) => {
+                    const diff = now - was;
+                    const hasBase = Math.abs(was) >= 0.01;
+                    const pct = hasBase ? (diff / Math.abs(was) * 100) : 0;
+                    const flat = Math.abs(diff) < 0.01;
+                    const good = invert ? (diff < 0) : (diff > 0);
+                    const col = flat ? '#64748b' : (good ? '#059669' : '#dc2626');
+                    const arrow = flat ? '' : (diff > 0 ? '▲' : '▼');
+                    return `<div style="flex:1 1 150px;min-width:140px;padding:9px 12px;border-right:1px solid #f1f5f9;">
+                        <div style="font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;font-weight:700;">${label}</div>
+                        <div style="font-size:0.95rem;font-weight:800;color:#0f172a;margin-top:2px;">${accInr(now)}</div>
+                        <div style="font-size:0.75rem;font-weight:700;color:${col};margin-top:2px;">
+                            ${hasBase
+                                ? `${arrow} ${accInr(Math.abs(diff))} (${Math.abs(pct).toFixed(1)}%)`
+                                : (Math.abs(now) < 0.01 ? 'no trading either period' : 'nothing to compare with')}
+                        </div>
+                        <div style="font-size:0.7rem;color:#cbd5e1;margin-top:1px;">was ${accInr(was)}</div>
+                    </div>`;
+                };
+                extra += `<div style="max-width:720px;margin:1.2rem auto 0;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                    <div style="background:#f8fafc;padding:8px 12px;font-size:0.78rem;color:#475569;border-bottom:1px solid #e2e8f0;">
+                        Compared with <b>${_te(p.periodLabel)}</b> &nbsp;·&nbsp; ${_te(p.from)} to ${_te(p.to)}
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;">
+                        ${cmp('Net sales', d.netSales, p.netSales)}
+                        ${cmp('Gross profit', d.grossProfit, p.grossProfit)}
+                        ${cmp('Expenses', d.expenses.total, p.expenses.total, true)}
+                        ${cmp('Net profit', d.netProfit, p.netProfit)}
+                    </div>
+                </div>`;
+            }
+
             /* The two ways of measuring gross profit, and what their gap
                means. This is the number a shop cannot get anywhere else:
                stock that left without being sold. */
@@ -4970,10 +5075,140 @@
                     <div class="acc-tot" style="border-top:1px solid #e2e8f0;"><span>Cash out</span><b>${accInr(d.totals.out)}</b></div>
                     <div class="acc-band ${up ? 'up' : 'down'}"><span>NET CASH MOVEMENT</span><b>${accInr(d.totals.net)}</b></div>
                  </div>
+                 <div id="tillBox" class="acc-noprint" style="max-width:1000px;margin:1rem auto 0;"></div>
                  <p class="acc-hint" style="max-width:1000px;margin:0.7rem auto 0;text-align:center;">
-                    The Cash column is a <b>movement</b>, not a drawer balance — the app is never told what was in the till this morning,
-                    and inventing an opening balance would be worse than leaving it out.
+                    The Cash column is a <b>movement</b>, not a drawer balance — the app is only told what was in the till
+                    if somebody counted it, below.
                  </p>`;
+            renderTill();
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           COUNTING THE DRAWER
+
+           The Day Book has always been able to say what the till OUGHT to
+           hold, and never whether it does — because nobody had told it what
+           was there to start with. Every retail shop counts its cash at
+           closing; this is the only daily financial habit the app did not
+           support.
+
+           Deliberately ONE DAY at a time. A cash count is a physical act
+           performed on a particular evening, and letting someone enter a
+           figure for a range would produce a number that reconciles against
+           nothing. The date defaults to today.
+
+           The difference is never called theft, and never called anything
+           else either. A till is short for a dozen innocent reasons — change
+           given wrong, a sale rung as cash and paid by UPI, a supplier paid
+           from the drawer and not entered. The screen states the gap and
+           leaves the shop to know why.
+        ══════════════════════════════════════════════════════════════════ */
+        let _tillCounts = [];
+
+        function _tillToday() {
+            const t = new Date(), p = n => (n < 10 ? '0' : '') + n;
+            return t.getFullYear() + '-' + p(t.getMonth() + 1) + '-' + p(t.getDate());
+        }
+        function _tillLocal() {
+            try { return JSON.parse(localStorage.getItem('mm_till_counts') || '[]') || []; }
+            catch (e) { return []; }
+        }
+
+        async function loadTillCounts() {
+            let local = _tillLocal(), cloud = [];
+            try { if (typeof dbGetTillCounts === 'function') cloud = await dbGetTillCounts(); } catch (e) {}
+            /* Cloud wins for a day both know about — it is the shared truth
+               across the shop's devices — but a local-only day is KEPT, since
+               it may be a count taken while the connection was down. */
+            const byDay = {};
+            local.forEach(r => { if (r && r.day) byDay[r.day] = r; });
+            cloud.forEach(r => { if (r && r.day) byDay[r.day] = r; });
+            _tillCounts = Object.keys(byDay).sort().reverse().map(k => byDay[k]);
+            try { localStorage.setItem('mm_till_counts', JSON.stringify(_tillCounts)); } catch (e) {}
+        }
+
+        /* What the Day Book says the drawer moved on ONE day. Read off the
+           same rows the table above prints, so the two can never disagree. */
+        function _tillExpected(day) {
+            if (!_accDay || !Array.isArray(_accDay.rows)) return null;
+            let net = 0, seen = false;
+            _accDay.rows.forEach(r => {
+                if (String(r.date || '').slice(0, 10) !== day) return;
+                seen = true;
+                net += Number(r.cash) || 0;
+            });
+            return seen ? net : null;
+        }
+
+        function renderTill() {
+            const box = document.getElementById('tillBox');
+            if (!box) return;
+            const day = (document.getElementById('tillDay') || {}).value || _tillToday();
+            const rec = _tillCounts.filter(r => r.day === day)[0] || null;
+            const moved = _tillExpected(day);
+            const opening = rec ? Number(rec.opening) || 0 : 0;
+            const counted = rec ? Number(rec.counted) || 0 : 0;
+
+            let verdict = '';
+            if (rec && moved !== null) {
+                const should = opening + moved;
+                const diff = counted - should;
+                const ok = Math.abs(diff) < 0.01;
+                verdict = `<div style="margin-top:9px;padding:10px 13px;border-radius:10px;
+                        background:${ok ? '#ecfdf5' : (diff > 0 ? '#eff6ff' : '#fef2f2')};
+                        border:1.5px solid ${ok ? '#a7f3d0' : (diff > 0 ? '#bfdbfe' : '#fecaca')};
+                        color:${ok ? '#065f46' : (diff > 0 ? '#1e40af' : '#991b1b')};font-size:0.83rem;line-height:1.6;">
+                    <b>${accInr(opening)}</b> to start ${moved >= 0 ? '+' : '−'} <b>${accInr(Math.abs(moved))}</b> of takings
+                    = <b>${accInr(should)}</b> expected. You counted <b>${accInr(counted)}</b>.
+                    ${ok ? '<br><b>The drawer agrees.</b>'
+                         : `<br><b>${diff > 0 ? 'Over' : 'Short'} by ${accInr(Math.abs(diff))}.</b>
+                            A till is out for ordinary reasons — change given wrong, a sale rung as cash but paid by UPI,
+                            or money taken from the drawer without an entry. Worth finding while the day is fresh.`}
+                </div>`;
+            } else if (rec) {
+                verdict = `<div class="acc-hint" style="margin-top:9px;">Counted, but there are no cash entries for ${_te(day)} to check it against.</div>`;
+            }
+
+            box.innerHTML = `
+                <div style="border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;">
+                    <div style="font-weight:800;color:#0f172a;font-size:0.9rem;margin-bottom:8px;">💰 Count the drawer</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:flex-end;">
+                        <div><label style="display:block;font-size:0.72rem;color:#64748b;font-weight:700;">Day</label>
+                            <input type="date" id="tillDay" value="${_te(day)}" max="${_te(_tillToday())}" onchange="renderTill()"
+                                style="padding:0.42rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:9px;font-size:0.85rem;"></div>
+                        <div><label style="display:block;font-size:0.72rem;color:#64748b;font-weight:700;">Float at start</label>
+                            <input type="number" step="0.01" id="tillOpen" value="${opening ? opening.toFixed(2) : ''}" placeholder="0.00"
+                                style="width:120px;padding:0.42rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:9px;font-size:0.85rem;text-align:right;"></div>
+                        <div><label style="display:block;font-size:0.72rem;color:#64748b;font-weight:700;">Counted at close</label>
+                            <input type="number" step="0.01" id="tillCount" value="${counted ? counted.toFixed(2) : ''}" placeholder="0.00"
+                                style="width:130px;padding:0.42rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:9px;font-size:0.85rem;text-align:right;"></div>
+                        <button class="search-btn" onclick="saveTill()" style="padding:0.45rem 1rem;">${rec ? 'Update' : 'Save'} count</button>
+                    </div>
+                    ${moved === null ? '<div class="acc-hint" style="margin-top:7px;">No cash entries for this day in the range above.</div>' : ''}
+                    ${verdict}
+                </div>`;
+        }
+
+        async function saveTill() {
+            const day = document.getElementById('tillDay').value;
+            const opening = parseFloat(document.getElementById('tillOpen').value) || 0;
+            const counted = parseFloat(document.getElementById('tillCount').value) || 0;
+            if (!day) { showToast('Pick the day you counted.', 'error'); return; }
+            if (day > _tillToday()) { showToast('That day has not happened yet.', 'error'); return; }
+            if (opening < 0 || counted < 0) { showToast('A cash count cannot be negative.', 'error'); return; }
+
+            const rec = { day, opening, counted, note: '', countedAt: new Date().toISOString() };
+            // Local first, so a count survives even with no connection.
+            _tillCounts = _tillCounts.filter(r => r.day !== day);
+            _tillCounts.push(rec);
+            _tillCounts.sort((a, b) => String(b.day).localeCompare(String(a.day)));
+            try { localStorage.setItem('mm_till_counts', JSON.stringify(_tillCounts)); } catch (e) {}
+
+            let ok = false;
+            try { const res = await dbSaveTillCount(rec); ok = !!(res && res.success); } catch (e) {}
+            if (typeof mmAudit === 'function') mmAudit('Till counted', day + ' · counted ' + counted.toFixed(2) + ', float ' + opening.toFixed(2), day);
+            renderTill();
+            showToast(ok ? '💰 Count saved.' : '💰 Saved on this device — it will not appear on your other devices until the connection is back.', ok ? 'success' : 'error');
         }
 
         /* Opening stock. Two questions in one prompt would be a bad modal, so
