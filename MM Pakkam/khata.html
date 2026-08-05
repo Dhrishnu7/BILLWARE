@@ -13,6 +13,9 @@
     <script src="js/auth.js?v=3"></script>
     <script src="js/sw-update.js"></script>
     <script src="js/supabase.js"></script>
+    <!-- Supplier balances are computed here now, so both this page and the
+         Accounts view get the same figure from the same code. -->
+    <script src="js/position.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1277,42 +1280,16 @@
         function _saveSupMerges(m) { try { localStorage.setItem('mm_supplier_merges', JSON.stringify(m)); } catch (e) {} }
         let _supRawNames = [];   // every distinct firm name seen (before merge) — for the manage list
 
+        /* The formula now lives in js/position.js, because the Accounts page
+           needs the same figure and two copies of "what suppliers are owed"
+           would drift — the same way bills were shaped in two places for
+           months before _mmNormalizeBills. Payments are passed IN because this
+           page merges its cloud copy first; the report reads the local cache. */
         function computeSupplierData() {
-            let purchases = []; try { purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]'); } catch (e) {}
-            const adjustments = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
-            const merges = _loadSupMerges();
-            const map = {};
-            const rawSet = new Set();
-            const slot = firm => {
-                const raw = (firm || '').trim();
-                if (!raw) return null;
-                rawSet.add(raw);
-                const mapped = merges[raw.toLowerCase()];
-                if (mapped === '__HIDDEN__') return null;          // junk entry — skip
-                const canonical = mapped || raw;                    // fold variants into canonical
-                const k = canonical.trim().toLowerCase();
-                if (!map[k]) map[k] = { firm: canonical.trim(), purchased: 0, returned: 0, paid: 0 };
-                return map[k];
-            };
-            purchases.forEach(p => {
-                const s = slot(p.firm || p.supplierName || '');
-                if (!s) return;
-                const qty = parseFloat(p.quantity) || 0, rate = parseFloat(p.rate) || 0, gst = parseFloat(p.gst) || 0;
-                s.purchased += (qty * rate) * (1 + gst / 100);
-            });
-            adjustments.filter(a => a.reason === 'purchase_return').forEach(a => {
-                let n = {}; try { n = JSON.parse(a.note || '{}'); } catch (e) {}
-                const s = slot(n.party);
-                if (s) s.returned += parseFloat(n.amount) || 0;
-            });
-            _supPayments.forEach(p => {
-                const s = slot(p.firm);
-                if (s) s.paid += parseFloat(p.amount) || 0;
-            });
-            _supRawNames = [...rawSet].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-            _supData = Object.values(map)
-                .map(s => Object.assign({}, s, { balance: s.purchased - s.returned - s.paid }))
-                .sort((a, b) => b.balance - a.balance);
+            if (!window.mmPosition) { _supData = []; _supRawNames = []; return; }
+            const res = mmPosition.suppliers(_supPayments);
+            _supData     = res.data;
+            _supRawNames = res.rawNames;
         }
 
         function renderSuppliers(filter) {

@@ -714,6 +714,7 @@
     <script src="js/prefile-check.js"></script>
     <script src="js/gstr3b.js"></script>
     <script src="js/pnl.js"></script>
+    <script src="js/position.js"></script>
     <script src="js/daybook.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <!-- PWA -->
@@ -968,6 +969,7 @@
                         <button class="tab-btn active" id="accTabPnl"  onclick="switchAccTab('pnl')">Profit &amp; Loss</button>
                         <button class="tab-btn"        id="accTabCash" onclick="switchAccTab('cash')">Cash Flow</button>
                         <button class="tab-btn"        id="accTabDay"  onclick="switchAccTab('day')">Day Book</button>
+                        <button class="tab-btn"        id="accTabPos"  onclick="switchAccTab('pos')">Where You Stand</button>
                     </div>
                 </div>
 
@@ -991,6 +993,7 @@
                 <div id="accPnl"></div>
                 <div id="accCash" style="display:none;"></div>
                 <div id="accDay"  style="display:none;"></div>
+                <div id="accPos"  style="display:none;"></div>
             </div>
         </div>
 
@@ -4422,11 +4425,84 @@
 
         function switchAccTab(t) {
             _accTab = t;
-            ['pnl', 'cash', 'day'].forEach(k => {
+            ['pnl', 'cash', 'day', 'pos'].forEach(k => {
                 document.getElementById('accTab' + k.charAt(0).toUpperCase() + k.slice(1)).classList.toggle('active', k === t);
                 document.getElementById('acc' + k.charAt(0).toUpperCase() + k.slice(1)).style.display = (k === t) ? 'block' : 'none';
             });
+            /* Position is "as of today", not for the chosen period — the other
+               three are period statements and this one is a snapshot, so it is
+               rendered on demand rather than from _accData. */
+            if (t === 'pos') renderPosition();
             updateAccPrintHead();
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           WHERE YOU STAND — the money tied up in the business today.
+
+           NOT a balance sheet, and the screen says so. See js/position.js for
+           why: the app holds what the shop sells, buys, owes and is owed, and
+           knows nothing of capital, drawings, fittings, bank or loans. A real
+           balance sheet built from this would need a plug figure to foot, and
+           an authoritative-looking wrong number is worse than no number.
+        ══════════════════════════════════════════════════════════════════ */
+        function renderPosition() {
+            const box = document.getElementById('accPos');
+            if (!box) return;
+            if (!window.mmPosition) {
+                box.innerHTML = '<div style="padding:1.5rem;color:#991b1b;">This panel did not load. Hard-refresh the page (Ctrl+Shift+R).</div>';
+                return;
+            }
+            const d = mmPosition.build();
+            const money = n => (n < 0 ? '−₹' : '₹') + Math.abs(Number(n) || 0).toFixed(2);
+            const row = (label, sub, val, sign) => `
+                <tr>
+                    <td style="padding:11px 14px;border-bottom:1px solid #f1f5f9;">
+                        <div style="font-weight:700;color:#0f172a;font-size:0.9rem;">${_te(label)}</div>
+                        ${sub ? `<div style="font-size:0.75rem;color:#94a3b8;margin-top:2px;">${_te(sub)}</div>` : ''}
+                    </td>
+                    <td style="padding:11px 14px;border-bottom:1px solid #f1f5f9;text-align:right;white-space:nowrap;
+                               font-weight:700;font-size:0.95rem;color:${sign < 0 ? '#dc2626' : '#0f172a'};">
+                        ${sign < 0 ? '− ' : '+ '}${money(val)}
+                    </td>
+                </tr>`;
+
+            box.innerHTML = `
+                <div style="padding:0.4rem 0 1rem;">
+                    <div style="font-size:0.8rem;color:#64748b;margin-bottom:0.9rem;line-height:1.6;">
+                        Money tied up in the business as at <b>${_te(d.asOf)}</b>.
+                        <b>This is not a balance sheet</b> — it is only the part your records can prove.
+                    </div>
+                    <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                        <tbody>
+                            ${row('Stock at cost', 'What is on the shelves, valued at what you paid', d.stock, 1)}
+                            ${row('Customers owe you', d.debtorCount + ' account(s) with a pending balance', d.debtors, 1)}
+                            ${row('You owe suppliers', d.creditorCount + ' supplier(s) with an unpaid balance', d.creditors, -1)}
+                            ${d.gstNet > 0
+                                ? row('GST on ' + _te(d.month) + ', not yet paid',
+                                      'Collected ' + money(d.outputTax) + ' on sales, paid ' + money(d.inputTax) + ' on purchases',
+                                      d.gstNet, -1)
+                                : `<tr><td style="padding:11px 14px;border-bottom:1px solid #f1f5f9;">
+                                       <div style="font-weight:700;color:#0f172a;font-size:0.9rem;">GST on ${_te(d.month)}</div>
+                                       <div style="font-size:0.75rem;color:#94a3b8;margin-top:2px;">Input credit exceeds output tax this month — nothing to pay</div></td>
+                                   <td style="padding:11px 14px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;color:#059669;">${money(d.gstNet)}</td></tr>`}
+                            <tr style="background:#f8fafc;">
+                                <td style="padding:14px;font-weight:900;color:#0f172a;font-size:0.95rem;">Your money in the business</td>
+                                <td style="padding:14px;text-align:right;font-weight:900;font-size:1.15rem;color:#0f172a;white-space:nowrap;">${money(d.working)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div style="margin-top:1rem;background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:12px 15px;">
+                        <div style="font-weight:800;color:#92400e;font-size:0.85rem;margin-bottom:5px;">What this does not include</div>
+                        <ul style="margin:0;padding-left:18px;font-size:0.79rem;color:#b45309;line-height:1.7;">
+                            ${d.excludes.map(x => `<li>${_te(x)}</li>`).join('')}
+                        </ul>
+                        <div style="font-size:0.79rem;color:#b45309;line-height:1.6;margin-top:7px;">
+                            Your accountant needs those to prepare a real balance sheet. Send them the
+                            <b>Tally export</b> and they can.
+                        </div>
+                    </div>
+                </div>`;
         }
 
         /* The letterhead that only exists on paper. Whoever receives a printed
@@ -4443,7 +4519,8 @@
             const d = _accData;
             const sp = window.mmShopProfile || {};
             const shop = sp.shop_name || localStorage.getItem('mm_storeName') || localStorage.getItem('storeName') || 'My Store';
-            const names = { pnl: 'Profit & Loss', cash: 'Cash Flow Statement', day: 'Day Book' };
+            const names = { pnl: 'Profit & Loss', cash: 'Cash Flow Statement', day: 'Day Book',
+                            pos: 'Where You Stand (not a balance sheet)' };
             const basis = d.stock.openingSource === 'entered'
                 ? 'Opening stock as entered by the owner'
                 : 'Opening stock computed from purchase history';
