@@ -299,15 +299,19 @@
                                 }
                                 var err = new Error((body && body.error) ||
                                     'The scanner could not be reached. Check your connection.');
-                                /* 404 = the Edge Function is not deployed yet.
-                                   503 = it is deployed but has no API key.
-                                   Neither is anything the shop did or can fix,
-                                   so purchase.html falls back to the offline
-                                   engine WITHOUT a warning — the shop simply
-                                   gets today's behaviour until the server side
-                                   is switched on. Every other failure is worth
-                                   telling them about. */
-                                err.notDeployed = (res.status === 404 || res.status === 503);
+                                /* Silence is earned by exactly two cases: the
+                                   function is not deployed (404), or it is
+                                   deployed and nobody has set the API key yet
+                                   (notConfigured). Both mean "this feature is
+                                   not switched on", which the shop cannot act
+                                   on and should not be nagged about.
+
+                                   It used to include EVERY 503, which swallowed
+                                   an out-of-credit account completely — the
+                                   scans silently degraded to Tesseract and
+                                   nothing anywhere said why. A failure someone
+                                   must fix has to be visible. */
+                                err.notDeployed = (res.status === 404 || !!(body && body.notConfigured));
                                 err.status = res.status;
                                 throw err;
                             }

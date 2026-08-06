@@ -3185,6 +3185,29 @@ window.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            /* ── This path kept no evidence ─────────────────────────────
+               The line-based parser is the fallback used when the layout
+               parser cannot find a header row — that is, on the WORST scans,
+               the ones most worth reporting. It never set `_ocrRaw`, so
+               `_scanDataLink()` returned an empty string and the panel came up
+               with no "Save scan data" link at all. Exactly the fault v329
+               fixed on the red panel, still open on this one, and on the path
+               where a saved scan matters most.
+
+               There are no word boxes here to record — this parser only ever
+               saw lines of text — so what is saved is the text it read and the
+               rows it made of them. That is still the difference between "the
+               batch column was blank" and knowing what the engine actually
+               saw. */
+            _ocrRaw = {
+                savedAt: new Date().toISOString(),
+                engine: 'tesseract/text-lines',
+                note: 'Line-based fallback parser: no header row was found, so there is no column geometry to record.',
+                headerIdx: headerIdx,
+                lines: lines.slice(),
+                parsed: dataRows.map(r => r.slice())
+            };
+
             _invHdrs = ['Product Name','Batch No','Expiry','Quantity','MRP','Rate','GST%','Pack'];
             _invRows = dataRows;
 

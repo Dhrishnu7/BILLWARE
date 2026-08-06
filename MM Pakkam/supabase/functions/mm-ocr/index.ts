@@ -204,7 +204,14 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
 
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!apiKey) return json({ error: 'Invoice scanning is not configured on the server yet.' }, 503);
+  /* `notConfigured` is the ONLY thing that earns a silent fallback on the
+     client. "Nobody has switched this on yet" is not the shop's problem and
+     there is nothing for them to act on. Everything else — out of credit,
+     wrong key, bad model — is a fault someone must fix, and a fault that
+     says nothing gets diagnosed by screenshot an hour later. */
+  if (!apiKey) {
+    return json({ error: 'Invoice scanning is not configured on the server yet.', notConfigured: true }, 503);
+  }
 
   /* ── Who is asking? ──
      A bare anon key is not an identity. supabase.auth.getUser() rejects the
@@ -280,6 +287,31 @@ Deno.serve(async (req) => {
        here. Record WHY — verbatim — and try the next form down. */
     lastDetail = (await r.text()).slice(0, 800);
     console.error(`[mm-ocr] 400 on attempt "${used.label}":`, lastDetail);
+
+    /* ── Some 400s are not worth stepping down for ──────────────────
+       The ladder exists for "this account does not have that feature".
+       An empty wallet or an unknown model is not that: every rung will
+       fail identically, so trying three more shapes just burns latency
+       and writes three more misleading log lines.
+
+       This cost an hour the first time. The account had no credit, and
+       the shop was told "the scanner rejected this file, try a JPG or
+       PNG photo" — pointing at a photo that was never the problem. An
+       operator-side failure must NAME ITSELF, in the operator's terms,
+       the first time it happens. */
+    if (/credit balance|purchase credits|plans\s*&?\s*billing|insufficient (funds|credit)/i.test(lastDetail)) {
+      return json({
+        error: 'Invoice scanning is out of credit on the server. (This is account billing, not your device or your photo.)',
+        detail: lastDetail,
+      }, 503);
+    }
+    if (/model/i.test(lastDetail) && /not\s*(found|exist)|unknown|invalid/i.test(lastDetail)) {
+      return json({
+        error: 'The scanner is configured with a model this account cannot use. (Server setup — not your device.)',
+        detail: lastDetail,
+      }, 503);
+    }
+
     if (i === ATTEMPTS.length - 1) {
       /* Every form was rejected, so the problem is the request itself, not an
          unavailable beta. The real message goes back in `detail` so it lands
