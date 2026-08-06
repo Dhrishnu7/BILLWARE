@@ -530,6 +530,9 @@
     <script src="js/modal.js"></script>
     <!-- xlsx (Excel import) is lazy-loaded on demand via mmLoadScript() so it never blocks page load. -->
     <!-- tesseract.js (OCR, several MB) is lazy-loaded on first scan — see loadTesseract() -->
+    <!-- ocr-cloud.js is the PRIMARY scanner; the ocr-*.js files below are the
+         offline fallback engine, used when there is no network. -->
+    <script src="js/ocr-cloud.js"></script>
     <script src="js/ocr-preprocess.js"></script>
     <script src="js/ocr-numbers.js"></script>
     <script src="js/ocr-names.js"></script>
@@ -1815,8 +1818,119 @@ window.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        /* One progress panel, two engines. The cloud scan and the Tesseract
+           scan report progress through the same #ocrBar / #ocrProgress ids, so
+           there is exactly one place to change how scanning looks. */
+        function _scanningUI(headline) {
+            return `
+                <div style="padding:2rem;text-align:center;">
+                    <div style="font-size:2.5rem;margin-bottom:0.8rem;">🔍</div>
+                    <div style="font-weight:700;color:#0ea5e9;font-size:0.95rem;">${headline}</div>
+                    <div id="ocrProgress" style="font-size:0.8rem;color:#64748b;margin-top:0.4rem;">Starting…</div>
+                    <div style="margin-top:1rem;background:#e2e8f0;border-radius:999px;height:6px;overflow:hidden;">
+                        <div id="ocrBar" style="height:100%;width:0%;background:linear-gradient(90deg,#0ea5e9,#10b981);transition:width 0.3s;"></div>
+                    </div>
+                </div>`;
+        }
+
+        /* Hands a cloud scan to the SAME screens the Tesseract scan uses. The
+           columns are identical by construction (js/ocr-cloud.js builds them
+           from mmOcrCloudHeaders), so the mapper, the preview, the warnings box
+           and "Save scan data" all work untouched. */
+        function _finishCloudScan(out) {
+            _ocrRaw = out.raw;
+            _lastTurnDeg = 0;               // no orientation guessing on this path
+            _invHdrs = out.headers;
+            _invRows = out.rows;
+
+            /* Bill number and supplier, but only into boxes that are still
+               empty — the shop may have typed them before opening the scanner,
+               and their typing beats a scan every time. */
+            const filled = [];
+            try {
+                const bn = document.getElementById('billNo');
+                if (bn && !bn.value.trim() && out.invoice.invoiceNo) {
+                    bn.value = out.invoice.invoiceNo; filled.push('bill number');
+                }
+                const fm = document.getElementById('firm');
+                if (fm && !fm.value.trim() && out.invoice.supplierName) {
+                    fm.value = out.invoice.supplierName; filled.push('supplier');
+                }
+            } catch (e) { console.warn('[OCR] header prefill skipped:', e); }
+
+            const quality = _checkOCRQuality(out.rows);
+            /* out.messages already names the rows whose product name did not
+               read, and names them usefully. Drop the generic restatement. */
+            const extra = quality.messages.filter(m => !/have no product name/i.test(m));
+            const messages = out.messages.concat(extra);
+
+            /* The date is REPORTED, never set. A purchase date drives which GST
+               period the bill lands in, and v313 was an evening spent proving
+               that a date nobody watched change is a bill that hides itself.
+               The shop sets it, having been told what the paper says. */
+            if (out.invoice.invoiceDate) {
+                messages.push('The invoice is dated ' + out.invoice.invoiceDate +
+                    ' — set the Date box to match before saving, if it does not already.');
+            }
+            if (filled.length) {
+                messages.push('Filled in from the invoice: ' + filled.join(' and ') + '. Check them.');
+            }
+
+            if (quality.blocked) {
+                _showOCRWarning(messages, true);
+            } else if (messages.length) {
+                _showOCRWarning(messages, false, 'showInvMapper');
+            } else {
+                showToast('Scan complete', 'Found ' + out.rows.length + ' product(s). Check the values below.');
+                showInvMapper();
+            }
+        }
+
         async function readInvOCR(file) {
             const dz = document.getElementById('invDropZone');
+            const origHTML = dz.innerHTML;
+
+            /* ── The cloud scanner comes first ──────────────────────────
+               It reads the invoice AS an invoice rather than as characters,
+               so it needs none of what follows: no orientation probe, no
+               preprocessing, no row grouping, no column detection, no name
+               repair. When it cannot run — no network, no server key, over
+               the daily cap — we fall back to Tesseract and SAY SO, because
+               a shop that gets a visibly worse scan deserves to know why
+               rather than conclude the app got worse. */
+            if (typeof mmOcrCloudAvailable === 'function' && mmOcrCloudAvailable()) {
+                dz.innerHTML = _scanningUI('Reading the invoice…');
+                try {
+                    const out = await mmOcrCloudScan(file, {
+                        onProgress: (msg, pct) => {
+                            const bar = document.getElementById('ocrBar');
+                            const prog = document.getElementById('ocrProgress');
+                            if (bar) bar.style.width = (pct || 0) + '%';
+                            if (prog) prog.textContent = msg;
+                        }
+                    });
+                    dz.innerHTML = origHTML;
+                    if (out.rows.length) { _finishCloudScan(out); return; }
+                    /* A clean answer with nothing in it is not a reason to
+                       spend two minutes on the offline engine — the page it
+                       read had no product table. Say that and stop. */
+                    showToast('No product lines found',
+                        'The scan worked but found no invoice table. Is this the right page of the invoice?');
+                    return;
+                } catch (ce) {
+                    console.warn('[OCR] cloud scan unavailable, falling back:', ce);
+                    dz.innerHTML = origHTML;
+                    /* Silent when the server side simply is not switched on
+                       yet: that is not the shop's problem and there is nothing
+                       for them to act on. Everything else is named, because a
+                       visibly worse scan with no explanation reads as "the app
+                       got worse". */
+                    if (!(ce && ce.notDeployed)) {
+                        showToast('Using the offline scanner',
+                            (ce && ce.message ? ce.message + ' ' : '') + 'Falling back to the on-device engine — results may be rougher.');
+                    }
+                }
+            }
 
             const dim = await _checkImageSize(file);
             if (dim && dim.long < 2000) {
@@ -1840,17 +1954,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Show scanning UI
-            const origHTML = dz.innerHTML;
-            dz.innerHTML = `
-                <div style="padding:2rem;text-align:center;">
-                    <div style="font-size:2.5rem;margin-bottom:0.8rem;">🔍</div>
-                    <div style="font-weight:700;color:#0ea5e9;font-size:0.95rem;">Scanning invoice with OCR…</div>
-                    <div id="ocrProgress" style="font-size:0.8rem;color:#64748b;margin-top:0.4rem;">Starting…</div>
-                    <div style="margin-top:1rem;background:#e2e8f0;border-radius:999px;height:6px;overflow:hidden;">
-                        <div id="ocrBar" style="height:100%;width:0%;background:linear-gradient(90deg,#0ea5e9,#10b981);transition:width 0.3s;"></div>
-                    </div>
-                </div>`;
+            // Show scanning UI (origHTML was captured at the top of the function)
+            dz.innerHTML = _scanningUI('Scanning invoice with OCR…');
 
             let imageSource = file;
 
