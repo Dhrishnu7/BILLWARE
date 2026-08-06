@@ -288,6 +288,15 @@
                         clearTimeout(timer); clearInterval(tick);
                         return res.json().catch(function () { return null; }).then(function (body) {
                             if (!res.ok || !body || body.error) {
+                                /* The server's verbatim reason for failing.
+                                   Logged loudly and separately, because the
+                                   shop-facing message is deliberately plain
+                                   and the operator needs the real one — the
+                                   first version of this swallowed it and cost
+                                   an evening guessing at a 400. */
+                                if (body && body.detail) {
+                                    console.error('[OCR] server said:', body.detail);
+                                }
                                 var err = new Error((body && body.error) ||
                                     'The scanner could not be reached. Check your connection.');
                                 /* 404 = the Edge Function is not deployed yet.

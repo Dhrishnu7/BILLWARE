@@ -126,7 +126,35 @@ Follow the rules exactly. Return empty strings for anything you cannot read with
 
 Before you answer, check that quantity x rate is close to the line amount on each row, and that MRP is not below rate.`;
 
-async function callClaude(apiKey: string, contentBlock: unknown, useFallback: boolean) {
+/* Used only on the no-schema attempt, where the shape has to be asked for in
+   words because the API is not enforcing it. */
+const USER_TEXT_JSON = USER_TEXT + `
+
+Reply with ONLY a JSON object, no prose around it, in exactly this shape:
+{"supplierName":"","invoiceNo":"","invoiceDate":"","subTotal":"","grandTotal":"","taxExclusive":"yes|no|unknown","notes":[],"lines":[{"productName":"","pack":"","hsn":"","batchNo":"","expiry":"MM/YYYY","quantity":"","freeQty":"","mrp":"","rate":"","gstPercent":"","amount":"","uncertain":[]}]}
+Every value is a STRING. Use "" for anything not printed or not legible.`;
+
+interface Attempt { fallbacks: boolean; effort: boolean; schema: boolean; label: string }
+
+/* ── Degrade, do not die ───────────────────────────────────────────────
+   The optional parts of this request — server-side refusal fallbacks, the
+   effort hint, the JSON schema — are each worth having and none of them is
+   worth losing the feature over. Different accounts have different betas
+   enabled, so a 400 on the richest form must step down rather than fail.
+
+   The FIRST version of this function retried only when the error text
+   happened to say "fallback" or "beta", which meant any other 400 became a
+   dead end that told the shop to "try a JPG or PNG photo" — advice that had
+   nothing to do with the real problem. Guessing which 400s are recoverable
+   was the mistake; try the next form and let the API decide. */
+const ATTEMPTS: Attempt[] = [
+  { fallbacks: true,  effort: true,  schema: true,  label: 'full' },
+  { fallbacks: false, effort: true,  schema: true,  label: 'no-fallbacks' },
+  { fallbacks: false, effort: false, schema: true,  label: 'no-effort' },
+  { fallbacks: false, effort: false, schema: false, label: 'no-schema' },
+];
+
+async function callClaude(apiKey: string, contentBlock: unknown, a: Attempt) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-api-key': apiKey,
@@ -136,27 +164,39 @@ async function callClaude(apiKey: string, contentBlock: unknown, useFallback: bo
     model: MODEL,
     max_tokens: 16000,
     system: SYSTEM,
-    output_config: {
-      /* Extraction is a perception task, not a reasoning one. Medium keeps
-         latency and thinking tokens down without measurably costing accuracy
-         on a table read; raise it if a supplier's layout defeats it. */
-      effort: 'medium',
-      format: { type: 'json_schema', schema: SCHEMA },
-    },
-    messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: USER_TEXT }] }],
+    messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: a.schema ? USER_TEXT : USER_TEXT_JSON }] }],
   };
+
+  const outputConfig: Record<string, unknown> = {};
+  /* Extraction is a perception task, not a reasoning one. Medium keeps
+     latency and thinking tokens down without measurably costing accuracy on
+     a table read; raise it if a supplier's layout defeats it. */
+  if (a.effort) outputConfig.effort = 'medium';
+  if (a.schema) outputConfig.format = { type: 'json_schema', schema: SCHEMA };
+  if (Object.keys(outputConfig).length) body.output_config = outputConfig;
 
   /* Safety classifiers can decline a request outright. An invoice will
      essentially never trip one, but a declined request returns HTTP 200 with
-     no content, so the fallback costs nothing when unused and turns a dead
-     end into an answer if it ever fires. If the account does not have the
-     beta, the request 400s — hence the retry below. */
-  if (useFallback) {
+     no content, so this costs nothing when unused and turns a dead end into
+     an answer if it ever fires. */
+  if (a.fallbacks) {
     headers['anthropic-beta'] = 'server-side-fallback-2026-07-01';
     body.fallbacks = 'default';
   }
 
   return await fetch(ANTHROPIC_URL, { method: 'POST', headers, body: JSON.stringify(body) });
+}
+
+/* Without a schema the model writes JSON as ordinary text, which may arrive
+   wrapped in a ```json fence or with a sentence in front of it. Pull out the
+   outermost object rather than trusting the whole string to parse. */
+function looseJson(text: string) {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidate = fenced ? fenced[1] : text;
+  const start = candidate.indexOf('{');
+  const end = candidate.lastIndexOf('}');
+  if (start < 0 || end <= start) throw new Error('no JSON object in response');
+  return JSON.parse(candidate.slice(start, end + 1));
 }
 
 Deno.serve(async (req) => {
@@ -228,25 +268,39 @@ Deno.serve(async (req) => {
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } };
 
-  let res = await callClaude(apiKey, contentBlock, true);
-  if (res.status === 400) {
-    /* The fallback beta may not be enabled on this account. Retry plainly
-       rather than failing a scan over an optional resilience feature. */
-    const txt = await res.text();
-    if (/fallback|beta/i.test(txt)) {
-      res = await callClaude(apiKey, contentBlock, false);
-    } else {
-      console.error('[mm-ocr] 400 from Anthropic:', txt.slice(0, 600));
-      return json({ error: 'The scanner rejected this file. Try a JPG or PNG photo.' }, 400);
+  let res: Response | null = null;
+  let used: Attempt = ATTEMPTS[0];
+  let lastDetail = '';
+
+  for (let i = 0; i < ATTEMPTS.length; i++) {
+    used = ATTEMPTS[i];
+    const r = await callClaude(apiKey, contentBlock, used);
+    if (r.status !== 400) { res = r; break; }
+    /* A 400 is the API telling us this exact request shape is not available
+       here. Record WHY — verbatim — and try the next form down. */
+    lastDetail = (await r.text()).slice(0, 800);
+    console.error(`[mm-ocr] 400 on attempt "${used.label}":`, lastDetail);
+    if (i === ATTEMPTS.length - 1) {
+      /* Every form was rejected, so the problem is the request itself, not an
+         unavailable beta. The real message goes back in `detail` so it lands
+         in the browser console instead of dying in a log nobody opens. */
+      return json({
+        error: 'The scanner rejected this invoice. The exact reason is in the browser console and the function logs.',
+        detail: lastDetail,
+      }, 400);
     }
   }
 
+  if (!res) return json({ error: 'The scanner could not be reached.', detail: lastDetail }, 502);
+  if (used.label !== 'full') console.warn('[mm-ocr] succeeded on degraded attempt:', used.label);
+
   if (!res.ok) {
     const txt = await res.text();
-    console.error('[mm-ocr] Anthropic error', res.status, txt.slice(0, 600));
-    if (res.status === 429) return json({ error: 'The scanner is busy right now. Wait a minute and try again.' }, 429);
-    if (res.status === 401 || res.status === 403) return json({ error: 'Invoice scanning is not set up correctly on the server.' }, 503);
-    return json({ error: 'The scanner could not be reached. Check your connection and try again.' }, 502);
+    console.error('[mm-ocr] Anthropic error', res.status, txt.slice(0, 800));
+    if (res.status === 429) return json({ error: 'The scanner is busy right now. Wait a minute and try again.', detail: txt.slice(0, 400) }, 429);
+    if (res.status === 401) return json({ error: 'The scanner\'s API key is missing or wrong. (Server setup — not your device.)', detail: txt.slice(0, 400) }, 503);
+    if (res.status === 403) return json({ error: 'The scanner\'s API account has no credit, or the key lacks permission. (Server setup — not your device.)', detail: txt.slice(0, 400) }, 503);
+    return json({ error: 'The scanner could not be reached. Check your connection and try again.', detail: txt.slice(0, 400) }, 502);
   }
 
   const msg = await res.json();
@@ -269,10 +323,16 @@ Deno.serve(async (req) => {
 
   let parsed;
   try {
-    parsed = JSON.parse(textBlock.text);
+    /* With a schema the whole text block IS the JSON. Without one it may be
+       fenced or prefaced, so fall back to pulling the outermost object. */
+    parsed = used.schema ? JSON.parse(textBlock.text) : looseJson(textBlock.text);
   } catch (_) {
-    console.error('[mm-ocr] unparseable JSON:', String(textBlock.text).slice(0, 600));
+    console.error('[mm-ocr] unparseable JSON:', String(textBlock.text).slice(0, 800));
     return json({ error: 'The scanner returned a malformed result. Please try again.' }, 502);
+  }
+  if (!parsed || !Array.isArray(parsed.lines)) {
+    console.error('[mm-ocr] result had no lines array:', JSON.stringify(parsed).slice(0, 400));
+    return json({ error: 'The scanner did not return any invoice lines. Please try again.' }, 502);
   }
 
   // Best-effort usage log — never blocks the answer.
