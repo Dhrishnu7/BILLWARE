@@ -17,20 +17,46 @@
  *
  * THE KEY LIVES HERE, NOT IN THE BROWSER
  * --------------------------------------
- * ANTHROPIC_API_KEY is a billable secret. Anything shipped to the browser is
- * public, so the call is made from this function and the browser only ever
+ * The model credential is a billable secret. Anything shipped to the browser
+ * is public, so the call is made from this function and the browser only ever
  * sends a photo. Every caller must present a real Supabase Auth token — the
- * anon publishable key is NOT enough, or this becomes an open Claude proxy
+ * anon publishable key is NOT enough, or this becomes an open model proxy
  * for anyone who opens devtools.
  *
+ * TWO BACKENDS, SAME MODEL
+ * ------------------------
+ * Anthropic bills in USD and takes international cards only, which a lot of
+ * Indian bank accounts simply cannot do. The same model is sold through
+ * Google Vertex AI, which bills through Google's Indian entity in INR as a
+ * DOMESTIC transaction — so an ordinary Indian card or netbanking works.
+ *
+ * Both are supported and the choice is made by which secrets exist. Vertex
+ * wins when configured, because a leftover unfunded ANTHROPIC_API_KEY must
+ * not quietly take precedence over the backend that actually has money
+ * behind it. Force either one with MM_OCR_BACKEND.
+ *
  * DEPLOY: paste into Supabase → Edge Functions → mm-ocr.
- * SECRETS: ANTHROPIC_API_KEY (required), MM_OCR_DAILY_CAP (optional, default 60).
+ *
+ * SECRETS — Vertex (preferred here):
+ *   GCP_SERVICE_ACCOUNT_JSON  the whole service-account key file, pasted as-is
+ *   GCP_PROJECT_ID            e.g. billware-ocr-123456
+ *   GCP_LOCATION              optional, default "global"
+ * SECRETS — Anthropic direct:
+ *   ANTHROPIC_API_KEY
+ * SECRETS — either:
+ *   MM_OCR_DAILY_CAP          optional, default 60
+ *   MM_OCR_BACKEND            optional, "vertex" | "anthropic"
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-opus-5';
+
+/* Vertex takes the model in the URL and this string in the body, where the
+   first-party API takes `model` in the body and no version field at all.
+   That one difference is the whole shape of the port. */
+const VERTEX_ANTHROPIC_VERSION = 'vertex-2023-10-16';
 
 /* 6 MB of base64 is roughly a 4.5 MB photo. Above that the upload is slower
    than the scan and the model gains nothing — the client already downscales
@@ -134,6 +160,81 @@ Reply with ONLY a JSON object, no prose around it, in exactly this shape:
 {"supplierName":"","invoiceNo":"","invoiceDate":"","subTotal":"","grandTotal":"","taxExclusive":"yes|no|unknown","notes":[],"lines":[{"productName":"","pack":"","hsn":"","batchNo":"","expiry":"MM/YYYY","quantity":"","freeQty":"","mrp":"","rate":"","gstPercent":"","amount":"","uncertain":[]}]}
 Every value is a STRING. Use "" for anything not printed or not legible.`;
 
+/* ── Google service-account auth ───────────────────────────────────────
+   Vertex has no API key. You sign a JWT with the service account's private
+   key, swap it for an access token, and send that as a Bearer. Deno's
+   WebCrypto does all of it; there is no SDK to import.
+
+   The token is cached in module scope for its full hour. Minting one costs a
+   round trip to Google before the round trip to the model, and a scan is
+   already slow enough — paying that on every invoice would be careless. */
+let _gcpToken: { value: string; exp: number } | null = null;
+
+function b64url(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function b64urlJson(o: unknown): string {
+  return b64url(new TextEncoder().encode(JSON.stringify(o)));
+}
+
+async function importServiceAccountKey(pem: string): Promise<CryptoKey> {
+  /* The JSON carries the key as a PEM with escaped newlines. JSON.parse turns
+     those into real ones; strip the armour and whitespace and what is left is
+     base64 DER. */
+  const body = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s+/g, '');
+  const raw = Uint8Array.from(atob(body), (c) => c.charCodeAt(0));
+  return await crypto.subtle.importKey(
+    'pkcs8',
+    raw,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+}
+
+async function gcpAccessToken(sa: { client_email: string; private_key: string }): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  // A minute of slack so a token cannot expire mid-request.
+  if (_gcpToken && _gcpToken.exp > now + 60) return _gcpToken.value;
+
+  const signingInput =
+    b64urlJson({ alg: 'RS256', typ: 'JWT' }) + '.' +
+    b64urlJson({
+      iss: sa.client_email,
+      scope: 'https://www.googleapis.com/auth/cloud-platform',
+      aud: 'https://oauth2.googleapis.com/token',
+      exp: now + 3600,
+      iat: now,
+    });
+
+  const key = await importServiceAccountKey(sa.private_key);
+  const sig = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(signingInput),
+  );
+  const assertion = signingInput + '.' + b64url(new Uint8Array(sig));
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion,
+    }),
+  });
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body?.access_token) {
+    throw new Error('Google rejected the service account: ' + JSON.stringify(body).slice(0, 300));
+  }
+  _gcpToken = { value: body.access_token, exp: now + (body.expires_in || 3600) };
+  return _gcpToken.value;
+}
+
 interface Attempt { fallbacks: boolean; effort: boolean; schema: boolean; label: string }
 
 /* ── Degrade, do not die ───────────────────────────────────────────────
@@ -147,21 +248,28 @@ interface Attempt { fallbacks: boolean; effort: boolean; schema: boolean; label:
    dead end that told the shop to "try a JPG or PNG photo" — advice that had
    nothing to do with the real problem. Guessing which 400s are recoverable
    was the mistake; try the next form and let the API decide. */
-const ATTEMPTS: Attempt[] = [
+const ATTEMPTS_ANTHROPIC: Attempt[] = [
   { fallbacks: true,  effort: true,  schema: true,  label: 'full' },
   { fallbacks: false, effort: true,  schema: true,  label: 'no-fallbacks' },
   { fallbacks: false, effort: false, schema: true,  label: 'no-effort' },
   { fallbacks: false, effort: false, schema: false, label: 'no-schema' },
 ];
 
-async function callClaude(apiKey: string, contentBlock: unknown, a: Attempt) {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'x-api-key': apiKey,
-    'anthropic-version': '2023-06-01',
-  };
+/* Server-side refusal fallbacks are a first-party API feature and do not
+   exist on Vertex, so that rung is not merely untried here — it would be a
+   guaranteed 400. */
+const ATTEMPTS_VERTEX: Attempt[] = [
+  { fallbacks: false, effort: true,  schema: true,  label: 'full' },
+  { fallbacks: false, effort: false, schema: true,  label: 'no-effort' },
+  { fallbacks: false, effort: false, schema: false, label: 'no-schema' },
+];
+
+/* The request body, identical for both backends except where the model is
+   named. Keeping this in one place is the point: the prompt, the schema and
+   the effort hint must not be able to drift between the two paths, or a
+   scan would quietly mean something different depending on who was billed. */
+function buildBody(contentBlock: unknown, a: Attempt): Record<string, unknown> {
   const body: Record<string, unknown> = {
-    model: MODEL,
     max_tokens: 16000,
     system: SYSTEM,
     messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: a.schema ? USER_TEXT : USER_TEXT_JSON }] }],
@@ -175,6 +283,18 @@ async function callClaude(apiKey: string, contentBlock: unknown, a: Attempt) {
   if (a.schema) outputConfig.format = { type: 'json_schema', schema: SCHEMA };
   if (Object.keys(outputConfig).length) body.output_config = outputConfig;
 
+  return body;
+}
+
+async function callAnthropic(apiKey: string, contentBlock: unknown, a: Attempt) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-api-key': apiKey,
+    'anthropic-version': '2023-06-01',
+  };
+  const body = buildBody(contentBlock, a);
+  body.model = MODEL;
+
   /* Safety classifiers can decline a request outright. An invoice will
      essentially never trip one, but a declined request returns HTTP 200 with
      no content, so this costs nothing when unused and turns a dead end into
@@ -186,6 +306,29 @@ async function callClaude(apiKey: string, contentBlock: unknown, a: Attempt) {
 
   return await fetch(ANTHROPIC_URL, { method: 'POST', headers, body: JSON.stringify(body) });
 }
+
+async function callVertex(cfg: VertexConfig, contentBlock: unknown, a: Attempt) {
+  const token = await gcpAccessToken(cfg.sa);
+  /* The global endpoint drops the region from the hostname; a regional one
+     prefixes it. Getting this wrong is a 404 that reads like a missing
+     model, so it is derived rather than configured twice. */
+  const host = cfg.location === 'global'
+    ? 'aiplatform.googleapis.com'
+    : `${cfg.location}-aiplatform.googleapis.com`;
+  const url = `https://${host}/v1/projects/${cfg.project}/locations/${cfg.location}` +
+              `/publishers/anthropic/models/${MODEL}:rawPredict`;
+
+  const body = buildBody(contentBlock, a);
+  body.anthropic_version = VERTEX_ANTHROPIC_VERSION;   // model is in the URL, not here
+
+  return await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+}
+
+interface VertexConfig { sa: { client_email: string; private_key: string }; project: string; location: string }
 
 /* Without a schema the model writes JSON as ordinary text, which may arrive
    wrapped in a ```json fence or with a sentence in front of it. Pull out the
@@ -203,13 +346,42 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
 
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  /* ── Which backend? ──
+     Vertex wins when configured. The alternative — preferring the Anthropic
+     key whenever one exists — is exactly the trap that would keep routing
+     scans at a key with no credit long after Vertex was working, because
+     nobody remembers to delete an old secret. */
+  const forced = (Deno.env.get('MM_OCR_BACKEND') || '').toLowerCase();
+  const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
+  const saRaw = Deno.env.get('GCP_SERVICE_ACCOUNT_JSON');
+  const gcpProject = Deno.env.get('GCP_PROJECT_ID');
+
+  let vertex: VertexConfig | null = null;
+  if (saRaw && gcpProject && forced !== 'anthropic') {
+    try {
+      const sa = JSON.parse(saRaw);
+      if (!sa.client_email || !sa.private_key) throw new Error('missing client_email or private_key');
+      vertex = { sa, project: gcpProject, location: Deno.env.get('GCP_LOCATION') || 'global' };
+    } catch (e) {
+      /* Loud, and NOT silent-fallback territory: someone pasted the key file
+         and got it wrong, which is a five-minute fix if they are told. */
+      console.error('[mm-ocr] GCP_SERVICE_ACCOUNT_JSON could not be read:', String(e));
+      return json({
+        error: 'The scanner\'s Google credentials are malformed. (Server setup — not your device.)',
+        detail: String(e),
+      }, 503);
+    }
+  }
+
+  const backend: 'vertex' | 'anthropic' | null =
+    vertex ? 'vertex' : (anthropicKey && forced !== 'vertex' ? 'anthropic' : null);
+
   /* `notConfigured` is the ONLY thing that earns a silent fallback on the
      client. "Nobody has switched this on yet" is not the shop's problem and
      there is nothing for them to act on. Everything else — out of credit,
      wrong key, bad model — is a fault someone must fix, and a fault that
      says nothing gets diagnosed by screenshot an hour later. */
-  if (!apiKey) {
+  if (!backend) {
     return json({ error: 'Invoice scanning is not configured on the server yet.', notConfigured: true }, 503);
   }
 
@@ -275,13 +447,27 @@ Deno.serve(async (req) => {
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } };
 
+  const ATTEMPTS = backend === 'vertex' ? ATTEMPTS_VERTEX : ATTEMPTS_ANTHROPIC;
   let res: Response | null = null;
   let used: Attempt = ATTEMPTS[0];
   let lastDetail = '';
 
   for (let i = 0; i < ATTEMPTS.length; i++) {
     used = ATTEMPTS[i];
-    const r = await callClaude(apiKey, contentBlock, used);
+    let r: Response;
+    try {
+      r = backend === 'vertex'
+        ? await callVertex(vertex!, contentBlock, used)
+        : await callAnthropic(anthropicKey!, contentBlock, used);
+    } catch (e) {
+      /* Minting the Google token can throw before any model call happens.
+         That is a credentials fault, not a scan fault, and must say so. */
+      console.error('[mm-ocr] backend call threw:', String(e));
+      return json({
+        error: 'The scanner could not authenticate with its model provider. (Server setup — not your device.)',
+        detail: String(e).slice(0, 400),
+      }, 503);
+    }
     if (r.status !== 400) { res = r; break; }
     /* A 400 is the API telling us this exact request shape is not available
        here. Record WHY — verbatim — and try the next form down. */
@@ -299,15 +485,17 @@ Deno.serve(async (req) => {
        PNG photo" — pointing at a photo that was never the problem. An
        operator-side failure must NAME ITSELF, in the operator's terms,
        the first time it happens. */
-    if (/credit balance|purchase credits|plans\s*&?\s*billing|insufficient (funds|credit)/i.test(lastDetail)) {
+    if (/credit balance|purchase credits|plans\s*&?\s*billing|insufficient (funds|credit)|billing (account|is not|has not)|BILLING_DISABLED/i.test(lastDetail)) {
       return json({
         error: 'Invoice scanning is out of credit on the server. (This is account billing, not your device or your photo.)',
         detail: lastDetail,
       }, 503);
     }
-    if (/model/i.test(lastDetail) && /not\s*(found|exist)|unknown|invalid/i.test(lastDetail)) {
+    if (/model/i.test(lastDetail) && /not\s*(found|exist|enabled|allowed)|unknown|invalid|access/i.test(lastDetail)) {
       return json({
-        error: 'The scanner is configured with a model this account cannot use. (Server setup — not your device.)',
+        error: backend === 'vertex'
+          ? 'The scanner\'s model is not enabled on this Google Cloud project yet. (Server setup — not your device.)'
+          : 'The scanner is configured with a model this account cannot use. (Server setup — not your device.)',
         detail: lastDetail,
       }, 503);
     }
@@ -328,10 +516,24 @@ Deno.serve(async (req) => {
 
   if (!res.ok) {
     const txt = await res.text();
-    console.error('[mm-ocr] Anthropic error', res.status, txt.slice(0, 800));
+    console.error(`[mm-ocr] ${backend} error`, res.status, txt.slice(0, 800));
     if (res.status === 429) return json({ error: 'The scanner is busy right now. Wait a minute and try again.', detail: txt.slice(0, 400) }, 429);
-    if (res.status === 401) return json({ error: 'The scanner\'s API key is missing or wrong. (Server setup — not your device.)', detail: txt.slice(0, 400) }, 503);
-    if (res.status === 403) return json({ error: 'The scanner\'s API account has no credit, or the key lacks permission. (Server setup — not your device.)', detail: txt.slice(0, 400) }, 503);
+    if (res.status === 401) return json({
+      error: backend === 'vertex'
+        ? 'The scanner\'s Google credentials were rejected. (Server setup — not your device.)'
+        : 'The scanner\'s API key is missing or wrong. (Server setup — not your device.)',
+      detail: txt.slice(0, 400) }, 503);
+    if (res.status === 403) return json({
+      /* On Vertex a 403 is nearly always one of three setup steps: billing
+         not attached, the Vertex AI API not enabled, or the model not
+         accepted in Model Garden. Naming them beats "permission denied". */
+      error: backend === 'vertex'
+        ? 'Google refused the request — check that billing is attached, the Vertex AI API is enabled, and the Claude model has been enabled in Model Garden. (Server setup — not your device.)'
+        : 'The scanner\'s API account has no credit, or the key lacks permission. (Server setup — not your device.)',
+      detail: txt.slice(0, 400) }, 503);
+    if (res.status === 404 && backend === 'vertex') return json({
+      error: 'The scanner\'s model was not found in that Google Cloud region. (Server setup — not your device.)',
+      detail: txt.slice(0, 400) }, 503);
     return json({ error: 'The scanner could not be reached. Check your connection and try again.', detail: txt.slice(0, 400) }, 502);
   }
 
@@ -375,14 +577,14 @@ Deno.serve(async (req) => {
       lines: Array.isArray(parsed.lines) ? parsed.lines.length : 0,
       input_tokens: msg.usage?.input_tokens ?? null,
       output_tokens: msg.usage?.output_tokens ?? null,
-      model: msg.model || MODEL,
+      model: (msg.model || MODEL) + '@' + backend,
     });
   } catch (_) { /* ignore */ }
 
   return json({
     ok: true,
     result: parsed,
-    engine: msg.model || MODEL,
+    engine: (msg.model || MODEL) + '@' + backend,
     usage: msg.usage || null,
   });
 });
