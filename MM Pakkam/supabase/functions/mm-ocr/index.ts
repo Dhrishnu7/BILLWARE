@@ -46,12 +46,22 @@
  * SECRETS — either:
  *   MM_OCR_DAILY_CAP          optional, default 60
  *   MM_OCR_BACKEND            optional, "vertex" | "anthropic"
+ *   MM_OCR_MODEL              optional, default "claude-opus-5".
+ *                             Per-minute token quota on Vertex is PER MODEL,
+ *                             so switching to "claude-sonnet-5" is the way out
+ *                             of a 429 that only affects Opus.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-opus-5';
+
+/* Overridable because on Vertex every model carries its OWN per-minute token
+   quota. A fresh project can be allocated nothing for Opus while Sonnet has
+   room, and the only way to find that out is to try — which must not require
+   re-pasting this file. Sonnet is also ~40% of the cost, so a shop that scans
+   a lot may want it permanently. */
+const MODEL = Deno.env.get('MM_OCR_MODEL') || 'claude-opus-5';
 
 /* Vertex takes the model in the URL and this string in the body, where the
    first-party API takes `model` in the body and no version field at all.
