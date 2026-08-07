@@ -971,6 +971,7 @@
                         <button class="tab-btn"        id="accTabCash" onclick="switchAccTab('cash')">Cash Flow</button>
                         <button class="tab-btn"        id="accTabDay"  onclick="switchAccTab('day')">Day Book</button>
                         <button class="tab-btn"        id="accTabPos"  onclick="switchAccTab('pos')">Where You Stand</button>
+                        <button class="tab-btn"        id="accTabSch"  onclick="switchAccTab('sch')">Schedules</button>
                     </div>
                 </div>
 
@@ -995,6 +996,7 @@
                 <div id="accCash" style="display:none;"></div>
                 <div id="accDay"  style="display:none;"></div>
                 <div id="accPos"  style="display:none;"></div>
+                <div id="accSch"  style="display:none;"></div>
             </div>
         </div>
 
@@ -4518,7 +4520,7 @@
 
         function switchAccTab(t) {
             _accTab = t;
-            ['pnl', 'cash', 'day', 'pos'].forEach(k => {
+            ['pnl', 'cash', 'day', 'pos', 'sch'].forEach(k => {
                 document.getElementById('accTab' + k.charAt(0).toUpperCase() + k.slice(1)).classList.toggle('active', k === t);
                 document.getElementById('acc' + k.charAt(0).toUpperCase() + k.slice(1)).style.display = (k === t) ? 'block' : 'none';
             });
@@ -4526,6 +4528,7 @@
                three are period statements and this one is a snapshot, so it is
                rendered on demand rather than from _accData. */
             if (t === 'pos') renderPosition();
+            if (t === 'sch') renderSchedules();
             updateAccPrintHead();
         }
 
@@ -4662,6 +4665,154 @@
                 </div>`;
         }
 
+        /* ══════════════════════════════════════════════════════════════════
+           SCHEDULES — the two year-end tables an accountant asks for.
+
+           Neither computes anything new. The Fixed Asset Register reads the
+           same accumTo() the P&L's depreciation line reads, so the register
+           and the statement cannot differ — they are the same function called
+           twice, not two implementations that agree today.
+
+           Both foot on their own and say so. A register whose columns do not
+           reconcile is worse than none, because it is the document that gets
+           attached to a return.
+        ══════════════════════════════════════════════════════════════════ */
+        function renderSchedules() {
+            const box = document.getElementById('accSch');
+            if (!box) return;
+            if (!window.mmFinance) {
+                box.innerHTML = '<div style="padding:1.5rem;color:#991b1b;">This panel did not load. Hard-refresh the page (Ctrl+Shift+R).</div>';
+                return;
+            }
+            const from = document.getElementById('accFrom').value || '';
+            const to   = document.getElementById('accTo').value   || '';
+            const far = mmFinance.assetSchedule({ from, to });
+            const ls  = mmFinance.loanSchedule({ from, to });
+            const money = n => '₹' + (Number(n) || 0).toFixed(2);
+
+            const th = 'padding:9px 10px;border-bottom:1.5px solid #e2e8f0;font-size:0.76rem;color:#64748b;font-weight:800;text-align:right;white-space:nowrap;';
+            const thL = th + 'text-align:left;';
+            const td = 'padding:9px 10px;border-bottom:1px solid #f1f5f9;font-size:0.82rem;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;';
+            const tdL = td + 'text-align:left;white-space:normal;';
+            const tot = 'padding:11px 10px;font-size:0.85rem;font-weight:900;text-align:right;white-space:nowrap;background:#f8fafc;';
+
+            let html = `<div style="padding:0.4rem 0 1rem;">
+                <div style="font-size:0.8rem;color:#64748b;margin-bottom:1rem;line-height:1.6;">
+                    For <b>${_te(far.from)}</b> to <b>${_te(far.to)}</b>.
+                    These are the two schedules your accountant asks for at year end.
+                </div>`;
+
+            /* ── Fixed Asset Register ── */
+            if (!far.rows.length) {
+                html += `<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px 16px;font-size:0.82rem;color:#64748b;line-height:1.6;margin-bottom:1.3rem;">
+                    <b>Fixed Asset Register</b><br>
+                    No assets recorded. Add the fridge, the racking, the computer under
+                    <b>Accounts → Cash &amp; Capital</b> and they will be depreciated here and charged to your Profit &amp; Loss.
+                </div>`;
+            } else {
+                html += `
+                <div style="font-weight:900;color:#0f172a;font-size:0.95rem;margin-bottom:0.5rem;">🧊 Fixed Asset Register</div>
+                <div style="overflow-x:auto;margin-bottom:0.5rem;">
+                <table style="width:100%;border-collapse:collapse;min-width:680px;">
+                    <thead><tr>
+                        <th style="${thL}">Asset</th>
+                        <th style="${thL}">Bought</th>
+                        <th style="${thL}">Method</th>
+                        <th style="${th}">Cost</th>
+                        <th style="${th}">Value b/f</th>
+                        <th style="${th}">Added</th>
+                        <th style="${th}">Depreciation</th>
+                        <th style="${th}">Value c/f</th>
+                    </tr></thead>
+                    <tbody>
+                        ${far.rows.map(r => `<tr>
+                            <td style="${tdL}font-weight:700;color:#0f172a;">${_te(r.name)}${
+                                r.foots ? '' : ' <span style="color:#dc2626;" title="This row does not add up">⚠️</span>'}</td>
+                            <td style="${tdL}color:#94a3b8;">${_te(r.bought || '—')}</td>
+                            <td style="${tdL}color:#64748b;">${_te(r.method)} ${r.rate}%</td>
+                            <td style="${td}color:#64748b;">${money(r.cost)}</td>
+                            <td style="${td}">${money(r.openingWdv)}</td>
+                            <td style="${td}">${r.additions ? money(r.additions) : '—'}</td>
+                            <td style="${td}color:#dc2626;">${money(r.depreciation)}</td>
+                            <td style="${td}font-weight:800;">${money(r.closingWdv)}</td>
+                        </tr>`).join('')}
+                        <tr>
+                            <td style="${tot}text-align:left;" colspan="3">Total</td>
+                            <td style="${tot}">${money(far.cost)}</td>
+                            <td style="${tot}">${money(far.openingWdv)}</td>
+                            <td style="${tot}">${money(far.additions)}</td>
+                            <td style="${tot}color:#dc2626;">${money(far.depreciation)}</td>
+                            <td style="${tot}">${money(far.closingWdv)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                </div>
+                <div style="font-size:0.76rem;color:${far.foots ? '#64748b' : '#991b1b'};margin-bottom:1.4rem;font-weight:${far.foots ? '400' : '700'};">
+                    ${far.foots
+                        ? `✅ Value brought forward + added − depreciation = value carried forward. The depreciation column is the same ${money(far.depreciation)} charged in your Profit &amp; Loss.`
+                        : '⚠️ This register does not add up. Please report it — do not give it to your accountant.'}
+                </div>`;
+            }
+
+            /* ── Loan schedule ── */
+            if (!ls.rows.length) {
+                html += `<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px 16px;font-size:0.82rem;color:#64748b;line-height:1.6;">
+                    <b>Loan schedule</b><br>No loans recorded.
+                </div>`;
+            } else {
+                html += `
+                <div style="font-weight:900;color:#0f172a;font-size:0.95rem;margin-bottom:0.5rem;">📄 Loan schedule</div>
+                <div style="overflow-x:auto;margin-bottom:0.5rem;">
+                <table style="width:100%;border-collapse:collapse;min-width:640px;">
+                    <thead><tr>
+                        <th style="${thL}">Loan</th>
+                        <th style="${thL}">Lender</th>
+                        <th style="${th}">Owed b/f</th>
+                        <th style="${th}">Borrowed</th>
+                        <th style="${th}">Principal repaid</th>
+                        <th style="${th}">Interest paid</th>
+                        <th style="${th}">Owed c/f</th>
+                    </tr></thead>
+                    <tbody>
+                        ${ls.rows.map(r => `<tr>
+                            <td style="${tdL}font-weight:700;color:#0f172a;">${_te(r.name)}${
+                                r.foots ? '' : ' <span style="color:#dc2626;" title="This row does not add up">⚠️</span>'}</td>
+                            <td style="${tdL}color:#64748b;">${_te(r.lender || '—')}</td>
+                            <td style="${td}">${money(r.opening)}</td>
+                            <td style="${td}">${r.borrowed ? money(r.borrowed) : '—'}</td>
+                            <td style="${td}color:#059669;">${money(r.repaid)}</td>
+                            <td style="${td}color:#dc2626;">${money(r.interest)}</td>
+                            <td style="${td}font-weight:800;">${money(r.closing)}</td>
+                        </tr>`).join('')}
+                        <tr>
+                            <td style="${tot}text-align:left;" colspan="2">Total</td>
+                            <td style="${tot}">${money(ls.opening)}</td>
+                            <td style="${tot}">${money(ls.borrowed)}</td>
+                            <td style="${tot}color:#059669;">${money(ls.repaid)}</td>
+                            <td style="${tot}color:#dc2626;">${money(ls.interest)}</td>
+                            <td style="${tot}">${money(ls.closing)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                </div>
+                <div style="font-size:0.76rem;color:${ls.foots ? '#64748b' : '#991b1b'};font-weight:${ls.foots ? '400' : '700'};">
+                    ${ls.foots
+                        ? `✅ Owed brought forward + borrowed − principal repaid = owed carried forward.`
+                        : '⚠️ This schedule does not add up. Please report it.'}
+                </div>
+                <div style="background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:12px;padding:11px 15px;font-size:0.79rem;color:#075985;line-height:1.65;margin-top:0.8rem;">
+                    <b>Only the interest is a cost.</b> You paid out
+                    ${money(ls.repaid + ls.interest)} on these loans, but just
+                    <b>${money(ls.interest)}</b> of it is an expense in your Profit &amp; Loss —
+                    the other ${money(ls.repaid)} reduced what you owe. That is why the money
+                    leaving your bank is bigger than the charge against your profit.
+                </div>`;
+            }
+
+            html += '</div>';
+            box.innerHTML = html;
+        }
+
         /* The letterhead that only exists on paper. Whoever receives a printed
            statement needs to know whose shop it is, which statement it is and
            what period it covers — none of which the screen has to say, because
@@ -4677,7 +4828,8 @@
             const sp = window.mmShopProfile || {};
             const shop = sp.shop_name || localStorage.getItem('mm_storeName') || localStorage.getItem('storeName') || 'My Store';
             const names = { pnl: 'Profit & Loss', cash: 'Cash Flow Statement', day: 'Day Book',
-                            pos: 'Where You Stand (not a balance sheet)' };
+                            pos: 'Where You Stand (not a balance sheet)',
+                            sch: 'Fixed Asset Register & Loan Schedule' };
             const basis = d.stock.openingSource === 'entered'
                 ? 'Opening stock as entered by the owner'
                 : 'Opening stock computed from purchase history';

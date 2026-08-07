@@ -241,6 +241,302 @@
     }
 
     /* ──────────────────────────────────────────────────────────────────
+       THE TILL, AND THE DOCUMENTS THAT MOVE IT
+
+       Extracted so that summary() and statement() cannot disagree about what
+       is in the drawer. They previously would have: the summary added the Day
+       Book's net movement while a statement built from entries alone would
+       have shown a different closing figure, and a cash book that does not
+       foot to the cash balance on the next screen is worse than no cash book.
+       One definition, two readers — the same rule as mmPosition.suppliers.
+    ────────────────────────────────────────────────────────────────── */
+    function primaryCashAccount() {
+        var best = null;
+        accounts().forEach(function (a) {
+            if (!a || a.kind !== 'cash' || a.active === false) return;
+            if (a.meta && a.meta.primary) { best = a; return; }
+            if (!best) { best = a; return; }
+            if (best.meta && best.meta.primary) return;      // an explicit choice wins
+            if (d10(a.openingDate) < d10(best.openingDate)) best = a;
+        });
+        return best;
+    }
+
+    /* Net cash the DOCUMENTS have moved through this account up to asOf.
+       Only the nominated till, and only from its opening date — everything
+       earlier is already inside the opening figure. */
+    function documentCashTo(acct, asOf) {
+        if (!acct || acct.kind !== 'cash') return 0;
+        var p = primaryCashAccount();
+        if (!p || p.id !== acct.id) return 0;
+        if (!window.mmDayBook || typeof mmDayBook.load !== 'function') return 0;
+        var from = d10(acct.openingDate) || '2000-01-01';
+        var to = d10(asOf);
+        if (!to || to < from) return 0;
+        try {
+            var db = mmDayBook.load({ from: from, to: to });
+            return r2(num(db && db.totals && db.totals.net));
+        } catch (e) { return 0; }
+    }
+
+    /* What the account is actually worth on a date, documents included. This
+       is the figure every screen should quote. */
+    function fullBalanceAsOf(account, asOf) {
+        var a = (typeof account === 'string') ? byId(accounts(), account) : account;
+        if (!a) return 0;
+        var t = d10(asOf || todayLocal());
+        return r2(balanceAsOf(a, t) + documentCashTo(a, t));
+    }
+
+    /* ──────────────────────────────────────────────────────────────────
+       STATEMENT — the cash book / bank book / any account's own ledger.
+
+       Opening balance, every movement in date order with a running balance,
+       closing balance. For the till the Day Book's own rows are merged in,
+       because most of what moves a pharmacy's drawer is sales and supplier
+       payments, not anything typed on the Cash & Capital tab. A statement
+       showing only the typed entries would foot to a number that appears
+       nowhere else in the app.
+
+       `foots` is carried on the result rather than assumed: opening plus
+       everything in minus everything out must equal the closing balance
+       computed independently. Same discipline as the P&L's checks.
+    ────────────────────────────────────────────────────────────────── */
+    function statement(accountId, opts) {
+        opts = opts || {};
+        var a = (typeof accountId === 'string') ? byId(accounts(), accountId) : accountId;
+        if (!a) return null;
+
+        var opened = d10(a.openingDate);
+        var to = d10(opts.to || todayLocal());
+        var from = d10(opts.from || opened || '2000-01-01');
+        if (opened && from < opened) from = opened;          // nothing exists before it opened
+        if (to < from) to = from;
+
+        var rows = [];
+        entries().forEach(function (e) {
+            if (!e || e.accountId !== a.id) return;
+            var d = d10(e.date);
+            if (d < from || d > to) return;
+            var amt = Math.abs(num(e.amount));
+            rows.push({
+                date: d,
+                particulars: _movementLabel(a.kind, e.kind),
+                note: e.note || '',
+                inAmt: e.direction === -1 ? 0 : amt,
+                outAmt: e.direction === -1 ? amt : 0,
+                interest: Math.abs(num(e.interest)),
+                source: 'manual',
+                id: e.id, ref: e.ref || ''
+            });
+        });
+
+        /* The documents. Only for the till, and only its cash effect — the
+           Day Book already decides what counts as cash (a credit sale does
+           not, a supplier payment does). */
+        var p = primaryCashAccount();
+        var isTill = !!(p && p.id === a.id);
+        if (isTill && window.mmDayBook && typeof mmDayBook.load === 'function') {
+            try {
+                var db = mmDayBook.load({ from: from, to: to });
+                (db.rows || []).forEach(function (r) {
+                    var c = num(r.cash);
+                    if (!c) return;                          // not a cash movement
+                    rows.push({
+                        date: d10(r.date),
+                        particulars: r.kind || 'Entry',
+                        note: r.note || '',
+                        inAmt: c > 0 ? r2(c) : 0,
+                        outAmt: c < 0 ? r2(-c) : 0,
+                        interest: 0,
+                        source: 'document',
+                        id: '', ref: ''
+                    });
+                });
+            } catch (e) { /* a missing Day Book must not empty the statement */ }
+        }
+
+        rows.sort(function (x, y) {
+            if (x.date !== y.date) return x.date < y.date ? -1 : 1;
+            /* Documents before manual entries on the same day: a shop records
+               the day's takings before it moves money out of the drawer, and a
+               stable order keeps the running balance reproducible. */
+            return (x.source === y.source) ? 0 : (x.source === 'document' ? -1 : 1);
+        });
+
+        /* BALANCE BROUGHT FORWARD.
+
+           balanceAsOf deliberately returns 0 for any date before the account
+           exists, so asking it for "the day before the opening date" gives
+           nothing — and a statement that starts on the day the account was
+           opened would show no brought-forward figure, no row for the opening
+           amount either, and would fail to foot by exactly that amount. When
+           the statement starts at the beginning, the opening figure IS the
+           balance brought forward. */
+        var opening = (!opened || from > opened)
+            ? fullBalanceAsOf(a, dayBefore(from))
+            : r2(num(a.opening));
+        var running = opening, totalIn = 0, totalOut = 0;
+        rows.forEach(function (r) {
+            running = r2(running + r.inAmt - r.outAmt);
+            r.balance = running;
+            totalIn += r.inAmt; totalOut += r.outAmt;
+        });
+
+        var closing = fullBalanceAsOf(a, to);
+        /* An asset is written down by depreciation, which is not a movement
+           and so never appears as a row. Its statement therefore cannot foot
+           to the carrying value, and says so rather than appearing broken. */
+        var dep = (a.kind === 'asset') ? r2(accumTo(a, to) - accumTo(a, dayBefore(from))) : 0;
+        var expected = r2(running - dep);
+
+        return {
+            account: { id: a.id, kind: a.kind, name: a.name,
+                       opening: num(a.opening), openingDate: opened },
+            from: from, to: to,
+            opening: r2(opening),
+            rows: rows,
+            totalIn: r2(totalIn), totalOut: r2(totalOut),
+            depreciation: dep,
+            closing: r2(closing),
+            isTill: isTill,
+            foots: Math.abs(expected - r2(closing)) < 0.02
+        };
+    }
+
+    /* Human wording for a movement, per account kind. The stored `kind` is a
+       key ('emi', 'drawing'); this is what a person reads on a printed page. */
+    function _movementLabel(acctKind, moveKind) {
+        var m = {
+            deposit: 'Received', withdrawal: 'Paid out', transfer: 'Transfer',
+            charge: 'Bank charges', takings: 'Takings',
+            introduce: 'Capital introduced', drawing: 'Drawings',
+            emi: 'EMI paid', repay: 'Repayment', borrow: 'Borrowed',
+            purchase: 'Purchased', sale: 'Sold', improve: 'Improvement',
+            paid: 'Paid', refunded: 'Refunded'
+        };
+        return m[moveKind] || (String(moveKind || 'Entry').charAt(0).toUpperCase() + String(moveKind || '').slice(1));
+    }
+
+    /* ──────────────────────────────────────────────────────────────────
+       FIXED ASSET REGISTER — the schedule a CA asks for at year end.
+
+       Per asset: cost, written-down value brought forward, anything added in
+       the period, depreciation charged, and the value carried forward. Every
+       figure comes from accumTo(), so the register and the P&L's depreciation
+       line cannot differ — they are the same function.
+
+       Each row foots on its own (b/f + additions − depreciation = c/f) and the
+       failures are counted, so a broken row is named instead of quietly
+       sitting in a total.
+    ────────────────────────────────────────────────────────────────── */
+    function assetSchedule(opts) {
+        opts = opts || {};
+        var to = d10(opts.to || todayLocal());
+        var from = d10(opts.from || (fyEndOf(to).slice(0, 4) - 1) + '-04-01');
+        var before = dayBefore(from);
+
+        var out = { from: from, to: to, rows: [],
+                    cost: 0, openingWdv: 0, additions: 0, depreciation: 0, closingWdv: 0,
+                    failures: 0 };
+
+        accounts().forEach(function (a) {
+            if (!a || a.kind !== 'asset' || a.active === false) return;
+            var bought = d10(a.openingDate);
+            if (bought && bought > to) return;                 // not owned yet
+
+            var costToDate = r2(num(a.opening) + movementsFor(a.id, to));
+            var additions  = r2(movementsFor(a.id, to) - movementsFor(a.id, before));
+            /* An asset bought DURING the period has no value brought forward —
+               its cost is an addition, not an opening balance. */
+            var openedInPeriod = bought >= from;
+            var openingWdv = openedInPeriod ? 0 : r2(balanceAsOf(a, before));
+            if (openedInPeriod) additions = r2(additions + num(a.opening));
+
+            var dep = r2(accumTo(a, to) - accumTo(a, before));
+            var closing = r2(balanceAsOf(a, to));
+            var foots = Math.abs(r2(openingWdv + additions - dep) - closing) < 0.02;
+            if (!foots) out.failures++;
+
+            out.rows.push({
+                id: a.id, name: a.name,
+                method: String((a.meta && a.meta.method) || 'wdv').toUpperCase(),
+                rate: num(a.meta && a.meta.rate),
+                salvage: num(a.meta && a.meta.salvage),
+                bought: bought, cost: costToDate,
+                openingWdv: openingWdv, additions: additions,
+                depreciation: dep, closingWdv: closing,
+                foots: foots
+            });
+            out.cost += costToDate; out.openingWdv += openingWdv;
+            out.additions += additions; out.depreciation += dep; out.closingWdv += closing;
+        });
+
+        ['cost', 'openingWdv', 'additions', 'depreciation', 'closingWdv']
+            .forEach(function (k) { out[k] = r2(out[k]); });
+        out.rows.sort(function (x, y) { return y.closingWdv - x.closingWdv; });
+        out.foots = Math.abs(r2(out.openingWdv + out.additions - out.depreciation) - out.closingWdv) < 0.02;
+        return out;
+    }
+
+    /* ──────────────────────────────────────────────────────────────────
+       LOAN SCHEDULE — what was owed, what was paid, what it cost.
+
+       The split matters and is the whole reason this table exists: interest
+       is a cost of the period and principal is not. A shop looking only at
+       total EMIs paid cannot tell how much of the year's money actually went
+       on borrowing.
+    ────────────────────────────────────────────────────────────────── */
+    function loanSchedule(opts) {
+        opts = opts || {};
+        var to = d10(opts.to || todayLocal());
+        var from = d10(opts.from || (fyEndOf(to).slice(0, 4) - 1) + '-04-01');
+        var before = dayBefore(from);
+
+        var out = { from: from, to: to, rows: [],
+                    opening: 0, borrowed: 0, repaid: 0, interest: 0, closing: 0, failures: 0 };
+
+        accounts().forEach(function (a) {
+            if (!a || a.kind !== 'loan' || a.active === false) return;
+            var started = d10(a.openingDate);
+            if (started && started > to) return;
+
+            var startedInPeriod = started >= from;
+            var opening = startedInPeriod ? 0 : r2(balanceAsOf(a, before));
+            var borrowed = 0, repaid = 0, interest = 0;
+            entries().forEach(function (e) {
+                if (!e || e.accountId !== a.id) return;
+                var d = d10(e.date);
+                if (d < from || d > to) return;
+                var amt = Math.abs(num(e.amount));
+                if (e.direction === -1) repaid += amt; else borrowed += amt;
+                interest += Math.abs(num(e.interest));
+            });
+            if (startedInPeriod) borrowed = r2(borrowed + num(a.opening));
+
+            var closing = r2(balanceAsOf(a, to));
+            var foots = Math.abs(r2(opening + borrowed - repaid) - closing) < 0.02;
+            if (!foots) out.failures++;
+
+            out.rows.push({
+                id: a.id, name: a.name,
+                lender: (a.meta && a.meta.lender) || '',
+                emi: num(a.meta && a.meta.emi),
+                opening: opening, borrowed: r2(borrowed), repaid: r2(repaid),
+                interest: r2(interest), closing: closing, foots: foots
+            });
+            out.opening += opening; out.borrowed += borrowed;
+            out.repaid += repaid; out.interest += interest; out.closing += closing;
+        });
+
+        ['opening', 'borrowed', 'repaid', 'interest', 'closing']
+            .forEach(function (k) { out[k] = r2(out[k]); });
+        out.rows.sort(function (x, y) { return y.closing - x.closing; });
+        out.foots = Math.abs(r2(out.opening + out.borrowed - out.repaid) - out.closing) < 0.02;
+        return out;
+    }
+
+    /* ──────────────────────────────────────────────────────────────────
        SUMMARY — everything position.js needs, in one pass.
     ────────────────────────────────────────────────────────────────── */
     function summary(opts) {
@@ -256,20 +552,16 @@
             accounts: [], hasData: all.length > 0
         };
 
-        var primaryCash = null;
+        var primaryCash = primaryCashAccount();
         all.forEach(function (a) {
-            var bal = balanceAsOf(a, asOf);
+            /* fullBalanceAsOf, so the figure on a card matches the figure on
+               that account's own statement. balanceAsOf alone would leave the
+               till short by everything the Day Book knows about. */
+            var bal = fullBalanceAsOf(a, asOf);
             out.accounts.push({ id: a.id, kind: a.kind, name: a.name, balance: bal,
                                 opening: num(a.opening), openingDate: d10(a.openingDate) });
             if (a.kind === 'cash') {
                 out.cash += bal;
-                /* The nominated till. meta.primary wins; otherwise the
-                   earliest-opened cash account, which for the overwhelmingly
-                   common one-till shop is simply "the one". */
-                if (!primaryCash || (a.meta && a.meta.primary)) {
-                    if (!primaryCash || (a.meta && a.meta.primary) ||
-                        d10(a.openingDate) < d10(primaryCash.openingDate)) primaryCash = a;
-                }
             } else if (a.kind === 'bank')    out.bank     += bal;
             else if (a.kind === 'capital')   out.capital  += bal;
             else if (a.kind === 'loan')      out.loans    += bal;
@@ -281,24 +573,14 @@
             }
         });
 
-        /* RULE 2. Sales, supplier payments and cash expenses already move the
-           till, and mmDayBook is the module that owns that figure. Counted
-           from the till's opening_date forward only — anything earlier is
-           inside the opening balance already, and counting it twice would
-           overstate the cash by roughly the shop's entire history. */
-        if (primaryCash && window.mmDayBook && typeof mmDayBook.load === 'function') {
-            try {
-                var from = d10(primaryCash.openingDate) || '2000-01-01';
-                var db = mmDayBook.load({ from: from, to: asOf });
-                var net = num(db && db.totals && db.totals.net);
-                out.cashFromDocuments = r2(net);
-                out.cash = r2(out.cash + net);
-                out.cashSource = 'till float + sales and payments since ' + from;
-            } catch (e) {
-                out.cashSource = 'manual entries only — the Day Book could not be read';
-            }
-        } else if (primaryCash) {
-            out.cashSource = 'manual entries only';
+        /* RULE 2 lives in documentCashTo() now, and fullBalanceAsOf above has
+           already applied it. All that is left here is to REPORT how much of
+           the till came from documents, so the screen can explain itself. */
+        if (primaryCash) {
+            out.cashFromDocuments = documentCashTo(primaryCash, asOf);
+            out.cashSource = (window.mmDayBook && typeof mmDayBook.load === 'function')
+                ? 'till float + sales and payments since ' + (d10(primaryCash.openingDate) || '2000-01-01')
+                : 'manual entries only';
         }
 
         ['cash', 'bank', 'capital', 'loans', 'deposits',
@@ -312,6 +594,14 @@
         accounts: accounts,
         entries: entries,
         balanceAsOf: balanceAsOf,
+        /* The one every SCREEN should call — includes the documents that move
+           the till. balanceAsOf is the raw one and is kept public only because
+           the schedules need the movement-only figure. */
+        fullBalanceAsOf: fullBalanceAsOf,
+        primaryCashAccount: primaryCashAccount,
+        statement: statement,
+        assetSchedule: assetSchedule,
+        loanSchedule: loanSchedule,
         accumTo: accumTo,
         depreciationBetween: depreciationBetween,
         chargesBetween: chargesBetween,
