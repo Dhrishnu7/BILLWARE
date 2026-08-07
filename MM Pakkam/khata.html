@@ -525,6 +525,7 @@
             <h2 id="finAcctTitle">Add Account</h2>
             <p id="finAcctSub">The part of your finances no bill can record.</p>
             <div id="finAcctBody"></div>
+            <div id="finAcctStatus" style="display:none;margin:0 0 0.9rem;border-radius:10px;padding:11px 14px;font-size:0.85rem;line-height:1.6;font-weight:600;"></div>
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" onclick="closeFinModals()">Cancel</button>
                 <button type="button" class="btn-confirm" onclick="saveFinAccount()">✓ Save</button>
@@ -538,6 +539,13 @@
             <h2 id="finMoveTitle">Record a movement</h2>
             <p id="finMoveSub"></p>
             <div id="finMoveBody"></div>
+            <!-- Outcome reported HERE, inside the form, directly above the
+                 button that was pressed. A toast at the bottom of the screen
+                 was missed entirely on a phone inside a scrolled dialog, and a
+                 save that refuses without saying so is indistinguishable from
+                 a button that does nothing. This cannot be scrolled away from:
+                 it sits where the eye already is. -->
+            <div id="finMoveStatus" style="display:none;margin:0 0 0.9rem;border-radius:10px;padding:11px 14px;font-size:0.85rem;line-height:1.6;font-weight:600;"></div>
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" onclick="closeFinModals()">Cancel</button>
                 <button type="button" class="btn-confirm" onclick="saveFinMovement()">✓ Save</button>
@@ -1902,6 +1910,7 @@
                 ? 'Changing the opening figure changes every balance from that date on.'
                 : 'The part of your finances no bill can record.';
             _finAcctBody(a ? a.kind : 'cash', a);
+            _finClearStatus('finAcctStatus');
             document.getElementById('finAcctModal').classList.add('open');
         }
 
@@ -1997,12 +2006,14 @@
         }
 
         async function saveFinAccount() {
+            _finClearStatus('finAcctStatus');
             try {
                 await _saveFinAccount();
             } catch (e) {
                 console.error('[finance] save account failed:', e);
-                await mmAlert('This account could not be saved.\n\n' + (e && e.message ? e.message : String(e)) +
-                    '\n\nNothing has been recorded.', { title: '⚠️ Could not save' });
+                await _finRefuse('finAcctStatus',
+                    'This account could not be saved: ' + (e && e.message ? e.message : String(e)) +
+                    ' — nothing has been recorded.');
             }
         }
 
@@ -2011,9 +2022,9 @@
             const name = (document.getElementById('finName').value || '').trim();
             const opening = parseFloat(document.getElementById('finOpening').value) || 0;
             const openingDate = document.getElementById('finOpeningDate').value || '';
-            if (!name) { await mmAlert('Give the account a name.', { title: '✏️ Name needed' }); return; }
-            if (!openingDate) { await mmAlert('Pick the date the opening figure applies to.', { title: '📅 Date needed' }); return; }
-            if (opening < 0) { await mmAlert('An opening amount cannot be negative.', { title: '⚠️ Check the amount' }); return; }
+            if (!name) return _finRefuse('finAcctStatus', 'Give the account a name.', '✏️ Name needed');
+            if (!openingDate) return _finRefuse('finAcctStatus', 'Pick the date the opening figure applies to.', '📅 Date needed');
+            if (opening < 0) return _finRefuse('finAcctStatus', 'An opening amount cannot be negative.', '⚠️ Check the amount');
 
             const meta = {};
             const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
@@ -2024,10 +2035,10 @@
                 meta.rate = parseFloat(g('finRate')) || 0;
                 meta.salvage = parseFloat(g('finSalvage')) || 0;
                 if (meta.salvage >= opening && opening > 0) {
-                    await mmAlert('Scrap value cannot be more than what the asset cost.', { title: '⚠️ Check the figures' }); return;
+                    return _finRefuse('finAcctStatus', 'Scrap value cannot be more than what the asset cost.', '⚠️ Check the figures');
                 }
                 if (openingDate > _finToday()) {
-                    await mmAlert('That purchase date is in the future.', { title: '📅 Future date' }); return;
+                    return _finRefuse('finAcctStatus', 'That purchase date is in the future.', '📅 Future date');
                 }
             }
             if (kind === 'deposit') meta.party = (g('finParty') || '').trim();
@@ -2094,6 +2105,7 @@
             document.getElementById('finMoveSub').textContent =
                 (FIN_KINDS[a.kind] || {}).label + ' · balance ' + _finMoney(mmFinance.balanceAsOf(a, _finToday()));
             _finMoveBody();
+            _finClearStatus('finMoveStatus');
             document.getElementById('finMoveModal').classList.add('open');
         }
 
@@ -2185,6 +2197,30 @@
                 '<b>This will record:</b><br>' + lines.map(l => '• ' + l).join('<br>');
         }
 
+        /* Reports an outcome in BOTH places at once: inline in the form, and
+           as a modal. Belt and braces on purpose — a toast was missed
+           completely on a phone inside a scrolled dialog, so this no longer
+           depends on any single mechanism reaching the user. The inline line
+           also needs no console, which matters when the person testing is on
+           a phone. */
+        function _finSetStatus(boxId, msg, kind) {
+            const el = document.getElementById(boxId);
+            if (!el) return;
+            el.style.display = '';
+            el.style.background = kind === 'ok' ? '#f0fdf4' : '#fef2f2';
+            el.style.border = '1.5px solid ' + (kind === 'ok' ? '#bbf7d0' : '#fecaca');
+            el.style.color = kind === 'ok' ? '#166534' : '#991b1b';
+            el.textContent = msg;
+        }
+        function _finClearStatus(boxId) {
+            const el = document.getElementById(boxId);
+            if (el) { el.style.display = 'none'; el.textContent = ''; }
+        }
+        async function _finRefuse(boxId, msg, title) {
+            _finSetStatus(boxId, msg, 'bad');
+            try { await mmAlert(msg, { title: title || '⚠️ Could not save' }); } catch (e) {}
+        }
+
         /* A MESSAGE RAISED FROM INSIDE A MODAL MUST ITSELF BE A MODAL.
            These validations were toasts, which appear at the bottom of the
            screen behind a dialog the user is still looking at — so a refused
@@ -2193,6 +2229,7 @@
            never be missed. Toasts are fine for confirming success, because by
            then the dialog has closed. */
         async function saveFinMovement() {
+            _finClearStatus('finMoveStatus');
             try {
                 await _saveFinMovement();
             } catch (e) {
@@ -2200,42 +2237,41 @@
                    used to leave the dialog open with no explanation, which is
                    indistinguishable from a button that does nothing. */
                 console.error('[finance] save movement failed:', e);
-                await mmAlert('This movement could not be saved.\n\n' + (e && e.message ? e.message : String(e)) +
-                    '\n\nNothing has been recorded. Please send this message on if it keeps happening.',
-                    { title: '⚠️ Could not save' });
+                await _finRefuse('finMoveStatus',
+                    'This movement could not be saved: ' + (e && e.message ? e.message : String(e)) +
+                    ' — nothing has been recorded. Please send this message on if it keeps happening.');
             }
         }
 
         async function _saveFinMovement() {
             const a = _finMoveAcct;
-            if (!a) { await mmAlert('This form lost track of which account it belongs to. Close it and press "+ Movement" again.', { title: '⚠️ Could not save' }); return; }
+            if (!a) return _finRefuse('finMoveStatus', 'This form lost track of which account it belongs to. Close it and press "+ Movement" again.');
             const kind = document.getElementById('finMoveKind').value;
             const move = (FIN_MOVES[a.kind] || []).find(m => m[0] === kind);
-            if (!move) { await mmAlert(`"${kind}" is not something a ${a.kind} account can do. Close the form and try again.`, { title: '⚠️ Could not save' }); return; }
+            if (!move) return _finRefuse('finMoveStatus', `"${kind}" is not something a ${a.kind} account can do. Close the form and try again.`);
             const date = document.getElementById('finMoveDate').value;
             const amt = parseFloat(document.getElementById('finMoveAmount').value) || 0;
             const interest = (kind === 'emi') ? (parseFloat(document.getElementById('finMoveInterest').value) || 0) : 0;
             const note = (document.getElementById('finMoveNote').value || '').trim();
             const contraId = document.getElementById('finMoveContra').value;
 
-            if (!date) { await mmAlert('Pick the date this happened.', { title: '📅 Date needed' }); return; }
-            if (amt <= 0) { await mmAlert('Enter an amount greater than zero.', { title: '💰 Amount needed' }); return; }
+            if (!date) return _finRefuse('finMoveStatus', 'Pick the date this happened.', '📅 Date needed');
+            if (amt <= 0) return _finRefuse('finMoveStatus', 'Enter an amount greater than zero.', '💰 Amount needed');
             if (date > _finToday()) {
                 const go = await mmConfirm(`That date is in the future. Save it anyway?`,
                     { title: '📅 Future date', okText: 'Save anyway' });
-                if (!go) return;
+                if (!go) { _finSetStatus('finMoveStatus', 'Not saved — the date is in the future.', 'bad'); return; }
             }
             if (kind === 'emi' && interest > amt) {
-                await mmAlert('The interest cannot be more than the EMI itself.', { title: '⚠️ Check the split' }); return;
+                return _finRefuse('finMoveStatus', 'The interest cannot be more than the EMI itself.', '⚠️ Check the split');
             }
             if (a.openingDate && date < a.openingDate) {
-                await mmAlert(
-                    `This movement is dated ${date}, but "${a.name}" only opens on ${a.openingDate}.\n\n` +
+                return _finRefuse('finMoveStatus',
+                    `This movement is dated ${date}, but "${a.name}" only opens on ${a.openingDate}. ` +
                     `Anything before that date is already inside the opening figure, so it would be ignored — ` +
-                    `and counting it as well would make the balance wrong.\n\n` +
+                    `and counting it as well would make the balance wrong. ` +
                     `Either move the date to ${a.openingDate} or later, or edit the account's opening date.`,
-                    { title: '📅 Before this account opened' });
-                return;
+                    '📅 Before this account opened');
             }
 
             const dir = move[2];
