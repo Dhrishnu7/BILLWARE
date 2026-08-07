@@ -333,6 +333,142 @@
             .stat-value { font-size: 2.2rem; }
             .stat-card { padding: 1.5rem; }
         }
+
+        /* ══ CASH & CAPITAL ═══════════════════════════════════════════════
+           Six kinds of account sit on one page and mean quite different
+           things — money you hold, money you owe, things you own. Colour and
+           an icon carry that distinction faster than reading the heading, and
+           a shop owner scanning this page is looking for one card, not
+           reading the list. */
+        .fin-strip {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.7rem; margin-bottom: 1.2rem;
+        }
+        .fin-tile {
+            background: #fff; border: 1.5px solid #e7eaf3; border-radius: 14px;
+            padding: 0.85rem 1rem; position: relative; overflow: hidden;
+        }
+        .fin-tile::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+            background: var(--accent, #6366f1);
+        }
+        .fin-tile-lbl {
+            font-size: 0.7rem; font-weight: 800; color: #94a3b8;
+            text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25rem;
+        }
+        .fin-tile-val {
+            font-size: 1.15rem; font-weight: 900; color: #0f172a;
+            font-variant-numeric: tabular-nums; white-space: nowrap;
+        }
+        .fin-tile-sub { font-size: 0.7rem; color: #94a3b8; margin-top: 0.15rem; }
+
+        .fin-group {
+            display: flex; align-items: center; gap: 0.5rem;
+            margin: 1.5rem 0 0.7rem; font-weight: 800; color: #334155; font-size: 0.9rem;
+        }
+        .fin-group::after {
+            content: ''; flex: 1; height: 1px;
+            background: linear-gradient(90deg, #e2e8f0, transparent);
+        }
+
+        .fin-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 0.9rem;
+        }
+        .fin-card {
+            background: #fff; border: 1.5px solid #e7eaf3; border-radius: 16px;
+            padding: 1rem 1.1rem; position: relative; overflow: hidden;
+            transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+        }
+        .fin-card::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+            background: var(--accent, #6366f1);
+        }
+        .fin-card:hover {
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+            transform: translateY(-2px); border-color: #dbe1ee;
+        }
+        .fin-card-top { display: flex; align-items: flex-start; gap: 0.7rem; }
+        .fin-icon {
+            width: 34px; height: 34px; flex: none; border-radius: 10px;
+            display: grid; place-items: center; font-size: 1rem;
+            background: var(--tint, #eef2ff);
+        }
+        .fin-name {
+            font-weight: 800; color: #0f172a; font-size: 0.95rem;
+            line-height: 1.3; word-break: break-word;
+        }
+        .fin-meta { font-size: 0.73rem; color: #94a3b8; margin-top: 0.25rem; line-height: 1.5; }
+        .fin-bal {
+            margin-left: auto; text-align: right; white-space: nowrap;
+            font-weight: 900; font-size: 1.1rem; color: #0f172a;
+            font-variant-numeric: tabular-nums;
+        }
+        .fin-bal.neg { color: #dc2626; }
+        .fin-acts { display: flex; gap: 0.35rem; margin-top: 0.85rem; flex-wrap: wrap; }
+        .fin-btn {
+            border: none; border-radius: 9px; padding: 0.35rem 0.7rem;
+            font-weight: 700; font-size: 0.74rem; font-family: inherit; cursor: pointer;
+            background: #f1f5f9; color: #475569; transition: background 0.15s, color 0.15s;
+        }
+        .fin-btn:hover { background: #e2e8f0; }
+        .fin-btn.primary { background: #eef2ff; color: #4f46e5; }
+        .fin-btn.primary:hover { background: #e0e7ff; }
+        .fin-btn.danger { background: #fef2f2; color: #dc2626; }
+        .fin-btn.danger:hover { background: #fee2e2; }
+
+        /* The statement panel — wide, because a statement is read across. */
+        .fin-stmt-modal { max-width: 860px; width: 96vw; max-height: 90vh; overflow-y: auto; }
+        .fin-stmt-head {
+            display: flex; align-items: flex-start; gap: 1rem; flex-wrap: wrap;
+            padding-bottom: 0.9rem; margin-bottom: 1rem; border-bottom: 1.5px solid #eef1f7;
+        }
+        .fin-stmt-name { font-size: 1.25rem; font-weight: 800; color: #0f172a; }
+        .fin-stmt-sub { font-size: 0.8rem; color: #94a3b8; margin-top: 0.2rem; }
+        .fin-stmt-bal { margin-left: auto; text-align: right; }
+        .fin-stmt-bal-lbl {
+            font-size: 0.68rem; font-weight: 800; color: #94a3b8;
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .fin-stmt-bal-val {
+            font-size: 1.4rem; font-weight: 900; color: #0f172a;
+            font-variant-numeric: tabular-nums; white-space: nowrap;
+        }
+        .fin-tbl-wrap { overflow-x: auto; border: 1.5px solid #eef1f7; border-radius: 12px; }
+        .fin-tbl { width: 100%; border-collapse: collapse; min-width: 560px; }
+        .fin-tbl th {
+            background: #f8fafc; padding: 9px 12px; font-size: 0.72rem; font-weight: 800;
+            color: #64748b; text-transform: uppercase; letter-spacing: 0.03em;
+            text-align: right; white-space: nowrap; border-bottom: 1.5px solid #e7eaf3;
+        }
+        .fin-tbl th.l, .fin-tbl td.l { text-align: left; }
+        .fin-tbl td {
+            padding: 9px 12px; font-size: 0.83rem; text-align: right; white-space: nowrap;
+            border-bottom: 1px solid #f4f6fa; font-variant-numeric: tabular-nums; color: #334155;
+        }
+        .fin-tbl td.l { white-space: normal; }
+        .fin-tbl tbody tr:last-child td { border-bottom: none; }
+        .fin-tbl tr.bf td, .fin-tbl tr.cf td { background: #f8fafc; font-weight: 800; color: #0f172a; }
+        .fin-tbl tr.cf td { border-top: 1.5px solid #e7eaf3; }
+        .fin-tbl .in  { color: #059669; font-weight: 600; }
+        .fin-tbl .out { color: #dc2626; font-weight: 600; }
+        .fin-tbl .run { font-weight: 800; color: #0f172a; }
+        .fin-note { font-size: 0.72rem; color: #94a3b8; font-weight: 400; }
+        .fin-x {
+            background: none; border: none; color: #cbd5e1; cursor: pointer;
+            font-size: 0.9rem; padding: 0 3px; line-height: 1;
+        }
+        .fin-x:hover { color: #dc2626; }
+        .fin-foot-ok  { font-size: 0.76rem; color: #64748b; margin-top: 0.7rem; }
+        .fin-foot-bad {
+            font-size: 0.8rem; color: #991b1b; margin-top: 0.7rem; font-weight: 700;
+            background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 10px; padding: 9px 12px;
+        }
+
+        @media (max-width: 640px) {
+            .fin-grid { grid-template-columns: 1fr; }
+            .fin-stmt-modal { width: 100vw; max-width: 100vw; border-radius: 16px 16px 0 0; }
+        }
     </style>
 </head>
 <body>
@@ -529,6 +665,31 @@
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" onclick="closeFinModals()">Cancel</button>
                 <button type="button" class="btn-confirm" onclick="saveFinAccount()">✓ Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- THE STATEMENT LIVES IN ITS OWN WIDE PANEL, not inside an account card.
+         A statement has five columns and a card in a two-up grid is about
+         340px wide, so Particulars was being clipped to "culars" and the
+         balance column sat off the edge behind a scrollbar. A document you are
+         meant to read across cannot live in a column. -->
+    <div class="modal-overlay" id="finStmtModal">
+        <div class="modal fin-stmt-modal">
+            <div class="fin-stmt-head">
+                <div>
+                    <div class="fin-stmt-name" id="finStmtName">Statement</div>
+                    <div class="fin-stmt-sub" id="finStmtSub"></div>
+                </div>
+                <div class="fin-stmt-bal">
+                    <div class="fin-stmt-bal-lbl">Balance</div>
+                    <div class="fin-stmt-bal-val" id="finStmtBal">₹0.00</div>
+                </div>
+            </div>
+            <div id="finStmtBody"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="closeFinModals()">Close</button>
+                <button type="button" class="btn-confirm" id="finStmtPrint">🖨️ Print</button>
             </div>
         </div>
     </div>
@@ -1688,13 +1849,17 @@
         let _finEditId = '';     // account being edited, '' = new
         let _finMoveAcct = null; // account a movement is being recorded against
 
+        /* accent/tint are not decoration. Six kinds sit on one page meaning
+           quite different things — money held, money owed, things owned — and
+           colour tells them apart faster than the heading does. Owed things
+           are red, held money green/indigo, owned things amber. */
         const FIN_KINDS = {
-            cash:    { icon: '💵', label: 'Cash / Till',        opening: 'Cash in hand on that date' },
-            bank:    { icon: '🏦', label: 'Bank account',       opening: 'Bank balance on that date' },
-            capital: { icon: '🧑‍💼', label: "Owner's capital",   opening: 'What you had put in by that date' },
-            loan:    { icon: '📄', label: 'Loan',               opening: 'Amount still outstanding on that date' },
-            asset:   { icon: '🧊', label: 'Fixed asset',        opening: 'What it COST when you bought it' },
-            deposit: { icon: '🔑', label: 'Deposit / advance',  opening: 'Amount paid' }
+            cash:    { icon: '💵', label: 'Cash / Till',        accent: '#059669', tint: '#ecfdf5', opening: 'Cash in hand on that date' },
+            bank:    { icon: '🏦', label: 'Bank account',       accent: '#4f46e5', tint: '#eef2ff', opening: 'Bank balance on that date' },
+            capital: { icon: '🧑‍💼', label: "Owner's capital",  accent: '#7c3aed', tint: '#f5f3ff', opening: 'What you had put in by that date' },
+            loan:    { icon: '📄', label: 'Loan',               accent: '#dc2626', tint: '#fef2f2', opening: 'Amount still outstanding on that date' },
+            asset:   { icon: '🧊', label: 'Fixed asset',        accent: '#d97706', tint: '#fffbeb', opening: 'What it COST when you bought it' },
+            deposit: { icon: '🔑', label: 'Deposit / advance',  accent: '#0891b2', tint: '#ecfeff', opening: 'Amount paid' }
         };
         /* Which movements each kind allows, and which way each one points.
            dir +1 adds to the account, -1 takes away. `contra` marks the ones
@@ -1809,14 +1974,42 @@
                 return;
             }
 
+            /* A strip of totals before the detail. Someone opening this page
+               wants four numbers — what they hold, what they own, what they
+               owe, and the difference — not to add up a grid of cards. */
+            const held  = s.cash + s.bank;
+            const owned = s.assetWdv + s.deposits;
+            const owed  = s.loans;
+            let html = `
+                <div class="fin-strip">
+                    <div class="fin-tile" style="--accent:#059669;">
+                        <div class="fin-tile-lbl">Money you hold</div>
+                        <div class="fin-tile-val">${_finMoney(held)}</div>
+                        <div class="fin-tile-sub">Till ${_finMoney(s.cash)} · bank ${_finMoney(s.bank)}</div>
+                    </div>
+                    <div class="fin-tile" style="--accent:#d97706;">
+                        <div class="fin-tile-lbl">Things you own</div>
+                        <div class="fin-tile-val">${_finMoney(owned)}</div>
+                        <div class="fin-tile-sub">After ${_finMoney(s.assetDep)} depreciation</div>
+                    </div>
+                    <div class="fin-tile" style="--accent:#dc2626;">
+                        <div class="fin-tile-lbl">Money you owe</div>
+                        <div class="fin-tile-val">${_finMoney(owed)}</div>
+                        <div class="fin-tile-sub">Loans still to repay</div>
+                    </div>
+                    <div class="fin-tile" style="--accent:#4f46e5;">
+                        <div class="fin-tile-lbl">Difference</div>
+                        <div class="fin-tile-val">${_finMoney(held + owned - owed)}</div>
+                        <div class="fin-tile-sub">Not your full position — see Report</div>
+                    </div>
+                </div>`;
+
             const order = ['cash', 'bank', 'deposit', 'asset', 'loan', 'capital'];
-            let html = '';
             order.forEach(kind => {
                 const rows = _finAccts.filter(a => a.kind === kind && a.active !== false);
                 if (!rows.length) return;
                 const K = FIN_KINDS[kind];
-                html += `<div style="margin:1.4rem 0 0.6rem;font-weight:800;color:#334155;font-size:0.9rem;">${K.icon} ${escHtml(K.label)}</div>`;
-                html += '<div class="khata-grid">';
+                html += `<div class="fin-group">${K.icon} ${escHtml(K.label)}</div><div class="fin-grid">`;
                 rows.forEach(a => {
                     /* fullBalanceAsOf, not balanceAsOf: the till's card must
                        show what its own statement closes at, and that includes
@@ -1829,34 +2022,32 @@
                     let extra = '';
                     if (kind === 'asset') {
                         const dep = mmFinance.accumTo(a, _finToday());
-                        extra = `Cost ${_finMoney(a.opening)} · depreciation to date ${_finMoney(dep)}`
+                        extra = `Cost ${_finMoney(a.opening)} · less ${_finMoney(dep)} depreciation`
                               + ` · ${escHtml(String((a.meta && a.meta.method) || 'wdv').toUpperCase())} ${Number(a.meta && a.meta.rate) || 0}%`;
                     } else if (kind === 'loan') {
-                        extra = `Opening ${_finMoney(a.opening)}`
+                        extra = `Opened at ${_finMoney(a.opening)}`
                               + (a.meta && a.meta.lender ? ' · ' + escHtml(a.meta.lender) : '')
                               + (a.meta && a.meta.emi ? ' · EMI ' + _finMoney(a.meta.emi) : '');
                     } else {
-                        extra = `Opened ${escHtml(a.openingDate || '—')} with ${_finMoney(a.opening)} · ${n} movement${n === 1 ? '' : 's'}`;
+                        extra = `Opened ${escHtml(a.openingDate || '—')} at ${_finMoney(a.opening)} · ${n} movement${n === 1 ? '' : 's'}`;
                     }
                     const neg = (kind === 'loan') ? false : bal < 0;
                     html += `
-                        <div class="khata-card" style="border:1.5px solid #e2e8f0;border-radius:14px;padding:1rem 1.1rem;background:#fff;">
-                            <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+                        <div class="fin-card" style="--accent:${K.accent};--tint:${K.tint};">
+                            <div class="fin-card-top">
+                                <div class="fin-icon">${K.icon}</div>
                                 <div style="min-width:0;">
-                                    <div style="font-weight:800;color:#0f172a;font-size:0.95rem;">${escHtml(a.name)}</div>
-                                    <div style="font-size:0.74rem;color:#94a3b8;margin-top:3px;line-height:1.5;">${extra}</div>
+                                    <div class="fin-name">${escHtml(a.name)}</div>
+                                    <div class="fin-meta">${extra}</div>
                                 </div>
-                                <div style="text-align:right;white-space:nowrap;font-weight:900;font-size:1.05rem;color:${neg ? '#dc2626' : '#0f172a'};">
-                                    ${_finMoney(bal)}
-                                </div>
+                                <div class="fin-bal${neg ? ' neg' : ''}">${_finMoney(bal)}</div>
                             </div>
-                            <div style="display:flex;gap:6px;margin-top:0.8rem;flex-wrap:wrap;">
-                                <button onclick="openFinMove('${escHtml(a.id)}')" style="background:#eef2ff;color:#4f46e5;border:1.5px solid #c7d2fe;border-radius:9px;padding:0.32rem 0.7rem;font-weight:700;font-size:0.75rem;font-family:inherit;cursor:pointer;">+ Movement</button>
-                                <button onclick="openFinAccount('${escHtml(a.id)}')" style="background:#f1f5f9;color:#475569;border:none;border-radius:9px;padding:0.32rem 0.7rem;font-weight:700;font-size:0.75rem;font-family:inherit;cursor:pointer;">Edit</button>
-                                <button onclick="finShowHistory('${escHtml(a.id)}')" style="background:#f1f5f9;color:#475569;border:none;border-radius:9px;padding:0.32rem 0.7rem;font-weight:700;font-size:0.75rem;font-family:inherit;cursor:pointer;">History</button>
-                                <button onclick="deleteFinAccount('${escHtml(a.id)}')" style="background:#fef2f2;color:#dc2626;border:none;border-radius:9px;padding:0.32rem 0.7rem;font-weight:700;font-size:0.75rem;font-family:inherit;cursor:pointer;">Delete</button>
+                            <div class="fin-acts">
+                                <button class="fin-btn primary" onclick="openFinMove('${escHtml(a.id)}')">+ Movement</button>
+                                <button class="fin-btn" onclick="openFinStatement('${escHtml(a.id)}')">Statement</button>
+                                <button class="fin-btn" onclick="openFinAccount('${escHtml(a.id)}')">Edit</button>
+                                <button class="fin-btn danger" onclick="deleteFinAccount('${escHtml(a.id)}')">Delete</button>
                             </div>
-                            <div id="finHist-${escHtml(a.id)}" style="display:none;margin-top:0.7rem;border-top:1px dashed #e2e8f0;padding-top:0.6rem;"></div>
                         </div>`;
                 });
                 html += '</div>';
@@ -1888,129 +2079,227 @@
            anything typed on this tab. mmFinance.statement owns that merge, so
            the closing figure here and the balance on the card above are the
            same number by construction rather than by coincidence. */
-        function finShowHistory(id) {
-            const el = document.getElementById('finHist-' + id);
-            if (!el) return;
-            if (el.style.display !== 'none') { el.style.display = 'none'; return; }
-            el.style.display = '';
-
+        function openFinStatement(id) {
             const st = mmFinance.statement(id, { to: _finToday() });
-            if (!st) { el.innerHTML = '<div style="font-size:0.78rem;color:#94a3b8;">Could not build the statement.</div>'; return; }
+            if (!st) return;
+            const K = FIN_KINDS[st.account.kind] || FIN_KINDS.cash;
 
-            const cell = 'padding:5px 7px;border-bottom:1px solid #f1f5f9;font-size:0.76rem;';
-            const num = 'text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;';
+            document.getElementById('finStmtName').textContent = st.account.name;
+            document.getElementById('finStmtSub').textContent =
+                K.label + ' · ' + st.from + ' to ' + st.to;
+            const balEl = document.getElementById('finStmtBal');
+            balEl.textContent = _finMoney(st.closing);
+            balEl.style.color = (st.account.kind !== 'loan' && st.closing < 0) ? '#dc2626' : '#0f172a';
+            document.getElementById('finStmtPrint').onclick = () => finPrintStatement(id);
 
             let body = st.rows.map(r => `
                 <tr>
-                    <td style="${cell}color:#94a3b8;white-space:nowrap;">${escHtml(r.date)}</td>
-                    <td style="${cell}color:#334155;">${escHtml(r.particulars)}${
-                        r.note ? ` <span style="color:#94a3b8;">· ${escHtml(r.note)}</span>` : ''}${
-                        r.interest ? ` <span style="color:#b45309;">(interest ${_finMoney(r.interest)})</span>` : ''}${
+                    <td class="l" style="color:#94a3b8;white-space:nowrap;">${escHtml(r.date)}</td>
+                    <td class="l">${escHtml(r.particulars)}${
+                        r.note ? ` <span class="fin-note">· ${escHtml(r.note)}</span>` : ''}${
+                        r.interest ? ` <span style="color:#b45309;font-weight:600;">· interest ${_finMoney(r.interest)}</span>` : ''}${
                         /* A document row cannot be deleted from here — it belongs
                            to a bill or a payment, and the place to change it is
                            the screen that created it. Saying so beats an X that
                            does nothing. */
-                        r.source === 'document' ? ' <span style="color:#94a3b8;font-size:0.68rem;">(from your bills)</span>' : ''}</td>
-                    <td style="${cell}${num}color:#059669;">${r.inAmt ? _finMoney(r.inAmt) : ''}</td>
-                    <td style="${cell}${num}color:#dc2626;">${r.outAmt ? _finMoney(r.outAmt) : ''}</td>
-                    <td style="${cell}${num}font-weight:700;color:#0f172a;">${_finMoney(r.balance)}</td>
-                    <td style="${cell}${num}">${r.source === 'manual'
-                        ? `<button onclick="deleteFinEntry('${escHtml(r.id)}')" title="Remove this movement" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:0.8rem;padding:0 2px;">✕</button>`
+                        r.source === 'document' ? ' <span class="fin-note">· from your bills</span>' : ''}</td>
+                    <td class="in">${r.inAmt ? _finMoney(r.inAmt) : ''}</td>
+                    <td class="out">${r.outAmt ? _finMoney(r.outAmt) : ''}</td>
+                    <td class="run">${_finMoney(r.balance)}</td>
+                    <td>${r.source === 'manual'
+                        ? `<button class="fin-x" onclick="deleteFinEntry('${escHtml(r.id)}')" title="Remove this movement">✕</button>`
                         : ''}</td>
                 </tr>`).join('');
 
             if (!st.rows.length) {
-                body = `<tr><td colspan="6" style="${cell}color:#94a3b8;text-align:center;padding:14px;">No movements yet — only the opening balance.</td></tr>`;
+                body = `<tr><td colspan="6" class="l" style="text-align:center;color:#94a3b8;padding:18px;">No movements in this period — only the opening balance.</td></tr>`;
             }
 
-            el.innerHTML = `
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;">
-                    <div style="font-weight:800;color:#334155;font-size:0.8rem;">Statement</div>
-                    <button onclick="finPrintStatement('${escHtml(id)}')" style="background:#f1f5f9;color:#475569;border:none;border-radius:8px;padding:0.25rem 0.6rem;font-weight:700;font-size:0.72rem;font-family:inherit;cursor:pointer;">🖨️ Print</button>
-                </div>
-                <div style="overflow-x:auto;">
-                <table style="width:100%;border-collapse:collapse;min-width:420px;">
-                    <thead><tr style="background:#f8fafc;">
-                        <th style="${cell}text-align:left;color:#64748b;">Date</th>
-                        <th style="${cell}text-align:left;color:#64748b;">Particulars</th>
-                        <th style="${cell}${num}color:#64748b;">In</th>
-                        <th style="${cell}${num}color:#64748b;">Out</th>
-                        <th style="${cell}${num}color:#64748b;">Balance</th>
-                        <th style="${cell}"></th>
+            document.getElementById('finStmtBody').innerHTML = `
+                <div class="fin-tbl-wrap">
+                <table class="fin-tbl">
+                    <thead><tr>
+                        <th class="l">Date</th><th class="l">Particulars</th>
+                        <th>In</th><th>Out</th><th>Balance</th><th></th>
                     </tr></thead>
                     <tbody>
-                        <tr><td style="${cell}color:#94a3b8;">${escHtml(st.from)}</td>
-                            <td style="${cell}font-weight:700;color:#334155;">Balance brought forward</td>
-                            <td style="${cell}"></td><td style="${cell}"></td>
-                            <td style="${cell}${num}font-weight:700;">${_finMoney(st.opening)}</td><td style="${cell}"></td></tr>
+                        <tr class="bf">
+                            <td class="l" style="color:#94a3b8;">${escHtml(st.from)}</td>
+                            <td class="l">Balance brought forward</td>
+                            <td></td><td></td><td>${_finMoney(st.opening)}</td><td></td>
+                        </tr>
                         ${body}
                         ${st.depreciation ? `
-                        <tr><td style="${cell}color:#94a3b8;">${escHtml(st.to)}</td>
-                            <td style="${cell}color:#334155;">Depreciation for the period
-                                <span style="color:#94a3b8;">· not a movement of money</span></td>
-                            <td style="${cell}"></td>
-                            <td style="${cell}${num}color:#dc2626;">${_finMoney(st.depreciation)}</td>
-                            <td style="${cell}"></td><td style="${cell}"></td></tr>` : ''}
-                        <tr style="background:#f8fafc;">
-                            <td style="${cell}"></td>
-                            <td style="${cell}font-weight:800;color:#0f172a;">Balance carried forward</td>
-                            <td style="${cell}${num}font-weight:700;color:#059669;">${_finMoney(st.totalIn)}</td>
-                            <td style="${cell}${num}font-weight:700;color:#dc2626;">${_finMoney(st.totalOut)}</td>
-                            <td style="${cell}${num}font-weight:900;color:#0f172a;">${_finMoney(st.closing)}</td>
-                            <td style="${cell}"></td></tr>
+                        <tr>
+                            <td class="l" style="color:#94a3b8;">${escHtml(st.to)}</td>
+                            <td class="l">Depreciation for the period <span class="fin-note">· not a movement of money</span></td>
+                            <td></td><td class="out">${_finMoney(st.depreciation)}</td><td></td><td></td>
+                        </tr>` : ''}
+                        <tr class="cf">
+                            <td></td>
+                            <td class="l">Balance carried forward</td>
+                            <td class="in">${_finMoney(st.totalIn)}</td>
+                            <td class="out">${_finMoney(st.totalOut)}</td>
+                            <td>${_finMoney(st.closing)}</td>
+                            <td></td>
+                        </tr>
                     </tbody>
                 </table>
                 </div>
                 ${st.foots
-                    ? `<div style="font-size:0.7rem;color:#64748b;margin-top:5px;">✅ Brought forward + in − out${st.depreciation ? ' − depreciation' : ''} = carried forward.</div>`
+                    ? `<div class="fin-foot-ok">✅ Brought forward + in − out${st.depreciation ? ' − depreciation' : ''} = carried forward.${
+                        st.isTill ? ' Includes cash from your bills and supplier payments since ' + escHtml(st.from) + '.' : ''}</div>`
                     /* Never hidden. A statement that does not add up is the one
                        thing a reader must be told before they rely on it. */
-                    : `<div style="font-size:0.72rem;color:#991b1b;margin-top:5px;font-weight:700;">⚠️ This statement does not add up — the closing balance disagrees with the movements above. Please report this.</div>`}
-                ${st.isTill ? `<div style="font-size:0.7rem;color:#94a3b8;margin-top:3px;">Includes cash from your bills and supplier payments since ${escHtml(st.from)}.</div>` : ''}`;
+                    : `<div class="fin-foot-bad">⚠️ This statement does not add up — the closing balance disagrees with the movements above. Please report this before relying on it.</div>`}`;
+
+            document.getElementById('finStmtModal').classList.add('open');
         }
 
-        /* Printed on its own page, because this is the document you hand to
-           someone or tick off against a bank statement. */
+        /* ── THE PRINTED STATEMENT ────────────────────────────────────────
+           This leaves the building. It goes to an accountant, or gets ticked
+           off line by line against a bank's own statement, so it has to look
+           like a document rather than a screen dump: a letterhead that says
+           whose shop it is, the account and period stated once at the top, a
+           table you can follow across a page, and a footer that says when it
+           was produced and that the figures reconcile.
+
+           Dates are printed as "07 Aug 2026", not 2026-08-07. The ISO form is
+           right for storage and comparison and wrong for a person.
+
+           `print-color-adjust` is set because browsers strip background fills
+           by default, and without them the header row and the totals line
+           lose the only thing separating them from the body. */
+        function _finPrintDate(s) {
+            const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const p = String(s || '').slice(0, 10).split('-');
+            if (p.length !== 3) return String(s || '');
+            return p[2] + ' ' + (M[+p[1] - 1] || '') + ' ' + p[0];
+        }
+
         function finPrintStatement(id) {
             const st = mmFinance.statement(id, { to: _finToday() });
             if (!st) return;
-            const shop = (window.mmShopProfile && mmShopProfile.shop_name)
-                || localStorage.getItem('mm_storeName') || localStorage.getItem('storeName') || 'My Store';
-            const m = n => '₹' + (Number(n) || 0).toFixed(2);
+            const sp = window.mmShopProfile || {};
+            const shop = sp.shop_name || localStorage.getItem('mm_storeName') || localStorage.getItem('storeName') || 'My Store';
+            const line2 = [sp.address_line1, sp.city, sp.pincode].filter(Boolean).join(', ');
+            const K = FIN_KINDS[st.account.kind] || FIN_KINDS.cash;
+            const m = n => '₹' + Math.abs(Number(n) || 0).toLocaleString('en-IN',
+                { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
             const rows = st.rows.map(r => `<tr>
-                    <td>${escHtml(r.date)}</td>
-                    <td>${escHtml(r.particulars)}${r.note ? ' · ' + escHtml(r.note) : ''}</td>
+                    <td class="d">${_finPrintDate(r.date)}</td>
+                    <td>${escHtml(r.particulars)}${
+                        r.note ? ' <span class="mut">· ' + escHtml(r.note) + '</span>' : ''}${
+                        r.interest ? ' <span class="mut">· interest ' + m(r.interest) + '</span>' : ''}${
+                        r.source === 'document' ? ' <span class="mut">· from bills</span>' : ''}</td>
                     <td class="r">${r.inAmt ? m(r.inAmt) : ''}</td>
                     <td class="r">${r.outAmt ? m(r.outAmt) : ''}</td>
-                    <td class="r">${m(r.balance)}</td></tr>`).join('');
-            const html = `<html><head><title>Statement - ${escHtml(st.account.name)}</title><style>
-                body{font-family:Arial,sans-serif;padding:24px;color:#0f172a;}
-                h1{font-size:20px;margin:0 0 4px;} .sub{color:#64748b;font-size:13px;margin-bottom:16px;}
-                table{width:100%;border-collapse:collapse;font-size:13px;}
-                th,td{padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:left;}
-                th{background:#f1f5f9;} .r{text-align:right;white-space:nowrap;}
-                .tot{font-weight:bold;background:#f8fafc;}
+                    <td class="r b">${m(r.balance)}</td></tr>`).join('');
+
+            const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+                <title>Statement — ${escHtml(st.account.name)}</title><style>
+                @page { size: A4; margin: 14mm; }
+                * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                body { font-family: 'Segoe UI', Inter, Arial, sans-serif; color: #111827;
+                       margin: 0; padding: 0; font-size: 12px; line-height: 1.5; }
+                .head { display: flex; justify-content: space-between; align-items: flex-start;
+                        gap: 24px; border-bottom: 2px solid #111827; padding-bottom: 12px; }
+                .shop { font-size: 21px; font-weight: 800; letter-spacing: -0.01em; }
+                .addr { color: #6b7280; font-size: 11px; margin-top: 2px; }
+                .doc { text-align: right; }
+                .doc-t { font-size: 12px; font-weight: 800; text-transform: uppercase;
+                         letter-spacing: 0.09em; color: #6b7280; }
+                .doc-n { font-size: 16px; font-weight: 800; margin-top: 3px; }
+                .doc-p { font-size: 11px; color: #6b7280; margin-top: 2px; }
+                .cards { display: flex; gap: 10px; margin: 14px 0 16px; }
+                .card { flex: 1; border: 1px solid #e5e7eb; border-radius: 7px; padding: 8px 11px; }
+                .card-l { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.06em;
+                          color: #6b7280; font-weight: 700; }
+                .card-v { font-size: 15px; font-weight: 800; margin-top: 2px; }
+                table { width: 100%; border-collapse: collapse; }
+                th { background: #f3f4f6; font-size: 9.5px; text-transform: uppercase;
+                     letter-spacing: 0.06em; color: #374151; font-weight: 800;
+                     padding: 7px 9px; text-align: right; border-bottom: 1.5px solid #d1d5db; }
+                th.l, td.l { text-align: left; }
+                td { padding: 7px 9px; text-align: right; border-bottom: 1px solid #f3f4f6;
+                     font-variant-numeric: tabular-nums; }
+                td:nth-child(2) { text-align: left; }
+                td.d { text-align: left; color: #6b7280; white-space: nowrap; }
+                td.r { white-space: nowrap; }
+                td.b { font-weight: 700; }
+                .mut { color: #9ca3af; }
+                tr.bf td, tr.cf td { background: #f9fafb; font-weight: 800; }
+                tr.cf td { border-top: 1.5px solid #d1d5db; border-bottom: 1.5px solid #d1d5db; }
+                tbody tr:nth-child(even):not(.bf):not(.cf) td { background: #fcfcfd; }
+                .foot { margin-top: 14px; display: flex; justify-content: space-between;
+                        gap: 16px; font-size: 10px; color: #6b7280;
+                        border-top: 1px solid #e5e7eb; padding-top: 8px; }
+                .ok { color: #047857; font-weight: 700; }
+                .bad { color: #b91c1c; font-weight: 800; }
                 </style></head><body>
-                <h1>${escHtml(shop)}</h1>
-                <div class="sub">Statement · ${escHtml(st.account.name)}<br>
-                    ${escHtml(st.from)} to ${escHtml(st.to)} · generated ${escHtml(_finToday())}</div>
-                <table><thead><tr><th>Date</th><th>Particulars</th><th class="r">In</th><th class="r">Out</th><th class="r">Balance</th></tr></thead>
-                <tbody>
-                    <tr><td>${escHtml(st.from)}</td><td><b>Balance brought forward</b></td><td></td><td></td><td class="r"><b>${m(st.opening)}</b></td></tr>
-                    ${rows}
-                    ${st.depreciation ? `<tr><td>${escHtml(st.to)}</td><td>Depreciation for the period (not a movement of money)</td><td></td><td class="r">${m(st.depreciation)}</td><td></td></tr>` : ''}
-                    <tr class="tot"><td></td><td>Balance carried forward</td><td class="r">${m(st.totalIn)}</td><td class="r">${m(st.totalOut)}</td><td class="r">${m(st.closing)}</td></tr>
-                </tbody></table>
-                ${st.isTill ? '<p style="font-size:12px;color:#64748b;">Includes cash from bills and supplier payments.</p>' : ''}
+                <div class="head">
+                    <div>
+                        <div class="shop">${escHtml(shop)}</div>
+                        ${line2 ? `<div class="addr">${escHtml(line2)}</div>` : ''}
+                        ${sp.gstin ? `<div class="addr">GSTIN ${escHtml(sp.gstin)}</div>` : ''}
+                    </div>
+                    <div class="doc">
+                        <div class="doc-t">Account Statement</div>
+                        <div class="doc-n">${escHtml(st.account.name)}</div>
+                        <div class="doc-p">${escHtml(K.label)}</div>
+                        <div class="doc-p">${_finPrintDate(st.from)} — ${_finPrintDate(st.to)}</div>
+                    </div>
+                </div>
+
+                <div class="cards">
+                    <div class="card"><div class="card-l">Brought forward</div><div class="card-v">${m(st.opening)}</div></div>
+                    <div class="card"><div class="card-l">Total in</div><div class="card-v">${m(st.totalIn)}</div></div>
+                    <div class="card"><div class="card-l">Total out</div><div class="card-v">${m(st.totalOut)}</div></div>
+                    ${st.depreciation ? `<div class="card"><div class="card-l">Depreciation</div><div class="card-v">${m(st.depreciation)}</div></div>` : ''}
+                    <div class="card"><div class="card-l">Carried forward</div><div class="card-v">${m(st.closing)}</div></div>
+                </div>
+
+                <table>
+                    <thead><tr>
+                        <th class="l">Date</th><th class="l">Particulars</th>
+                        <th>In</th><th>Out</th><th>Balance</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr class="bf"><td class="d">${_finPrintDate(st.from)}</td>
+                            <td>Balance brought forward</td><td></td><td></td>
+                            <td class="r">${m(st.opening)}</td></tr>
+                        ${rows || `<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:16px;">No movements in this period.</td></tr>`}
+                        ${st.depreciation ? `<tr><td class="d">${_finPrintDate(st.to)}</td>
+                            <td>Depreciation for the period <span class="mut">· not a movement of money</span></td>
+                            <td></td><td class="r">${m(st.depreciation)}</td><td></td></tr>` : ''}
+                        <tr class="cf"><td></td><td>Balance carried forward</td>
+                            <td class="r">${m(st.totalIn)}</td><td class="r">${m(st.totalOut)}</td>
+                            <td class="r">${m(st.closing)}</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="foot">
+                    <div>
+                        ${st.foots
+                            ? `<span class="ok">✓ Reconciled</span> — brought forward + in − out${st.depreciation ? ' − depreciation' : ''} = carried forward.`
+                            : `<span class="bad">⚠ DOES NOT RECONCILE</span> — do not rely on this statement.`}
+                        ${st.isTill ? '<br>Includes cash from bills and supplier payments.' : ''}
+                    </div>
+                    <div style="text-align:right;white-space:nowrap;">
+                        Generated ${_finPrintDate(_finToday())}<br>Billware
+                    </div>
+                </div>
                 </body></html>`;
+
             const w = window.open('', '_blank');
             if (!w) { mmAlert('Please allow pop-ups to print the statement.'); return; }
             w.document.write(html); w.document.close();
-            w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 300);
+            w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 350);
         }
 
         function closeFinModals() {
-            ['finAcctModal', 'finMoveModal'].forEach(id => {
+            ['finAcctModal', 'finMoveModal', 'finStmtModal'].forEach(id => {
                 const m = document.getElementById(id);
                 if (m) m.classList.remove('open');
             });
