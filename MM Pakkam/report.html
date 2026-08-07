@@ -4626,11 +4626,20 @@
                     </table>
 
                     ${d.retained !== null ? `
-                        <div style="margin-top:0.9rem;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:12px;padding:11px 15px;font-size:0.8rem;color:#075985;line-height:1.65;">
+                        <div style="margin-top:0.9rem;background:${d.retained < 0 ? '#fff7ed' : '#f0f9ff'};border:1.5px solid ${d.retained < 0 ? '#fed7aa' : '#bae6fd'};border-radius:12px;padding:11px 15px;font-size:0.8rem;color:${d.retained < 0 ? '#9a3412' : '#075985'};line-height:1.65;">
                             <b>Against that, you have put in ${money(d.capital)} of your own money.</b>
-                            The difference of <b>${money(d.retained)}</b> is, roughly, profit you have left in the
-                            business rather than taken out.
-                            <span style="color:#0284c7;">Roughly — it is only exact once every figure above is complete,
+                            ${d.retained >= 0
+                                ? `The difference of <b>${money(d.retained)}</b> is, roughly, profit you have left in the
+                                   business rather than taken out.`
+                                /* A negative gap is the OPPOSITE of retained profit and must not be
+                                   described as profit. The business is worth less than what has been
+                                   put into it — usually borrowing that has not yet turned into stock
+                                   or takings. Calling that "profit left in the business" would be
+                                   the most flattering possible reading of the worst possible number. */
+                                : `The business is currently worth <b>${money(Math.abs(d.retained))}</b> LESS than you have
+                                   put into it. That is normal soon after borrowing — the loan is counted in full
+                                   straight away, while what it buys shows up only as it is spent.`}
+                            <span style="color:${d.retained < 0 ? '#c2410c' : '#0284c7'};">Roughly — it is only exact once every figure above is complete,
                             so read it as a direction, not a number to file.</span>
                         </div>` : ''}
 

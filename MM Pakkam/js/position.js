@@ -265,10 +265,19 @@
         creditors += openCreditors;
 
         /* Net worth, not "working capital" — with fixed assets and loans in
-           it, the old name would have been wrong. */
-        var assetSide     = stock + debtors + cash + bank + assets + deposits;
-        var liabilitySide = creditors + Math.max(0, gstNet) + loans;
-        var working = assetSide - liabilitySide;
+           it, the old name would have been wrong.
+
+           EVERY TERM IS ROUNDED BEFORE IT IS ADDED, because every term is
+           PRINTED rounded. Summing the full-precision figures and rounding at
+           the end lands up to a paisa away from what the rows on screen
+           actually add up to — and a statement whose own visible lines do not
+           foot is exactly what the arithmetic checks above exist to prevent.
+           The reader must be able to add the column up by hand and agree.
+           Same principle as taking GST from the GSTR-3B worksheet rather than
+           re-deriving it: match the figure that is shown. */
+        var assetSide     = r2(stock) + r2(debtors) + r2(cash) + r2(bank) + r2(assets) + r2(deposits);
+        var liabilitySide = r2(creditors) + Math.max(0, r2(gstNet)) + r2(loans);
+        var working = r2(assetSide) - r2(liabilitySide);
 
         /* WHAT IS STILL MISSING. Built from what the shop has actually
            entered, so the list shrinks as the gaps are filled and a shop that
