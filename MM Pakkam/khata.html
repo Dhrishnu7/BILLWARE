@@ -15,6 +15,8 @@
     <script src="js/supabase.js"></script>
     <!-- Supplier balances are computed here now, so both this page and the
          Accounts view get the same figure from the same code. -->
+    <script src="js/daybook.js"></script>
+    <script src="js/finance.js"></script>
     <script src="js/position.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <style>
@@ -370,6 +372,7 @@
             <button id="ktabCust" class="ktab" onclick="switchKhataTab('customers')" style="padding:0.6rem 1.2rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:0.88rem;cursor:pointer;color:#475569;font-family:inherit;">👤 Customers</button>
             <button id="ktabSupp" class="ktab" onclick="switchKhataTab('suppliers')" style="padding:0.6rem 1.2rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:0.88rem;cursor:pointer;color:#475569;font-family:inherit;">🏭 Suppliers</button>
             <button id="ktabExp" class="ktab" onclick="switchKhataTab('expenses')" style="padding:0.6rem 1.2rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:0.88rem;cursor:pointer;color:#475569;font-family:inherit;">💸 Expenses</button>
+            <button id="ktabFin" class="ktab" onclick="switchKhataTab('finance')" style="padding:0.6rem 1.2rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:0.88rem;cursor:pointer;color:#475569;font-family:inherit;">🏦 Cash &amp; Capital</button>
         </div>
 
         <div id="khataTabCustomers">
@@ -476,6 +479,68 @@
 
             <div id="expenseList">
                 <div style="text-align:center;padding:3rem;color:#94a3b8;font-size:0.9rem;">Open this tab to load expenses…</div>
+            </div>
+        </div>
+
+        <!-- ═══ CASH & CAPITAL ═══
+             The right-hand side of the balance sheet: the money, the owner's
+             own stake, what the shop borrowed and what it owns outright.
+
+             It lives on THIS page rather than the Report page because these are
+             things the shop ENTERS, and Report is where things are read. The
+             Accounts view then shows the result — same split as Expenses, which
+             are typed here and consumed there.
+
+             Nothing here is double entry. Each account holds a balance and a
+             list of movements against it. See js/finance.js. -->
+        <div id="khataTabFinance" style="display:none;">
+            <div class="stat-card">
+                <div class="stat-left">
+                    <div class="stat-label">Cash and Bank</div>
+                    <div class="stat-value" id="finCashTotal">₹0.00</div>
+                    <div class="stat-sub" id="finCashSub">Till float plus sales and payments</div>
+                </div>
+                <div class="stat-icon">🏦</div>
+            </div>
+
+            <div class="search-bar">
+                <span style="font-size:0.85rem;color:#64748b;font-weight:600;padding-left:4px;">
+                    What your records cannot work out on their own
+                </span>
+                <button onclick="openFinAccount()" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:10px;padding:0.4rem 0.9rem;font-weight:700;font-size:0.8rem;font-family:Inter,sans-serif;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(99,102,241,0.3);">+ Add Account</button>
+                <button onclick="openFinOpenings()" title="What you were owed and owed on the day you started using Billware" style="background:#eef2ff;color:#4f46e5;border:1.5px solid #c7d2fe;border-radius:10px;padding:0.4rem 0.9rem;font-weight:700;font-size:0.8rem;font-family:Inter,sans-serif;cursor:pointer;white-space:nowrap;">⚙️ Opening Balances</button>
+            </div>
+
+            <div id="finList">
+                <div style="text-align:center;padding:3rem;color:#94a3b8;font-size:0.9rem;">Open this tab to load…</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Finance account add/edit. One modal, body built in JS, because the
+         fields differ by kind: a loan needs a lender and an EMI, an asset
+         needs a depreciation method and rate, a bank account needs neither. -->
+    <div class="modal-overlay" id="finAcctModal">
+        <div class="modal" style="max-height:88vh;overflow-y:auto;">
+            <h2 id="finAcctTitle">Add Account</h2>
+            <p id="finAcctSub">The part of your finances no bill can record.</p>
+            <div id="finAcctBody"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="closeFinModals()">Cancel</button>
+                <button type="button" class="btn-confirm" onclick="saveFinAccount()">✓ Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Record a movement -->
+    <div class="modal-overlay" id="finMoveModal">
+        <div class="modal" style="max-height:88vh;overflow-y:auto;">
+            <h2 id="finMoveTitle">Record a movement</h2>
+            <p id="finMoveSub"></p>
+            <div id="finMoveBody"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="closeFinModals()">Cancel</button>
+                <button type="button" class="btn-confirm" onclick="saveFinMovement()">✓ Save</button>
             </div>
         </div>
     </div>
@@ -1074,11 +1139,14 @@
             _ktabStyle(document.getElementById('ktabCust'), which === 'customers');
             _ktabStyle(document.getElementById('ktabSupp'), which === 'suppliers');
             _ktabStyle(document.getElementById('ktabExp'),  which === 'expenses');
+            _ktabStyle(document.getElementById('ktabFin'),  which === 'finance');
             document.getElementById('khataTabCustomers').style.display = which === 'customers' ? '' : 'none';
             document.getElementById('khataTabSuppliers').style.display = which === 'suppliers' ? '' : 'none';
             document.getElementById('khataTabExpenses').style.display  = which === 'expenses'  ? '' : 'none';
+            document.getElementById('khataTabFinance').style.display   = which === 'finance'   ? '' : 'none';
             if (which === 'suppliers') await loadSuppliers();
             if (which === 'expenses')  await loadExpenses();
+            if (which === 'finance')   await loadFinance();
         }
 
         /* ══════════════════════════════════════════════════════════════════
@@ -1589,6 +1657,629 @@
             if (!w) { if (typeof mmAlert === 'function') mmAlert('Please allow pop-ups to print the statement.'); return; }
             w.document.write(html); w.document.close();
             w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 300);
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           CASH & CAPITAL — the right-hand side of the balance sheet.
+
+           js/finance.js owns every number below; this owns the typing. The
+           split matters: the moment a balance is computed in two places, the
+           two disagree and the wrong one is whichever screen nobody checks.
+
+           THE ONE THING TO UNDERSTAND HERE — paired movements.
+           An EMI leaves the bank AND reduces the loan. Moving the day's
+           takings to the bank leaves the till AND arrives at the bank. Those
+           are written as TWO rows sharing a `ref`, so both balances are right
+           and deleting one removes the other. Everything else is a single row.
+           The form always states, in words, exactly which rows it will write —
+           a movement that silently touches an account the shop did not name is
+           how a cash balance becomes untrustworthy.
+        ══════════════════════════════════════════════════════════════════ */
+        let _finAccts = [];
+        let _finEntries = [];
+        let _finEditId = '';     // account being edited, '' = new
+        let _finMoveAcct = null; // account a movement is being recorded against
+
+        const FIN_KINDS = {
+            cash:    { icon: '💵', label: 'Cash / Till',        opening: 'Cash in hand on that date' },
+            bank:    { icon: '🏦', label: 'Bank account',       opening: 'Bank balance on that date' },
+            capital: { icon: '🧑‍💼', label: "Owner's capital",   opening: 'What you had put in by that date' },
+            loan:    { icon: '📄', label: 'Loan',               opening: 'Amount still outstanding on that date' },
+            asset:   { icon: '🧊', label: 'Fixed asset',        opening: 'What it COST when you bought it' },
+            deposit: { icon: '🔑', label: 'Deposit / advance',  opening: 'Amount paid' }
+        };
+        /* Which movements each kind allows, and which way each one points.
+           dir +1 adds to the account, -1 takes away. `contra` marks the ones
+           where money visibly comes from or goes to somewhere else, so the
+           form offers to record that side too. */
+        const FIN_MOVES = {
+            cash:    [['deposit', 'Cash received', 1, true], ['withdrawal', 'Cash paid out', -1, true]],
+            bank:    [['deposit', 'Money in', 1, true], ['withdrawal', 'Money out', -1, true],
+                      ['charge', 'Bank charges', -1, false]],
+            capital: [['introduce', 'Money put into the business', 1, true],
+                      ['drawing', 'Money taken out for yourself', -1, true]],
+            loan:    [['borrow', 'New borrowing', 1, true], ['emi', 'EMI paid', -1, true],
+                      ['repay', 'Extra repayment', -1, true]],
+            asset:   [['improve', 'Money spent improving it', 1, true], ['sale', 'Sold or scrapped', -1, true]],
+            deposit: [['paid', 'Further amount paid', 1, true], ['refunded', 'Refunded to you', -1, true]]
+        };
+
+        /* This page had no toast of its own — every message went through a
+           modal, which is too heavy for "you forgot the name". Same
+           implementation as the Report page so the two behave alike. */
+        function showToast(msg, type) {
+            let t = document.getElementById('khataToast');
+            if (!t) {
+                t = document.createElement('div');
+                t.id = 'khataToast';
+                t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:0.7rem 1.4rem;border-radius:12px;font-family:Inter,sans-serif;font-size:0.9rem;font-weight:700;z-index:9999;transition:opacity 0.4s;box-shadow:0 8px 24px rgba(0,0,0,0.18);max-width:90vw;text-align:center;';
+                document.body.appendChild(t);
+            }
+            t.textContent = msg;
+            t.style.background = type === 'success' ? '#059669' : '#dc2626';
+            t.style.color = 'white';
+            t.style.opacity = '1';
+            clearTimeout(t._timer);
+            t._timer = setTimeout(() => t.style.opacity = '0', 2800);
+        }
+
+        /* WHICH WAY THE OTHER ACCOUNT MOVES — and why it is not simply the
+           opposite.
+
+           For things the shop OWNS (till, bank, an asset, a deposit) the two
+           sides genuinely go opposite ways: money leaves the bank and arrives
+           in the till, or leaves the bank and becomes a freezer.
+
+           For things the shop OWES (a loan) or the owner's stake (capital),
+           both sides move the SAME way. Paying an EMI reduces the loan AND
+           reduces the bank — the debt gets smaller and so does the money.
+           Putting capital in raises capital AND raises the bank.
+
+           Treating a loan like an asset here had the bank RISING by ₹6,000
+           every time an EMI was paid. Caught by the harness asserting the
+           saved rows rather than the wording on screen. */
+        const FIN_OWES = { loan: true, capital: true };
+        function _finContraDir(acctKind, dir) {
+            return FIN_OWES[acctKind] ? dir : (dir > 0 ? -1 : 1);
+        }
+
+        function _finId(p) { return p + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+        function _finMoney(n) { const v = Number(n) || 0;
+            return (v < 0 ? '−₹' : '₹') + Math.abs(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function _finToday() { const d = new Date(), p = n => (n < 10 ? '0' : '') + n;
+            return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+
+        async function loadFinance() {
+            /* Cloud first when it is reachable, cache otherwise. Both db
+               getters resolve to null when the table is missing, which is the
+               signal that the migration has not been run — NOT a signal that
+               the shop has no accounts. Wiping the cache on that would throw
+               away figures the owner typed. */
+            try {
+                if (typeof dbGetFinanceAccounts === 'function') {
+                    const a = await dbGetFinanceAccounts();
+                    if (a && a.length) localStorage.setItem('mm_finance_accounts', JSON.stringify(a));
+                }
+                if (typeof dbGetFinanceEntries === 'function') {
+                    const e = await dbGetFinanceEntries();
+                    if (e && e.length) localStorage.setItem('mm_finance_entries', JSON.stringify(e));
+                }
+            } catch (e) { console.warn('finance fetch:', e); }
+
+            _finAccts   = window.mmFinance ? mmFinance.accounts() : [];
+            _finEntries = window.mmFinance ? mmFinance.entries()  : [];
+            renderFinance();
+        }
+
+        function renderFinance() {
+            const box = document.getElementById('finList');
+            if (!box) return;
+            if (!window.mmFinance) {
+                box.innerHTML = '<div style="padding:2rem;text-align:center;color:#991b1b;">This tab did not load. Hard-refresh the page (Ctrl+Shift+R).</div>';
+                return;
+            }
+            const s = mmFinance.summary({ asOf: _finToday() });
+
+            document.getElementById('finCashTotal').textContent = _finMoney(s.cash + s.bank);
+            document.getElementById('finCashSub').textContent = s.hasData
+                ? (s.cashSource + ' · bank ' + _finMoney(s.bank))
+                : 'Nothing set up yet — add your till and bank account to begin';
+
+            if (!_finAccts.length) {
+                box.innerHTML = `
+                    <div class="empty-state" style="padding:2.5rem 1.5rem;">
+                        <h3>Nothing here yet</h3>
+                        <p style="max-width:520px;margin:0.5rem auto 0;line-height:1.7;">
+                            Billware works out what you sell, buy, owe and are owed from your bills.
+                            It cannot work out what is in the till, what is in the bank, what you put
+                            into the shop yourself, what you borrowed, or what the fridge and the
+                            shelving are worth — nothing records those.<br><br>
+                            Add them here once and <b>Where You Stand</b> on the Report page stops
+                            leaving them out.
+                        </p>
+                    </div>`;
+                return;
+            }
+
+            const order = ['cash', 'bank', 'deposit', 'asset', 'loan', 'capital'];
+            let html = '';
+            order.forEach(kind => {
+                const rows = _finAccts.filter(a => a.kind === kind && a.active !== false);
+                if (!rows.length) return;
+                const K = FIN_KINDS[kind];
+                html += `<div style="margin:1.4rem 0 0.6rem;font-weight:800;color:#334155;font-size:0.9rem;">${K.icon} ${escHtml(K.label)}</div>`;
+                html += '<div class="khata-grid">';
+                rows.forEach(a => {
+                    const bal = mmFinance.balanceAsOf(a, _finToday());
+                    const n = _finEntries.filter(e => e.accountId === a.id).length;
+                    /* An asset shows what it cost and what has been written off,
+                       because "carrying value: 62,000" on its own tells an owner
+                       nothing about whether that is right. */
+                    let extra = '';
+                    if (kind === 'asset') {
+                        const dep = mmFinance.accumTo(a, _finToday());
+                        extra = `Cost ${_finMoney(a.opening)} · depreciation to date ${_finMoney(dep)}`
+                              + ` · ${escHtml(String((a.meta && a.meta.method) || 'wdv').toUpperCase())} ${Number(a.meta && a.meta.rate) || 0}%`;
+                    } else if (kind === 'loan') {
+                        extra = `Opening ${_finMoney(a.opening)}`
+                              + (a.meta && a.meta.lender ? ' · ' + escHtml(a.meta.lender) : '')
+                              + (a.meta && a.meta.emi ? ' · EMI ' + _finMoney(a.meta.emi) : '');
+                    } else {
+                        extra = `Opened ${escHtml(a.openingDate || '—')} with ${_finMoney(a.opening)} · ${n} movement${n === 1 ? '' : 's'}`;
+                    }
+                    const neg = (kind === 'loan') ? false : bal < 0;
+                    html += `
+                        <div class="khata-card" style="border:1.5px solid #e2e8f0;border-radius:14px;padding:1rem 1.1rem;background:#fff;">
+                            <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+                                <div style="min-width:0;">
+                                    <div style="font-weight:800;color:#0f172a;font-size:0.95rem;">${escHtml(a.name)}</div>
+                                    <div style="font-size:0.74rem;color:#94a3b8;margin-top:3px;line-height:1.5;">${extra}</div>
+                                </div>
+                                <div style="text-align:right;white-space:nowrap;font-weight:900;font-size:1.05rem;color:${neg ? '#dc2626' : '#0f172a'};">
+                                    ${_finMoney(bal)}
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:6px;margin-top:0.8rem;flex-wrap:wrap;">
+                                <button onclick="openFinMove('${escHtml(a.id)}')" style="background:#eef2ff;color:#4f46e5;border:1.5px solid #c7d2fe;border-radius:9px;padding:0.32rem 0.7rem;font-weight:700;font-size:0.75rem;font-family:inherit;cursor:pointer;">+ Movement</button>
+                                <button onclick="openFinAccount('${escHtml(a.id)}')" style="background:#f1f5f9;color:#475569;border:none;border-radius:9px;padding:0.32rem 0.7rem;font-weight:700;font-size:0.75rem;font-family:inherit;cursor:pointer;">Edit</button>
+                                <button onclick="finShowHistory('${escHtml(a.id)}')" style="background:#f1f5f9;color:#475569;border:none;border-radius:9px;padding:0.32rem 0.7rem;font-weight:700;font-size:0.75rem;font-family:inherit;cursor:pointer;">History</button>
+                                <button onclick="deleteFinAccount('${escHtml(a.id)}')" style="background:#fef2f2;color:#dc2626;border:none;border-radius:9px;padding:0.32rem 0.7rem;font-weight:700;font-size:0.75rem;font-family:inherit;cursor:pointer;">Delete</button>
+                            </div>
+                            <div id="finHist-${escHtml(a.id)}" style="display:none;margin-top:0.7rem;border-top:1px dashed #e2e8f0;padding-top:0.6rem;"></div>
+                        </div>`;
+                });
+                html += '</div>';
+            });
+
+            /* The opening balances, stated on screen rather than hidden behind
+               the settings button — a figure that silently adds itself to what
+               customers owe you needs to be visible where that total is read. */
+            const op = mmFinance.openings();
+            if (op.debtors || op.creditors) {
+                html += `
+                    <div style="margin-top:1.5rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 15px;font-size:0.82rem;color:#475569;line-height:1.7;">
+                        <b>Opening balances as at ${escHtml(op.date || '—')}</b><br>
+                        Customers already owed you ${_finMoney(op.debtors)} · you already owed suppliers ${_finMoney(op.creditors)}.
+                        These are added to the totals on Where You Stand.
+                        <span style="color:#94a3b8;">If you also typed those old balances into the Khata by hand, they are being counted twice — clear them here.</span>
+                    </div>`;
+            }
+            box.innerHTML = html;
+        }
+
+        function finShowHistory(id) {
+            const el = document.getElementById('finHist-' + id);
+            if (!el) return;
+            if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+            const rows = _finEntries.filter(e => e.accountId === id)
+                .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+            el.style.display = '';
+            if (!rows.length) { el.innerHTML = '<div style="font-size:0.78rem;color:#94a3b8;">No movements recorded.</div>'; return; }
+            el.innerHTML = rows.slice(0, 20).map(e => `
+                <div style="display:flex;justify-content:space-between;gap:8px;font-size:0.76rem;padding:3px 0;color:#475569;">
+                    <span style="min-width:0;">${escHtml(e.date)} · ${escHtml(e.kind)}${e.note ? ' · ' + escHtml(e.note) : ''}${
+                        e.interest ? ` <span style="color:#b45309;">(interest ${_finMoney(e.interest)})</span>` : ''}</span>
+                    <span style="white-space:nowrap;font-weight:700;color:${e.direction === -1 ? '#dc2626' : '#059669'};">
+                        ${e.direction === -1 ? '−' : '+'}${_finMoney(e.amount).replace('₹', '₹')}
+                        <button onclick="deleteFinEntry('${escHtml(e.id)}')" title="Remove this movement" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:0.8rem;padding:0 2px;">✕</button>
+                    </span>
+                </div>`).join('');
+        }
+
+        function closeFinModals() {
+            ['finAcctModal', 'finMoveModal'].forEach(id => {
+                const m = document.getElementById(id);
+                if (m) m.classList.remove('open');
+            });
+        }
+
+        /* ── Add / edit an account ───────────────────────────────────────── */
+        function openFinAccount(id) {
+            _finEditId = id || '';
+            const a = id ? _finAccts.find(x => x.id === id) : null;
+            document.getElementById('finAcctTitle').textContent = a ? 'Edit account' : 'Add account';
+            document.getElementById('finAcctSub').textContent = a
+                ? 'Changing the opening figure changes every balance from that date on.'
+                : 'The part of your finances no bill can record.';
+            _finAcctBody(a ? a.kind : 'cash', a);
+            document.getElementById('finAcctModal').classList.add('open');
+        }
+
+        function _finAcctBody(kind, a) {
+            const K = FIN_KINDS[kind] || FIN_KINDS.cash;
+            const meta = (a && a.meta) || {};
+            let html = `
+                <div class="form-group">
+                    <label>What is it?</label>
+                    <select id="finKind" onchange="_finAcctBody(this.value, null)" ${a ? 'disabled' : ''}>
+                        ${Object.keys(FIN_KINDS).map(k =>
+                            `<option value="${k}" ${k === kind ? 'selected' : ''}>${FIN_KINDS[k].icon} ${FIN_KINDS[k].label}</option>`).join('')}
+                    </select>
+                    ${a ? '<div style="font-size:0.74rem;color:#94a3b8;margin-top:4px;">The type cannot be changed — delete and re-add if it is wrong.</div>' : ''}
+                </div>
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="finName" placeholder="${kind === 'bank' ? 'e.g. HDFC current account' : kind === 'asset' ? 'e.g. Deep freezer' : kind === 'loan' ? 'e.g. Shop loan' : 'e.g. Counter till'}"
+                           value="${a ? escHtml(a.name) : ''}">
+                </div>
+                <div class="form-group">
+                    <label>${kind === 'asset' ? 'What it cost (₹)' : 'Opening amount (₹)'}</label>
+                    <input type="number" id="finOpening" step="0.01" min="0" value="${a ? a.opening : ''}" placeholder="0.00">
+                    <div style="font-size:0.74rem;color:#94a3b8;margin-top:4px;">${escHtml(K.opening)}</div>
+                </div>
+                <div class="form-group">
+                    <label>${kind === 'asset' ? 'Date you bought it' : 'As on which date'}</label>
+                    <input type="date" id="finOpeningDate" value="${a ? escHtml(a.openingDate) : _finToday()}">
+                    <div style="font-size:0.74rem;color:#94a3b8;margin-top:4px;">
+                        ${kind === 'cash'
+                            ? 'Sales and payments from this date on are added automatically — so pick the day you counted the drawer.'
+                            : kind === 'asset'
+                            ? 'Depreciation is worked out from this date, so it must be the real purchase date.'
+                            : 'Movements before this date are ignored.'}
+                    </div>
+                </div>`;
+
+            if (kind === 'bank') {
+                html += `
+                    <div class="form-group">
+                        <label>Bank &amp; last 4 digits <span style="font-weight:400;color:#94a3b8;">(optional)</span></label>
+                        <div style="display:flex;gap:8px;">
+                            <input type="text" id="finBank" placeholder="HDFC" value="${escHtml(meta.bank || '')}" style="flex:1;">
+                            <input type="text" id="finLast4" maxlength="4" placeholder="4471" value="${escHtml(meta.last4 || '')}" style="width:100px;">
+                        </div>
+                        <div style="font-size:0.74rem;color:#94a3b8;margin-top:4px;">Last four digits only — never type the full account number into any app.</div>
+                    </div>`;
+            }
+            if (kind === 'loan') {
+                html += `
+                    <div class="form-group">
+                        <label>Lender <span style="font-weight:400;color:#94a3b8;">(optional)</span></label>
+                        <input type="text" id="finLender" placeholder="HDFC Bank" value="${escHtml(meta.lender || '')}">
+                    </div>
+                    <div class="form-group">
+                        <label>Monthly EMI (₹) <span style="font-weight:400;color:#94a3b8;">(optional)</span></label>
+                        <input type="number" id="finEmi" step="0.01" min="0" value="${meta.emi || ''}" placeholder="0.00">
+                        <div style="font-size:0.74rem;color:#94a3b8;margin-top:4px;">
+                            Only used to pre-fill the EMI form. The split between interest and principal is taken from what you type there, never guessed from a rate — your bank's figure is the one that counts.
+                        </div>
+                    </div>`;
+            }
+            if (kind === 'asset') {
+                const m = String(meta.method || 'wdv').toLowerCase();
+                html += `
+                    <div class="form-group">
+                        <label>Depreciation method</label>
+                        <select id="finMethod">
+                            <option value="wdv" ${m === 'wdv' ? 'selected' : ''}>Written down value (Income Tax)</option>
+                            <option value="slm" ${m === 'slm' ? 'selected' : ''}>Straight line (Companies Act)</option>
+                        </select>
+                        <div style="font-size:0.74rem;color:#94a3b8;margin-top:4px;">If you do not know, ask your accountant which they use — WDV is the usual answer for a pharmacy.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Rate (% per year)</label>
+                        <input type="number" id="finRate" step="0.01" min="0" max="100" value="${meta.rate || ''}" placeholder="e.g. 15">
+                        <div style="font-size:0.74rem;color:#94a3b8;margin-top:4px;">Leave blank and nothing is depreciated. Common: furniture 10%, plant &amp; machinery 15%, computers 40%.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Scrap value at the end (₹) <span style="font-weight:400;color:#94a3b8;">(optional)</span></label>
+                        <input type="number" id="finSalvage" step="0.01" min="0" value="${meta.salvage || ''}" placeholder="0.00">
+                        <div style="font-size:0.74rem;color:#94a3b8;margin-top:4px;">Depreciation stops here — the asset is never written below it.</div>
+                    </div>`;
+            }
+            if (kind === 'deposit') {
+                html += `
+                    <div class="form-group">
+                        <label>Paid to whom <span style="font-weight:400;color:#94a3b8;">(optional)</span></label>
+                        <input type="text" id="finParty" placeholder="e.g. Shop landlord" value="${escHtml(meta.party || '')}">
+                    </div>`;
+            }
+            document.getElementById('finAcctBody').innerHTML = html;
+        }
+
+        async function saveFinAccount() {
+            const kind = document.getElementById('finKind').value;
+            const name = (document.getElementById('finName').value || '').trim();
+            const opening = parseFloat(document.getElementById('finOpening').value) || 0;
+            const openingDate = document.getElementById('finOpeningDate').value || '';
+            if (!name) { showToast('Give the account a name.', 'error'); return; }
+            if (!openingDate) { showToast('Pick the date the opening figure applies to.', 'error'); return; }
+            if (opening < 0) { showToast('An opening amount cannot be negative.', 'error'); return; }
+
+            const meta = {};
+            const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+            if (kind === 'bank') { meta.bank = (g('finBank') || '').trim(); meta.last4 = (g('finLast4') || '').replace(/\D/g, '').slice(-4); }
+            if (kind === 'loan') { meta.lender = (g('finLender') || '').trim(); meta.emi = parseFloat(g('finEmi')) || 0; }
+            if (kind === 'asset') {
+                meta.method = g('finMethod') || 'wdv';
+                meta.rate = parseFloat(g('finRate')) || 0;
+                meta.salvage = parseFloat(g('finSalvage')) || 0;
+                if (meta.salvage >= opening && opening > 0) {
+                    showToast('Scrap value cannot be more than what it cost.', 'error'); return;
+                }
+                if (openingDate > _finToday()) {
+                    showToast('That purchase date is in the future.', 'error'); return;
+                }
+            }
+            if (kind === 'deposit') meta.party = (g('finParty') || '').trim();
+
+            const existing = _finEditId ? _finAccts.find(x => x.id === _finEditId) : null;
+            const acct = {
+                id: _finEditId || _finId('fa'),
+                kind: existing ? existing.kind : kind,
+                name, opening, openingDate, meta, active: true
+            };
+
+            let ok = false;
+            try { const r = await dbSaveFinanceAccount(acct); ok = !!(r && r.success); } catch (e) {}
+            if (typeof mmAudit === 'function') {
+                mmAudit(existing ? 'Finance account edited' : 'Finance account added',
+                        acct.kind + ' · ' + acct.name + ' · opening ' + opening.toFixed(2), acct.id);
+            }
+            closeFinModals();
+            await loadFinance();
+            showToast(ok ? '✅ Saved.'
+                : '💾 Saved on this device only — it will sync once migrations/add_finance_accounts.sql has been run.',
+                ok ? 'success' : 'error');
+        }
+
+        async function deleteFinAccount(id) {
+            const a = _finAccts.find(x => x.id === id);
+            if (!a) return;
+            const n = _finEntries.filter(e => e.accountId === id).length;
+            const go = await mmConfirm(
+                `Delete "${a.name}"?\n\n` +
+                (n ? `Its ${n} recorded movement${n === 1 ? '' : 's'} will be deleted too — a movement with no account is invisible on every screen but still counted by anything reading the raw data.\n\n` : '') +
+                `Where You Stand will go back to leaving this out.`,
+                { title: '🗑️ Delete account', okText: 'Delete', danger: true }
+            );
+            if (!go) return;
+            await dbDeleteFinanceAccount(id);
+            if (typeof mmAudit === 'function') mmAudit('Finance account deleted', a.kind + ' · ' + a.name, id);
+            await loadFinance();
+            showToast('Deleted.', 'success');
+        }
+
+        async function deleteFinEntry(entryId) {
+            const e = _finEntries.find(x => x.id === entryId);
+            if (!e) return;
+            const paired = e.ref ? _finEntries.filter(x => x.ref === e.ref).length : 1;
+            const go = await mmConfirm(
+                `Remove this movement of ${_finMoney(e.amount)} on ${e.date}?` +
+                (paired > 1 ? `\n\nIt was recorded against two accounts at once, so both halves will be removed. Leaving one behind would show a loan repaid that never left the bank.` : ''),
+                { title: '↩️ Remove movement', okText: 'Remove', danger: true }
+            );
+            if (!go) return;
+            await dbDeleteFinanceEntry(e);
+            if (typeof mmAudit === 'function') mmAudit('Finance movement removed', e.kind + ' · ' + Number(e.amount).toFixed(2), e.id);
+            await loadFinance();
+            showToast('Removed.', 'success');
+        }
+
+        /* ── Record a movement ───────────────────────────────────────────── */
+        function openFinMove(id) {
+            const a = _finAccts.find(x => x.id === id);
+            if (!a) return;
+            _finMoveAcct = a;
+            document.getElementById('finMoveTitle').textContent = a.name;
+            document.getElementById('finMoveSub').textContent =
+                (FIN_KINDS[a.kind] || {}).label + ' · balance ' + _finMoney(mmFinance.balanceAsOf(a, _finToday()));
+            _finMoveBody();
+            document.getElementById('finMoveModal').classList.add('open');
+        }
+
+        function _finMoveBody() {
+            const a = _finMoveAcct;
+            const moves = FIN_MOVES[a.kind] || [];
+            /* Anything that can hold money is a candidate for the other side.
+               An asset or a loan cannot pay for something, so they are not
+               offered — the money comes out of a till or a bank. */
+            const contras = _finAccts.filter(x => (x.kind === 'cash' || x.kind === 'bank') && x.id !== a.id);
+            const emiDefault = (a.kind === 'loan' && a.meta && a.meta.emi) ? a.meta.emi : '';
+            document.getElementById('finMoveBody').innerHTML = `
+                <div class="form-group">
+                    <label>What happened?</label>
+                    <select id="finMoveKind" onchange="_finMoveExplain()">
+                        ${moves.map(m => `<option value="${m[0]}">${escHtml(m[1])}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="finMoveDate" value="${_finToday()}" onchange="_finMoveExplain()">
+                </div>
+                <div class="form-group">
+                    <label id="finAmtLabel">Amount (₹)</label>
+                    <input type="number" id="finMoveAmount" step="0.01" min="0" placeholder="0.00" value="${emiDefault}" oninput="_finMoveExplain()">
+                </div>
+                <div class="form-group" id="finInterestWrap" style="display:none;">
+                    <label>Of which, interest (₹)</label>
+                    <input type="number" id="finMoveInterest" step="0.01" min="0" placeholder="0.00" oninput="_finMoveExplain()">
+                    <div style="font-size:0.74rem;color:#94a3b8;margin-top:4px;">
+                        Copy this from the bank's own statement or amortisation sheet. Interest is a cost and goes to your Profit &amp; Loss; the rest repays the loan and does not. Working it out from an interest rate would only ever be an estimate.
+                    </div>
+                </div>
+                <div class="form-group" id="finContraWrap">
+                    <label>Where did the money come from / go to?</label>
+                    <select id="finMoveContra" onchange="_finMoveExplain()">
+                        <option value="">— not recorded —</option>
+                        ${contras.map(c => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Note <span style="font-weight:400;color:#94a3b8;">(optional)</span></label>
+                    <input type="text" id="finMoveNote" placeholder="e.g. August EMI">
+                </div>
+                <div id="finMoveExplain" style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 13px;font-size:0.8rem;color:#475569;line-height:1.6;"></div>`;
+            _finMoveExplain();
+        }
+
+        /* Says, in words, exactly which rows are about to be written. A form
+           that quietly touches a second account is how a shop ends up not
+           trusting its own cash figure — so it is spelled out before saving,
+           every time, including when the answer is "only one account". */
+        function _finMoveExplain() {
+            const a = _finMoveAcct;
+            const kind = document.getElementById('finMoveKind').value;
+            const move = (FIN_MOVES[a.kind] || []).find(m => m[0] === kind);
+            if (!move) return;
+            const amt = parseFloat(document.getElementById('finMoveAmount').value) || 0;
+            const interest = parseFloat((document.getElementById('finMoveInterest') || {}).value) || 0;
+            const contraId = document.getElementById('finMoveContra').value;
+            const contra = _finAccts.find(x => x.id === contraId);
+
+            document.getElementById('finInterestWrap').style.display = (kind === 'emi') ? '' : 'none';
+            document.getElementById('finContraWrap').style.display = move[3] ? '' : 'none';
+            document.getElementById('finAmtLabel').textContent = (kind === 'emi')
+                ? 'Total EMI paid (₹)' : 'Amount (₹)';
+
+            const dir = move[2];
+            const principal = (kind === 'emi') ? Math.max(0, amt - interest) : amt;
+            let lines = [];
+            if (kind === 'emi') {
+                lines.push(`<b>${escHtml(a.name)}</b> falls by ${_finMoney(principal)} (the principal repaid).`);
+                if (interest > 0) lines.push(`${_finMoney(interest)} is charged to your Profit &amp; Loss as loan interest.`);
+                else lines.push(`<span style="color:#b45309;">No interest entered — the whole EMI will be treated as repaying the loan, and your profit will not be charged with any interest.</span>`);
+            } else {
+                lines.push(`<b>${escHtml(a.name)}</b> ${dir > 0 ? 'rises' : 'falls'} by ${_finMoney(amt)}.`);
+            }
+            if (move[3]) {
+                if (contra) {
+                    const cd = _finContraDir(a.kind, dir);
+                    lines.push(`<b>${escHtml(contra.name)}</b> ${cd > 0 ? 'rises' : 'falls'} by ${_finMoney(amt)}` +
+                               (kind === 'emi' ? ' — the whole payment, interest included.' : '.'));
+                } else {
+                    lines.push(`<span style="color:#b45309;">Nothing else is recorded — pick an account above if this money actually came out of your till or bank, otherwise that balance will be too high.</span>`);
+                }
+            }
+            if (kind === 'charge') lines.push('Bank charges are an expense and go to your Profit &amp; Loss.');
+            document.getElementById('finMoveExplain').innerHTML =
+                '<b>This will record:</b><br>' + lines.map(l => '• ' + l).join('<br>');
+        }
+
+        async function saveFinMovement() {
+            const a = _finMoveAcct;
+            const kind = document.getElementById('finMoveKind').value;
+            const move = (FIN_MOVES[a.kind] || []).find(m => m[0] === kind);
+            if (!move) return;
+            const date = document.getElementById('finMoveDate').value;
+            const amt = parseFloat(document.getElementById('finMoveAmount').value) || 0;
+            const interest = (kind === 'emi') ? (parseFloat(document.getElementById('finMoveInterest').value) || 0) : 0;
+            const note = (document.getElementById('finMoveNote').value || '').trim();
+            const contraId = document.getElementById('finMoveContra').value;
+
+            if (!date) { showToast('Pick a date.', 'error'); return; }
+            if (amt <= 0) { showToast('Enter an amount.', 'error'); return; }
+            if (date > _finToday()) {
+                const go = await mmConfirm(`That date is in the future. Save it anyway?`,
+                    { title: '📅 Future date', okText: 'Save anyway' });
+                if (!go) return;
+            }
+            if (kind === 'emi' && interest > amt) {
+                showToast('The interest cannot be more than the EMI itself.', 'error'); return;
+            }
+            if (a.openingDate && date < a.openingDate) {
+                showToast(`That is before this account opened on ${a.openingDate} — it would be ignored.`, 'error'); return;
+            }
+
+            const dir = move[2];
+            const principal = (kind === 'emi') ? Math.max(0, amt - interest) : amt;
+            const ref = contraId ? _finId('ref') : '';
+            const rows = [{
+                id: _finId('fe'), accountId: a.id, date,
+                direction: dir, amount: principal, interest,
+                kind, note, ref
+            }];
+            /* The other half. It moves the OPPOSITE way and carries the FULL
+               amount — for an EMI the bank loses the whole payment, interest
+               included, while the loan only falls by the principal. Getting
+               that wrong would leave the interest sitting in the bank for ever. */
+            if (contraId) {
+                const cd = _finContraDir(a.kind, dir);
+                rows.push({
+                    id: _finId('fe'), accountId: contraId, date,
+                    direction: cd, amount: amt, interest: 0,
+                    kind: cd > 0 ? 'deposit' : 'withdrawal',
+                    note: note || (FIN_KINDS[a.kind] || {}).label + ' · ' + a.name,
+                    ref
+                });
+            }
+
+            let ok = false;
+            try { const r = await dbAddFinanceEntries(rows); ok = !!(r && r.success); } catch (e) {}
+            if (typeof mmAudit === 'function') {
+                mmAudit('Finance movement', a.name + ' · ' + kind + ' · ' + amt.toFixed(2) +
+                        (interest ? ' (interest ' + interest.toFixed(2) + ')' : ''), a.id);
+            }
+            closeFinModals();
+            await loadFinance();
+            showToast(ok ? '✅ Recorded.' : '💾 Saved on this device only — it will sync once the migration has been run.',
+                      ok ? 'success' : 'error');
+        }
+
+        /* ── Opening debtors and creditors ───────────────────────────────── */
+        async function openFinOpenings() {
+            const cur = mmFinance ? mmFinance.openings() : { debtors: 0, creditors: 0, date: '' };
+            const d = await mmPrompt(
+                'On the day you started using Billware, how much did customers already owe you?\n\n' +
+                'Leave 0 if the Khata already has every old balance in it.',
+                cur.debtors ? String(cur.debtors) : '',
+                { title: '⚙️ Opening balances — customers', placeholder: 'e.g. 12500', okText: 'Next' }
+            );
+            if (d === null) return;
+            const debtors = Math.max(0, parseFloat(String(d).replace(/[^0-9.]/g, '')) || 0);
+
+            const c = await mmPrompt(
+                'And how much did you already owe your suppliers on that day?',
+                cur.creditors ? String(cur.creditors) : '',
+                { title: '⚙️ Opening balances — suppliers', placeholder: 'e.g. 48000', okText: 'Next' }
+            );
+            if (c === null) return;
+            const creditors = Math.max(0, parseFloat(String(c).replace(/[^0-9.]/g, '')) || 0);
+
+            let date = cur.date || '';
+            if (debtors > 0 || creditors > 0) {
+                const dv = await mmPrompt(
+                    'Which date do those two figures apply to? (YYYY-MM-DD)\n\n' +
+                    'Usually the day you started using the app, or the first day of the financial year.',
+                    date || (new Date().getFullYear() + '-04-01'),
+                    { title: '⚙️ Opening balances — as on', placeholder: 'YYYY-MM-DD', okText: 'Save' }
+                );
+                if (dv === null) return;
+                date = String(dv).trim().slice(0, 10);
+                if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                    mmAlert('That date is not in YYYY-MM-DD form. Nothing was saved.');
+                    return;
+                }
+            } else { date = ''; }
+
+            let ok = false;
+            try { const r = await dbSetOpeningBalances(debtors, creditors, date || null); ok = !!(r && r.success); } catch (e) {}
+            if (typeof mmAudit === 'function') {
+                mmAudit('Opening balances set', 'debtors ' + debtors.toFixed(2) + ', creditors ' + creditors.toFixed(2), date);
+            }
+            await loadFinance();
+            mmAlert(ok
+                ? `✅ Saved. Where You Stand now adds ${_finMoney(debtors)} to what customers owe and ${_finMoney(creditors)} to what you owe.`
+                : '💾 Saved on this device only — it will sync once migrations/add_finance_accounts.sql has been run.');
         }
     </script>
 </body>

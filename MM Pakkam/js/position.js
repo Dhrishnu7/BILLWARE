@@ -5,15 +5,24 @@
 
    A balance sheet is Assets = Liabilities + Capital, and it only balances
    when every side is known. Billware knows what it sells, buys, owes and is
-   owed. It has no idea about the owner's capital, the drawings taken out of
-   the till on a Friday, the fridge and the shelving and their depreciation,
-   the bank balance, or the loan against the shop. Those are not small
-   omissions — they are most of the right-hand side.
+   owed — all of it computed from documents. It cannot compute the owner's
+   capital, the drawings taken out of the till on a Friday, the fridge and the
+   shelving and their depreciation, the bank balance, or the loan against the
+   shop, because no bill or purchase ever records them.
 
-   Producing a "balance sheet" from what is here would need a plug figure to
-   make it foot, and a statement that looks authoritative while being wrong is
-   worse than no statement at all. So this reports the part that IS known, says
-   so plainly, and lists what it leaves out.
+   PHASE 2c CHANGED WHAT IS POSSIBLE, NOT WHAT IS CLAIMED.
+   js/finance.js now holds those figures — but only the ones the shop has
+   actually sat down and entered. So this file asks what is present and
+   reports that, and everything still absent stays in the excludes list where
+   the reader can see it. The list is built from the data, not hard-coded:
+   it shrinks as the shop fills the gaps, and a shop that has entered nothing
+   sees exactly what it saw before.
+
+   That is the whole discipline here. A figure nobody entered is not guessed
+   at and is not assumed to be zero. Producing a "balance sheet" by plugging
+   the difference would look authoritative and be wrong, which is worse than
+   no statement at all — so the moment every gap is closed is the moment a
+   real balance sheet becomes possible, and not one day before.
 
    What it answers is the question a shop owner actually asks: how much of my
    money is tied up in this business today, and in what.
@@ -26,6 +35,7 @@
     function num(n) { return Number(n) || 0; }
     function r2(n) { return Math.round(num(n) * 100) / 100; }
     function key(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
+    function d10(s) { return String(s == null ? '' : s).slice(0, 10); }
 
     function readJson(k) {
         try { return JSON.parse(localStorage.getItem(k) || '[]') || []; }
@@ -208,7 +218,73 @@
             } catch (e) { /* fall back to the figures above */ }
         }
 
-        var working = stock + debtors - creditors - Math.max(0, gstNet);
+        /* ──────────────────────────────────────────────────────────────
+           PHASE 2c — the right-hand side, when the shop has entered it.
+
+           Everything above this point is computed from documents. Everything
+           below comes from js/finance.js, which holds the things no bill or
+           purchase ever records. The rule that governs the whole block: a
+           figure the shop has NOT entered is not guessed at, is not assumed
+           to be zero, and stays in the excludes list where the reader can see
+           it. That is the same reason this file has always refused to call
+           itself a balance sheet, and it does not change just because there
+           is more data now — it changes only for the parts actually filled in.
+        ────────────────────────────────────────────────────────────────── */
+        var fin = null;
+        if (window.mmFinance && typeof mmFinance.summary === 'function') {
+            try { fin = mmFinance.summary({ asOf: asOf }); } catch (e) { fin = null; }
+        }
+        var has = {};
+        var cash = 0, bank = 0, assets = 0, assetCost = 0, assetDep = 0,
+            loans = 0, deposits = 0, capital = 0;
+        if (fin) {
+            (fin.accounts || []).forEach(function (a) { has[a.kind] = true; });
+            cash      = num(fin.cash);
+            bank      = num(fin.bank);
+            assets    = num(fin.assetWdv);
+            assetCost = num(fin.assetCost);
+            assetDep  = num(fin.assetDep);
+            loans     = num(fin.loans);
+            deposits  = num(fin.deposits);
+            capital   = num(fin.capital);
+        }
+
+        /* OPENING DEBTORS AND CREDITORS. Applied only when dated on or before
+           the date being reported, exactly as mmPnl treats opening stock — an
+           opening figure must never leak backwards into a period that ended
+           before it was struck. Reported as its own number rather than folded
+           in silently, because a shop that ALSO typed those old balances into
+           the Khata by hand would otherwise be counted twice with nothing on
+           screen to reveal it. */
+        var op = (fin && fin.openings) ? fin.openings
+               : { debtors: 0, creditors: 0, date: '' };
+        var openApplies = !!(op.date && d10(op.date) <= asOf);
+        var openDebtors   = openApplies ? num(op.debtors)   : 0;
+        var openCreditors = openApplies ? num(op.creditors) : 0;
+        debtors   += openDebtors;
+        creditors += openCreditors;
+
+        /* Net worth, not "working capital" — with fixed assets and loans in
+           it, the old name would have been wrong. */
+        var assetSide     = stock + debtors + cash + bank + assets + deposits;
+        var liabilitySide = creditors + Math.max(0, gstNet) + loans;
+        var working = assetSide - liabilitySide;
+
+        /* WHAT IS STILL MISSING. Built from what the shop has actually
+           entered, so the list shrinks as the gaps are filled and a shop that
+           has entered nothing sees exactly what it saw before. A static list
+           would either lie about data that is now present, or stop warning
+           about data that is still absent. */
+        var excludes = [];
+        if (!has.cash && !has.bank) excludes.push('Cash in the till and money in the bank');
+        else if (!has.cash)         excludes.push('Cash in the till (no cash account set up)');
+        else if (!has.bank)         excludes.push('Money in the bank (no bank account set up)');
+        if (!has.capital) excludes.push('What the owner put in, and what they have taken out');
+        if (!has.asset)   excludes.push('Shop fittings, fridge, computer — and depreciation on them');
+        if (!has.loan && !has.deposit) excludes.push('Loans, rent deposits and advances');
+        else if (!has.loan)            excludes.push('Loans');
+        else if (!has.deposit)         excludes.push('Rent deposits and advances');
+        if (!openApplies) excludes.push('Anything owed or owned before this shop started using Billware');
 
         return {
             asOf: asOf,
@@ -219,17 +295,28 @@
             outputTax: r2(outTax), inputTax: r2(inTax), gstNet: r2(gstNet),
             creditNoteTax: r2(cnTax), debitNoteTax: r2(dnTax),
             gstSource: gstFrom,
+
+            /* Phase 2c */
+            cash: r2(cash), bank: r2(bank),
+            cashFromDocuments: r2(fin ? fin.cashFromDocuments : 0),
+            cashSource: fin ? fin.cashSource : '',
+            assets: r2(assets), assetCost: r2(assetCost), assetDep: r2(assetDep),
+            loans: r2(loans), deposits: r2(deposits), capital: r2(capital),
+            openDebtors: r2(openDebtors), openCreditors: r2(openCreditors),
+            openDate: openApplies ? d10(op.date) : '',
+            has: has,
+            hasFinance: !!(fin && fin.hasData),
+
+            assetSide: r2(assetSide), liabilitySide: r2(liabilitySide),
             working: r2(working),
-            /* Stated, not implied. Every one of these is a real part of the
-               shop's finances that this app does not hold, and the reader has
-               to know that before they trust the figure above. */
-            excludes: [
-                'Cash in the till and money in the bank',
-                'What the owner put in, and what they have taken out',
-                'Shop fittings, fridge, computer — and depreciation on them',
-                'Loans, rent deposits and advances',
-                'Anything owed or owned before this shop started using Billware'
-            ]
+
+            /* The gap between what the business is worth and what the owner
+               put in is, roughly, profit left in the business. Roughly — it is
+               only exact once every figure above is complete, which is why it
+               is offered as a reading and not as a line of the statement. */
+            retained: has.capital ? r2(working - capital) : null,
+
+            excludes: excludes
         };
     }
 

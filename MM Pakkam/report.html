@@ -713,9 +713,10 @@
     <script src="js/gst-validate.js"></script>
     <script src="js/prefile-check.js"></script>
     <script src="js/gstr3b.js"></script>
+    <script src="js/daybook.js"></script>
+    <script src="js/finance.js"></script>
     <script src="js/pnl.js"></script>
     <script src="js/position.js"></script>
-    <script src="js/daybook.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
@@ -4576,17 +4577,39 @@
                     </td>
                 </tr>`;
 
+            /* Rows only appear when the shop has entered that kind of account.
+               A zero line for a bank account nobody has set up reads as "we
+               have no money in the bank", which is a statement the app is in
+               no position to make. Absence goes in the excludes box instead. */
+            const optional = (show, label, sub, val, sign) => show ? row(label, sub, val, sign) : '';
+
             box.innerHTML = `
                 <div style="padding:0.4rem 0 1rem;">
                     <div style="font-size:0.8rem;color:#64748b;margin-bottom:0.9rem;line-height:1.6;">
                         Money tied up in the business as at <b>${_te(d.asOf)}</b>.
                         <b>This is not a balance sheet</b> — it is only the part your records can prove.
+                        ${d.excludes.length === 0
+                            ? '<br><span style="color:#059669;font-weight:700;">You have now entered everything it used to leave out.</span>'
+                            : ''}
                     </div>
                     <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
                         <tbody>
                             ${row('Stock at cost', 'What is on the shelves, valued at what you paid', d.stock, 1)}
-                            ${row('Customers owe you', d.debtorCount + ' account(s) with a pending balance', d.debtors, 1)}
-                            ${row('You owe suppliers', d.creditorCount + ' supplier(s) with an unpaid balance', d.creditors, -1)}
+                            ${row('Customers owe you',
+                                  d.debtorCount + ' account(s) with a pending balance'
+                                  + (d.openDebtors ? ', plus ' + money(d.openDebtors) + ' opening balance you entered' : ''),
+                                  d.debtors, 1)}
+                            ${optional(d.has.cash, 'Cash in hand', d.cashSource, d.cash, 1)}
+                            ${optional(d.has.bank, 'Money in the bank', 'Across your bank accounts', d.bank, 1)}
+                            ${optional(d.has.asset, 'Fittings and equipment',
+                                  'Cost ' + money(d.assetCost) + ' less ' + money(d.assetDep) + ' depreciation to date',
+                                  d.assets, 1)}
+                            ${optional(d.has.deposit, 'Deposits and advances', 'Rent deposit and anything similar', d.deposits, 1)}
+                            ${row('You owe suppliers',
+                                  d.creditorCount + ' supplier(s) with an unpaid balance'
+                                  + (d.openCreditors ? ', plus ' + money(d.openCreditors) + ' opening balance you entered' : ''),
+                                  d.creditors, -1)}
+                            ${optional(d.has.loan, 'Loans outstanding', 'What is still to be repaid', d.loans, -1)}
                             ${d.gstNet > 0
                                 ? row('GST on ' + _te(d.month) + ', not yet paid',
                                       'Collected ' + money(d.outputTax) + ' on sales, paid ' + money(d.inputTax) + ' on purchases',
@@ -4602,16 +4625,31 @@
                         </tbody>
                     </table>
 
-                    <div style="margin-top:1rem;background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:12px 15px;">
-                        <div style="font-weight:800;color:#92400e;font-size:0.85rem;margin-bottom:5px;">What this does not include</div>
-                        <ul style="margin:0;padding-left:18px;font-size:0.79rem;color:#b45309;line-height:1.7;">
-                            ${d.excludes.map(x => `<li>${_te(x)}</li>`).join('')}
-                        </ul>
-                        <div style="font-size:0.79rem;color:#b45309;line-height:1.6;margin-top:7px;">
-                            Your accountant needs those to prepare a real balance sheet. Send them the
-                            <b>Tally export</b> and they can.
-                        </div>
-                    </div>
+                    ${d.retained !== null ? `
+                        <div style="margin-top:0.9rem;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:12px;padding:11px 15px;font-size:0.8rem;color:#075985;line-height:1.65;">
+                            <b>Against that, you have put in ${money(d.capital)} of your own money.</b>
+                            The difference of <b>${money(d.retained)}</b> is, roughly, profit you have left in the
+                            business rather than taken out.
+                            <span style="color:#0284c7;">Roughly — it is only exact once every figure above is complete,
+                            so read it as a direction, not a number to file.</span>
+                        </div>` : ''}
+
+                    ${d.excludes.length ? `
+                        <div style="margin-top:1rem;background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:12px 15px;">
+                            <div style="font-weight:800;color:#92400e;font-size:0.85rem;margin-bottom:5px;">What this does not include</div>
+                            <ul style="margin:0;padding-left:18px;font-size:0.79rem;color:#b45309;line-height:1.7;">
+                                ${d.excludes.map(x => `<li>${_te(x)}</li>`).join('')}
+                            </ul>
+                            <div style="font-size:0.79rem;color:#b45309;line-height:1.6;margin-top:7px;">
+                                Enter them under <b>Accounts → Cash &amp; Capital</b> and they will appear above.
+                                Your accountant still needs the <b>Tally export</b> for a formal balance sheet.
+                            </div>
+                        </div>` : `
+                        <div style="margin-top:1rem;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:12px 15px;font-size:0.79rem;color:#166534;line-height:1.65;">
+                            <b>Everything the app can hold is now in this figure.</b> It is still not a formal
+                            balance sheet — that needs double entry and a trial balance, which Billware does not do.
+                            Send your accountant the <b>Tally export</b> and they can prepare one from it.
+                        </div>`}
                 </div>`;
         }
 

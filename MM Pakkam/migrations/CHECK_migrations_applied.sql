@@ -29,7 +29,10 @@ WITH expected_tables(tbl, migration) AS (VALUES
     ('schedule_x_drugs',   'add_schedule_x_drugs_table.sql'),
     ('shop_billing',       'add_shop_billing_table.sql'),
     ('supplier_payments',  'add_supplier_payments_table.sql'),
-    ('suppliers',          'add_suppliers_table.sql')
+    ('suppliers',          'add_suppliers_table.sql'),
+    ('till_counts',        'add_till_counts_table.sql'),
+    ('finance_accounts',   'add_finance_accounts.sql'),
+    ('finance_entries',    'add_finance_accounts.sql')
 ),
 expected_columns(tbl, col, migration) AS (VALUES
     ('bill_items',          'hsn',            'add_hsn_columns.sql'),
@@ -47,6 +50,8 @@ expected_columns(tbl, col, migration) AS (VALUES
     ('shop_profiles',       'city',           'add_customer_gstin.sql'),
     ('shop_profiles',       'credit_limit',   'add_credit_limit_column.sql'),
     ('shop_profiles',       'opening_stock',  'add_opening_stock.sql'),
+    ('shop_profiles',       'opening_debtors', 'add_finance_accounts.sql'),
+    ('shop_profiles',       'opening_creditors', 'add_finance_accounts.sql'),
     ('shop_profiles',       'pincode',        'add_customer_gstin.sql')
 )
 
@@ -98,7 +103,8 @@ SELECT * FROM (
           'shop_profiles','schedule_h_register','schedule_h_drugs','prescriptions',
           'promise_orders','barcodes','suppliers','supplier_payments',
           'customer_payments','expenses','reorder_levels','audit_log',
-          'schedule_x_drugs','shop_billing'
+          'schedule_x_drugs','shop_billing','till_counts',
+          'finance_accounts','finance_entries'
       )
 ) report
 -- Problems first, so a clean run is obvious at a glance.

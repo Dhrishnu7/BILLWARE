@@ -26,6 +26,9 @@ declare
     'schedule_h_register','schedule_h_drugs','schedule_x_drugs','barcodes',
     'supplier_payments','customer_payments','audit_log','suppliers',
     'reorder_levels','promise_orders','prescriptions','stock_adjustments','expenses',
+    -- till_counts was added in v322 and never registered here, so a deleted
+    -- shop left its cash counts behind; finance_* arrived with Phase 2c.
+    'till_counts','finance_accounts','finance_entries',
     -- this shop's own request/queue rows
     'shop_edit_requests','extra_user_requests','password_reset_requests',
     'customer_issues'

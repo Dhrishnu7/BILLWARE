@@ -1623,6 +1623,175 @@ async function dbSaveTillCount(rec) {
 }
 window.dbSaveTillCount = dbSaveTillCount;
 
+/* ─────────────────────────────────────────────────────
+   FINANCE ACCOUNTS — cash, bank, capital, loans, assets, deposits
+
+   The right-hand side of the balance sheet, which no bill or purchase ever
+   records. js/finance.js owns the arithmetic; this owns the storage.
+
+   Everything here degrades to LOCAL-ONLY when migrations/add_finance_accounts.sql
+   has not been run. That is deliberate and matches opening stock and till
+   counts: the shop can enter its figures today and they will reach the server
+   whenever the migration lands, instead of the screen being dead until then.
+   A missing table must never look like a lost entry.
+───────────────────────────────────────────────────── */
+function _mmFinLocal(key, rows) {
+    try { localStorage.setItem(key, JSON.stringify(rows || [])); } catch (e) {}
+}
+function _mmFinRead(key) {
+    try { return JSON.parse(localStorage.getItem(key) || '[]') || []; } catch (e) { return []; }
+}
+
+async function dbGetFinanceAccounts() {
+    const user = _currentUser();
+    if (!user) return [];
+    const { data, error } = await _supabase.from('finance_accounts')
+        .select('*').eq('user_id', user).order('kind', { ascending: true });
+    if (error) { console.warn('[db] finance accounts fetch:', error.message); return null; }
+    return (data || []).map(r => ({
+        id: r.account_id,
+        kind: r.kind || 'cash',
+        name: r.name || '',
+        opening: Number(r.opening) || 0,
+        openingDate: String(r.opening_date || '').slice(0, 10),
+        meta: r.meta || {},
+        active: r.active !== false,
+        savedAt: r.saved_at || ''
+    }));
+}
+window.dbGetFinanceAccounts = dbGetFinanceAccounts;
+
+async function dbSaveFinanceAccount(a) {
+    const user = _currentUser();
+    if (!user) return { success: false, message: 'Not logged in.' };
+    if (!a || !a.id) return { success: false, message: 'No account id.' };
+
+    // Local first, so nothing depends on the migration having been run.
+    const rows = _mmFinRead('mm_finance_accounts').filter(x => x && x.id !== a.id);
+    rows.push(a);
+    _mmFinLocal('mm_finance_accounts', rows);
+
+    const { error } = await _supabase.from('finance_accounts').upsert({
+        account_id: a.id, user_id: user,
+        kind: a.kind, name: String(a.name || ''),
+        opening: Number(a.opening) || 0,
+        opening_date: a.openingDate || null,
+        meta: a.meta || {},
+        active: a.active !== false,
+        saved_at: new Date().toISOString()
+    }, { onConflict: 'account_id' });
+    if (error) { console.warn('[db] finance account save:', error.message); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbSaveFinanceAccount = dbSaveFinanceAccount;
+
+/* Deleting an account takes its entries with it. Leaving them behind would
+   leave movements pointing at nothing — invisible on every screen, but still
+   summed by anything that reads the entries table directly. */
+async function dbDeleteFinanceAccount(id) {
+    const user = _currentUser();
+    if (!user || !id) return false;
+    _mmFinLocal('mm_finance_accounts', _mmFinRead('mm_finance_accounts').filter(x => x && x.id !== id));
+    _mmFinLocal('mm_finance_entries',  _mmFinRead('mm_finance_entries').filter(x => x && x.accountId !== id));
+    try {
+        await _supabase.from('finance_entries').delete().eq('account_id', id).eq('user_id', user);
+        const { error } = await _supabase.from('finance_accounts').delete().eq('account_id', id).eq('user_id', user);
+        return !error;
+    } catch (e) { return false; }
+}
+window.dbDeleteFinanceAccount = dbDeleteFinanceAccount;
+
+async function dbGetFinanceEntries() {
+    const user = _currentUser();
+    if (!user) return [];
+    const { data, error } = await _supabase.from('finance_entries')
+        .select('*').eq('user_id', user).order('entry_date', { ascending: false });
+    if (error) { console.warn('[db] finance entries fetch:', error.message); return null; }
+    return (data || []).map(r => ({
+        id: r.entry_id,
+        accountId: r.account_id,
+        date: String(r.entry_date || '').slice(0, 10),
+        direction: Number(r.direction) === -1 ? -1 : 1,
+        amount: Math.abs(Number(r.amount) || 0),
+        interest: Math.abs(Number(r.interest) || 0),
+        kind: r.kind || '',
+        note: r.note || '',
+        ref: r.ref || '',
+        savedAt: r.saved_at || ''
+    }));
+}
+window.dbGetFinanceEntries = dbGetFinanceEntries;
+
+/* Takes an ARRAY, because a paired movement is two rows that must both land
+   or neither. An EMI that reduced the loan but never left the bank is worse
+   than one that was not recorded at all — the shop would be looking at money
+   it does not have. Local write is atomic; the cloud upsert is one call. */
+async function dbAddFinanceEntries(list) {
+    const user = _currentUser();
+    if (!user) return { success: false, message: 'Not logged in.' };
+    const rows = (list || []).filter(e => e && e.id && e.accountId);
+    if (!rows.length) return { success: false, message: 'Nothing to save.' };
+
+    const existing = _mmFinRead('mm_finance_entries');
+    const ids = new Set(rows.map(e => e.id));
+    _mmFinLocal('mm_finance_entries', [...existing.filter(x => x && !ids.has(x.id)), ...rows]);
+
+    const { error } = await _supabase.from('finance_entries').upsert(rows.map(e => ({
+        entry_id: e.id, user_id: user, account_id: e.accountId,
+        entry_date: e.date, direction: e.direction === -1 ? -1 : 1,
+        amount: Math.abs(Number(e.amount) || 0),
+        interest: Math.abs(Number(e.interest) || 0),
+        kind: e.kind || '', note: String(e.note || ''), ref: e.ref || '',
+        saved_at: new Date().toISOString()
+    })), { onConflict: 'entry_id' });
+    if (error) { console.warn('[db] finance entries save:', error.message); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbAddFinanceEntries = dbAddFinanceEntries;
+
+/* Deletes by ref when there is one, so undoing an EMI removes BOTH halves.
+   Deleting only the half the user clicked would leave the loan repaid and the
+   bank never debited — a silent, self-inflicted reconciliation problem. */
+async function dbDeleteFinanceEntry(entry) {
+    const user = _currentUser();
+    if (!user || !entry || !entry.id) return false;
+    const all = _mmFinRead('mm_finance_entries');
+    const doomed = entry.ref
+        ? all.filter(x => x && x.ref === entry.ref).map(x => x.id)
+        : [entry.id];
+    _mmFinLocal('mm_finance_entries', all.filter(x => x && doomed.indexOf(x.id) === -1));
+    try {
+        const q = entry.ref
+            ? _supabase.from('finance_entries').delete().eq('ref', entry.ref).eq('user_id', user)
+            : _supabase.from('finance_entries').delete().eq('entry_id', entry.id).eq('user_id', user);
+        const { error } = await q;
+        return !error;
+    } catch (e) { return false; }
+}
+window.dbDeleteFinanceEntry = dbDeleteFinanceEntry;
+
+/* Opening debtors and creditors. Same shape and the same reasoning as
+   dbSetOpeningStock — a shop that started mid-life was already owed money. */
+async function dbSetOpeningBalances(debtors, creditors, asOfDate) {
+    const user = _currentUser();
+    try {
+        localStorage.setItem('mm_opening_debtors', String(Number(debtors) || 0));
+        localStorage.setItem('mm_opening_creditors', String(Number(creditors) || 0));
+        localStorage.setItem('mm_opening_balances_date', asOfDate || '');
+    } catch (e) {}
+    if (!user) return { success: false, message: 'Not logged in.' };
+    const { error } = await _supabase.from('shop_profiles').upsert({
+        user_id: user,
+        opening_debtors: Number(debtors) || 0,
+        opening_creditors: Number(creditors) || 0,
+        opening_balances_date: asOfDate || null,
+        updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+    if (error) { console.warn('[db] opening balances save:', error.message); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbSetOpeningBalances = dbSetOpeningBalances;
+
 async function dbGetAuditLog(limit) {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbGetAuditLog: no user, aborting.'); return []; }
@@ -2124,14 +2293,29 @@ async function dbSyncCoreData() {
         try { await dbSyncPendingStockAdjustments(); } catch (e) { console.warn('[db] pending stock adjustment retry failed:', e); }
         try { await dbSyncPendingCustomerBalances(); } catch (e) { console.warn('[db] pending customer balance retry failed:', e); }
 
-        const [customers, doctors, medicines, purchases, bills, adjustments] = await Promise.all([
+        const [customers, doctors, medicines, purchases, bills, adjustments,
+               finAccounts, finEntries] = await Promise.all([
             dbGetCustomers(),
             dbGetDoctors(),
             dbGetMedicines(),
             dbGetPurchases(),
             dbGetBills(),
             dbGetStockAdjustments(),
+            /* Finance lives here rather than in a fetch of its own because
+               every page that shows a balance reads the same cache, and a
+               partial hand-rolled fetch list is how screens end up disagreeing.
+               Both resolve to null (not []) when the table is missing, which
+               is the signal to leave the local copy alone. */
+            dbGetFinanceAccounts().catch(() => null),
+            dbGetFinanceEntries().catch(() => null),
         ]);
+
+        /* null = the table is not there yet (migration not run) — keep what is
+           on the device. An empty array from a table that DOES exist is also
+           left alone, matching every other store below: the shop may have
+           entered figures offline and the cloud simply has not seen them. */
+        if (finAccounts && finAccounts.length) localStorage.setItem('mm_finance_accounts', JSON.stringify(finAccounts));
+        if (finEntries  && finEntries.length)  localStorage.setItem('mm_finance_entries',  JSON.stringify(finEntries));
 
         if (customers && customers.length) localStorage.setItem('mm_customers', JSON.stringify(_mmMergeCustomerBalances(customers)));
         if (doctors && doctors.length)     localStorage.setItem('mm_doctors', JSON.stringify(doctors));
@@ -2570,6 +2754,16 @@ async function dbSyncOpeningStock() {
             try {
                 localStorage.setItem('mm_opening_stock', String(cached.value));
                 localStorage.setItem('mm_opening_stock_date', cached.date);
+            } catch (e) {}
+        }
+        /* The other two opening figures ride along on the same profile read.
+           A second round trip for two numbers that arrive in the same row
+           would be a request the shop pays for in latency and nothing else. */
+        if (p && p.opening_debtors !== undefined) {
+            try {
+                localStorage.setItem('mm_opening_debtors', String(Number(p.opening_debtors) || 0));
+                localStorage.setItem('mm_opening_creditors', String(Number(p.opening_creditors) || 0));
+                localStorage.setItem('mm_opening_balances_date', p.opening_balances_date || '');
             } catch (e) {}
         }
     } catch (e) {}

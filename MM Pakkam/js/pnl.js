@@ -509,6 +509,36 @@
             expTotalPnl += amt;
             byCat[cat] = (byCat[cat] || 0) + amt;
         });
+        /* ── Depreciation and finance costs (Phase 2c) ──────────────────
+           Two real expenses this statement had no way to know about until
+           js/finance.js existed, and every shop with a fridge or a loan was
+           reporting a profit that was too high without them.
+
+           DEPRECIATION IS NOT A CASH COST. It reduces profit and moves no
+           money, so it joins expTotalPnl and is deliberately kept OUT of
+           expTotalCash — then added back by name in the bridge below. Putting
+           it in both would understate cash by the depreciation charge and
+           leave the difference sitting in the unexplained residual, which is
+           precisely the kind of quiet plug this module exists to avoid.
+
+           Interest and bank charges DO cost money, but they leave a bank
+           account, and the cash flow here tracks the counter and the till, not
+           financing. So they are charged to profit and named in the bridge as
+           well. The statement continues to foot either way, which is the whole
+           point of the footing discipline. */
+        var depTotal = 0, finInterest = 0, finCharges = 0, depItems = [];
+        if (window.mmFinance) {
+            try {
+                var dep = mmFinance.depreciationBetween(from, to);
+                depTotal = num(dep.total); depItems = dep.items || [];
+                var fc = mmFinance.chargesBetween(from, to);
+                finInterest = num(fc.interest); finCharges = num(fc.bankCharges);
+            } catch (e) { /* a missing finance module must not break the P&L */ }
+        }
+        if (depTotal   > 0.005) { expTotalPnl += depTotal;   byCat['Depreciation']  = (byCat['Depreciation']  || 0) + depTotal; }
+        if (finInterest > 0.005) { expTotalPnl += finInterest; byCat['Loan interest'] = (byCat['Loan interest'] || 0) + finInterest; }
+        if (finCharges  > 0.005) { expTotalPnl += finCharges;  byCat['Bank charges']  = (byCat['Bank charges']  || 0) + finCharges; }
+
         var expenseRows = Object.keys(byCat).map(function (c) {
             return { category: c, amount: r2(byCat[c]) };
         }).sort(function (a, b) { return b.amount - a.amount; });
@@ -606,6 +636,16 @@
             { label: 'Cash tied up in extra stock',          amount: r2(-deltaStock) },
             { label: 'GST collected but not yet remitted',   amount: r2(gstHeld) }
         ];
+        /* Added back because profit carries them and the counter cash did not:
+           depreciation moved no money at all, and interest and bank charges
+           left a bank account this statement does not follow. Named rather
+           than left to the residual — "Other differences" is for what cannot
+           be explained, and these can. */
+        var nonCashCharges = r2(depTotal + finInterest + finCharges);
+        if (Math.abs(nonCashCharges) >= 0.01) {
+            bridge.push({ label: 'Depreciation and finance costs (no counter cash moved)',
+                          amount: nonCashCharges });
+        }
         var explained = bridge.reduce(function (s, b) { return s + b.amount; }, 0);
         var residual  = r2(netCash - explained);
         if (Math.abs(residual) >= 0.01) {
@@ -701,7 +741,13 @@
                 };
             }).sort(function (a, b) { return b.profit - a.profit; }),
 
-            expenses:    { total: r2(expTotalPnl), rows: expenseRows, cashTotal: r2(expTotalCash), gstRemitted: r2(gstRemitted) },
+            expenses:    { total: r2(expTotalPnl), rows: expenseRows, cashTotal: r2(expTotalCash), gstRemitted: r2(gstRemitted),
+                           /* Broken out so the P&L can show WHICH asset was
+                              depreciated rather than one opaque figure — an
+                              owner cannot check a number they cannot see the
+                              parts of. */
+                           depreciation: r2(depTotal), depreciationItems: depItems,
+                           loanInterest: r2(finInterest), bankCharges: r2(finCharges) },
             roundOff:    r2(roundOff),
 
             netProfit:   r2(netProfit),
