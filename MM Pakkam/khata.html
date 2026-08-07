@@ -2007,6 +2007,7 @@
 
         async function saveFinAccount() {
             _finClearStatus('finAcctStatus');
+            _finBusy('#finAcctModal .btn-confirm', true);
             try {
                 await _saveFinAccount();
             } catch (e) {
@@ -2014,6 +2015,8 @@
                 await _finRefuse('finAcctStatus',
                     'This account could not be saved: ' + (e && e.message ? e.message : String(e)) +
                     ' — nothing has been recorded.');
+            } finally {
+                _finBusy('#finAcctModal .btn-confirm', false);
             }
         }
 
@@ -2056,11 +2059,14 @@
                 mmAudit(existing ? 'Finance account edited' : 'Finance account added',
                         acct.kind + ' · ' + acct.name + ' · opening ' + opening.toFixed(2), acct.id);
             }
-            closeFinModals();
             await loadFinance();
-            showToast(ok ? '✅ Saved.'
-                : '💾 Saved on this device only — it will sync once migrations/add_finance_accounts.sql has been run.',
-                ok ? 'success' : 'error');
+            /* Same reasoning as the movement form: the confirmation names the
+               account, so it cannot be mistaken for nothing having happened. */
+            _finSetStatus('finAcctStatus',
+                (ok ? '✅ Saved. ' : '💾 Saved on this device only — it will sync once migrations/add_finance_accounts.sql has been run. ')
+                + '"' + acct.name + '" is now on the list.', ok ? 'ok' : 'bad');
+            showToast(ok ? '✅ Saved.' : '💾 Saved on this device only.', ok ? 'success' : 'error');
+            setTimeout(closeFinModals, 1400);
         }
 
         async function deleteFinAccount(id) {
@@ -2230,6 +2236,7 @@
            then the dialog has closed. */
         async function saveFinMovement() {
             _finClearStatus('finMoveStatus');
+            _finBusy('#finMoveModal .btn-confirm', true);
             try {
                 await _saveFinMovement();
             } catch (e) {
@@ -2240,6 +2247,8 @@
                 await _finRefuse('finMoveStatus',
                     'This movement could not be saved: ' + (e && e.message ? e.message : String(e)) +
                     ' — nothing has been recorded. Please send this message on if it keeps happening.');
+            } finally {
+                _finBusy('#finMoveModal .btn-confirm', false);
             }
         }
 
@@ -2303,10 +2312,45 @@
                 mmAudit('Finance movement', a.name + ' · ' + kind + ' · ' + amt.toFixed(2) +
                         (interest ? ' (interest ' + interest.toFixed(2) + ')' : ''), a.id);
             }
-            closeFinModals();
             await loadFinance();
-            showToast(ok ? '✅ Recorded.' : '💾 Saved on this device only — it will sync once the migration has been run.',
-                      ok ? 'success' : 'error');
+
+            /* SUCCESS IS REPORTED WHERE THE BUTTON WAS PRESSED, AND IT NAMES
+               THE NEW BALANCE.
+
+               This is the bug that actually happened. The save worked from the
+               very first version; the only sign of it was a toast at the
+               bottom of the screen, which was never seen on a narrow window
+               inside a scrolled dialog. So the modal closed, the balance
+               behind it changed out of view, and it looked like the button did
+               nothing — and the same EMI was entered eight more times.
+
+               A confirmation that names the resulting figure is the only kind
+               that cannot be mistaken for nothing happening: it is impossible
+               to read "Shop loan is now ₹1,95,800.00" and think the press was
+               ignored. The form stays put long enough to be read, then closes
+               itself. */
+            const newBal = mmFinance.balanceAsOf(a.id, _finToday());
+            _finSetStatus('finMoveStatus',
+                (ok ? '✅ Recorded. ' : '💾 Saved on this device only — it will sync once the migration has been run. ')
+                + a.name + ' is now ' + _finMoney(newBal) + '.', ok ? 'ok' : 'bad');
+            showToast(ok ? '✅ Recorded.' : '💾 Saved on this device only.', ok ? 'success' : 'error');
+            setTimeout(closeFinModals, 1400);
+        }
+
+        /* The other half of the same fault: nothing stopped the button being
+           pressed again while the first save was still in flight. Even with a
+           visible confirmation, a slow connection leaves a window in which an
+           impatient second press writes a second movement — and an insert is
+           not idempotent (v300). The button disables itself for the duration
+           and says what it is doing. */
+        function _finBusy(btnSelector, on, label) {
+            const b = document.querySelector(btnSelector);
+            if (!b) return;
+            b.disabled = on;
+            b.style.opacity = on ? '0.6' : '';
+            b.style.cursor = on ? 'wait' : '';
+            if (on) { b._label = b.textContent; b.textContent = label || 'Saving…'; }
+            else if (b._label) { b.textContent = b._label; }
         }
 
         /* ── Opening debtors and creditors ───────────────────────────────── */
