@@ -610,6 +610,13 @@
         }
     </style>
     <script src="js/substitutes.js"></script>
+    <!-- The Drug Master is what sales.html uses to decide a medicine is
+         Schedule H/H1/X. Without it here, a return could not recognise a drug
+         the SALE had already logged into the register — the reversal would
+         silently not happen for exactly the drugs the master knows about and
+         the shop's own list does not. Detection must be symmetric or the
+         register drifts. -->
+    <script src="js/drug-master.js"></script>
     <script src="js/keyboard-nav.js"></script>
 </head>
 
@@ -1491,21 +1498,63 @@
     }
     function cancelSaleReturn() { _srBill = null; document.getElementById('saleReturnCard').classList.add('ret-hidden'); }
 
-    // If a returned drug is Schedule H, log a 'return' entry in the H register so
-    // the dispensed OUT is reversed. entryType 'return' (not 'in') so it is NOT
-    // mirrored back into stock (the return's stock adjustment already handled that).
+    /* ── SCHEDULE H / H1 / X — REVERSING A DISPENSED ENTRY ────────────────
+       The register is a legal log, so a return is never a deletion: the drug
+       genuinely left the shop and genuinely came back, and both facts belong
+       on the record. It is written as its own `return` entry pointing at the
+       original bill.
+
+       entryType is 'return' rather than 'in' on purpose — an 'in' would be
+       mirrored back into stock, and the return's own stock adjustment has
+       already done that. Two corrections for one event is the v300 mistake.
+
+       WHAT WAS WRONG BEFORE: this checked the shop's Schedule H list only.
+       Schedule X — narcotics and psychotropics, the strictest class there is
+       — was dispensed, logged as OUT, returned, and the OUT stood. The class
+       with the heaviest record-keeping obligation was the one class whose
+       returns were invisible. It now recognises H, H1 and X, by exactly the
+       rule sales.html uses to log the OUT in the first place. Detection has
+       to be symmetric or the register drifts apart from reality.
+    ────────────────────────────────────────────────────────────────────── */
+    function _retScheduleClassOf(name) {
+        const nm = (name || '').trim();
+        if (!nm) return '';
+        const key = nm.toLowerCase();
+        const listHas = (k) => {
+            try {
+                const l = JSON.parse(localStorage.getItem(k) || '[]');
+                return l.some(d => (d || '').trim().toLowerCase() === key);
+            } catch (e) { return false; }
+        };
+        // The shop's own X list wins — it is a deliberate act by the shop.
+        if (listHas('mm_schedule_x_drugs')) return 'X';
+        if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf) {
+            const s = (DrugMaster.scheduleOf(nm) || '').toUpperCase();
+            if (s === 'X') return 'X';
+            if (s === 'H1') return 'H1';
+            if (s.charAt(0) === 'H') return 'H';
+        }
+        return listHas('mm_schedule_h_drugs') ? 'H' : '';
+    }
+
     function _retLogHReturn(product, batch, qty, customer, origBill, cnNo) {
         try {
-            const shDrugs = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
-            const isH = shDrugs.some(d => (d || '').trim().toLowerCase() === (product || '').trim().toLowerCase());
-            if (!isH) return;
+            const cls = _retScheduleClassOf(product);
+            if (!cls) return;                       // not a scheduled drug — nothing to reverse
+            /* Local date parts, never toISOString().slice(0,10): in IST that
+               reads as YESTERDAY for the first five and a half hours of every
+               day, and a controlled-drug register dated a day out is a real
+               problem. Same rule as todayLocal() in v313. */
+            const d = new Date(), p = n => (n < 10 ? '0' : '') + n;
+            const today = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
             const entry = {
                 id: 'ret_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-                entryType: 'return', date: new Date().toISOString().slice(0, 10),
+                entryType: 'return', date: today,
                 billNo: cnNo, firmName: '', patientName: customer || '', patientAddress: '',
                 doctorName: '', doctorRegNo: '', doctorAddress: '',
                 drugName: product, batchNo: batch || '', expireDate: '', pack: '',
                 qty: qty, mrp: 0, rate: 0, gst: 0, total: 0,
+                scheduleClass: cls,
                 isReturn: true, returnOf: origBill, autoLogged: true,
                 savedAt: new Date().toISOString()
             };
@@ -1513,7 +1562,7 @@
             reg.push(entry);
             localStorage.setItem('mm_schedule_h_register', JSON.stringify(reg));
             if (typeof dbAddScheduleHEntry === 'function') dbAddScheduleHEntry(entry).catch(() => {});
-        } catch (e) { console.warn('H register reversal failed:', e); }
+        } catch (e) { console.warn('Schedule register reversal failed:', e); }
     }
     function _retFindCustomer(name) {
         const n = (name || '').trim().toLowerCase();

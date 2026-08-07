@@ -1319,6 +1319,10 @@
                             <button class="type-pill active" id="typePillAll"  onclick="setTypeFilter('all')" title="Show All">&#x1F4CB; All</button>
                             <button class="type-pill" id="typePillIn"   onclick="setTypeFilter('in')"  title="Show Stock IN only">&#x1F7E2; IN</button>
                             <button class="type-pill" id="typePillOut"  onclick="setTypeFilter('out')" title="Show Sales OUT only">&#x1F534; OUT</button>
+                            <!-- A return is neither IN nor OUT, so it was only
+                                 visible under "All". An inspector asking "show
+                                 me everything that came back" needs one click. -->
+                            <button class="type-pill" id="typePillRet"  onclick="setTypeFilter('return')" title="Show returned drugs only">&#x21A9; Returns</button>
                             <button class="type-pill" id="typePillH1"   onclick="toggleH1Filter()"     title="Show Schedule H1 + X drugs only (stricter subsets)">&#x26D4; H1 / X only</button>
                         </div>
                         <button class="btn-export" onclick="window.print()" title="Print filtered Register">
@@ -2558,7 +2562,7 @@
 
         function setTypeFilter(type) {
             _activeTypeFilter = type;
-            const map = { all: 'typePillAll', in: 'typePillIn', out: 'typePillOut' };
+            const map = { all: 'typePillAll', in: 'typePillIn', out: 'typePillOut', return: 'typePillRet' };
             // Clear ONLY the All/IN/OUT pills. These three behave like radio
             // buttons; "H1 / X only" is an independent modifier that combines
             // with whichever one is chosen. Clearing every .type-pill (as this
@@ -2685,7 +2689,9 @@
                 if (filterTo   && entry.date && entry.date > filterTo)   return false;
                 // IN / OUT type filter
                 if (_activeTypeFilter === 'in'  && entry.entryType !== 'in')  return false;
+                // 'out' resolves a missing type (older rows) but must not swallow returns.
                 if (_activeTypeFilter === 'out' && (entry.entryType || 'out') !== 'out') return false;
+                if (_activeTypeFilter === 'return' && entry.entryType !== 'return') return false;
                 if (_h1Only && !['H1', 'X'].includes(_entryClass(entry))) return false;
                 if (!searchTerm) return true;
                 return (entry.patientName || '').toLowerCase().includes(searchTerm)
@@ -2786,7 +2792,9 @@
                 if (filterTo   && entry.date && entry.date > filterTo)   return false;
                 // Honor the on-screen pills so "H1 only" / IN / OUT export what you see.
                 if (_activeTypeFilter === 'in'  && entry.entryType !== 'in')  return false;
+                // 'out' resolves a missing type (older rows) but must not swallow returns.
                 if (_activeTypeFilter === 'out' && (entry.entryType || 'out') !== 'out') return false;
+                if (_activeTypeFilter === 'return' && entry.entryType !== 'return') return false;
                 if (_h1Only && !['H1', 'X'].includes(_entryClass(entry))) return false;
                 if (searchTerm) {
                     return (entry.patientName||'').toLowerCase().includes(searchTerm)
@@ -3898,8 +3906,22 @@
         let shStockMap = {};
 
         function buildSHStockMap() {
+            /* BOTH lists. This read the Schedule H list alone, so a Schedule X
+               drug — narcotics and psychotropics, the class with the heaviest
+               record-keeping duty — never appeared in the stock report at all,
+               even though the register logs its IN and OUT entries and the
+               page badges it as X.
+
+               In practice a sold X drug is usually learned into the H list by
+               sales.html, which is why this was not obvious. A drug added to
+               the X list and received but not yet sold was simply absent. The
+               report should cover exactly what the register covers. */
             const shDrugs = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
-            const shDrugSet = new Set(shDrugs.map(d => d.trim().toLowerCase()));
+            let xDrugs = [];
+            try { xDrugs = JSON.parse(localStorage.getItem('mm_schedule_x_drugs') || '[]'); } catch (e) {}
+            const shDrugSet = new Set(
+                shDrugs.concat(xDrugs).map(d => String(d || '').trim().toLowerCase()).filter(Boolean)
+            );
 
             const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
             const sales = JSON.parse(localStorage.getItem('mm_sales') || '[]');
@@ -3915,6 +3937,7 @@
                         totalQty: 0,
                         totalIn: 0,
                         totalOut: 0,
+                        totalReturned: 0,
                         batches: {},
                         lastSold: null,
                         metrics: { totalMrp: 0 }
@@ -3951,18 +3974,52 @@
                 entry.metrics.totalMrp += (q * (parseFloat(p.mrp) || 0));
             });
 
-            // Adjustments
-            adjustLogs.forEach(adj => {
-                if (!adj.medicineName || !shDrugSet.has(adj.medicineName.trim().toLowerCase())) return;
-                const entry = getOrCreate(adj.medicineName);
-                const bNo = (adj.batchNo || '').trim().toUpperCase();
+            /* ADJUSTMENTS — from BOTH stores, and the reason this was wrong.
+
+               There are two, and this read only the smaller one:
+
+               `mm_inventory_adjust_log` is written by this page's own Adjust
+               form and by nothing else. It never reached the cloud and no
+               other screen has ever seen it.
+
+               `stockAdjustments` is the real app-wide store — every sales
+               return, purchase return, damage and expiry write-off made from
+               Inventory, synced across devices.
+
+               So on the one page a drug inspector reads, a returned Schedule H
+               drug never came back onto the shelf and an expiry write-off
+               never came off it. The figure was purchases minus sales plus
+               whatever had been typed on this page.
+
+               The real store carries TWO spellings on the same device: saved
+               locally it is productName/qtyDelta, fetched from the cloud it
+               comes back raw as product_name/qty_delta and dbSyncCoreData
+               caches the raw rows. js/supabase.js already reads both; so does
+               this now. The legacy log keeps its own field names — its
+               historical rows still count, exactly once. */
+            function applyAdj(name, batch, delta) {
+                const aName = String(name || '').trim();
+                if (!aName || !shDrugSet.has(aName.toLowerCase())) return;
+                const d = parseFloat(delta) || 0;
+                if (!d) return;
+                const entry = getOrCreate(aName);
+                const bNo = String(batch || '').trim().toUpperCase();
                 if (!entry.batches[bNo]) {
                     entry.batches[bNo] = { batchNo: bNo, qty: 0, exp: '', mrp: 0 };
                 }
-                const d = parseFloat(adj.deltaQty) || 0;
                 entry.batches[bNo].qty += d;
                 entry.totalQty += d;
-            });
+            }
+            // Legacy, page-local. saveAdjustment() no longer writes here, so
+            // this only ever replays what was recorded before that change.
+            adjustLogs.forEach(a => applyAdj(a.medicineName, a.batchNo, a.deltaQty));
+            // The real store — returns, damage, expiry, from any device.
+            const realAdj = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
+            realAdj.forEach(a => applyAdj(
+                a.product_name || a.productName,
+                a.batch_no     || a.batchNo,
+                (a.qty_delta !== undefined && a.qty_delta !== null) ? a.qty_delta : a.qtyDelta
+            ));
 
             // Sales
             sales.forEach(bill => {
@@ -3991,6 +4048,25 @@
             // is authoritative and carries the expiry date & MRP. The matching mirrored
             // purchases were skipped above, so this does not double-count. (Order vs the
             // sales loop doesn't matter — all totals are cumulative +=/-=.)
+            /* RETURNS. A returned drug came back, so it was not dispensed —
+               but `totalOut` counted the whole sale and nothing ever reduced
+               it. The register would report 15 tablets dispensed when 5 were
+               handed straight back, on the one document an inspector reads.
+
+               Only totalOut moves here. The quantity on the shelf was already
+               corrected by the return's stock adjustment above, and adding it
+               a second time would overstate the stock by every return ever
+               made — the same double-correction the 'return' entry type
+               exists to avoid. */
+            getRegister().forEach(r => {
+                if ((r.entryType || '') !== 'return') return;
+                const nm = (r.drugName || '').trim();
+                if (!nm || !shDrugSet.has(nm.toLowerCase())) return;
+                const entry = getOrCreate(nm);
+                entry.totalOut -= parseFloat(r.qty) || 0;
+                entry.totalReturned = (entry.totalReturned || 0) + (parseFloat(r.qty) || 0);
+            });
+
             getRegister().forEach(r => {
                 if ((r.entryType || '') !== 'in') return;
                 const nm = (r.drugName || '').trim();
@@ -4090,7 +4166,13 @@
                     <td style="font-weight:700;color:#0f172a;">${esc(item.name)}</td>
                     <td>${batchCount}</td>
                     <td style="color:#16a34a;font-weight:700;">${item.totalIn}</td>
-                    <td style="color:#dc2626;font-weight:700;">${item.totalOut}</td>
+                    <td style="color:#dc2626;font-weight:700;">${item.totalOut}${
+                        /* Netting silently would leave the shop unable to
+                           explain why the figure moved. The gross and the
+                           return are both stated. */
+                        item.totalReturned
+                            ? `<div style="font-size:0.68rem;color:#94a3b8;font-weight:600;">${item.totalOut + item.totalReturned} dispensed less ${item.totalReturned} returned</div>`
+                            : ''}</td>
                     <td><span class="stock-qty-number ${qtyCls}">${item.totalQty}</span></td>
                     <td>₹${item.metrics.totalMrp.toFixed(2)}</td>
                     <td>${status}</td>
@@ -4198,29 +4280,62 @@
             });
         }
 
-        function saveAdjustment() {
+        /* A correction to CONTROLLED-DRUG stock used to be written to
+           mm_inventory_adjust_log — a key this page invented, that never left
+           the device, that no other screen read, and that no backup or sync
+           carried. Change phone and the correction was gone; open Inventory
+           and the same drug showed a different quantity.
+
+           It now goes through the same store as every other stock adjustment,
+           so it syncs, appears in Inventory, and survives a device change.
+           The legacy log is still READ by buildSHStockMap so historical
+           entries keep counting — but nothing writes to it any more, which is
+           what stops the two stores double-counting the same correction. */
+        async function saveAdjustment() {
             const med = document.getElementById('adjMedicine').value;
             const batch = document.getElementById('adjBatch').value;
             const qty = parseFloat(document.getElementById('adjQty').value);
-            
+
             if (!med || !batch || isNaN(qty)) {
                 showToast('Please fill all fields for adjustment', 'error');
                 return;
             }
-            
-            const log = JSON.parse(localStorage.getItem('mm_inventory_adjust_log') || '[]');
-            const entry = {
-                id: 'adj_' + Date.now(),
-                date: new Date().toISOString().split('T')[0],
-                medicineName: med,
-                batchNo: batch,
-                deltaQty: qty,
-                reason: 'Schedule H Manual Adjustment'
+            if (!qty) { showToast('Enter a quantity to add or remove', 'error'); return; }
+
+            const before = (typeof mmComputeStock === 'function') ? mmComputeStock(med, batch) : 0;
+            const record = {
+                productName: med, batchNo: batch,
+                qtyBefore: before, qtyAfter: before + qty, qtyDelta: qty,
+                reason: 'schedule_h_manual',
+                note: JSON.stringify({ source: 'Schedule H page' })
             };
-            log.push(entry);
-            localStorage.setItem('mm_inventory_adjust_log', JSON.stringify(log));
-            showToast('Stock Adjusted Successfully', 'success');
-            
+
+            let cloudRow = null, ok = false;
+            try {
+                if (typeof dbAddStockAdjustment === 'function') {
+                    const res = await dbAddStockAdjustment(record);
+                    if (res && res.success) { ok = true; cloudRow = res.data || null; }
+                }
+            } catch (e) { console.warn('[SH] adjustment cloud save failed:', e); }
+
+            /* Cache the CLOUD row when there is one. An id-less cached entry
+               looks unsynced to dbSyncPendingStockAdjustments and gets
+               re-inserted on the next load — that is v300, and it turned one
+               return into three. */
+            try {
+                const cached = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
+                cached.push(cloudRow || record);
+                if (typeof mmLsSet === 'function') mmLsSet('stockAdjustments', cached);
+            } catch (e) {}
+
+            if (typeof mmAudit === 'function') {
+                mmAudit('Schedule H stock adjusted',
+                        med + ' · batch ' + batch + ' · ' + (qty > 0 ? '+' : '') + qty, batch);
+            }
+
+            showToast(ok ? 'Stock adjusted' : 'Adjusted on this device — it will sync when the connection is back',
+                      ok ? 'success' : 'error');
+
             document.getElementById('adjQty').value = '';
             populateAdjDropdowns(); // refresh dropdowns
             buildSHStockMap(); // rebuild global map
