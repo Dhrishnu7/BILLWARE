@@ -23,21 +23,37 @@
  * anon publishable key is NOT enough, or this becomes an open model proxy
  * for anyone who opens devtools.
  *
- * TWO BACKENDS, SAME MODEL
- * ------------------------
+ * THREE BACKENDS, ONE CONTRACT
+ * ----------------------------
  * Anthropic bills in USD and takes international cards only, which a lot of
  * Indian bank accounts simply cannot do. The same model is sold through
  * Google Vertex AI, which bills through Google's Indian entity in INR as a
  * DOMESTIC transaction — so an ordinary Indian card or netbanking works.
  *
- * Both are supported and the choice is made by which secrets exist. Vertex
- * wins when configured, because a leftover unfunded ANTHROPIC_API_KEY must
- * not quietly take precedence over the backend that actually has money
- * behind it. Force either one with MM_OCR_BACKEND.
+ * Vertex then has a second gate nobody warns you about: Claude is a
+ * MARKETPLACE PARTNER model there, and a new self-serve project is allocated
+ * ZERO per-minute tokens for every Claude version it is allowed to enable,
+ * with no quota row to even file an increase against. Measured 2026-08-09 on
+ * project billware-ocr: claude-sonnet-5 had no quota row in any of the four
+ * pools; claude-sonnet-4 had 15,000 but 404s as not-accessible. Meanwhile
+ * gemini-2.5-pro had 40,248,000 input tokens/minute for image input in seven
+ * regions, because it is Google's OWN model and skips the Marketplace
+ * machinery entirely. That is why this file speaks Gemini as well.
+ *
+ * The choice is made by which secrets exist, plus the model name. Vertex wins
+ * over Anthropic when configured, because a leftover unfunded
+ * ANTHROPIC_API_KEY must not quietly take precedence over the backend that
+ * actually has money behind it. A MM_OCR_MODEL starting "gemini" selects the
+ * Gemini shape on those same Vertex credentials — no extra secret, and no way
+ * to have the model and the wire format disagree.
+ *
+ * The PROMPT and the SCHEMA are shared by all three. GEMINI_SCHEMA is derived
+ * from SCHEMA at load, never written out twice: a scan must mean the same
+ * thing whoever is billed for it.
  *
  * DEPLOY: paste into Supabase → Edge Functions → mm-ocr.
  *
- * SECRETS — Vertex (preferred here):
+ * SECRETS — Vertex (preferred here; serves both Claude and Gemini):
  *   GCP_SERVICE_ACCOUNT_JSON  the whole service-account key file, pasted as-is
  *   GCP_PROJECT_ID            e.g. billware-ocr-123456
  *   GCP_LOCATION              optional, default "global"
@@ -48,8 +64,11 @@
  *   MM_OCR_BACKEND            optional, "vertex" | "anthropic"
  *   MM_OCR_MODEL              optional, default "claude-opus-5".
  *                             Per-minute token quota on Vertex is PER MODEL,
- *                             so switching to "claude-sonnet-5" is the way out
- *                             of a 429 that only affects Opus.
+ *                             so switching models is the way out of a 429 that
+ *                             only affects one of them. Set it to
+ *                             "gemini-2.5-pro" to use Gemini instead of Claude
+ *                             — same credentials, same output, different wire
+ *                             format, and quota that actually exists.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -62,6 +81,13 @@ const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
    re-pasting this file. Sonnet is also ~40% of the cost, so a shop that scans
    a lot may want it permanently. */
 const MODEL = Deno.env.get('MM_OCR_MODEL') || 'claude-opus-5';
+
+/* The model name picks the wire format. Deriving it beats a second secret:
+   MM_OCR_BACKEND=vertex with MM_OCR_MODEL=gemini-2.5-pro would otherwise be a
+   configuration that looks right and 404s, because Gemini lives under
+   publishers/google and answers :generateContent, not publishers/anthropic
+   and :rawPredict. One secret cannot contradict itself. */
+const IS_GEMINI = /^gemini/i.test(MODEL);
 
 /* Vertex takes the model in the URL and this string in the body, where the
    first-party API takes `model` in the body and no version field at all.
@@ -131,6 +157,34 @@ const SCHEMA = {
     notes: { type: 'array', description: 'Short plain-English notes for the shopkeeper about anything unclear, cut off, or unusual on this invoice. Empty array if nothing to say.', items: { type: 'string' } },
   },
 };
+
+/* ── The same contract, in Gemini's dialect ────────────────────────────
+   Gemini wants an OpenAPI-flavoured Schema, not JSON Schema: the type is the
+   uppercase Type enum and `additionalProperties` is not a field it knows —
+   sending it is a 400.
+
+   DERIVED from SCHEMA at load rather than written out again. Two copies of a
+   twelve-field contract WILL drift the first time a field is added, and the
+   failure mode is silent: the same photo would return a different set of
+   columns depending on which backend happened to be configured. */
+function toGeminiSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(toGeminiSchema);
+  if (!node || typeof node !== 'object') return node;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+    if (k === 'additionalProperties') continue;
+    if (k === 'type' && typeof v === 'string') { out.type = v.toUpperCase(); continue; }
+    if (k === 'properties' && v && typeof v === 'object') {
+      const p: Record<string, unknown> = {};
+      for (const [pk, pv] of Object.entries(v as Record<string, unknown>)) p[pk] = toGeminiSchema(pv);
+      out.properties = p;
+      continue;
+    }
+    out[k] = k === 'items' ? toGeminiSchema(v) : v;
+  }
+  return out;
+}
+const GEMINI_SCHEMA = toGeminiSchema(SCHEMA);
 
 const SYSTEM = `You read Indian pharmaceutical purchase invoices and return their line items.
 
@@ -274,6 +328,15 @@ const ATTEMPTS_VERTEX: Attempt[] = [
   { fallbacks: false, effort: false, schema: false, label: 'no-schema' },
 ];
 
+/* Same ladder, same meanings: `effort` is the thinking budget and `schema` is
+   the enforced response shape. Both are per-model-version features on Vertex,
+   so both have to be sheddable. */
+const ATTEMPTS_GEMINI: Attempt[] = [
+  { fallbacks: false, effort: true,  schema: true,  label: 'full' },
+  { fallbacks: false, effort: false, schema: true,  label: 'no-effort' },
+  { fallbacks: false, effort: false, schema: false, label: 'no-schema' },
+];
+
 /* The request body, identical for both backends except where the model is
    named. Keeping this in one place is the point: the prompt, the schema and
    the effort hint must not be able to drift between the two paths, or a
@@ -340,6 +403,83 @@ async function callVertex(cfg: VertexConfig, contentBlock: unknown, a: Attempt) 
 
 interface VertexConfig { sa: { client_email: string; private_key: string }; project: string; location: string }
 
+/* ── Gemini on the same credentials ────────────────────────────────────
+   Everything above this line is reused: the service-account token, the host
+   derivation, the system prompt, the schema. What differs is the envelope —
+   publishers/google, :generateContent, `contents`/`parts` instead of
+   `messages`/`content`, `generationConfig` instead of `output_config`. */
+async function callGemini(cfg: VertexConfig, part: unknown, a: Attempt) {
+  const token = await gcpAccessToken(cfg.sa);
+  const host = cfg.location === 'global'
+    ? 'aiplatform.googleapis.com'
+    : `${cfg.location}-aiplatform.googleapis.com`;
+  const url = `https://${host}/v1/projects/${cfg.project}/locations/${cfg.location}` +
+              `/publishers/google/models/${MODEL}:generateContent`;
+
+  const generationConfig: Record<string, unknown> = {
+    /* A transcription must not be creative. This is the one place Gemini
+       differs from the Claude path in substance rather than shape: the
+       Anthropic call has no temperature because extraction with a schema is
+       already near-deterministic there. */
+    temperature: 0,
+    /* 2.5 Pro is a thinking model and thinking tokens are charged against
+       this budget. Truncation here surfaces as "photograph it in two halves",
+       which would be a lie when the invoice was fine and the model simply
+       thought for a while — so leave real headroom. */
+    maxOutputTokens: 32000,
+  };
+  if (a.schema) {
+    generationConfig.responseMimeType = 'application/json';
+    generationConfig.responseSchema = GEMINI_SCHEMA;
+  }
+  if (a.effort) generationConfig.thinkingConfig = { thinkingBudget: 2048 };
+
+  const body = {
+    systemInstruction: { parts: [{ text: SYSTEM }] },
+    contents: [{ role: 'user', parts: [part, { text: a.schema ? USER_TEXT : USER_TEXT_JSON }] }],
+    generationConfig,
+  };
+
+  return await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+}
+
+/* Reshape a Gemini answer into the Anthropic shape the handler below already
+   speaks. Done here, once, so that stop-reason handling, the empty-content
+   guard, JSON parsing, the lines check and the usage log stay ONE code path.
+   A second copy of that logic is a second place for the two backends to
+   disagree about what counts as a refusal. */
+function normalizeGemini(g: Record<string, any>) {
+  const cand = (g.candidates || [])[0];
+  const fr = String(cand?.finishReason || '');
+
+  /* A prompt blocked before generation returns no candidates at all, so the
+     block reason has to be read from promptFeedback or it looks like an
+     empty response with no explanation. */
+  const blocked = g.promptFeedback?.blockReason;
+  const stop_reason =
+    fr === 'MAX_TOKENS' ? 'max_tokens'
+    : (blocked || /SAFETY|BLOCKLIST|PROHIBITED_CONTENT|RECITATION|SPII/.test(fr)) ? 'refusal'
+    : 'end_turn';
+
+  const text = (cand?.content?.parts || [])
+    .map((p: { text?: string }) => p?.text || '')
+    .join('');
+
+  return {
+    stop_reason,
+    content: text ? [{ type: 'text', text }] : [],
+    usage: {
+      input_tokens: g.usageMetadata?.promptTokenCount ?? null,
+      output_tokens: g.usageMetadata?.candidatesTokenCount ?? null,
+    },
+    model: g.modelVersion || MODEL,
+  };
+}
+
 /* Without a schema the model writes JSON as ordinary text, which may arrive
    wrapped in a ```json fence or with a sentence in front of it. Pull out the
    outermost object rather than trusting the whole string to parse. */
@@ -383,8 +523,19 @@ Deno.serve(async (req) => {
     }
   }
 
-  const backend: 'vertex' | 'anthropic' | null =
-    vertex ? 'vertex' : (anthropicKey && forced !== 'vertex' ? 'anthropic' : null);
+  const backend: 'vertex' | 'gemini' | 'anthropic' | null =
+    vertex ? (IS_GEMINI ? 'gemini' : 'vertex')
+           : (anthropicKey && forced !== 'vertex' ? 'anthropic' : null);
+
+  /* A Gemini model with no Google credentials would go to Anthropic and come
+     back "unknown model" — a 400 that reads like a broken scan when it is
+     really two secrets that do not agree. Name it instead. */
+  if (backend === 'anthropic' && IS_GEMINI) {
+    return json({
+      error: 'The scanner is set to a Gemini model but has no Google Cloud credentials. (Server setup — not your device.)',
+      detail: `MM_OCR_MODEL=${MODEL} needs GCP_SERVICE_ACCOUNT_JSON and GCP_PROJECT_ID.`,
+    }, 503);
+  }
 
   /* `notConfigured` is the ONLY thing that earns a silent fallback on the
      client. "Nobody has switched this on yet" is not the shop's problem and
@@ -457,7 +608,14 @@ Deno.serve(async (req) => {
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } };
 
-  const ATTEMPTS = backend === 'vertex' ? ATTEMPTS_VERTEX : ATTEMPTS_ANTHROPIC;
+  /* Gemini takes one inlineData part for both, and reads a multi-page PDF
+     whole exactly as the Anthropic document block does — so the "send the PDF
+     up entire rather than rasterising page one" behaviour is preserved. */
+  const geminiPart = { inlineData: { mimeType: isPdf ? 'application/pdf' : mime, data: b64 } };
+
+  const ATTEMPTS = backend === 'anthropic' ? ATTEMPTS_ANTHROPIC
+                 : backend === 'gemini'    ? ATTEMPTS_GEMINI
+                 : ATTEMPTS_VERTEX;
   let res: Response | null = null;
   let used: Attempt = ATTEMPTS[0];
   let lastDetail = '';
@@ -466,9 +624,11 @@ Deno.serve(async (req) => {
     used = ATTEMPTS[i];
     let r: Response;
     try {
-      r = backend === 'vertex'
-        ? await callVertex(vertex!, contentBlock, used)
-        : await callAnthropic(anthropicKey!, contentBlock, used);
+      r = backend === 'gemini'
+        ? await callGemini(vertex!, geminiPart, used)
+        : backend === 'vertex'
+          ? await callVertex(vertex!, contentBlock, used)
+          : await callAnthropic(anthropicKey!, contentBlock, used);
     } catch (e) {
       /* Minting the Google token can throw before any model call happens.
          That is a credentials fault, not a scan fault, and must say so. */
@@ -524,30 +684,48 @@ Deno.serve(async (req) => {
   if (!res) return json({ error: 'The scanner could not be reached.', detail: lastDetail }, 502);
   if (used.label !== 'full') console.warn('[mm-ocr] succeeded on degraded attempt:', used.label);
 
+  const onGoogle = backend === 'vertex' || backend === 'gemini';
+
   if (!res.ok) {
     const txt = await res.text();
     console.error(`[mm-ocr] ${backend} error`, res.status, txt.slice(0, 800));
-    if (res.status === 429) return json({ error: 'The scanner is busy right now. Wait a minute and try again.', detail: txt.slice(0, 400) }, 429);
+    if (res.status === 429) return json({
+      /* "Busy, try again in a minute" is true of an ordinary rate limit and a
+         LIE when the project's allocation for this model is zero — retrying
+         then can never work, and that is exactly where three days went on
+         Claude-via-Vertex. Distinguish the two by what Google says. */
+      error: /quota|RESOURCE_EXHAUSTED/i.test(txt) && backend !== 'anthropic'
+        ? 'This Google Cloud project has no capacity allocated for the scanner\'s model. Retrying will not help. (Server setup — not your device.)'
+        : 'The scanner is busy right now. Wait a minute and try again.',
+      detail: txt.slice(0, 400) }, 429);
     if (res.status === 401) return json({
-      error: backend === 'vertex'
+      error: onGoogle
         ? 'The scanner\'s Google credentials were rejected. (Server setup — not your device.)'
         : 'The scanner\'s API key is missing or wrong. (Server setup — not your device.)',
       detail: txt.slice(0, 400) }, 503);
     if (res.status === 403) return json({
-      /* On Vertex a 403 is nearly always one of three setup steps: billing
-         not attached, the Vertex AI API not enabled, or the model not
-         accepted in Model Garden. Naming them beats "permission denied". */
-      error: backend === 'vertex'
-        ? 'Google refused the request — check that billing is attached, the Vertex AI API is enabled, and the Claude model has been enabled in Model Garden. (Server setup — not your device.)'
-        : 'The scanner\'s API account has no credit, or the key lacks permission. (Server setup — not your device.)',
+      /* On Vertex a 403 is nearly always a setup step, and WHICH steps differ
+         by model family: a Google-own model needs only billing and the API,
+         while a Marketplace partner model like Claude also has to be accepted
+         in Model Garden. Listing a step that does not apply sends the
+         operator hunting for a screen that will never mention their model. */
+      error: backend === 'gemini'
+        ? 'Google refused the request — check that billing is attached and the Vertex AI / Agent Platform API is enabled on this project. (Server setup — not your device.)'
+        : backend === 'vertex'
+          ? 'Google refused the request — check that billing is attached, the Vertex AI API is enabled, and the Claude model has been enabled in Model Garden. (Server setup — not your device.)'
+          : 'The scanner\'s API account has no credit, or the key lacks permission. (Server setup — not your device.)',
       detail: txt.slice(0, 400) }, 503);
-    if (res.status === 404 && backend === 'vertex') return json({
+    if (res.status === 404 && onGoogle) return json({
       error: 'The scanner\'s model was not found in that Google Cloud region. (Server setup — not your device.)',
       detail: txt.slice(0, 400) }, 503);
     return json({ error: 'The scanner could not be reached. Check your connection and try again.', detail: txt.slice(0, 400) }, 502);
   }
 
-  const msg = await res.json();
+  /* One shape from here down. Everything below — refusal, truncation, the
+     empty-content guard, JSON parsing, the lines check, the usage log — is
+     backend-agnostic by construction. */
+  const rawMsg = await res.json();
+  const msg = backend === 'gemini' ? normalizeGemini(rawMsg) : rawMsg;
 
   /* stop_reason is checked BEFORE content is read. On a refusal the content
      array is empty, and on max_tokens the JSON is truncated — indexing
@@ -561,7 +739,10 @@ Deno.serve(async (req) => {
 
   const textBlock = (msg.content || []).find((b: { type: string }) => b.type === 'text');
   if (!textBlock || !textBlock.text) {
-    console.error('[mm-ocr] no text block:', JSON.stringify(msg).slice(0, 600));
+    /* Log the RAW answer, not the normalised one — on Gemini the reason an
+       answer was empty (a safety rating, a blockReason, a finishReason we do
+       not map) lives in fields normalizeGemini deliberately drops. */
+    console.error('[mm-ocr] no text block:', JSON.stringify(rawMsg).slice(0, 800));
     return json({ error: 'The scanner returned nothing readable. Please try again.' }, 502);
   }
 
