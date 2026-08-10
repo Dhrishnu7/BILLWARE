@@ -168,6 +168,30 @@
         out.loans = attempt('loans', 'Loan schedule', function () {
             return window.mmFinance && mmFinance.loanSchedule({ from: fy.from, to: fy.to });
         });
+        /* Cash flow rides on the P&L build rather than a second call — the
+           bridge is part of what mmPnl already returned, and calling build()
+           twice for one report would be two chances to disagree. */
+        if (out.pnl && out.pnl.cash) out.built.push('Cash flow');
+        else out.missing.push('Cash flow');
+
+        out.suppliers = attempt('suppliers', 'Supplier ledger', function () {
+            if (!window.mmPosition || typeof mmPosition.suppliers !== 'function') return null;
+            var pays = [];
+            try { pays = JSON.parse(localStorage.getItem('mm_supplier_payments') || '[]') || []; } catch (e) {}
+            var res = mmPosition.suppliers(pays);
+            var rows = ((res && res.data) || []).filter(function (r) {
+                return Math.abs(num(r.purchased)) > 0.005 || Math.abs(num(r.balance)) > 0.005;
+            });
+            return rows.length ? rows : null;
+        });
+        out.customers = attempt('customers', 'Customer ledger', function () {
+            var cust = [];
+            try { cust = JSON.parse(localStorage.getItem('mm_customers') || '[]') || []; } catch (e) {}
+            var rows = cust.filter(function (c) { return num(c && c.balance) > 0.005; })
+                           .sort(function (a, b) { return num(b.balance) - num(a.balance); });
+            return rows.length ? rows : null;
+        });
+
         out.tally = attempt('tally', 'Tally XML', function () {
             return window.mmTally && mmTally.build({
                 from: fy.from, to: fy.to,
@@ -319,6 +343,99 @@
             'Interest is shown separately from principal because only the interest is an expense.');
     }
 
+    /* CASH FLOW. A P&L answers "did I make money"; this answers "then where did
+       it go", which is the question an owner actually asks and the one a
+       profit statement structurally cannot. mmPnl already builds the bridge
+       (pnl.js:632) — each item computed from source, with whatever the named
+       items cannot explain shown as a residual rather than forced to zero. */
+    function cashHtml(p) {
+        if (!p || !p.cash) return '';
+        var c = p.cash;
+        var s = '<table class="fin">';
+        s += row('Counter collections', c.counter);
+        if (c.byMode) {
+            s += row('   cash', c.byMode.cash, 'dim');
+            s += row('   UPI', c.byMode.upi, 'dim');
+            s += row('   card', c.byMode.card, 'dim');
+        }
+        s += row('Khata collections', c.khata);
+        s += row('Money in', c.inTotal, 'sub');
+        s += row('Paid to suppliers', -num(c.suppliers));
+        s += row('Expenses paid', -num(c.expenses));
+        s += row('Money out', c.outTotal, 'sub');
+        s += row('Net cash movement', c.net, 'tot');
+        s += '</table>';
+
+        var b = '';
+        if (c.bridge && c.bridge.length) {
+            b = '<h3 style="font-size:0.95rem;margin:22px 0 6px;">From profit to cash</h3>' +
+                '<table class="fin">';
+            c.bridge.forEach(function (x) {
+                b += row(x.label, x.amount, x.residual ? 'dim' : '');
+            });
+            b += row('Net cash movement', c.net, 'tot') + '</table>';
+        }
+        return section('Cash flow', s + b,
+            'Profit and cash are computed independently and then reconciled. ' +
+            'Anything the named lines cannot explain is shown as a residual rather ' +
+            'than forced to zero — a statement that admits what it cannot explain ' +
+            'is worth more than one that always balances.');
+    }
+
+    /* LEDGERS. The position page gives two totals — owed to suppliers, owed to
+       you. An accountant needs the names behind them, because that is what a
+       confirmation letter is written against. */
+    function supplierLedgerHtml(rows) {
+        if (!rows || !rows.length) return '';
+        var s = '<table class="grid"><thead><tr><th>Supplier</th><th class="n">Purchased</th>' +
+                '<th class="n">Returns</th><th class="n">Paid</th><th class="n">Balance owed</th>' +
+                '</tr></thead><tbody>';
+        /* ONLY POSITIVE BALANCES ARE "OWED". mmPosition counts a supplier as a
+           creditor only where balance > 0 — a NEGATIVE balance means the shop
+           has paid more than it has bought, which is an advance sitting with
+           the supplier: a receivable, not a payable. Totalling the column raw
+           made the ledger disagree with the "Owed to suppliers" figure on the
+           page above it, which is the same defect as the GST row and just as
+           quick for an accountant to spot. Advances are stated separately,
+           below, so nothing is hidden and nothing is double-counted. */
+        var t = { p: 0, r: 0, pd: 0, owed: 0, adv: 0 };
+        rows.forEach(function (r) {
+            var bal = num(r.balance);
+            t.p += num(r.purchased); t.r += num(r.returned); t.pd += num(r.paid);
+            if (bal > 0.005) t.owed += bal; else t.adv += -bal;
+            s += '<tr><td>' + esc(r.firm) + '</td><td class="n">' + inr(r.purchased) + '</td>' +
+                 '<td class="n">' + inr(r.returned) + '</td><td class="n">' + inr(r.paid) + '</td>' +
+                 '<td class="n">' + (bal > 0.005 ? inr(bal) : '—') + '</td></tr>';
+        });
+        s += '</tbody><tfoot><tr><td>Total owed</td><td class="n">' + inr(t.p) + '</td>' +
+             '<td class="n">' + inr(t.r) + '</td><td class="n">' + inr(t.pd) + '</td>' +
+             '<td class="n">' + inr(t.owed) + '</td></tr></tfoot></table>';
+        if (t.adv > 0.005) {
+            s += '<p class="meta">Advances paid and not yet bought against: <strong>' +
+                 inr(t.adv) + '</strong>. These are money the supplier holds for you, ' +
+                 'so they are <em>not</em> part of the total owed above.</p>';
+        }
+        return section('Supplier ledger', s,
+            'Balance = purchases − returns − payments. Purchases are lifetime, not ' +
+            'this year only, because a balance owed is a balance owed whenever it arose.');
+    }
+
+    function customerLedgerHtml(rows) {
+        if (!rows || !rows.length) return '';
+        var s = '<table class="grid"><thead><tr><th>Customer</th><th>Phone</th>' +
+                '<th class="n">Balance due</th></tr></thead><tbody>';
+        var tot = 0;
+        rows.forEach(function (c) {
+            tot += num(c.balance);
+            s += '<tr><td>' + esc(c.name || '—') + '</td><td>' + esc(c.phone || '') + '</td>' +
+                 '<td class="n">' + inr(c.balance) + '</td></tr>';
+        });
+        s += '</tbody><tfoot><tr><td colspan="2">Total owed to the shop</td>' +
+             '<td class="n">' + inr(tot) + '</td></tr></tfoot></table>';
+        return section('Customer ledger (khata)', s,
+            'Outstanding balances only — customers who have settled are not listed.');
+    }
+
     function gstHtml(pack) {
         if (!pack.gstr1.length) return '';
         var s = '<table class="grid"><thead><tr><th>Month</th><th class="n">Bills</th>' +
@@ -414,7 +531,10 @@
             head +
             warningsHtml(pack) +
             pnlHtml(pack.pnl) +
+            cashHtml(pack.pnl) +
             positionHtml(pack.position) +
+            supplierLedgerHtml(pack.suppliers) +
+            customerLedgerHtml(pack.customers) +
             assetsHtml(pack.assets) +
             loansHtml(pack.loans) +
             gstHtml(pack) +
