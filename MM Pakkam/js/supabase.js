@@ -447,6 +447,68 @@ async function dbDeleteScheduleXDrug(name) {
 }
 window.dbDeleteScheduleXDrug = dbDeleteScheduleXDrug;
 
+/* ── Schedule H / X drug lists into the local cache ───────────────────────
+   WHY THIS IS IN dbSyncCoreData AND NOT ONLY ON THE H PAGE.
+
+   These two lists are what every screen uses to decide "is this a Schedule
+   H drug?" — the till's H chip (sales.html:1491), the purchase flagger, the
+   Inventory return classifier, the Report. All of them read the localStorage
+   key directly.
+
+   But the ONLY place that ever fetched them from the cloud was schedule-h.html.
+   And _mmClearBusinessData() is deny-by-default, so a logout, an account
+   switch, a cache clear or a new device wipes both lists. Nothing put them
+   back until somebody happened to open the Schedule H page.
+
+   In that window the till detects NO Schedule H drug, the H chip stays grey,
+   and `_billHasScheduleH()` is false — so the sale is billed and the OUT
+   entry is never written to the register. Silently. On the one document a
+   drug inspector asks for. Found 2026-08-10 with both lists reading 0 on a
+   shop that has 25 register entries.
+
+   UNION, never overwrite: sales.html and purchase.html LEARN new H drugs
+   locally and push them up, so a plain cloud->local copy would drop a name
+   learned seconds ago that has not been pushed yet. Same merge the H page
+   does, so the two cannot disagree.
+
+   The backfill is gated on mmOwnsLocalData() for the same reason the H page
+   gates it — pushing an unowned cache upward would move another shop's drug
+   names into this shop's list. */
+async function _mmSyncScheduleDrugLists() {
+    const canBackfill = (typeof mmOwnsLocalData !== 'function') || mmOwnsLocalData();
+
+    async function merge(key, fetchFn, addFn) {
+        if (typeof fetchFn !== 'function') return;
+        let cloud;
+        try { cloud = await fetchFn(); } catch (e) { return; }   // leave local alone
+        if (!Array.isArray(cloud)) return;
+        let local = [];
+        try { local = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
+        if (!Array.isArray(local)) local = [];
+
+        const seen = new Set();
+        const union = [];
+        [...local, ...cloud].forEach(n => {
+            const k = String(n || '').trim().toLowerCase();
+            if (k && !seen.has(k)) { seen.add(k); union.push(String(n).trim()); }
+        });
+        union.sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+        if (union.length !== local.length || union.some((n, i) => n !== local[i])) {
+            try { localStorage.setItem(key, JSON.stringify(union)); } catch (e) {}
+        }
+
+        const cloudSet = new Set(cloud.map(n => String(n || '').trim().toLowerCase()));
+        const localOnly = local.filter(n => !cloudSet.has(String(n || '').trim().toLowerCase()));
+        if (canBackfill && localOnly.length && typeof addFn === 'function') {
+            addFn(localOnly).catch(() => {});
+        }
+    }
+
+    await merge('mm_schedule_h_drugs', window.dbGetScheduleHDrugs, window.dbAddScheduleHDrugs);
+    await merge('mm_schedule_x_drugs', window.dbGetScheduleXDrugs, window.dbAddScheduleXDrugs);
+}
+window._mmSyncScheduleDrugLists = _mmSyncScheduleDrugLists;
+
 // Register entries. Maps the app's camelCase entry <-> the table's snake_case
 // columns. entry.id (the app-generated string) is the primary key so re-syncs
 // dedupe cleanly and never create doubles.
@@ -2292,6 +2354,14 @@ async function dbSyncCoreData() {
         // fetching, so this same sync picks it up for every device right away.
         try { await dbSyncPendingStockAdjustments(); } catch (e) { console.warn('[db] pending stock adjustment retry failed:', e); }
         try { await dbSyncPendingCustomerBalances(); } catch (e) { console.warn('[db] pending customer balance retry failed:', e); }
+
+        /* Schedule H/X drug lists. Every page's H detection reads these from
+           localStorage, the wipe is deny-by-default, and only schedule-h.html
+           ever refilled them — so an H sale could skip the register entirely.
+           Awaited BEFORE the till can bill: sales.html gates autoFillRow on
+           window.mmCoreSyncPromise, so finishing here is what makes the H chip
+           light on the first row of the first bill after a login. */
+        try { await _mmSyncScheduleDrugLists(); } catch (e) { console.warn('[db] schedule drug list sync failed:', e); }
 
         const [customers, doctors, medicines, purchases, bills, adjustments,
                finAccounts, finEntries] = await Promise.all([

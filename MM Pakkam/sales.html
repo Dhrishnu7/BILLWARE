@@ -1385,7 +1385,16 @@
                 if (stockEl && productEl.value.trim() && batchEl && batchEl.value.trim()) {
                     stockEl.value = getStock(productEl.value.trim(), batchEl.value.trim());
                 }
+                /* The H chip has the same staleness problem as the stock number,
+                   and a worse consequence. The Schedule H drug list arrives with
+                   the core sync; a row typed before that landed was checked
+                   against an EMPTY list, so the chip reads "not H" and the sale
+                   skips the register. Re-run detection here — updateRowHBadge
+                   leaves a hand-set chip alone, so this never overrides the
+                   operator. */
+                if (productEl.value.trim()) updateRowHBadge(rid);
             });
+            updateRxDoctorWarning();
         }
 
         /* -- Update row count badge and add btn -- */
