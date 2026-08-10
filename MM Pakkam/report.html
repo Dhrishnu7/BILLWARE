@@ -3981,6 +3981,31 @@
             return { name: name, amount: amt };
         }
 
+        /* Every line of one purchase invoice: same bill number AND same
+           supplier. Both, because two suppliers can each have an "INV-1".
+
+           Read from dbGetPurchases(), NOT _rawPurchasesMap — that map holds
+           only the current report range, and offering to delete "the whole
+           bill" while silently meaning "the part of it you can see" is the
+           v314/v364 trap a third time. On failure it returns null and the
+           caller simply does not offer the wider delete.
+
+           An invoice with NO bill number cannot be grouped: those lines belong
+           to nobody in particular, and guessing at a group by supplier+date
+           could sweep in a second delivery made the same day. */
+        async function _purchaseSiblings(raw) {
+            if (!raw) return null;
+            const billNo = String(raw.bill_no || raw.billNo || '').trim();
+            if (!billNo) return null;
+            const firm = String(raw.firm || raw.firm_name || '').trim().toLowerCase();
+            let all = [];
+            try { all = await dbGetPurchases(); } catch (e) { return null; }
+            if (!Array.isArray(all)) return null;
+            return all.filter(p =>
+                String(p.bill_no || p.billNo || '').trim() === billNo &&
+                String(p.firm || p.firm_name || '').trim().toLowerCase() === firm);
+        }
+
         async function deleteRecord(type, id, btn) {
             const rawPre  = type === 'sales' ? _rawBillsMap[id] : _rawPurchasesMap[id];
             const khataPre = type === 'sales' ? _creditBillKhata(rawPre) : null;
@@ -3988,6 +4013,34 @@
                 ? `\n\nThis was a CREDIT bill, so ₹${khataPre.amount.toFixed(2)} will also come off ${khataPre.name}'s khata balance.`
                 : '';
             if (!await mmConfirm(`Delete this ${type === 'sales' ? 'sale' : 'purchase'} record? It will go to the Bin for 30 days.${khataNote}`, { danger: true, okText: 'Delete' })) return;
+
+            /* A WRONG PURCHASE IS USUALLY A WRONG INVOICE, NOT A WRONG LINE.
+               A mis-scanned or mis-typed bill puts twenty or thirty products
+               into stock at once, and deleting them one row at a time is the
+               kind of chore that gets abandoned half-done — leaving a shop
+               with stock it never bought and no idea which half is real.
+
+               Asked only AFTER the single-line delete is confirmed, so the
+               first dialog keeps a clean way out; this one can only widen what
+               was already agreed to. Asked only when siblings actually exist,
+               so a one-line invoice never sees it. */
+            let alsoIds = [];
+            if (type === 'purchases') {
+                const sibs = await _purchaseSiblings(rawPre);
+                if (sibs && sibs.length > 1) {
+                    const others = sibs.filter(p => String(p.id) !== String(id));
+                    const value = others.reduce((s, p) =>
+                        s + (Number(p.quantity) || 0) * (Number(p.rate) || 0) * (1 + (Number(p.gst) || 0) / 100), 0);
+                    const billNo = String(rawPre.bill_no || rawPre.billNo || '').trim();
+                    const wholeBill = await mmConfirm(
+                        `Bill ${billNo} has ${sibs.length} lines in total.\n\n` +
+                        `Delete the other ${others.length} as well (about ₹${value.toFixed(2)} more of stock), ` +
+                        `or only the line you clicked?\n\nEverything deleted goes to the Bin for 30 days.`,
+                        { title: '🧾 Whole bill or one line?', danger: true,
+                          okText: `Delete all ${sibs.length}`, cancelText: 'Only this line' });
+                    if (wholeBill) alsoIds = others.map(p => p.id).filter(x => x != null);
+                }
+            }
 
             btn.disabled = true;
             btn.innerHTML = '⏳';
@@ -4059,9 +4112,46 @@
                     row.style.transform = 'translateX(20px)';
                     setTimeout(() => { renderTable(activeTab); updateSummary(currentData); }, 360);
                 }
-                showToast(khataPre
-                    ? `🗑️ Moved to Bin. ₹${khataPre.amount.toFixed(2)} taken off ${khataPre.name}'s khata.`
-                    : `🗑️ Moved to Bin. Restore anytime within 30 days.`, 'success');
+                /* The rest of the invoice, each one binned and cache-pruned the
+                   same way as the line above — a partly-deleted bill is worse
+                   than an undeleted one. Failures are counted and named rather
+                   than swallowed, so the shop knows if it has to go again. */
+                let alsoDone = 0, alsoFailed = 0;
+                for (const otherId of alsoIds) {
+                    const otherRaw = _rawPurchasesMap[otherId] || null;
+                    if (otherRaw) {
+                        const b2 = getBin();
+                        b2.push({ binId: Date.now() + '_' + Math.random().toString(36).substr(2,5),
+                                  type: 'purchases', id: otherId,
+                                  deletedAt: new Date().toISOString(), data: otherRaw });
+                        saveBin(b2);
+                    }
+                    let okOther = false;
+                    try { okOther = await dbDeletePurchase(otherId); } catch (e) {}
+                    if (okOther) {
+                        alsoDone++;
+                        try {
+                            const list = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+                            localStorage.setItem('mm_purchases',
+                                JSON.stringify(list.filter(p => String(p && p.id) !== String(otherId))));
+                        } catch (e) {}
+                        delete _rawPurchasesMap[otherId];
+                        allData     = allData.filter(r => !(r.id == otherId && r.type === 'purchases'));
+                        currentData = currentData.filter(r => !(r.id == otherId && r.type === 'purchases'));
+                    } else { alsoFailed++; }
+                }
+                if (alsoDone && typeof mmAudit === 'function') {
+                    mmAudit('Purchase bill deleted', (rawPre.bill_no || rawPre.billNo || ''), (alsoDone + 1) + ' lines');
+                }
+
+                showToast(alsoIds.length
+                    ? (alsoFailed
+                        ? `🗑️ ${alsoDone + 1} line(s) moved to Bin — ${alsoFailed} failed, reload and try again.`
+                        : `🗑️ Whole bill removed — ${alsoDone + 1} lines moved to Bin.`)
+                    : (khataPre
+                        ? `🗑️ Moved to Bin. ₹${khataPre.amount.toFixed(2)} taken off ${khataPre.name}'s khata.`
+                        : `🗑️ Moved to Bin. Restore anytime within 30 days.`),
+                    alsoFailed ? 'error' : 'success');
                 // If bin panel is open, re-render it
                 if (document.getElementById('binPanel').classList.contains('open')) renderBin();
             } else {
