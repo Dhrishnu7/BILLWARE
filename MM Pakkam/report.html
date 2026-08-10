@@ -814,6 +814,12 @@
             .acc-bar input[type=date]{padding:0.45rem 0.6rem;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:0.84rem;}
             .acc-chip{padding:0.42rem 0.75rem;border:1.5px solid #e2e8f0;background:#fff;border-radius:999px;font-size:0.78rem;font-weight:700;color:#475569;cursor:pointer;font-family:inherit;}
             .acc-chip:hover{border-color:#0d9488;color:#0d9488;}
+            /* Which period is showing. There was no active state at all, so the
+               chips looked inert — and on a quiet shop every period reads the
+               same zeros, which made "nothing changed on screen" indistinguish-
+               able from "the button is broken". */
+            .acc-chip.active{background:#0d9488;border-color:#0d9488;color:#fff;}
+            .acc-chip.active:hover{color:#fff;}
             .acc-act{padding:0.45rem 0.85rem;border:none;border-radius:9px;background:#0d9488;color:#fff;font-size:0.8rem;font-weight:700;cursor:pointer;font-family:inherit;}
             .acc-act.ghost{background:#f1f5f9;color:#475569;}
             .acc-warn{background:#fffbeb;border:1.5px solid #fcd34d;border-radius:10px;padding:0.65rem 0.9rem;margin-bottom:0.6rem;font-size:0.82rem;color:#92400e;line-height:1.5;}
@@ -981,10 +987,10 @@
                 <div class="acc-bar acc-noprint">
                     <div><label>From</label><input type="date" id="accFrom" onchange="syncAccPeriod('from')"></div>
                     <div><label>To</label><input type="date" id="accTo" onchange="syncAccPeriod('to')"></div>
-                    <button class="acc-chip" onclick="accPreset('month')">This month</button>
-                    <button class="acc-chip" onclick="accPreset('last')">Last month</button>
-                    <button class="acc-chip" onclick="accPreset('quarter')">This quarter</button>
-                    <button class="acc-chip" onclick="accPreset('fy')">This FY</button>
+                    <button class="acc-chip" data-preset="month"   onclick="accPreset('month')">This month</button>
+                    <button class="acc-chip" data-preset="last"    onclick="accPreset('last')">Last month</button>
+                    <button class="acc-chip" data-preset="quarter" onclick="accPreset('quarter')">This quarter</button>
+                    <button class="acc-chip" data-preset="fy"      onclick="accPreset('fy')">This FY</button>
                     <!-- Forces the three action buttons onto their own centred
                          row rather than being shoved to the right edge. -->
                     <div style="flex-basis:100%;height:0;"></div>
@@ -4722,29 +4728,55 @@
             const at = document.getElementById('accTo').value || '';
             document.getElementById('fromDate').value = af;
             document.getElementById('toDate').value   = at;
+            // Every route into a period change lands here — chips, typed dates,
+            // and the initial load — so this is the one place that has to
+            // refresh the highlight.
+            try { _accSyncChips(); } catch (e) {}
             try { if (typeof generateReport === 'function') generateReport(); }
             catch (e) { console.warn('report refresh on period change:', e); }
             renderAccounts();
         }
 
-        function accPreset(kind) {
+        /* The date range each chip means. Split out so the chip HIGHLIGHT and
+           the chip ACTION are computed by the same code — a second copy would
+           eventually disagree, and a chip that lights up for a range it does
+           not set is worse than no highlight at all.
+           Built from date PARTS; a UTC-parsed 1 April reads as 31 March in IST. */
+        function _accPresetRange(kind) {
             const now = new Date();
-            let y = now.getFullYear(), m = now.getMonth();
+            const y = now.getFullYear(), m = now.getMonth();
             const pad = n => (n < 10 ? '0' : '') + n;
             let sy, sm, ey, em;
-            if (kind === 'month')      { sy = ey = y; sm = em = m; }
-            else if (kind === 'last')  { let lm = m - 1, ly = y; if (lm < 0) { lm = 11; ly--; } sy = ey = ly; sm = em = lm; }
-            else if (kind === 'quarter') { sy = ey = y; sm = m - (m % 3); em = sm + 2; }
-            else { // Indian financial year: 1 April to 31 March
-                const fyStart = m >= 3 ? y : y - 1;
-                document.getElementById('accFrom').value = fyStart + '-04-01';
-                document.getElementById('accTo').value   = (fyStart + 1) + '-03-31';
-                syncAccPeriod();
-                return;
+            if (kind === 'fy') {
+                const fyStart = m >= 3 ? y : y - 1;   // Indian FY: 1 Apr – 31 Mar
+                return { from: fyStart + '-04-01', to: (fyStart + 1) + '-03-31' };
             }
+            if (kind === 'month')        { sy = ey = y; sm = em = m; }
+            else if (kind === 'last')    { let lm = m - 1, ly = y; if (lm < 0) { lm = 11; ly--; } sy = ey = ly; sm = em = lm; }
+            else if (kind === 'quarter') { sy = ey = y; sm = m - (m % 3); em = sm + 2; }
+            else return null;
             const lastDay = new Date(ey, em + 1, 0).getDate();
-            document.getElementById('accFrom').value = `${sy}-${pad(sm + 1)}-01`;
-            document.getElementById('accTo').value   = `${ey}-${pad(em + 1)}-${pad(lastDay)}`;
+            return { from: `${sy}-${pad(sm + 1)}-01`, to: `${ey}-${pad(em + 1)}-${pad(lastDay)}` };
+        }
+
+        /* DERIVED from the dates, never remembered. Typing a range by hand that
+           happens to be this month must light "This month", and nudging one day
+           off it must unlight — storing "the last chip clicked" would leave the
+           highlight lying about what is on screen. */
+        function _accSyncChips() {
+            const from = (document.getElementById('accFrom') || {}).value || '';
+            const to   = (document.getElementById('accTo')   || {}).value || '';
+            document.querySelectorAll('.acc-chip[data-preset]').forEach(btn => {
+                const r = _accPresetRange(btn.dataset.preset);
+                btn.classList.toggle('active', !!r && r.from === from && r.to === to);
+            });
+        }
+
+        function accPreset(kind) {
+            const r = _accPresetRange(kind);
+            if (!r) return;
+            document.getElementById('accFrom').value = r.from;
+            document.getElementById('accTo').value   = r.to;
             syncAccPeriod();
         }
 
@@ -5078,6 +5110,9 @@
         async function renderAccounts() {
             const from = document.getElementById('accFrom').value || '';
             const to   = document.getElementById('accTo').value   || '';
+            // Also on first paint, so the chip is right before anything is
+            // clicked — the dates are set by whatever opened this view.
+            try { _accSyncChips(); } catch (e) {}
             if (!window.mmPnl) {
                 document.getElementById('accPnl').innerHTML = '<p class="acc-hint">Accounts module failed to load. Reload the page.</p>';
                 return;
