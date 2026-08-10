@@ -53,6 +53,10 @@ CREATE POLICY "staff_own" ON public.staff
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS staff_id   TEXT;
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS staff_name TEXT;
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS pay_type   TEXT;
+-- Days worked, for a shop that pays by the day. Optional and informational:
+-- the AMOUNT is always what was actually paid, never recomputed from days on
+-- read, so a rate change or a part-day settlement can never restate history.
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS staff_days NUMERIC(6,2);
 
 CREATE INDEX IF NOT EXISTS expenses_staff_idx ON public.expenses(user_id, staff_id);
 

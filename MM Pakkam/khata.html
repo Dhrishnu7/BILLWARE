@@ -551,8 +551,13 @@
                         </select>
                     </div>
                     <div>
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Days worked <span style="font-weight:600;color:#94a3b8;">(optional)</span></label>
+                        <input type="number" id="stDays" step="0.5" min="0" placeholder="—" oninput="onStaffDaysTyped()" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;">
+                    </div>
+                    <div>
                         <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Amount (₹)</label>
                         <input type="number" id="stAmount" step="0.01" min="0" placeholder="0.00" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;">
+                        <div id="stDaysHint" style="font-size:0.72rem;color:#0284c7;margin-top:3px;display:none;"></div>
                     </div>
                     <div>
                         <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Paid by</label>
@@ -1497,13 +1502,14 @@
                 const rows = pays.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 100);
                 hist.innerHTML = rows.length ? `<table style="width:100%;border-collapse:collapse;">
                     <thead><tr>
-                      ${['Date', 'Person', 'Type', 'Paid by', 'Note', 'Amount'].map(h =>
+                      ${['Date', 'Person', 'Type', 'Days', 'Paid by', 'Note', 'Amount'].map(h =>
                         `<th style="padding:0.6rem 0.8rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;text-align:${h === 'Amount' ? 'right' : 'left'};border-bottom:1px solid #e2e8f0;">${h}</th>`).join('')}
                     </tr></thead><tbody>
                     ${rows.map(p => `<tr>
                         <td style="padding:0.55rem 0.8rem;border-bottom:1px solid #f1f5f9;white-space:nowrap;">${_esc(p.date)}</td>
                         <td style="padding:0.55rem 0.8rem;border-bottom:1px solid #f1f5f9;font-weight:700;">${_esc(p.staffName || '—')}</td>
                         <td style="padding:0.55rem 0.8rem;border-bottom:1px solid #f1f5f9;">${_esc(p.payType || 'Salary')}</td>
+                        <td style="padding:0.55rem 0.8rem;border-bottom:1px solid #f1f5f9;color:#64748b;">${p.days ? _esc(String(p.days)) : '—'}</td>
                         <td style="padding:0.55rem 0.8rem;border-bottom:1px solid #f1f5f9;">${_esc(p.paymentMode || 'Cash')}</td>
                         <td style="padding:0.55rem 0.8rem;border-bottom:1px solid #f1f5f9;color:#64748b;">${_esc(p.note || '')}</td>
                         <td style="padding:0.55rem 0.8rem;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:800;">${_stInr(p.amount)}</td>
@@ -1518,6 +1524,30 @@
             const amt = document.getElementById('stAmount');
             // Pre-fill only — never overwrite something already typed.
             if (s && s.payAmount && amt && !amt.value) amt.value = s.payAmount;
+            onStaffDaysTyped();
+        }
+
+        /* DAYS × RATE, for a shop that pays by the day. It fills the amount in
+           and says how it got there, but the AMOUNT stays editable and is what
+           gets saved — a half day, a deduction or a rounded settlement must
+           always be able to win. The days figure is stored alongside as a
+           record of what was worked, and is never used to recompute the amount
+           on read: a later rate change would otherwise silently restate what
+           somebody was actually handed. */
+        function onStaffDaysTyped() {
+            const hint = document.getElementById('stDaysHint');
+            const daysEl = document.getElementById('stDays');
+            const amt = document.getElementById('stAmount');
+            if (!hint || !daysEl || !amt) return;
+            const s = _staff.find(x => x.id === document.getElementById('stPerson').value);
+            const days = parseFloat(daysEl.value);
+            const rate = s ? Number(s.payAmount) || 0 : 0;
+            const daily = s && /day/i.test(s.payBasis || '');
+            if (!days || days <= 0 || !rate || !daily) { hint.style.display = 'none'; return; }
+            const calc = Math.round(days * rate * 100) / 100;
+            amt.value = calc;
+            hint.textContent = `${days} × ${_stInr(rate)} = ${_stInr(calc)} — edit if it differs`;
+            hint.style.display = '';
         }
 
         async function openStaffAdd(existing) {
@@ -1601,6 +1631,7 @@
                 staffId: person.id,
                 staffName: person.name,
                 payType: type,
+                days: parseFloat(document.getElementById('stDays').value) || 0,
                 savedAt: new Date().toISOString()
             };
 
@@ -1614,6 +1645,8 @@
 
             document.getElementById('stAmount').value = '';
             document.getElementById('stNote').value = '';
+            document.getElementById('stDays').value = '';
+            document.getElementById('stDaysHint').style.display = 'none';
             renderStaff();
 
             let ok = true;

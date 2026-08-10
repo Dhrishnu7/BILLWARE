@@ -184,6 +184,16 @@
             });
             return rows.length ? rows : null;
         });
+        out.staff = attempt('staff', 'Staff cost', function () {
+            var exp = [];
+            try { exp = JSON.parse(localStorage.getItem('mm_expenses') || '[]') || []; } catch (e) {}
+            var rows = exp.filter(function (r) {
+                if (!r || !(r.staffId || r.staffName)) return false;
+                var d = d10(r.date);
+                return d >= fy.from && d <= fy.to;   // the pack's year, not all time
+            });
+            return rows.length ? rows : null;
+        });
         out.customers = attempt('customers', 'Customer ledger', function () {
             var cust = [];
             try { cust = JSON.parse(localStorage.getItem('mm_customers') || '[]') || []; } catch (e) {}
@@ -420,6 +430,57 @@
             'this year only, because a balance owed is a balance owed whenever it arose.');
     }
 
+    /* STAFF COST. Sits inside the P&L's expense total already — this breaks it
+       out by person, which is what an accountant asks for and what a wage
+       lump cannot answer. Read from the expense rows themselves rather than
+       from a staff table, because the expense IS the payment: one money path,
+       so this can never total to something the P&L disagrees with. */
+    function staffHtml(rows) {
+        if (!rows || !rows.length) return '';
+        var byPerson = {};
+        var types = {};
+        var total = 0;
+        rows.forEach(function (r) {
+            var nm = String(r.staffName || 'Unnamed').trim() || 'Unnamed';
+            var amt = num(r.amount);
+            if (!byPerson[nm]) byPerson[nm] = { paid: 0, days: 0, n: 0 };
+            byPerson[nm].paid += amt;
+            byPerson[nm].days += num(r.days);
+            byPerson[nm].n += 1;
+            var ty = String(r.payType || 'Salary');
+            types[ty] = (types[ty] || 0) + amt;
+            total += amt;
+        });
+        var names = Object.keys(byPerson).sort(function (a, b) {
+            return byPerson[b].paid - byPerson[a].paid;
+        });
+        var anyDays = names.some(function (n) { return byPerson[n].days > 0; });
+
+        var s = '<table class="grid"><thead><tr><th>Person</th><th class="n">Payments</th>' +
+                (anyDays ? '<th class="n">Days</th>' : '') +
+                '<th class="n">Total paid</th></tr></thead><tbody>';
+        names.forEach(function (n) {
+            var p = byPerson[n];
+            s += '<tr><td>' + esc(n) + '</td><td class="n">' + p.n + '</td>' +
+                 (anyDays ? '<td class="n">' + (p.days ? p.days : '—') + '</td>' : '') +
+                 '<td class="n">' + inr(p.paid) + '</td></tr>';
+        });
+        s += '</tbody><tfoot><tr><td>Total</td><td class="n">' + rows.length + '</td>' +
+             (anyDays ? '<td class="n"></td>' : '') +
+             '<td class="n">' + inr(total) + '</td></tr></tfoot></table>';
+
+        var byType = Object.keys(types).sort(function (a, b) { return types[b] - types[a]; });
+        if (byType.length > 1) {
+            s += '<h3 style="font-size:0.95rem;margin:20px 0 6px;">By kind of payment</h3><table class="fin">';
+            byType.forEach(function (t) { s += row(t, types[t]); });
+            s += row('Total', total, 'tot') + '</table>';
+        }
+        return section('Staff cost', s,
+            'These payments are already inside “Less: Expenses” in the Profit &amp; Loss — ' +
+            'this is the same money broken out by person, not an addition to it. ' +
+            'An advance is shown in the period it was paid.');
+    }
+
     function customerLedgerHtml(rows) {
         if (!rows || !rows.length) return '';
         var s = '<table class="grid"><thead><tr><th>Customer</th><th>Phone</th>' +
@@ -531,6 +592,7 @@
             head +
             warningsHtml(pack) +
             pnlHtml(pack.pnl) +
+            staffHtml(pack.staff) +
             cashHtml(pack.pnl) +
             positionHtml(pack.position) +
             supplierLedgerHtml(pack.suppliers) +

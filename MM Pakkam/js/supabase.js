@@ -1218,7 +1218,8 @@ function _expRowToObj(r) {
         id: r.expense_id, date: r.exp_date || '', category: r.category || 'Other',
         note: r.note || '', amount: Number(r.amount) || 0,
         paymentMode: r.payment_mode || 'Cash', savedAt: r.saved_at || '',
-        staffId: r.staff_id || '', staffName: r.staff_name || '', payType: r.pay_type || ''
+        staffId: r.staff_id || '', staffName: r.staff_name || '', payType: r.pay_type || '',
+        days: Number(r.staff_days) || 0
     };
 }
 
@@ -1251,6 +1252,7 @@ async function dbSaveExpense(e) {
     if (e.staffId)   row.staff_id   = e.staffId;
     if (e.staffName) row.staff_name = e.staffName;
     if (e.payType)   row.pay_type   = e.payType;
+    if (e.days)      row.staff_days = Number(e.days) || 0;
 
     let { error } = await _supabase.from('expenses').upsert(row, { onConflict: 'expense_id' });
     /* Drop ONLY the column the error names and retry, so a shop that has not
