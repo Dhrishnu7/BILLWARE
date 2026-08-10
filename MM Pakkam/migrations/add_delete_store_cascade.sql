@@ -27,8 +27,10 @@ declare
     'supplier_payments','customer_payments','audit_log','suppliers',
     'reorder_levels','promise_orders','prescriptions','stock_adjustments','expenses',
     -- till_counts was added in v322 and never registered here, so a deleted
-    -- shop left its cash counts behind; finance_* arrived with Phase 2c.
-    'till_counts','finance_accounts','finance_entries',
+    -- shop left its cash counts behind; finance_* arrived with Phase 2c;
+    -- staff with v357. Salary PAYMENTS need no entry — they are rows in
+    -- `expenses`, which is already listed above.
+    'till_counts','finance_accounts','finance_entries','staff',
     -- this shop's own request/queue rows
     'shop_edit_requests','extra_user_requests','password_reset_requests',
     'customer_issues'

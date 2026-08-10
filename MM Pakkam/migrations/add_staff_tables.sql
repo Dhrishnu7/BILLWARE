@@ -60,7 +60,10 @@ ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS staff_days NUMERIC(6,2);
 
 CREATE INDEX IF NOT EXISTS expenses_staff_idx ON public.expenses(user_id, staff_id);
 
--- ── Add to the delete-store cascade ───────────────────────────────────────
--- Every per-tenant table must be listed there, or deleting an owner leaves
--- orphaned rows behind. See migrations/add_delete_store_cascade.sql — add
--- 'staff' to its tbls array if this migration runs after it.
+-- ── Delete-store cascade ──────────────────────────────────────────────────
+-- DONE: 'staff' has been added to the tbls array in
+-- migrations/add_delete_store_cascade.sql. That file is `create or replace`
+-- and idempotent, so RE-RUN IT after this one — otherwise deleting an owner
+-- leaves their staff rows behind, which is how till_counts was orphaned.
+-- Salary PAYMENTS need no entry there: they are rows in `expenses`, which the
+-- cascade already lists.
