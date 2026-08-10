@@ -1497,13 +1497,25 @@
            built-in Drug Master), and the user can tap to override it — this is how
            a misspelled H drug that name-matching would miss still gets registered.
            The chip's state is the source of truth for the OUT auto-log at save. */
+        /* The shop's own list is matched the same way the Drug Master is — a
+           name stored as "Azithral 500" must still be recognised when the till
+           row says "AZITHRAL 500 TAB". Exact first, then normalised; the
+           normaliser only strips dosage form, strength units and punctuation,
+           none of which change a drug's schedule. */
+        function _mmNorm(s) {
+            return (typeof DrugMaster !== 'undefined' && DrugMaster.normName)
+                ? DrugMaster.normName(s)
+                : String(s || '').trim().toLowerCase();
+        }
         function _isScheduleHName(name) {
             const nm = (name || '').trim();
             if (!nm) return false;
             const key = nm.toLowerCase();
+            const nkey = _mmNorm(nm);
             try {
                 const list = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
                 if (list.some(d => (d || '').trim().toLowerCase() === key)) return true;
+                if (nkey && list.some(d => _mmNorm(d) === nkey)) return true;
             } catch (e) {}
             if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf
                     && /^H/i.test(DrugMaster.scheduleOf(nm))) return true;
@@ -1516,7 +1528,9 @@
             if (!nm) return '';
             try {
                 const xl = JSON.parse(localStorage.getItem('mm_schedule_x_drugs') || '[]');
+                const nx = _mmNorm(nm);
                 if (xl.some(d => (d || '').trim().toLowerCase() === nm.toLowerCase())) return 'X';
+                if (nx && xl.some(d => _mmNorm(d) === nx)) return 'X';
             } catch (e) {}
             if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf) {
                 const s = (DrugMaster.scheduleOf(nm) || '').toUpperCase();

@@ -206,6 +206,49 @@
         return obj;
     });
 
+    /* ── Name normalisation, and why schedule lookup cannot be an exact match ──
+       A shop types "AZITHRAL 500 TAB"; the seed row is "Azithral 500". An exact
+       map lookup misses on the trailing " TAB" alone, returns '', and the till
+       decides the drug is not Schedule H — so the sale is billed and no OUT
+       entry reaches the register. Found 2026-08-10: the H chip stayed grey on
+       azithromycin, which is unambiguously Schedule H and IS in this seed.
+
+       Normalising strips what never changes a drug's schedule: the dosage form
+       ("tab", "cap", "syrup"), the strength unit ("500mg" -> "500"), packaging
+       words and punctuation. Schedule is a property of the molecule, not of the
+       pack you happen to stock.
+
+       Direction matters: we test whether the TYPED name starts with a seed
+       name, never the reverse. "azithral 500 tab" starts with "azithral 500" is
+       a real match; the reverse would let a two-letter entry match everything.
+
+       Erring inclusive is deliberate. A false positive puts an extra row in the
+       H register, which is noise the operator can untick on the chip. A false
+       negative is a Schedule H sale with no register entry — the thing the
+       register exists to prevent. */
+    const _FORMS = new Set(['tab','tabs','tablet','tablets','cap','caps','capsule',
+        'capsules','syp','syrup','susp','suspension','inj','injection','drop','drops',
+        'cream','ointment','oint','gel','lotion','sachet','powder','solution','soln',
+        'spray','tube','strip','bottle','vial','amp','ampoule','kit','md','od']);
+
+    function normName(s) {
+        let t = String(s || '').toLowerCase();
+        t = t.replace(/[^a-z0-9\s.]/g, ' ');          // punctuation -> space
+        t = t.replace(/(\d)\s*(mg|mcg|ml|gm|g|iu|mu)\b/g, '$1');  // 500mg -> 500
+        const parts = t.split(/\s+/).filter(w => w && !_FORMS.has(w));
+        return parts.join(' ').trim();
+    }
+
+    // normalised name -> schedule, built once. First entry wins so an explicit
+    // seed row is never overwritten by a later, vaguer one.
+    const _normSchedule = new Map();
+    _seedList.forEach(o => {
+        const k = normName(o.name);
+        if (k && !_normSchedule.has(k)) _normSchedule.set(k, o.schedule || '');
+    });
+    // Longest first, so "pan d" is tested before "pan" and wins.
+    const _normKeys = Array.from(_normSchedule.keys()).sort((a, b) => b.length - a.length);
+
     function _debounce(fn, ms) {
         let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
     }
@@ -382,10 +425,25 @@
     function scheduleOf(name){
         var nm = (name||'').trim().toLowerCase();
         if(!nm) return '';
+        // Schedule X first — strictest class, and these are distinctive molecule
+        // names so a substring test is safe.
         for(var i=0;i<_SCHEDULE_X.length;i++){ if(nm.indexOf(_SCHEDULE_X[i]) >= 0) return 'X'; }
+        // 1. Exact, as before — cheapest and unambiguous.
         var m = _seedMap.get(nm);
-        return m ? (m.schedule || '') : '';
+        if (m) return m.schedule || '';
+        // 2. Normalised exact: "AZITHRAL 500 TAB" == "Azithral 500".
+        var key = normName(nm);
+        if (!key) return '';
+        if (_normSchedule.has(key)) return _normSchedule.get(key);
+        // 3. Normalised prefix: the typed name STARTS WITH a seed name, on a
+        //    word boundary so "pan" cannot match "pantoprazole". Longest key
+        //    first, so the most specific seed row wins.
+        for (var j = 0; j < _normKeys.length; j++) {
+            var k = _normKeys[j];
+            if (key === k || key.indexOf(k + ' ') === 0) return _normSchedule.get(k);
+        }
+        return '';
     }
 
-    window.DrugMaster={search,getByName,scheduleOf,init};
+    window.DrugMaster={search,getByName,scheduleOf,normName,init};
 })();
