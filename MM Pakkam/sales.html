@@ -1507,6 +1507,28 @@
                 ? DrugMaster.normName(s)
                 : String(s || '').trim().toLowerCase();
         }
+        /* THE SHOP'S OWN LIST DECIDES — the built-in Drug Master does NOT.
+
+           The chip used to light from the global seed too, which meant the till
+           asked for a patient and a prescriber on any medicine the seed happened
+           to call Schedule H, whether or not this shop treats it that way. That
+           is a prompt on every bill for stock the shop never registered, and the
+           cost lands on counter staff during a queue.
+
+           A drug becomes Schedule H for THIS shop in one of three ways, all of
+           them a deliberate act by the shop:
+             1. received through the Schedule H page's IN form,
+             2. confirmed at Purchase — that screen still SUGGESTS from the Drug
+                Master and asks, and a confirmed name is learned into this list,
+             3. the chip tapped by hand on a till row.
+           The Drug Master's job is now only to say WHICH class (H / H1 / X)
+           something already in the list belongs to — see _scheduleClassOf. It no
+           longer decides whether a drug is controlled at all.
+
+           The trade is deliberate and was the shop's call: fewer false prompts,
+           at the price of a genuinely controlled drug going unflagged until it
+           has been registered once. Purchase is the on-ramp that stops the list
+           starting empty. */
         function _isScheduleHName(name) {
             const nm = (name || '').trim();
             if (!nm) return false;
@@ -1517,12 +1539,24 @@
                 if (list.some(d => (d || '').trim().toLowerCase() === key)) return true;
                 if (nkey && list.some(d => _mmNorm(d) === nkey)) return true;
             } catch (e) {}
+            /* SCHEDULE X IS THE ONE EXCEPTION, and it is a narrow one. The seed
+               holds eleven narcotic/psychotropic molecules — amphetamine,
+               methylphenidate, the barbiturates. An ordinary pharmacy stocks
+               none of them, so this cannot produce the nuisance prompts the rest
+               of this change exists to remove; and missing one is the most
+               serious failure in the whole register. Class H and H1 stay entirely
+               the shop's call. */
             if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf
-                    && /^H/i.test(DrugMaster.scheduleOf(nm))) return true;
+                    && (DrugMaster.scheduleOf(nm) || '').toUpperCase() === 'X') return true;
             return false;
         }
-        // Schedule class: 'H1' (stricter subset) | 'H' | '' — from the Drug Master,
-        // falling back to the shop's H list. H1 legally needs patient + prescriber.
+        /* WHICH class — asked only once the drug is already controlled FOR THIS
+           SHOP. Order matters: the shop's own X list first (they know their
+           narcotics), then the shop's H list, and only then the Drug Master, to
+           tell an H apart from the stricter H1. The Drug Master can no longer
+           promote an unregistered medicine into a class of its own accord — that
+           is what produced prompts on stock the shop never treated as Schedule H.
+           Returns 'X' | 'H1' | 'H' | ''. */
         function _scheduleClassOf(name) {
             const nm = (name || '').trim();
             if (!nm) return '';
@@ -1532,13 +1566,13 @@
                 if (xl.some(d => (d || '').trim().toLowerCase() === nm.toLowerCase())) return 'X';
                 if (nx && xl.some(d => _mmNorm(d) === nx)) return 'X';
             } catch (e) {}
+            if (!_isScheduleHName(nm)) return '';
             if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf) {
                 const s = (DrugMaster.scheduleOf(nm) || '').toUpperCase();
-                if (s === 'X') return 'X';       // strictest — needs patient + doctor
-                if (s === 'H1') return 'H1';
-                if (s.charAt(0) === 'H') return 'H';
+                if (s === 'X')  return 'X';      // strictest — needs patient + doctor
+                if (s === 'H1') return 'H1';     // stricter  — needs patient + doctor
             }
-            return _isScheduleHName(nm) ? 'H' : '';
+            return 'H';
         }
         function _styleHToggle(b, on) {
             b.setAttribute('data-on', on ? '1' : '0');
@@ -2028,17 +2062,19 @@
                     const nm = (med.product || '').trim();
                     if (!nm) return;
                     const key = nm.toLowerCase();
-                    // The row's "H?" toggle is the source of truth (it's auto-lit from
-                    // the shop list + Drug Master, and the user can override it — this
-                    // is how a misspelled H drug that name-matching misses still gets
-                    // registered). Fall back to name/master detection for any bill
-                    // built without the toggle (older data, programmatic paths).
+                    /* The row's "H?" toggle is the source of truth — it is lit
+                       from THIS SHOP's list and the operator can override it,
+                       which is how a misspelled H drug still gets registered.
+                       For a bill built without the toggle (older data,
+                       programmatic paths) fall back to the shop's list ALONE.
+                       It used to fall back to the Drug Master as well, which
+                       silently logged register entries for medicines the shop
+                       had never registered — the same over-reach as the chip. */
                     let isH;
                     if (typeof med.scheduleH === 'boolean') {
                         isH = med.scheduleH;
                     } else {
-                        isH = shDrugSet.has(key) || (typeof DrugMaster !== 'undefined'
-                            && DrugMaster.scheduleOf && /^H/i.test(DrugMaster.scheduleOf(nm)));
+                        isH = shDrugSet.has(key) || _isScheduleHName(nm);
                     }
                     if (isH && !shDrugSet.has(key)) { learnedNames.push(nm); shDrugSet.add(key); }
                     if (!isH) return;

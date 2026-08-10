@@ -694,20 +694,36 @@
            the built-in Drug Master) and can be tapped to override — so a misspelled
            H drug that name-matching misses can still be marked and logged to the H
            register. A hand-set chip wins over auto-detection at save. */
+        /* THIS SHOP's list decides whether the chip lights, not the built-in
+           Drug Master — same rule as the till (sales.html). The seed still has a
+           job on this screen, but a different one: at SAVE it suggests candidates
+           and ASKS, and a confirmed name is learned into the shop's list. That
+           confirm step is the on-ramp, and it is why dropping the seed from the
+           chip does not leave a new shop with an empty list forever. */
+        function _mmNormP(s) {
+            return (typeof DrugMaster !== 'undefined' && DrugMaster.normName)
+                ? DrugMaster.normName(s)
+                : String(s || '').trim().toLowerCase();
+        }
         function _isScheduleHNameP(name) {
             const nm = (name || '').trim();
             if (!nm) return false;
             const key = nm.toLowerCase();
+            const nkey = _mmNormP(nm);
             try {
                 const list = JSON.parse(localStorage.getItem('mm_schedule_h_drugs') || '[]');
                 if (list.some(d => (d || '').trim().toLowerCase() === key)) return true;
+                if (nkey && list.some(d => _mmNormP(d) === nkey)) return true;
             } catch (e) {}
-            if (typeof DrugMaster !== 'undefined' && DrugMaster.scheduleOf
-                    && /^H/i.test(DrugMaster.scheduleOf(nm))) return true;
             return false;
         }
-        // Schedule class: 'H1' (stricter subset) | 'H' | '' — from the Drug Master,
-        // falling back to the shop's H list.
+        /* Schedule class: 'X' | 'H1' | 'H' | ''. This one DOES still consult the
+           Drug Master directly, and is the deliberate exception to the "the shop
+           decides" rule above. It has exactly one caller: stamping the class on a
+           register IN entry the user has just CONFIRMED. The drug is being
+           registered at that moment, so the name is not reliably in the shop's
+           list yet — gating on that would drop a cefixime purchase to plain 'H'
+           and lose the H1 classification the register needs. */
         function _scheduleClassOfP(name) {
             const nm = (name || '').trim();
             if (!nm) return '';
