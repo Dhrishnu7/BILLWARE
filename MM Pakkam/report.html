@@ -1535,7 +1535,7 @@
          that they are exported separately, on different date ranges, and the
          mismatch is what the accountant bills for. -->
     <div class="modal-overlay" id="yearEndModal" style="display:none;" onclick="if(event.target===this) closeYearEndModal()">
-        <div class="modal-box" style="max-width:620px;">
+        <div class="modal-content" style="max-width:620px;">
             <div class="modal-header">
                 <div class="modal-title">📦 Year-End Pack</div>
                 <button class="modal-close" onclick="closeYearEndModal()">&times;</button>
@@ -2077,11 +2077,19 @@
             const today = new Date();
             const closed = years.find(y => y.to < today.toISOString().slice(0, 10));
             if (closed) sel.value = closed.from + '|' + closed.to;
-            document.getElementById('yearEndModal').style.display = 'flex';
+            /* BOTH, and neither alone is enough. .modal-overlay is
+               opacity:0 / pointer-events:none until .open is added, so setting
+               display:flex by itself opens a dialog that is fully transparent
+               and cannot be clicked — which looks exactly like a dead button. */
+            const m = document.getElementById('yearEndModal');
+            m.classList.add('open');
+            m.style.display = 'flex';
             renderYearEndPreview();
         }
         function closeYearEndModal() {
-            document.getElementById('yearEndModal').style.display = 'none';
+            const m = document.getElementById('yearEndModal');
+            m.classList.remove('open');
+            m.style.display = 'none';
             _yepBuilt = null;
         }
         function _yepDmy(iso) { return window.mmYearEnd ? mmYearEnd._dmy(iso) : iso; }
