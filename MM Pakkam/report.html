@@ -717,6 +717,9 @@
     <script src="js/finance.js"></script>
     <script src="js/pnl.js"></script>
     <script src="js/position.js"></script>
+    <!-- Loaded AFTER every module it packages: yearend.js calls mmPnl, mmPosition,
+         mmFinance, mmTally and mmGstr1, and computes nothing of its own. -->
+    <script src="js/yearend.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
@@ -1214,6 +1217,12 @@
                     </svg>
                     e-Invoice / e-Way
                 </button>
+                <button class="btn-export-excel" onclick="openYearEndModal()" title="One file for your accountant — P&amp;L, balance position, asset register, loan schedule, GST and Tally XML for the whole financial year" style="background:#0f766e;">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                    </svg>
+                    Year-End Pack
+                </button>
                 <button class="btn-backup" onclick="backupData()" title="Download all your data as a backup file">
                     <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -1516,6 +1525,29 @@
             <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;">
                 <button class="search-btn" onclick="closeGstrModal()" style="background:#f1f5f9;color:#475569;">Cancel</button>
                 <button class="search-btn" id="gstrDownloadBtn" onclick="downloadGstr1()">⬇ Download JSON</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Year-End Pack ═══
+         One file for the accountant. The problem it solves is not that these
+         statements are missing — every one already exists on some screen — but
+         that they are exported separately, on different date ranges, and the
+         mismatch is what the accountant bills for. -->
+    <div class="modal-overlay" id="yearEndModal" style="display:none;" onclick="if(event.target===this) closeYearEndModal()">
+        <div class="modal-box" style="max-width:620px;">
+            <div class="modal-header">
+                <div class="modal-title">📦 Year-End Pack</div>
+                <button class="modal-close" onclick="closeYearEndModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label style="display:block;font-weight:700;font-size:0.82rem;color:#334155;margin-bottom:6px;">FINANCIAL YEAR</label>
+                <select id="yepYear" onchange="renderYearEndPreview()" style="width:100%;padding:10px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:0.95rem;"></select>
+                <div id="yepPreview" style="margin-top:16px;"></div>
+            </div>
+            <div class="modal-header" style="border-top:1px solid #f1f5f9;border-bottom:none;justify-content:flex-end;gap:0.5rem;">
+                <button class="search-btn" onclick="closeYearEndModal()" style="background:#f1f5f9;color:#475569;">Cancel</button>
+                <button class="search-btn" id="yepDownloadBtn" onclick="downloadYearEndPack()">⬇ Download pack</button>
             </div>
         </div>
     </div>
@@ -2017,6 +2049,92 @@
             try { if (typeof dbSyncCoreData === 'function') await dbSyncCoreData(); } catch (e) {}
             try { await loadData(); } catch (e) {}
             refreshGstrSummary();
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           YEAR-END PACK
+
+           The screen is deliberately thin: pick a year, see what is in the pack
+           and what is missing from it, download. All the work is in
+           js/yearend.js, which packages the existing modules and computes
+           nothing — see its header for why that matters.
+           ══════════════════════════════════════════════════════════════════ */
+        let _yepBuilt = null;
+
+        function openYearEndModal() {
+            const sel = document.getElementById('yepYear');
+            const years = (window.mmYearEnd ? mmYearEnd.availableYears() : []);
+            if (!years.length) { mmAlert('No sales or purchases yet — there is nothing to pack.'); return; }
+            // The label rides on the option as data, not parsed back out of the
+            // visible text — that breaks the moment the text is reworded.
+            sel.innerHTML = years.map(y =>
+                `<option value="${y.from}|${y.to}" data-label="${y.label}">${y.label} &nbsp;(${_yepDmy(y.from)} – ${_yepDmy(y.to)})</option>`
+            ).join('');
+            /* Default to the year that has just CLOSED where one exists, not the
+               one running. A pack is something you send after a year ends, and
+               opening on a half-finished year invites sending a half-finished
+               set of accounts. */
+            const today = new Date();
+            const closed = years.find(y => y.to < today.toISOString().slice(0, 10));
+            if (closed) sel.value = closed.from + '|' + closed.to;
+            document.getElementById('yearEndModal').style.display = 'flex';
+            renderYearEndPreview();
+        }
+        function closeYearEndModal() {
+            document.getElementById('yearEndModal').style.display = 'none';
+            _yepBuilt = null;
+        }
+        function _yepDmy(iso) { return window.mmYearEnd ? mmYearEnd._dmy(iso) : iso; }
+
+        function renderYearEndPreview() {
+            const box = document.getElementById('yepPreview');
+            const btn = document.getElementById('yepDownloadBtn');
+            const [from, to] = (document.getElementById('yepYear').value || '').split('|');
+            if (!from || !to) return;
+            box.innerHTML = '<div style="color:#64748b;">Building…</div>';
+            // Let the browser paint "Building…" before the synchronous build.
+            setTimeout(() => {
+                const opt = document.getElementById('yepYear').selectedOptions[0];
+                _yepBuilt = mmYearEnd.build({ from, to, label: (opt && opt.dataset.label) || '' });
+                const p = _yepBuilt;
+                const chip = (t, good) =>
+                    `<span style="display:inline-block;margin:3px 5px 3px 0;padding:3px 10px;border-radius:999px;font-size:0.78rem;font-weight:700;` +
+                    `background:${good ? '#dcfce7' : '#fef3c7'};color:${good ? '#166534' : '#92400e'};">${good ? '✓' : '!'} ${t}</span>`;
+                let h = '<div style="font-weight:800;font-size:0.82rem;color:#334155;margin-bottom:4px;">IN THE PACK</div>';
+                h += p.built.length ? p.built.map(b => chip(b, true)).join('') : '<span style="color:#94a3b8;">nothing</span>';
+                if (p.missing.length) {
+                    h += '<div style="font-weight:800;font-size:0.82rem;color:#334155;margin:14px 0 4px;">NOT INCLUDED</div>';
+                    h += p.missing.map(m => chip(m, false)).join('');
+                }
+                const kb = Math.ceil(p.html.length / 1024);
+                h += `<div style="margin-top:14px;padding:10px 12px;background:#f8fafc;border-radius:8px;color:#475569;font-size:0.84rem;">` +
+                     `One HTML file, about ${kb} KB. Your accountant can open it in any browser and print it to PDF. ` +
+                     `The Tally XML and GSTR-1 JSON are inside it as downloads.</div>`;
+                box.innerHTML = h;
+                btn.disabled = !p.built.length;
+                btn.style.opacity = p.built.length ? '1' : '0.5';
+            }, 20);
+        }
+
+        function downloadYearEndPack() {
+            if (!_yepBuilt || !_yepBuilt.built.length) return;
+            const shop = (function () {
+                try { return (JSON.parse(localStorage.getItem('mm_shop_profile') || '{}').shopName || 'Shop'); }
+                catch (e) { return 'Shop'; }
+            })();
+            const safe = String(shop).replace(/[^\w]+/g, '-').replace(/^-|-$/g, '');
+            const name = safe + '-YearEnd-' + _yepBuilt.fy.from.slice(0, 4) + '-'
+                       + _yepBuilt.fy.to.slice(0, 4) + '.html';
+            const blob = new Blob([_yepBuilt.html], { type: 'text/html;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name;
+            a.click();
+            if (typeof mmAudit === 'function') {
+                mmAudit('Year-End Pack exported', _yepBuilt.fy.label, _yepBuilt.built.length + ' documents');
+            }
+            closeYearEndModal();
+            showToast(`✅ ${name} downloaded — send that one file to your accountant.`, 'success');
         }
 
         /* ══════════════════════════════════════════════════════════════════
