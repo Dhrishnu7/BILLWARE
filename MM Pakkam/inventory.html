@@ -2239,10 +2239,43 @@
         return d.innerHTML;
     }
 
+    /* EXACT FIRST, THEN NORMALISED. Exact-lowercase matching alone blocked
+       "Dolo 650" against a catalogue holding "DOLO 650 TAB" — and the message
+       it produced said "add a purchase entry first", which is wrong advice
+       that manufactures the very phantom row the guard exists to prevent:
+       follow it and the shop has two products for one medicine.
+
+       DrugMaster.normName (v348) strips dosage form and strength units, the
+       things that never change which product this is. Same normaliser the
+       Schedule H detection uses, so the two screens agree on what counts as
+       the same name. */
+    function _adjNorm(s) {
+        return (typeof DrugMaster !== 'undefined' && DrugMaster.normName)
+            ? DrugMaster.normName(s)
+            : String(s || '').trim().toLowerCase();
+    }
     function findStockRow(name) {
-        const norm = String(name || '').trim().toLowerCase();
-        if (!norm) return null;
-        return _stockData.find(r => r.name.toLowerCase() === norm) || null;
+        const raw = String(name || '').trim();
+        if (!raw) return null;
+        const lower = raw.toLowerCase();
+        const exact = _stockData.find(r => r.name.toLowerCase() === lower);
+        if (exact) return exact;
+        const n = _adjNorm(raw);
+        if (!n) return null;
+        return _stockData.find(r => _adjNorm(r.name) === n) || null;
+    }
+
+    // Closest catalogue names, for when nothing matches at all. Naming the
+    // real products beats telling somebody their medicine does not exist.
+    function _adjSuggestions(name) {
+        const n = _adjNorm(name);
+        if (!n) return [];
+        const head = n.split(' ')[0];
+        if (!head || head.length < 3) return [];
+        return _stockData
+            .filter(r => _adjNorm(r.name).indexOf(head) === 0)
+            .map(r => r.name)
+            .slice(0, 5);
     }
 
     function populateAdjustMedicineList() {
@@ -2318,7 +2351,10 @@
         }
         if (sysVal === '' || sysVal === undefined) {
             statusEl.style.color = '#dc2626';
-            statusEl.textContent = "⚠️ That medicine isn't in your stock ledger yet — add a purchase entry first.";
+            const near = _adjSuggestions(name);
+            statusEl.textContent = near.length
+                ? `⚠️ No product called “${name}”. Did you mean: ${near.join(' · ')}?`
+                : `⚠️ “${name}” isn't in your stock ledger yet — add a purchase entry first.`;
             return;
         }
         if (actualInput.value === '') {
@@ -2340,7 +2376,17 @@
         const btn = document.querySelector('.btn-save-adjust');
         if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
 
-        const record = { productName: name, batchNo: batch, qtyBefore, qtyAfter, qtyDelta, reason, note };
+        /* THE CANONICAL NAME, never the typed one. Now that "Dolo 650" can
+           match "DOLO 650 TAB", storing what was typed would write an
+           adjustment against a product no other screen can find — every
+           downstream reader (mmComputeStock, buildSHStockMap, the P&L) matches
+           by exact lowercase. That would have manufactured the exact phantom
+           row this whole guard exists to prevent, while looking like a fix. */
+        const matched = findStockRow(name);
+        const record = {
+            productName: (matched && matched.name) || name,
+            batchNo: batch, qtyBefore, qtyAfter, qtyDelta, reason, note
+        };
 
         let savedToCloud = false;
         let cloudRow = null;
