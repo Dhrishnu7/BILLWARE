@@ -1527,26 +1527,50 @@
             onStaffDaysTyped();
         }
 
-        /* DAYS × RATE, for a shop that pays by the day. It fills the amount in
-           and says how it got there, but the AMOUNT stays editable and is what
-           gets saved — a half day, a deduction or a rounded settlement must
-           always be able to win. The days figure is stored alongside as a
-           record of what was worked, and is never used to recompute the amount
-           on read: a later rate change would otherwise silently restate what
-           somebody was actually handed. */
+        /* DAYS × RATE. Fills the amount in and says how it got there, while the
+           AMOUNT stays editable and is what gets saved — a half day, a
+           deduction or a rounded settlement must always be able to win. Days
+           are stored alongside as a record of what was worked and are NEVER
+           used to recompute the amount on read: a later rate change would
+           otherwise silently restate what somebody was actually handed.
+
+           IT DOES NOT CHECK THE PAY BASIS. The first version only calculated
+           when the basis text matched /day/i, which was wrong twice over: pay
+           basis is deliberately FREE TEXT because every shop differs, so
+           "per day", "roz", "shift" or a basis left as "Monthly" all silently
+           did nothing — and the operator got no reason why. Multiplying a rate
+           by a count of days needs no permission from a label.
+
+           When it CANNOT calculate it says so, because a field that quietly
+           does nothing is indistinguishable from a broken one. */
         function onStaffDaysTyped() {
             const hint = document.getElementById('stDaysHint');
             const daysEl = document.getElementById('stDays');
             const amt = document.getElementById('stAmount');
-            if (!hint || !daysEl || !amt) return;
-            const s = _staff.find(x => x.id === document.getElementById('stPerson').value);
+            const sel = document.getElementById('stPerson');
+            if (!hint || !daysEl || !amt || !sel) return;
+
             const days = parseFloat(daysEl.value);
-            const rate = s ? Number(s.payAmount) || 0 : 0;
-            const daily = s && /day/i.test(s.payBasis || '');
-            if (!days || days <= 0 || !rate || !daily) { hint.style.display = 'none'; return; }
+            if (!days || days <= 0) { hint.style.display = 'none'; return; }
+
+            const s = _staff.find(x => x.id === sel.value);
+            if (!s) {
+                hint.textContent = 'Pick a person first.';
+                hint.style.color = '#b45309';
+                hint.style.display = '';
+                return;
+            }
+            const rate = Number(s.payAmount) || 0;
+            if (!rate) {
+                hint.textContent = `No usual amount set for ${s.name} — type the amount, or add a rate with ✏️.`;
+                hint.style.color = '#b45309';
+                hint.style.display = '';
+                return;
+            }
             const calc = Math.round(days * rate * 100) / 100;
             amt.value = calc;
             hint.textContent = `${days} × ${_stInr(rate)} = ${_stInr(calc)} — edit if it differs`;
+            hint.style.color = '#0284c7';
             hint.style.display = '';
         }
 
