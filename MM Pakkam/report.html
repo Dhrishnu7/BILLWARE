@@ -2126,9 +2126,14 @@
 
         function downloadYearEndPack() {
             if (!_yepBuilt || !_yepBuilt.built.length) return;
+            // Both spellings: localStorage is camelCase, window.mmShopProfile is
+            // the raw snake_case cloud row. Reading one gave files called
+            // "Shop-YearEnd-….html" on a shop that has a perfectly good name.
             const shop = (function () {
-                try { return (JSON.parse(localStorage.getItem('mm_shop_profile') || '{}').shopName || 'Shop'); }
-                catch (e) { return 'Shop'; }
+                let p = {};
+                try { p = JSON.parse(localStorage.getItem('mm_shop_profile') || '{}') || {}; } catch (e) {}
+                const w = window.mmShopProfile || {};
+                return p.shopName || p.shop_name || w.shop_name || w.shopName || 'Shop';
             })();
             const safe = String(shop).replace(/[^\w]+/g, '-').replace(/^-|-$/g, '');
             const name = safe + '-YearEnd-' + _yepBuilt.fy.from.slice(0, 4) + '-'

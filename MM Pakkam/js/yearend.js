@@ -109,6 +109,12 @@
         return out;
     }
 
+    /* TWO SPELLINGS ON ONE DEVICE, again. The localStorage copy is camelCase
+       (`shopName`) because the app writes it; `window.mmShopProfile` is the RAW
+       cloud row and is snake_case (`shop_name`). Reading only one gave a pack
+       headed "Shop" while the GSTIN came through fine — `gstin` is spelled the
+       same in both shapes, so the bug hid behind a field that happened to work.
+       Same class as the productName/product_name stock adjustments. */
     function shopProfile() {
         var p = {};
         try { p = JSON.parse(localStorage.getItem('mm_shop_profile') || '{}') || {}; } catch (e) {}
@@ -118,6 +124,10 @@
             });
         }
         return p;
+    }
+
+    function shopName(p) {
+        return String((p && (p.shopName || p.shop_name || p.storeName || p.store_name || p.name)) || '').trim();
     }
 
     /* ── the documents ────────────────────────────────────────────────────── */
@@ -240,11 +250,27 @@
         s += row('What the business holds', q.assetSide, 'tot');
         s += row('Owed to suppliers', q.creditors);
         s += row('Loans outstanding', q.loans);
-        s += row('GST payable (net)', q.gstNet);
+        /* GST ONLY COUNTS AS A LIABILITY WHEN IT IS POSITIVE. mmPosition uses
+           Math.max(0, gstNet), because a negative net is input credit the shop
+           is owed — a receivable, not something it owes. Printing the raw
+           negative on a line above the total left the column short by exactly
+           that amount, which is the first thing an accountant checks and the
+           fastest way to lose their confidence in the rest of the pack.
+           The payable line carries the figure the total actually uses; a credit
+           position is stated separately, below the total, where it cannot
+           imply it was added in. */
+        var gstPayable = Math.max(0, num(q.gstNet));
+        s += row('GST payable (net)', gstPayable);
         s += row('What the business owes', q.liabilitySide, 'tot');
+        if (num(q.gstNet) < 0) {
+            s += row('GST credit due back to you (not counted above)', -num(q.gstNet), 'dim');
+        }
         s += row('Owner’s capital introduced', q.capital);
         s += '</table>';
-        return section('Where the business stands, as at ' + dmy(q.asOf), s);
+        var foots = Math.abs(r2(num(q.creditors) + gstPayable + num(q.loans)) - r2(q.liabilitySide)) < 0.02;
+        return section('Where the business stands, as at ' + dmy(q.asOf), s,
+            foots ? '' : '<strong>The liabilities column does not add up — please tell your ' +
+                         'software provider before relying on this page.</strong>');
     }
 
     function assetsHtml(a) {
@@ -352,7 +378,8 @@
 
     function render(pack) {
         var sp = shopProfile();
-        var title = (sp.shopName || sp.name || 'Shop') + ' — Year-End Pack — ' + pack.fy.label;
+        var name = shopName(sp) || 'Shop';
+        var title = name + ' — Year-End Pack — ' + pack.fy.label;
         var css =
             'body{font:14px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;margin:0;padding:32px;background:#fff;}' +
             '.wrap{max-width:900px;margin:0 auto;}' +
@@ -374,7 +401,7 @@
             'footer{margin-top:40px;padding-top:14px;border-top:1px solid #e2e8f0;color:#64748b;font-size:0.8rem;}' +
             '@media print{body{padding:0;}section{break-inside:avoid;}h2{break-after:avoid;}}';
 
-        var head = '<h1>' + esc(sp.shopName || sp.name || 'Shop') + '</h1>' +
+        var head = '<h1>' + esc(name) + '</h1>' +
             '<p class="sub">' +
             (sp.gstin ? 'GSTIN ' + esc(sp.gstin) + ' · ' : '') +
             esc(pack.fy.label) + ' · ' + dmy(pack.fy.from) + ' to ' + dmy(pack.fy.to) +
