@@ -617,6 +617,12 @@
          the shop's own list does not. Detection must be symmetric or the
          register drifts. -->
     <script src="js/drug-master.js"></script>
+    <!-- returns-data.js is what GSTR-1 and Tally read; note-print.js renders the
+         SAME note object, so the paper and the filed return cannot disagree.
+         This page did not load returns-data before — printing is its first
+         consumer here. -->
+    <script src="js/returns-data.js"></script>
+    <script src="js/note-print.js"></script>
     <script src="js/keyboard-nav.js"></script>
 </head>
 
@@ -1716,6 +1722,19 @@
                 + '<td>' + (parseFloat(a.qty_delta) > 0 ? '+' : '') + (parseFloat(a.qty_delta) || 0) + '</td>'
                 + '<td>' + retMoney(retNoteTotal(n, isSale)) + '</td>'
                 + '<td style="text-align:right;white-space:nowrap;">'
+                /* The document the customer walks out with. A refund was always
+                   processed, reversed in stock, filed in GSTR-1 and posted to
+                   Tally — and the buyer got nothing on paper, so they could not
+                   reverse their input credit and the shop had no signed proof
+                   the goods came back. Only offered where the note actually has
+                   a number; a pre-v253 row without one cannot be printed
+                   against anything. */
+                + (noteNo
+                    ? '<button onclick="printReturnNote(\'' + retEsc(noteNo).replace(/'/g, "\\'") + '\')" '
+                      + 'title="Print the ' + (isSale ? 'credit' : 'debit') + ' note for the customer" '
+                      + 'style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;'
+                      + 'padding:3px 9px;font-size:0.75rem;font-weight:700;cursor:pointer;font-family:inherit;margin-right:5px;">🖨 Print</button>'
+                    : '')
                 + '<button onclick="deleteReturnNote(\'' + retEsc(k).replace(/'/g, "\\'") + '\')" '
                 + 'title="Undo this whole return' + (lines > 1 ? ' (' + lines + ' lines)' : '') + '" '
                 + 'style="background:#fff1f2;color:#e11d48;border:1px solid #fecdd3;border-radius:8px;'
@@ -1723,6 +1742,33 @@
                 + '</td></tr>';
         });
         body.innerHTML = html + '</tbody></table>';
+    }
+
+    /* Printing goes through mmReturns.load() — the SAME builder the GSTR-1 and
+       Tally exports read — so the paper handed to the customer and the figures
+       filed with the return are the same numbers by construction, not by two
+       calculations agreeing. */
+    async function printReturnNote(noteNo) {
+        if (!window.mmNotePrint) {
+            await mmAlert('The note printer has not loaded. Reload the page and try again.');
+            return;
+        }
+        const note = mmNotePrint.findNote(noteNo);
+        if (!note) {
+            await mmAlert('Could not find note ' + noteNo + '. Reload the page and try again.');
+            return;
+        }
+        /* A note with a line whose GST rate was never recorded would print tax
+           of zero. Say so BEFORE it is handed over, not after — the document
+           states a tax amount the buyer will act on. */
+        if ((note.lines || []).some(l => !l.known)) {
+            const go = await mmConfirm(
+                'One or more lines on ' + noteNo + ' have no GST rate recorded, so their tax will print as zero.\n\n' +
+                'The note will carry a warning. Print it anyway?',
+                { title: '⚠️ Missing GST rate', danger: true, okText: 'Print anyway' });
+            if (!go) return;
+        }
+        mmNotePrint.open(noteNo);
     }
 
     /* Undoes the WHOLE note, never one line of it. A return is a document: half
