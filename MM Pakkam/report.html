@@ -6475,14 +6475,23 @@
 
         async function clearAllData() {
             if (!await mmConfirm(
+                /* Name what SURVIVES, in full. Someone clearing test data reads
+                   this as "reset the shop" and is then surprised by a loan, a
+                   freezer and a khata balance still distorting every figure.
+                   Listing only two survivors made the dialog read as a fuller
+                   reset than it performs. */
                 "⚠️ Clear ALL Sales & Purchases?\n\n" +
-                "This will delete:\n" +
+                "DELETES — every one, not just the dates on screen:\n" +
                 "  ✗ All purchase records\n" +
-                "  ✗ All sales bills\n\n" +
-                "This will NOT delete:\n" +
-                "  ✓ Medicine list (preserved)\n" +
-                "  ✓ Customers & Doctors\n\n" +
-                "Tip: Take a Backup first!\n\nContinue?",
+                "  ✗ All sales bills\n" +
+                "(both go to the Bin, recoverable for 30 days)\n\n" +
+                "LEAVES BEHIND — clear these separately if you want a full reset:\n" +
+                "  • Medicine list, customers, doctors, suppliers\n" +
+                "  • Expenses and staff payments\n" +
+                "  • Cash, bank, capital, loans and assets\n" +
+                "  • Khata balances\n" +
+                "  • Returns, stock adjustments, Schedule H register\n\n" +
+                "Take a Backup first.\n\nContinue?",
                 { danger: true, okText: 'Clear All' }
             )) return;
 
@@ -6494,27 +6503,47 @@
             }
 
             try {
-                // Save everything to Bin before clearing
+                /* BIN EVERYTHING, NOT WHAT IS ON SCREEN.
+
+                   This used to copy `_rawPurchasesMap` / `_rawBillsMap` into
+                   the Bin — but those hold only the CURRENT REPORT RANGE,
+                   while the delete below removes every bill and purchase the
+                   shop has. So anything outside the dates showing at the time
+                   was deleted from the cloud with no recovery copy at all, and
+                   the dialog promised a Bin that would not contain it.
+
+                   Exactly the trap v314 hit: a range-filtered map cannot serve
+                   an operation that is not range-filtered. Fetch the lot.
+
+                   If the fetch fails we DO NOT DELETE. A clear with no Bin
+                   behind it is not a clear, it is data loss. */
                 const bin = getBin();
                 const nowStr = new Date().toISOString();
-                let binUpdated = false;
+                let allBills = [], allPurchases = [];
+                try {
+                    [allBills, allPurchases] = await Promise.all([
+                        dbGetBills(), dbGetPurchases()
+                    ]);
+                } catch (e) {
+                    if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
+                    await mmAlert('Could not read your records to save them to the Bin, so nothing has been deleted. ' +
+                                  'Check your connection and try again.', { title: '⚠️ Nothing deleted' });
+                    return;
+                }
 
-                Object.values(_rawPurchasesMap).forEach(p => {
+                (allPurchases || []).forEach(p => {
                     bin.push({
                         binId: Date.now() + '_' + Math.random().toString(36).substr(2,5),
                         type: 'purchase', id: p.id, deletedAt: nowStr, data: p
                     });
-                    binUpdated = true;
                 });
-                Object.values(_rawBillsMap).forEach(b => {
+                (allBills || []).forEach(b => {
                     bin.push({
                         binId: Date.now() + '_' + Math.random().toString(36).substr(2,5),
                         type: 'sales', id: b.id, deletedAt: nowStr, data: b
                     });
-                    binUpdated = true;
                 });
-                
-                if (binUpdated) saveBin(bin);
+                saveBin(bin);
 
                 const [billsRes, purchasesRes] = await Promise.all([
                     dbDeleteAllBills(),
