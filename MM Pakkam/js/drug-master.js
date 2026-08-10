@@ -40,8 +40,9 @@
         ['Ciprofloxacin 500mg','Generic',12,10,'30041090','H'],
         ['Oflox 200','Cipla',12,10,'30041090','H'],
         ['Norflox 400','Cipla',12,10,'30041090','H'],
-        ['Taxim O 200','Alkem',12,10,'30041090','H'],
-        ['Taxim O 100 Syrup','Alkem',12,50,'30041090','H'],
+        // Taxim-O is cefixime — H1, and the brand name does not say so.
+        ['Taxim O 200','Alkem',12,10,'30041090','H1'],
+        ['Taxim O 100 Syrup','Alkem',12,50,'30041090','H1'],
         ['Clavam 625','Alembic',12,10,'30041020','H'],
         ['Doxycycline 100mg','Generic',12,10,'30041020','H'],
         ['Metronidazole 400mg','Generic',12,15,'30041090','H'],
@@ -176,9 +177,10 @@
         ['Serta 50','Sun Pharma',12,10,'30049099','H'],
         ['Escitalopram 10mg','Generic',12,10,'30049099','H'],
         ['Nexito 10','Sun Pharma',12,10,'30049099','H'],
-        ['Alprazolam 0.25mg','Generic',12,10,'30049099','H'],
-        ['Alprax 0.25','Torrent',12,10,'30049099','H'],
-        ['Clonazepam 0.5mg','Generic',12,10,'30049099','H'],
+        // Alprazolam and clonazepam are both Schedule H1, not plain H.
+        ['Alprazolam 0.25mg','Generic',12,10,'30049099','H1'],
+        ['Alprax 0.25','Torrent',12,10,'30049099','H1'],
+        ['Clonazepam 0.5mg','Generic',12,10,'30049099','H1'],
         ['Gabapentin 300mg','Generic',12,10,'30049099','H'],
         ['Gabapin 300','Intas',12,10,'30049099','H'],
         ['Pregabalin 75mg','Generic',12,10,'30049099','H'],
@@ -226,6 +228,49 @@
        H register, which is noise the operator can untick on the chip. A false
        negative is a Schedule H sale with no register entry — the thing the
        register exists to prevent. */
+    /* ── SCHEDULE H1 ──────────────────────────────────────────────────────────
+       H1 is a stricter subset of Schedule H: a SEPARATE bound register, kept
+       three years, with the prescriber's details mandatory. Before this the seed
+       carried exactly ONE H1 drug (Tramadol) against a real list of ~46, and
+       matched it by exact product name — so cefixime, ceftriaxone, levofloxacin
+       and the whole anti-TB set were being dispensed as ordinary Schedule H.
+
+       Matched by SUBSTRING on the molecule, like _SCHEDULE_X and for the same
+       reason: H1 attaches to the molecule, not to a brand or a strength. A shop
+       stocking "Cefixime 200 DT" or "Zifi 200 (cefixime)" is caught without
+       anybody enumerating brands. These names are long and distinctive, so a
+       substring test carries no realistic false-positive risk.
+
+       Brands that do NOT name their molecule still need a seed row — Taxim-O is
+       cefixime and is tagged H1 below.
+
+       DELIBERATELY NOT INCLUDED, because they are Schedule H and not H1:
+       ciprofloxacin, ofloxacin, norfloxacin, azithromycin, amoxicillin-
+       clavulanate. Only the newer fluoroquinolones are H1.
+
+       ⚠️ Schedule H1 is amended by gazette notification. This list should be
+       checked against the current schedule by the pharmacist rather than
+       trusted indefinitely. */
+    const _SCHEDULE_H1 = [
+        // Habit-forming / psychotropic
+        'alprazolam','buprenorphine','chlordiazepoxide','clonazepam','codeine',
+        'diazepam','diphenoxylate','midazolam','nitrazepam','pentazocine',
+        'tramadol','zolpidem',
+        // 3rd / 4th generation cephalosporins
+        'cefdinir','cefditoren','cefepime','cefetamet','cefixime','cefoperazone',
+        'cefotaxime','cefpirome','cefpodoxime','ceftazidime','ceftibuten',
+        'ceftizoxime','ceftriaxone',
+        // Carbapenems and related
+        'doripenem','ertapenem','faropenem','feropenem','imipenem','meropenem',
+        // Newer fluoroquinolones (NOT cipro/oflox/norflox — those stay H)
+        'balofloxacin','gatifloxacin','gemifloxacin','levofloxacin','moxifloxacin',
+        'prulifloxacin','sparfloxacin',
+        // Anti-tubercular
+        'capreomycin','clofazimine','cycloserine','ethambutol','ethionamide',
+        'isoniazid','pyrazinamide','rifabutin','rifampicin','rifampin',
+        'aminosalicylate','thiacetazone'
+    ];
+
     const _FORMS = new Set(['tab','tabs','tablet','tablets','cap','caps','capsule',
         'capsules','syp','syrup','susp','suspension','inj','injection','drop','drops',
         'cream','ointment','oint','gel','lotion','sachet','powder','solution','soln',
@@ -428,6 +473,12 @@
         // Schedule X first — strictest class, and these are distinctive molecule
         // names so a substring test is safe.
         for(var i=0;i<_SCHEDULE_X.length;i++){ if(nm.indexOf(_SCHEDULE_X[i]) >= 0) return 'X'; }
+        /* H1 next, and BEFORE the seed lookup on purpose. A seed row tagged
+           plain 'H' whose name carries an H1 molecule must come back H1 — the
+           stricter class wins, exactly as X wins over both. Getting this order
+           wrong would let a stale seed tag quietly downgrade a drug that needs
+           the three-year register. */
+        for(var h=0;h<_SCHEDULE_H1.length;h++){ if(nm.indexOf(_SCHEDULE_H1[h]) >= 0) return 'H1'; }
         // 1. Exact, as before — cheapest and unambiguous.
         var m = _seedMap.get(nm);
         if (m) return m.schedule || '';
