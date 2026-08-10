@@ -509,6 +509,79 @@
             <button id="ktabSupp" class="ktab" onclick="switchKhataTab('suppliers')" style="padding:0.6rem 1.2rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:0.88rem;cursor:pointer;color:#475569;font-family:inherit;">🏭 Suppliers</button>
             <button id="ktabExp" class="ktab" onclick="switchKhataTab('expenses')" style="padding:0.6rem 1.2rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:0.88rem;cursor:pointer;color:#475569;font-family:inherit;">💸 Expenses</button>
             <button id="ktabFin" class="ktab" onclick="switchKhataTab('finance')" style="padding:0.6rem 1.2rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:0.88rem;cursor:pointer;color:#475569;font-family:inherit;">🏦 Cash &amp; Capital</button>
+            <button id="ktabStaff" class="ktab" onclick="switchKhataTab('staff')" style="padding:0.6rem 1.2rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;font-weight:700;font-size:0.88rem;cursor:pointer;color:#475569;font-family:inherit;">👥 Staff</button>
+        </div>
+
+        <!-- ═══ STAFF & SALARIES ═══
+             The shop already records what it spent on wages; what it could not
+             say was WHO was paid. A salary payment here is written as an
+             ordinary expense carrying the person's name, so the P&L, Day Book,
+             Cash Flow and Tally all count it exactly once, with no code change
+             and no way for this page to disagree with the profit figure.
+
+             Pay basis is free text. Shops pay monthly, daily, per shift and by
+             arrangement — the app records what happened rather than insisting
+             on one model. -->
+        <div id="khataTabStaff" style="display:none;">
+            <div class="stat-card">
+                <div class="stat-label">PAID TO STAFF THIS MONTH</div>
+                <div class="stat-value" id="staffMonthTotal">₹0.00</div>
+                <div class="stat-sub" id="staffMonthSub">Salaries, wages and advances</div>
+            </div>
+
+            <div class="section-card" style="margin-top:1rem;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.6rem;">
+                    <h3 style="margin:0;font-size:1rem;">Record a payment</h3>
+                    <button onclick="openStaffAdd()" style="padding:0.5rem 1rem;border-radius:10px;border:1.5px solid #0ea5e9;background:#fff;color:#0284c7;font-weight:700;font-size:0.85rem;cursor:pointer;font-family:inherit;">+ Add a person</button>
+                </div>
+                <div id="staffPayForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.7rem;margin-top:0.9rem;">
+                    <div>
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Person</label>
+                        <select id="stPerson" onchange="onStaffPersonPick()" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;background:#fff;"></select>
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Date</label>
+                        <input type="date" id="stDate" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Type</label>
+                        <select id="stType" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;background:#fff;">
+                            <option>Salary</option><option>Wages</option><option>Bonus</option>
+                            <option>Advance</option><option>Reimbursement</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Amount (₹)</label>
+                        <input type="number" id="stAmount" step="0.01" min="0" placeholder="0.00" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Paid by</label>
+                        <select id="stMode" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;background:#fff;">
+                            <option>Cash</option><option>UPI</option><option>Bank</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Note</label>
+                        <input type="text" id="stNote" placeholder="e.g. August salary" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;">
+                    </div>
+                </div>
+                <button id="stSaveBtn" onclick="saveStaffPayment()" style="margin-top:0.9rem;padding:0.6rem 1.3rem;border-radius:10px;border:none;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;font-weight:700;font-size:0.9rem;cursor:pointer;font-family:inherit;">💾 Record payment</button>
+                <p style="margin:0.7rem 0 0;font-size:0.78rem;color:#64748b;">
+                    This is saved as a <strong>Salary</strong> expense, so it appears in your Profit &amp; Loss,
+                    Day Book and Tally export automatically. An <strong>advance</strong> is recorded as paid
+                    when it leaves the till — it is not tracked as money the person owes back.
+                </p>
+            </div>
+
+            <div class="section-card" style="margin-top:1rem;">
+                <h3 style="margin:0 0 0.8rem;font-size:1rem;">People</h3>
+                <div id="staffList"></div>
+            </div>
+
+            <div class="section-card" style="margin-top:1rem;">
+                <h3 style="margin:0 0 0.8rem;font-size:1rem;">Payment history</h3>
+                <div id="staffHistory" style="overflow-x:auto;"></div>
+            </div>
         </div>
 
         <div id="khataTabCustomers">
@@ -1309,13 +1382,255 @@
             _ktabStyle(document.getElementById('ktabSupp'), which === 'suppliers');
             _ktabStyle(document.getElementById('ktabExp'),  which === 'expenses');
             _ktabStyle(document.getElementById('ktabFin'),  which === 'finance');
+            _ktabStyle(document.getElementById('ktabStaff'), which === 'staff');
             document.getElementById('khataTabCustomers').style.display = which === 'customers' ? '' : 'none';
             document.getElementById('khataTabSuppliers').style.display = which === 'suppliers' ? '' : 'none';
             document.getElementById('khataTabExpenses').style.display  = which === 'expenses'  ? '' : 'none';
             document.getElementById('khataTabFinance').style.display   = which === 'finance'   ? '' : 'none';
+            document.getElementById('khataTabStaff').style.display     = which === 'staff'     ? '' : 'none';
             if (which === 'suppliers') await loadSuppliers();
             if (which === 'expenses')  await loadExpenses();
             if (which === 'finance')   await loadFinance();
+            if (which === 'staff')     await loadStaff();
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           STAFF & SALARIES
+
+           The shop could always record what it spent on wages; what it could
+           not say was WHO was paid. So this adds a people list, and writes a
+           payment as an ORDINARY EXPENSE carrying the person's name.
+
+           That is the whole design. A separate salary ledger would have been a
+           second money path, and two money paths in one app is how a shop ends
+           up with two different answers for what it spent. Because a payment
+           is an expense, the P&L, Day Book, Cash Flow and Tally export all
+           count it exactly once with no change to any of them.
+
+           An ADVANCE is recorded as paid when it leaves the till, not as a
+           loan the person owes back. That is the cash basis this whole app
+           uses, and it is stated on screen rather than left to be discovered.
+           ═══════════════════════════════════════════════════════════════════ */
+        let _staff = [];
+
+        function _staffLocalGet() {
+            try { return JSON.parse(localStorage.getItem('mm_staff') || '[]') || []; } catch (e) { return []; }
+        }
+        function _staffLocalSet() {
+            try { localStorage.setItem('mm_staff', JSON.stringify(_staff)); } catch (e) {}
+        }
+        function _stInr(v) {
+            const n = Number(v) || 0;
+            return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        // Salary payments are the expense rows that carry a person.
+        function _staffPayments() {
+            let exp = [];
+            try { exp = JSON.parse(localStorage.getItem('mm_expenses') || '[]') || []; } catch (e) {}
+            return exp.filter(e => e && (e.staffId || e.staffName));
+        }
+
+        async function loadStaff() {
+            _staff = _staffLocalGet();
+            renderStaff();
+            try { if (typeof dbSyncStaff === 'function') { _staff = await dbSyncStaff(); } } catch (e) {}
+            try { if (typeof dbSyncExpenses === 'function') await dbSyncExpenses(); } catch (e) {}
+            renderStaff();
+        }
+
+        function renderStaff() {
+            const active = _staff.filter(s => s && s.active !== false);
+            // Person picker
+            const sel = document.getElementById('stPerson');
+            if (sel) {
+                const keep = sel.value;
+                sel.innerHTML = active.length
+                    ? active.map(s => `<option value="${_esc(s.id)}">${_esc(s.name)}${s.role ? ' — ' + _esc(s.role) : ''}</option>`).join('')
+                    : '<option value="">— add a person first —</option>';
+                if (keep) sel.value = keep;
+            }
+            const d = document.getElementById('stDate');
+            if (d && !d.value) d.value = new Date().toISOString().slice(0, 10);
+
+            const pays = _staffPayments();
+            const month = new Date().toISOString().slice(0, 7);
+            const thisMonth = pays.filter(p => String(p.date || '').slice(0, 7) === month);
+            const total = thisMonth.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+            const el = document.getElementById('staffMonthTotal');
+            if (el) el.textContent = _stInr(total);
+            const sub = document.getElementById('staffMonthSub');
+            if (sub) {
+                sub.textContent = thisMonth.length
+                    ? `${thisMonth.length} payment(s) to ${new Set(thisMonth.map(p => p.staffName)).size} person(s)`
+                    : 'No staff payments recorded this month';
+            }
+
+            // People, each with what they have been paid this month
+            const list = document.getElementById('staffList');
+            if (list) {
+                if (!_staff.length) {
+                    list.innerHTML = '<p style="color:#94a3b8;margin:0;">Nobody added yet. Use “+ Add a person”.</p>';
+                } else {
+                    list.innerHTML = _staff.map(s => {
+                        const paid = thisMonth.filter(p => p.staffId === s.id)
+                                              .reduce((a, p) => a + (Number(p.amount) || 0), 0);
+                        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:0.8rem;padding:0.7rem 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;">
+                            <div>
+                                <div style="font-weight:800;color:#0f172a;">${_esc(s.name)}${s.active === false ? ' <span style="font-size:0.72rem;color:#94a3b8;font-weight:700;">(inactive)</span>' : ''}</div>
+                                <div style="font-size:0.78rem;color:#64748b;">${_esc(s.role || '—')}${s.phone ? ' · ' + _esc(s.phone) : ''}${s.payBasis ? ' · ' + _esc(s.payBasis) : ''}${s.payAmount ? ' · ' + _stInr(s.payAmount) : ''}</div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:0.6rem;">
+                                <div style="text-align:right;">
+                                    <div style="font-weight:800;color:#0f172a;">${_stInr(paid)}</div>
+                                    <div style="font-size:0.7rem;color:#94a3b8;">this month</div>
+                                </div>
+                                <button onclick="editStaff('${_esc(s.id)}')" title="Edit" style="padding:0.35rem 0.6rem;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;cursor:pointer;font-family:inherit;">✏️</button>
+                            </div>
+                        </div>`;
+                    }).join('');
+                }
+            }
+
+            // History, newest first
+            const hist = document.getElementById('staffHistory');
+            if (hist) {
+                const rows = pays.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 100);
+                hist.innerHTML = rows.length ? `<table style="width:100%;border-collapse:collapse;">
+                    <thead><tr>
+                      ${['Date', 'Person', 'Type', 'Paid by', 'Note', 'Amount'].map(h =>
+                        `<th style="padding:0.6rem 0.8rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;text-align:${h === 'Amount' ? 'right' : 'left'};border-bottom:1px solid #e2e8f0;">${h}</th>`).join('')}
+                    </tr></thead><tbody>
+                    ${rows.map(p => `<tr>
+                        <td style="padding:0.55rem 0.8rem;border-bottom:1px solid #f1f5f9;white-space:nowrap;">${_esc(p.date)}</td>
+                        <td style="padding:0.55rem 0.8rem;border-bottom:1px solid #f1f5f9;font-weight:700;">${_esc(p.staffName || '—')}</td>
+                        <td style="padding:0.55rem 0.8rem;border-bottom:1px solid #f1f5f9;">${_esc(p.payType || 'Salary')}</td>
+                        <td style="padding:0.55rem 0.8rem;border-bottom:1px solid #f1f5f9;">${_esc(p.paymentMode || 'Cash')}</td>
+                        <td style="padding:0.55rem 0.8rem;border-bottom:1px solid #f1f5f9;color:#64748b;">${_esc(p.note || '')}</td>
+                        <td style="padding:0.55rem 0.8rem;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:800;">${_stInr(p.amount)}</td>
+                    </tr>`).join('')}</tbody></table>`
+                    : '<p style="color:#94a3b8;margin:0;">No staff payments recorded yet.</p>';
+            }
+        }
+
+        function onStaffPersonPick() {
+            const id = document.getElementById('stPerson').value;
+            const s = _staff.find(x => x.id === id);
+            const amt = document.getElementById('stAmount');
+            // Pre-fill only — never overwrite something already typed.
+            if (s && s.payAmount && amt && !amt.value) amt.value = s.payAmount;
+        }
+
+        async function openStaffAdd(existing) {
+            const s = existing || {};
+            const name = await mmPrompt('Name of the person', s.name || '');
+            if (name === null || !String(name).trim()) return;
+            const role  = await mmPrompt('Role (optional) — e.g. Pharmacist, Helper', s.role || '');
+            if (role === null) return;
+            const phone = await mmPrompt('Phone (optional)', s.phone || '');
+            if (phone === null) return;
+            const basis = await mmPrompt('How is this person paid? (free text — Monthly, Daily, Per shift…)', s.payBasis || 'Monthly');
+            if (basis === null) return;
+            const amt = await mmPrompt('Usual amount (optional — only pre-fills the form)', s.payAmount ? String(s.payAmount) : '');
+            if (amt === null) return;
+
+            const rec = {
+                id: s.id || ('STF' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+                name: String(name).trim(),
+                role: String(role || '').trim(),
+                phone: String(phone || '').trim(),
+                joined: s.joined || new Date().toISOString().slice(0, 10),
+                payBasis: String(basis || '').trim(),
+                payAmount: parseFloat(amt) || 0,
+                active: s.active !== false,
+                note: s.note || '',
+                savedAt: new Date().toISOString()
+            };
+            const i = _staff.findIndex(x => x.id === rec.id);
+            if (i >= 0) _staff[i] = rec; else _staff.push(rec);
+            _staff.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            _staffLocalSet();
+            renderStaff();
+            try { if (typeof dbSaveStaff === 'function') await dbSaveStaff(rec); } catch (e) {}
+            if (typeof mmAudit === 'function') mmAudit(existing ? 'Staff updated' : 'Staff added', rec.name, rec.role || '');
+            showToast(existing ? 'Updated' : `${rec.name} added`, 'success');
+        }
+
+        async function editStaff(id) {
+            const s = _staff.find(x => x.id === id);
+            if (!s) return;
+            const what = await mmConfirm(
+                `${s.name}\n\nEdit their details, or mark them as ${s.active === false ? 'active again' : 'no longer working here'}?`,
+                { title: '👤 ' + s.name, okText: 'Edit details',
+                  cancelText: s.active === false ? 'Mark active' : 'Mark left' });
+            if (what) { await openStaffAdd(s); return; }
+            /* Never DELETE a person who has been paid — their payments are
+               expense records the accounts depend on, and a name that vanishes
+               leaves them unexplainable. Marking them inactive keeps the
+               history intact and takes them out of the picker. */
+            s.active = s.active === false;
+            s.savedAt = new Date().toISOString();
+            _staffLocalSet();
+            renderStaff();
+            try { if (typeof dbSaveStaff === 'function') await dbSaveStaff(s); } catch (e) {}
+            showToast(s.active ? `${s.name} marked active` : `${s.name} marked as left`, 'success');
+        }
+
+        async function saveStaffPayment() {
+            const id = document.getElementById('stPerson').value;
+            const person = _staff.find(x => x.id === id);
+            if (!person) { await mmAlert('Add a person first, then record a payment against them.'); return; }
+            const amount = parseFloat(document.getElementById('stAmount').value);
+            if (!amount || amount <= 0) { await mmAlert('Enter an amount greater than zero.'); return; }
+
+            const type = document.getElementById('stType').value || 'Salary';
+            const date = document.getElementById('stDate').value || new Date().toISOString().slice(0, 10);
+            const btn = document.getElementById('stSaveBtn');
+            btn.disabled = true;
+
+            /* Written as an ordinary expense — category 'Salary' so the P&L
+               groups it with wages — plus the three fields that name the
+               person. Nothing else in the app needs to change. */
+            const exp = {
+                id: 'EXP' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                date: date,
+                category: 'Salary',
+                note: (document.getElementById('stNote').value || '').trim()
+                      || (type + ' — ' + person.name),
+                amount: amount,
+                paymentMode: document.getElementById('stMode').value || 'Cash',
+                staffId: person.id,
+                staffName: person.name,
+                payType: type,
+                savedAt: new Date().toISOString()
+            };
+
+            // Local first, so an offline entry is never lost.
+            const local = (function () {
+                try { return JSON.parse(localStorage.getItem('mm_expenses') || '[]') || []; } catch (e) { return []; }
+            })();
+            local.unshift(exp);
+            try { localStorage.setItem('mm_expenses', JSON.stringify(local)); } catch (e) {}
+            _expenses = local;
+
+            document.getElementById('stAmount').value = '';
+            document.getElementById('stNote').value = '';
+            renderStaff();
+
+            let ok = true;
+            try {
+                if (typeof dbSaveExpense === 'function') {
+                    const r = await dbSaveExpense(exp);
+                    ok = !!(r && r.success);
+                }
+            } catch (e) { ok = false; }
+            btn.disabled = false;
+            if (typeof mmAudit === 'function') mmAudit('Staff payment', person.name + ' · ' + type, _stInr(amount));
+            /* Name the resulting figure, not just "saved" — a confirmation that
+               does not state what changed is how nine phantom entries got made
+               while the screen said nothing. */
+            showToast(ok ? `${_stInr(amount)} to ${person.name} recorded`
+                         : `${_stInr(amount)} saved on this device — it will sync when the connection is back`,
+                      ok ? 'success' : 'error');
         }
 
         /* ══════════════════════════════════════════════════════════════════

@@ -1208,11 +1208,17 @@ const MM_EXPENSE_CATEGORIES = [
 ];
 window.MM_EXPENSE_CATEGORIES = MM_EXPENSE_CATEGORIES;
 
+/* EVERY COLUMN THE WRITER SENDS MUST COME BACK. A mapper that lists fields
+   silently drops anything added later — that is how entry_type turned IN
+   entries into OUT ones, and how a credit sale came back as cash. The staff
+   fields are only present once add_staff_tables.sql has run, so they are read
+   defensively rather than assumed. */
 function _expRowToObj(r) {
     return {
         id: r.expense_id, date: r.exp_date || '', category: r.category || 'Other',
         note: r.note || '', amount: Number(r.amount) || 0,
-        paymentMode: r.payment_mode || 'Cash', savedAt: r.saved_at || ''
+        paymentMode: r.payment_mode || 'Cash', savedAt: r.saved_at || '',
+        staffId: r.staff_id || '', staffName: r.staff_name || '', payType: r.pay_type || ''
     };
 }
 
@@ -1229,7 +1235,7 @@ window.dbGetExpenses = dbGetExpenses;
 async function dbSaveExpense(e) {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbSaveExpense: no user, aborting.'); return { success: false }; }
-    const { error } = await _supabase.from('expenses').upsert({
+    const row = {
         expense_id:   e.id,
         user_id:      user,
         exp_date:     e.date || new Date().toISOString().slice(0, 10),
@@ -1238,11 +1244,111 @@ async function dbSaveExpense(e) {
         amount:       Number(e.amount) || 0,
         payment_mode: e.paymentMode || 'Cash',
         saved_at:     e.savedAt || new Date().toISOString()
-    }, { onConflict: 'expense_id' });
+    };
+    /* Salary payments are ordinary expenses carrying three extra columns —
+       one money path, so the P&L, Day Book, Cash Flow and Tally all pick them
+       up unchanged and cannot disagree with the staff report. */
+    if (e.staffId)   row.staff_id   = e.staffId;
+    if (e.staffName) row.staff_name = e.staffName;
+    if (e.payType)   row.pay_type   = e.payType;
+
+    let { error } = await _supabase.from('expenses').upsert(row, { onConflict: 'expense_id' });
+    /* Drop ONLY the column the error names and retry, so a shop that has not
+       run add_staff_tables.sql still saves the expense instead of losing it.
+       Dropping every unknown column blindly is how a payment_mode goes missing
+       and a credit sale silently becomes a cash one (v315). */
+    if (error && /column .* does not exist|Could not find the '.*' column/i.test(error.message || '')) {
+        const named = (error.message.match(/'([a-z_]+)'|column "?([a-z_]+)"?/i) || [])
+            .slice(1).find(Boolean);
+        if (named && named in row) {
+            delete row[named];
+            ({ error } = await _supabase.from('expenses').upsert(row, { onConflict: 'expense_id' }));
+        }
+    }
     if (error) { console.error('expense save:', error); return { success: false, message: error.message }; }
     return { success: true };
 }
 window.dbSaveExpense = dbSaveExpense;
+
+/* ─────────────────────────────────────────────────────
+   STAFF — who works here. Money is NOT here: a salary
+   payment is an ordinary expense row carrying staffId /
+   staffName / payType, so the P&L, Day Book, Cash Flow
+   and Tally pick it up unchanged and cannot disagree
+   with the staff report. Two money paths in one app is
+   how a shop gets two answers for what it spent.
+   Needs migrations/add_staff_tables.sql.
+───────────────────────────────────────────────────── */
+function _staffRowToObj(r) {
+    return {
+        id: r.staff_id, name: r.name || '', role: r.role || '', phone: r.phone || '',
+        joined: r.joined || '', payBasis: r.pay_basis || '',
+        payAmount: Number(r.pay_amount) || 0,
+        active: r.active !== false, note: r.note || '', savedAt: r.saved_at || ''
+    };
+}
+
+async function dbGetStaff() {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbGetStaff: no user, aborting.'); return []; }
+    const { data, error } = await _supabase.from('staff')
+        .select('*').eq('user_id', user).order('name');
+    if (error) { console.error('staff fetch:', error); return []; }
+    return (data || []).map(_staffRowToObj);
+}
+window.dbGetStaff = dbGetStaff;
+
+async function dbSaveStaff(s) {
+    const user = _currentUser();
+    if (!user) { console.warn('[db] dbSaveStaff: no user, aborting.'); return { success: false }; }
+    const { error } = await _supabase.from('staff').upsert({
+        staff_id:   s.id,
+        user_id:    user,
+        name:       (s.name || '').trim(),
+        role:       s.role || '',
+        phone:      s.phone || '',
+        joined:     s.joined || null,
+        pay_basis:  s.payBasis || '',
+        pay_amount: Number(s.payAmount) || 0,
+        active:     s.active !== false,
+        note:       s.note || '',
+        saved_at:   s.savedAt || new Date().toISOString()
+    }, { onConflict: 'staff_id' });
+    if (error) { console.error('staff save:', error); return { success: false, message: error.message }; }
+    return { success: true };
+}
+window.dbSaveStaff = dbSaveStaff;
+
+async function dbDeleteStaff(id) {
+    const user = _currentUser();
+    if (!user) return false;
+    const { error } = await _supabase.from('staff').delete().eq('staff_id', id).eq('user_id', user);
+    if (error) { console.error('staff delete:', error); return false; }
+    return true;
+}
+window.dbDeleteStaff = dbDeleteStaff;
+
+/* Union-merge into the local cache, same rule as the Schedule H drug list
+   (v347): a person added offline must survive a sync, and an empty cloud (or
+   a missing table before the migration) must never wipe what is on the
+   device. */
+async function dbSyncStaff() {
+    let cloud = [];
+    try { cloud = await dbGetStaff(); } catch (e) { return _staffLocal(); }
+    if (!Array.isArray(cloud) || !cloud.length) return _staffLocal();
+    const local = _staffLocal();
+    const byId = new Map();
+    local.forEach(function (s) { if (s && s.id) byId.set(s.id, s); });
+    cloud.forEach(function (s) { if (s && s.id) byId.set(s.id, s); });
+    const merged = Array.from(byId.values())
+        .sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
+    try { localStorage.setItem('mm_staff', JSON.stringify(merged)); } catch (e) {}
+    return merged;
+}
+function _staffLocal() {
+    try { return JSON.parse(localStorage.getItem('mm_staff') || '[]') || []; } catch (e) { return []; }
+}
+window.dbSyncStaff = dbSyncStaff;
 
 async function dbDeleteExpense(id) {
     const user = _currentUser();
