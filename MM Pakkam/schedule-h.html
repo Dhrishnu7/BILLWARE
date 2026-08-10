@@ -3905,6 +3905,27 @@
         
         let shStockMap = {};
 
+        /* A PURCHASE IS COUNTED IN STRIPS; A SALE IS COUNTED IN TABLETS.
+           `quantity` on a purchase is the number of packs and `pack` is how many
+           tablets are in one; a bill line's qty is already in tablets. This
+           report added the two together untouched, so every Schedule H drug read
+           as though it had received a fraction of what it did.
+
+           Measured 2026-08-10 on AZITHRAL 500 TAB: 8 strips x pack 5 = 40
+           tablets received, 26 dispensed. The ledger showed IN 8 against OUT 26
+           and a CURRENT STOCK of -14 — a negative holding, on the page a drug
+           inspector reads, for a drug that was actually in stock. Inventory got
+           this right all along (inventory.html:1993-1994); only this page did
+           not, which is why the two screens disagreed.
+
+           Same rule as inventory.html: a missing or zero pack means 1, so a
+           product recorded loose is not multiplied away to nothing. */
+        function _shUnits(quantity, pack) {
+            const q = parseFloat(quantity) || 0;
+            const p = parseFloat(pack) > 0 ? parseFloat(pack) : 1;
+            return q * p;
+        }
+
         function buildSHStockMap() {
             /* BOTH lists. This read the Schedule H list alone, so a Schedule X
                drug — narcotics and psychotropics, the class with the heaviest
@@ -3967,11 +3988,16 @@
                 if (!entry.batches[bNo]) {
                     entry.batches[bNo] = { batchNo: bNo, qty: 0, exp: p.expireDate || '', mrp: parseFloat(p.mrp) || 0 };
                 }
-                const q = parseFloat(p.quantity) || 0;
+                const q = _shUnits(p.quantity, p.pack);
                 entry.batches[bNo].qty += q;
                 entry.totalQty += q;
                 entry.totalIn  += q;
-                entry.metrics.totalMrp += (q * (parseFloat(p.mrp) || 0));
+                /* The VALUE stays on the raw pack count deliberately: a
+                   purchase's mrp is per PACK, so packs x per-pack MRP is the
+                   money. Multiplying the tablet count by a per-pack price would
+                   overstate the holding by the pack size. Quantities are
+                   tablets, value is packs — they are different units on purpose. */
+                entry.metrics.totalMrp += ((parseFloat(p.quantity) || 0) * (parseFloat(p.mrp) || 0));
             });
 
             /* ADJUSTMENTS — from BOTH stores, and the reason this was wrong.
@@ -4078,11 +4104,14 @@
                 }
                 if (!entry.batches[bNo].exp && r.expireDate) entry.batches[bNo].exp = r.expireDate;
                 if (!entry.batches[bNo].mrp && r.mrp) entry.batches[bNo].mrp = parseFloat(r.mrp) || 0;
-                const q = parseFloat(r.qty) || 0;
+                // Same strips-vs-tablets rule as the purchase loop above — a
+                // register IN records packs and carries its own pack size.
+                const q = _shUnits(r.qty, r.pack);
                 entry.batches[bNo].qty += q;
                 entry.totalQty += q;
                 entry.totalIn  += q;
-                entry.metrics.totalMrp += (q * (parseFloat(r.mrp) || 0));
+                // Value on the raw pack count, as in the purchase loop above.
+                entry.metrics.totalMrp += ((parseFloat(r.qty) || 0) * (parseFloat(r.mrp) || 0));
             });
 
             shStockMap = map;
