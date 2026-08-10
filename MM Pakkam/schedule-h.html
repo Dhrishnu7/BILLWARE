@@ -1337,6 +1337,9 @@
                         <button class="btn-export" onclick="openScheduleXManage()" title="Mark your narcotic / Schedule X products so they're flagged everywhere">
                             &#x26D4; Schedule X list
                         </button>
+                        <button class="btn-export" id="shCleanNumBtn" onclick="cleanNumberedNames()" style="display:none;" title="Remove products whose name starts with a list number, e.g. &quot;100. CELECOXIB&quot;">
+                            &#x1F9F9; Clean numbered names<span id="shCleanNumBadge" style="background:#dc2626; color:#fff; border-radius:10px; padding:1px 7px; font-size:0.72rem; margin-left:5px; font-weight:800;">0</span>
+                        </button>
                         <span class="filter-count" id="logCount"></span>
                     </div>
 
@@ -2674,6 +2677,9 @@
         function renderRegisterLog() {
             _normalizeRegisterTypes();
             refreshShMetrics();
+            // The cleanup button only exists when there is something to clean,
+            // so a healthy shop never sees a maintenance control it can't use.
+            try { refreshCleanNumberedBtn(); } catch (e) {}
             const register = getRegister();
             const searchTerm = (document.getElementById('logSearch').value || '').trim().toLowerCase();
             const filterFrom = document.getElementById('filterFrom').value;  // YYYY-MM-DD
@@ -3284,6 +3290,120 @@
         /* Add a drug name to the Schedule H list if it's not already there.
            Returns true if it was newly added. Used to auto-register drugs typed
            straight into the register form (no separate "Add Drug" step needed). */
+        /* ── Products named after a list number ───────────────────────────────
+           "100. CELECOXIB", "111. CIMETIDINE", "175. EPINEPHRINE" — a serial
+           number from a printed drug list glued onto the front of the name.
+           They arrive through the register's IN form, which mirrors into
+           purchases, so one paste puts the same bad name in three stores and it
+           then shows up in every product dropdown in the app.
+
+           The pattern is deliberately narrow: digits, then a . ) or -, then
+           whitespace. A real product can start with a digit ("5-FU", "6-MP"),
+           so requiring the separator AND the space is what keeps those safe.
+
+           This DELETES rather than renames because the product name is the join
+           key between purchases, sales and register entries — a rename has to
+           move every store in one pass or the stock rows orphan themselves.
+           Deleting is the reversible-by-restore option; renaming is not. */
+        const _SH_NUMBERED_RE = /^\s*\d{1,4}\s*[.)\-]\s+\S/;
+        function _shIsNumberedName(n) { return _SH_NUMBERED_RE.test(String(n || '')); }
+
+        function _shScanNumbered() {
+            const nm = o => String(o.productName || o.product_name || o.drugName || '').trim();
+            let purchases = [], sales = [];
+            try { purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]'); } catch (e) {}
+            try { sales     = JSON.parse(localStorage.getItem('mm_sales') || '[]'); } catch (e) {}
+            const reg = getRegister().filter(e => _shIsNumberedName(e.drugName));
+            const pur = purchases.filter(p => _shIsNumberedName(nm(p)));
+            const drg = getDrugList().filter(_shIsNumberedName);
+            // Bills are NEVER touched here — a sale is a financial record and a
+            // filed one at that. If any exist we say so and stop, because
+            // deleting the purchase under a sold line would leave the stock
+            // ledger unexplainable.
+            const soldNames = new Set();
+            sales.forEach(b => (b.medicines || []).forEach(m => {
+                if (_shIsNumberedName(m.product)) soldNames.add(String(m.product).trim());
+            }));
+            const names = new Set([...reg.map(e => e.drugName), ...pur.map(nm), ...drg]
+                .map(s => String(s).trim()).filter(Boolean));
+            return { reg, pur, drg, names: [...names].sort(), soldNames: [...soldNames] };
+        }
+
+        function refreshCleanNumberedBtn() {
+            const btn = document.getElementById('shCleanNumBtn');
+            if (!btn) return;
+            let n = 0;
+            try { const s = _shScanNumbered(); n = s.reg.length + s.pur.length + s.drg.length; } catch (e) {}
+            btn.style.display = n ? '' : 'none';
+            const b = document.getElementById('shCleanNumBadge');
+            if (b) b.textContent = n;
+        }
+
+        async function cleanNumberedNames() {
+            const s = _shScanNumbered();
+            const total = s.reg.length + s.pur.length + s.drg.length;
+            if (!total) { mmAlert('Nothing to clean — no product name starts with a list number.'); return; }
+
+            if (s.soldNames.length) {
+                await mmAlert(
+                    `${s.soldNames.length} of these have been SOLD:\n\n  ${s.soldNames.join('\n  ')}\n\n` +
+                    `Nothing has been deleted. A sale is a financial record, and removing the ` +
+                    `purchase underneath one would leave stock that cannot be explained. ` +
+                    `Delete those bills first if they are test data, then run this again.`,
+                    { title: '⚠️ Sold — not safe to remove' });
+                return;
+            }
+
+            const preview = s.names.slice(0, 12).join('\n  ') + (s.names.length > 12 ? `\n  …and ${s.names.length - 12} more` : '');
+            if (!await mmConfirm(
+                `Remove ${total} record(s) for ${s.names.length} product(s)?\n\n  ${preview}\n\n` +
+                `${s.pur.length} purchase line(s), ${s.reg.length} register entry(ies) and ` +
+                `${s.drg.length} drug-list name(s).\n\nStock and purchase totals will drop accordingly. ` +
+                `Make sure you have taken a Backup.`,
+                { title: '🧹 Remove numbered names', danger: true, okText: 'Remove them' })) return;
+
+            const btn = document.getElementById('shCleanNumBtn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Cleaning…'; }
+            let done = 0, failed = 0;
+
+            for (const p of s.pur) {
+                const id = p.id;
+                if (id == null) { failed++; continue; }
+                try { (typeof dbDeletePurchase === 'function' && await dbDeletePurchase(id)) ? done++ : failed++; }
+                catch (e) { failed++; }
+            }
+            for (const e of s.reg) {
+                try { (typeof dbDeleteScheduleHEntry === 'function' && await dbDeleteScheduleHEntry(e.id)) ? done++ : failed++; }
+                catch (err) { failed++; }
+            }
+            for (const d of s.drg) {
+                try { if (typeof dbDeleteScheduleHDrug === 'function') await dbDeleteScheduleHDrug(d); done++; }
+                catch (e) { failed++; }
+            }
+
+            // Local stores too — the P&L, GSTR-1 and every dropdown read these,
+            // so a cloud-only delete would leave the names on screen.
+            try {
+                const purchases = JSON.parse(localStorage.getItem('mm_purchases') || '[]');
+                localStorage.setItem('mm_purchases', JSON.stringify(
+                    purchases.filter(p => !_shIsNumberedName(p.productName || p.product_name))));
+            } catch (e) {}
+            setRegister(getRegister().filter(e => !_shIsNumberedName(e.drugName)));
+            setDrugList(getDrugList().filter(n => !_shIsNumberedName(n)));
+
+            if (typeof mmAudit === 'function') mmAudit('Numbered product names removed', done + ' records', s.names.join(', ').slice(0, 200));
+            try { if (typeof dbSyncCoreData === 'function') await dbSyncCoreData(); } catch (e) {}
+
+            if (btn) { btn.disabled = false; btn.innerHTML = '&#x1F9F9; Clean numbered names<span id="shCleanNumBadge" style="background:#dc2626; color:#fff; border-radius:10px; padding:1px 7px; font-size:0.72rem; margin-left:5px; font-weight:800;">0</span>'; }
+            renderRegisterLog();
+            renderScheduleHInventory();
+            refreshDrugDatalist();
+            refreshCleanNumberedBtn();
+            showToast(failed ? 'Partly cleaned' : 'Cleaned',
+                      failed ? `${done} removed, ${failed} failed — reload and try again.`
+                             : `${done} record(s) removed across purchases, register and drug list.`);
+        }
+
         function _ensureShDrug(name) {
             const clean = (name || '').trim();
             if (!clean) return false;
