@@ -541,7 +541,9 @@
                     </div>
                     <div>
                         <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Date</label>
-                        <input type="date" id="stDate" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;">
+                        <!-- The part-month pro-rata divides by the days in THIS
+                             month, so changing the date must recompute it. -->
+                        <input type="date" id="stDate" onchange="onStaffDaysTyped()" style="width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:0.88rem;">
                     </div>
                     <div>
                         <label style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;margin-bottom:4px;">Type</label>
@@ -1527,28 +1529,47 @@
             onStaffDaysTyped();
         }
 
-        /* DAYS × RATE. Fills the amount in and says how it got there, while the
-           AMOUNT stays editable and is what gets saved — a half day, a
-           deduction or a rounded settlement must always be able to win. Days
-           are stored alongside as a record of what was worked and are NEVER
-           used to recompute the amount on read: a later rate change would
-           otherwise silently restate what somebody was actually handed.
+        /* WHAT THE STORED AMOUNT MEANS IS ASKED, NOT INFERRED.
 
-           IT DOES NOT CHECK THE PAY BASIS. The first version only calculated
-           when the basis text matched /day/i, which was wrong twice over: pay
-           basis is deliberately FREE TEXT because every shop differs, so
-           "per day", "roz", "shift" or a basis left as "Monthly" all silently
-           did nothing — and the operator got no reason why. Multiplying a rate
-           by a count of days needs no permission from a label.
+           Two wrong versions preceded this one. The first multiplied days by
+           the rate only when the free-text basis matched /day/i, so "roz" or
+           "per day" silently did nothing. The second dropped the check
+           altogether — and turned a ₹10,000 MONTHLY salary into ₹1,20,000 for
+           twelve days. Both failures come from the same root: the app was
+           guessing at the unit of a number instead of asking for it.
 
-           When it CANNOT calculate it says so, because a field that quietly
-           does nothing is indistinguishable from a broken one. */
+           `payBasis` is now a value this code sets from a two-button question,
+           not something the operator types. 'Per day' multiplies. 'Per month'
+           does NOT — a month's salary is the same whether somebody worked
+           twelve days or twenty-six.
+
+           For a PART month there is no universal divisor: shops use calendar
+           days, a flat 30, or 26 working days, and picking one silently would
+           be the same mistake a third time. So the calendar-day pro-rata is
+           OFFERED with its divisor named, and only applied if it is clicked. */
+        function _staffPayUnit(s) {
+            var b = String((s && s.payBasis) || '').trim().toLowerCase();
+            if (b === 'per day') return 'day';
+            if (b === 'per month') return 'month';
+            return '';                       // legacy or never asked
+        }
+        function _daysInMonthOf(iso) {
+            var s = String(iso || '').slice(0, 10);
+            var y = +s.slice(0, 4), m = +s.slice(5, 7);
+            if (!y || !m) return 30;
+            return new Date(y, m, 0).getDate();   // day 0 of next month = last of this
+        }
+        function applyStaffAmount(v) {
+            const amt = document.getElementById('stAmount');
+            if (amt) amt.value = v;
+        }
         function onStaffDaysTyped() {
             const hint = document.getElementById('stDaysHint');
             const daysEl = document.getElementById('stDays');
             const amt = document.getElementById('stAmount');
             const sel = document.getElementById('stPerson');
             if (!hint || !daysEl || !amt || !sel) return;
+            hint.style.color = '#0284c7';
 
             const days = parseFloat(daysEl.value);
             if (!days || days <= 0) { hint.style.display = 'none'; return; }
@@ -1556,21 +1577,40 @@
             const s = _staff.find(x => x.id === sel.value);
             if (!s) {
                 hint.textContent = 'Pick a person first.';
-                hint.style.color = '#b45309';
-                hint.style.display = '';
+                hint.style.color = '#b45309'; hint.style.display = '';
                 return;
             }
             const rate = Number(s.payAmount) || 0;
             if (!rate) {
                 hint.textContent = `No usual amount set for ${s.name} — type the amount, or add a rate with ✏️.`;
-                hint.style.color = '#b45309';
+                hint.style.color = '#b45309'; hint.style.display = '';
+                return;
+            }
+
+            const unit = _staffPayUnit(s);
+            if (unit === 'day') {
+                const calc = Math.round(days * rate * 100) / 100;
+                amt.value = calc;
+                hint.textContent = `${days} × ${_stInr(rate)} = ${_stInr(calc)} — edit if it differs`;
                 hint.style.display = '';
                 return;
             }
-            const calc = Math.round(days * rate * 100) / 100;
-            amt.value = calc;
-            hint.textContent = `${days} × ${_stInr(rate)} = ${_stInr(calc)} — edit if it differs`;
-            hint.style.color = '#0284c7';
+
+            if (unit === 'month') {
+                /* Never overwrite. A monthly salary does not change with days
+                   worked, so the days box is only meaningful for a part month —
+                   and that is the operator's call, not the app's. */
+                const dim = _daysInMonthOf(document.getElementById('stDate').value);
+                const pro = Math.round(rate / dim * days * 100) / 100;
+                hint.innerHTML = `${_esc(s.name)} is on ${_stInr(rate)} <strong>per month</strong>, so days do not multiply. ` +
+                    `Part month? ${_stInr(rate)} ÷ ${dim} days × ${days} = ` +
+                    `<a href="#" onclick="applyStaffAmount(${pro});return false;" style="font-weight:800;">${_stInr(pro)}</a> — tap to use it.`;
+                hint.style.display = '';
+                return;
+            }
+
+            hint.textContent = `Is ${s.name}'s ${_stInr(rate)} per day or per month? Set it with ✏️ and days can be worked out.`;
+            hint.style.color = '#b45309';
             hint.style.display = '';
         }
 
@@ -1582,10 +1622,23 @@
             if (role === null) return;
             const phone = await mmPrompt('Phone (optional)', s.phone || '');
             if (phone === null) return;
-            const basis = await mmPrompt('How is this person paid? (free text — Monthly, Daily, Per shift…)', s.payBasis || 'Monthly');
-            if (basis === null) return;
             const amt = await mmPrompt('Usual amount (optional — only pre-fills the form)', s.payAmount ? String(s.payAmount) : '');
             if (amt === null) return;
+
+            /* ASK what the amount means; never infer it. Guessing the unit from
+               a typed label is what turned a ₹10,000 monthly salary into
+               ₹1,20,000 for twelve days. Only asked when there IS an amount —
+               there is nothing to qualify otherwise. */
+            let basis = s.payBasis || '';
+            if (parseFloat(amt) > 0) {
+                // Plain text: the modal renders the message as text, so escaping
+                // here would print the entities rather than the name.
+                const perMonth = await mmConfirm(
+                    `Is ${String(name).trim()}'s ${_stInr(parseFloat(amt))} per DAY or per MONTH?`,
+                    { title: '💰 What does that amount mean?',
+                      okText: 'Per month', cancelText: 'Per day' });
+                basis = perMonth ? 'Per month' : 'Per day';
+            }
 
             const rec = {
                 id: s.id || ('STF' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
@@ -1593,7 +1646,7 @@
                 role: String(role || '').trim(),
                 phone: String(phone || '').trim(),
                 joined: s.joined || new Date().toISOString().slice(0, 10),
-                payBasis: String(basis || '').trim(),
+                payBasis: String(basis || '').trim(),   // 'Per day' | 'Per month' | legacy free text
                 payAmount: parseFloat(amt) || 0,
                 active: s.active !== false,
                 note: s.note || '',
