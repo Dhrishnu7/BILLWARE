@@ -26,7 +26,8 @@
         ['Zerodol P','Ipca',12,10,'30049099','H'],
         ['Zerodol SP','Ipca',12,10,'30049099','H'],
         ['Hifenac P','Intas',12,10,'30049099','H'],
-        ['Ultracet','J&J',12,10,'30049099','H'],
+        // Tramadol + paracetamol — the tramadol makes it H1, not plain H.
+        ['Ultracet','J&J',12,10,'30049099','H1'],
         ['Tramadol 50mg','Generic',12,10,'30049099','H1'],
         // Antibiotics
         ['Augmentin 625','GSK',12,10,'30041020','H'],
@@ -271,6 +272,71 @@
         'aminosalicylate','thiacetazone'
     ];
 
+    /* ── H1 BY BRAND NAME ─────────────────────────────────────────────────────
+       _SCHEDULE_H1 above catches anything that NAMES its molecule — "Cefixime
+       200 DT", "Levofloxacin 500". Most Indian pharmacy stock does not: the
+       box says ZIFI, MONOCEF, LEVOFLOX. Those were being dispensed as ordinary
+       Schedule H while the identical molecule under its generic name was
+       correctly H1.
+
+       Matched on the FIRST word of the normalised name, not by substring.
+       Brand names are short and would collide as substrings ("cefi" inside
+       "cefixime"); a first-token match reads exactly the way a box does —
+       "ZIFI 200 TAB" is a Zifi. It also means a strength or pack size never
+       affects the answer.
+
+       SAFE TO BE GENEROUS HERE, since v352: this map only decides WHICH class
+       a drug the shop has already registered belongs to. It cannot flag an
+       unregistered medicine, so a wrong entry costs an extra prescriber prompt
+       on a drug the shop already treats as controlled — not a nuisance prompt
+       on a vitamin.
+
+       The molecule is written beside each brand deliberately: it is the only
+       way a future reader can check an entry without trusting whoever typed
+       it. ⚠️ Brands change ownership and formulation — a pharmacist should
+       verify this list rather than trust it indefinitely. */
+    const _H1_BRANDS = {
+        // Cefixime
+        zifi:'cefixime', taxim:'cefotaxime/cefixime', mahacef:'cefixime',
+        cefolac:'cefixime', topcef:'cefixime', milixim:'cefixime', omnix:'cefixime',
+        // Ceftriaxone
+        monocef:'ceftriaxone', oframax:'ceftriaxone', rocephin:'ceftriaxone',
+        intacef:'ceftriaxone', powercef:'ceftriaxone',
+        // Cefpodoxime
+        cefoprox:'cefpodoxime', cepodem:'cefpodoxime', podocef:'cefpodoxime',
+        doxcef:'cefpodoxime',
+        // Cefoperazone / ceftazidime / cefepime / cefdinir
+        magnex:'cefoperazone', fortum:'ceftazidime', maxipime:'cefepime',
+        sefdin:'cefdinir', adcef:'cefdinir',
+        // Carbapenems
+        meronem:'meropenem', merotec:'meropenem', cilanem:'imipenem',
+        primaxin:'imipenem', invanz:'ertapenem', farobact:'faropenem',
+        // Newer fluoroquinolones
+        levoflox:'levofloxacin', levotas:'levofloxacin', glevo:'levofloxacin',
+        loxof:'levofloxacin', moxikind:'moxifloxacin', moxicip:'moxifloxacin',
+        avelox:'moxifloxacin', moxof:'moxifloxacin', vigamox:'moxifloxacin',
+        gemifast:'gemifloxacin',
+        // Benzodiazepines / Z-drugs
+        alprax:'alprazolam', restyl:'alprazolam', alzolam:'alprazolam',
+        trika:'alprazolam', anxit:'alprazolam',
+        rivotril:'clonazepam', clonotril:'clonazepam', lonazep:'clonazepam',
+        zapiz:'clonazepam', valium:'diazepam', calmpose:'diazepam',
+        zepose:'diazepam', placidox:'diazepam',
+        zolfresh:'zolpidem', nitrest:'zolpidem', stilnoct:'zolpidem',
+        nitravet:'nitrazepam', librium:'chlordiazepoxide',
+        fulsed:'midazolam', midacip:'midazolam',
+        // Opioids and related
+        tramazac:'tramadol', domadol:'tramadol', contramal:'tramadol',
+        ultracet:'tramadol', corex:'codeine', phensedyl:'codeine',
+        codistar:'codeine', fortwin:'pentazocine', tidigesic:'buprenorphine',
+        lomotil:'diphenoxylate',
+        // Anti-tubercular
+        rcinex:'rifampicin', rimactane:'rifampicin', forecox:'rifampicin',
+        akt:'rifampicin', combutol:'ethambutol', myambutol:'ethambutol',
+        pyzina:'pyrazinamide', isokin:'isoniazid', coxerin:'cycloserine',
+        hansepran:'clofazimine'
+    };
+
     const _FORMS = new Set(['tab','tabs','tablet','tablets','cap','caps','capsule',
         'capsules','syp','syrup','susp','suspension','inj','injection','drop','drops',
         'cream','ointment','oint','gel','lotion','sachet','powder','solution','soln',
@@ -485,6 +551,11 @@
         // 2. Normalised exact: "AZITHRAL 500 TAB" == "Azithral 500".
         var key = normName(nm);
         if (!key) return '';
+        /* 2a. H1 by BRAND. Most stock says ZIFI, not cefixime. Checked on the
+           first word only — that is the brand, and it makes strength and pack
+           size irrelevant. Before the seed lookup, for the same reason the
+           molecule list is: the stricter class must win over a stale tag. */
+        if (Object.prototype.hasOwnProperty.call(_H1_BRANDS, key.split(' ')[0])) return 'H1';
         if (_normSchedule.has(key)) return _normSchedule.get(key);
         // 3. Normalised prefix: the typed name STARTS WITH a seed name, on a
         //    word boundary so "pan" cannot match "pantoprazole". Longest key
