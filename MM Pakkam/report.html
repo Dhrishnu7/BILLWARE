@@ -4024,8 +4024,15 @@
                first dialog keeps a clean way out; this one can only widen what
                was already agreed to. Asked only when siblings actually exist,
                so a one-line invoice never sees it. */
+            /* `type` is 'purchase', SINGULAR — that is what the table renders
+               (report.html:1864) and what the Bin stores. The first version of
+               this guard tested for 'purchases' and so never fired at all: the
+               single row deleted and the whole-bill question never appeared.
+               Written as "not sales" to match how the rest of this function
+               already branches, so one stray plural cannot silently switch a
+               feature off again. */
             let alsoIds = [];
-            if (type === 'purchases') {
+            if (type !== 'sales') {
                 const sibs = await _purchaseSiblings(rawPre);
                 if (sibs && sibs.length > 1) {
                     const others = sibs.filter(p => String(p.id) !== String(id));
@@ -4121,8 +4128,10 @@
                     const otherRaw = _rawPurchasesMap[otherId] || null;
                     if (otherRaw) {
                         const b2 = getBin();
+                        // `type`, not a literal — a plural here would put rows in
+                        // the Bin under a type nothing restores.
                         b2.push({ binId: Date.now() + '_' + Math.random().toString(36).substr(2,5),
-                                  type: 'purchases', id: otherId,
+                                  type: type, id: otherId,
                                   deletedAt: new Date().toISOString(), data: otherRaw });
                         saveBin(b2);
                     }
@@ -4136,8 +4145,8 @@
                                 JSON.stringify(list.filter(p => String(p && p.id) !== String(otherId))));
                         } catch (e) {}
                         delete _rawPurchasesMap[otherId];
-                        allData     = allData.filter(r => !(r.id == otherId && r.type === 'purchases'));
-                        currentData = currentData.filter(r => !(r.id == otherId && r.type === 'purchases'));
+                        allData     = allData.filter(r => !(r.id == otherId && r.type === type));
+                        currentData = currentData.filter(r => !(r.id == otherId && r.type === type));
                     } else { alsoFailed++; }
                 }
                 if (alsoDone && typeof mmAudit === 'function') {
