@@ -184,8 +184,26 @@
         var iconName = isPrompt && !opts.variant && !danger ? 'edit' : (ICON_FOR[variant] || 'info');
         var iconHtml = opts.emoji ? esc(opts.emoji) : iconSvg(iconName);
 
+        /* A CONFIRM IS A QUESTION, NEVER AN ERROR REPORT.
+
+           `danger: true` is how every destructive confirm in the app says
+           "colour this red" — but TITLES.danger is 'Something went wrong',
+           written for alerts. So "Delete this bill?", "Empty the Bin?" and
+           "Clear ALL Sales & Purchases?" all appeared under a red heading
+           claiming a failure had already happened. Nine dialogs across four
+           pages, including the ones that delete the most.
+
+           That framing is actively harmful on a destructive prompt: somebody
+           who believes the app has just broken clicks the primary button to
+           clear the error out of the way — and here that button confirms the
+           deletion.
+
+           Fixed once, here, rather than by passing a title at nine call sites,
+           so the tenth destructive dialog somebody writes is right by default. */
         var title = opts.title != null ? opts.title
                     : isPrompt ? 'Enter value'
+                    : isConfirm ? (variant === 'danger' ? 'Please confirm'
+                                                        : (TITLES[variant] || 'Please confirm'))
                     : (TITLES[variant] || 'Notice');
         var okText = opts.okText || 'OK';
         var cancelText = opts.cancelText || 'Cancel';

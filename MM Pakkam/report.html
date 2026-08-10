@@ -6582,7 +6582,9 @@
                 "  • Khata balances\n" +
                 "  • Returns, stock adjustments, Schedule H register\n\n" +
                 "Take a Backup first.\n\nContinue?",
-                { danger: true, okText: 'Clear All' }
+                // The most destructive action in the app: name it explicitly
+                // rather than leaning on any default.
+                { title: '🗑️ Clear all sales & purchases', danger: true, okText: 'Clear All' }
             )) return;
 
             const btn = document.querySelector('.btn-clear-data');
