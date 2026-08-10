@@ -257,7 +257,17 @@
         s += row('Less: Sales returns', -p.salesReturns.taxable);
         s += row('Net sales', p.netSales, 'sub');
         s += row('Opening stock', p.stock.opening);
-        s += row('Add: Purchases', p.netPurchases);
+        /* GROSS purchases and the returns line, not the net figure. The sales
+           side above shows "Less: Sales returns", so netting purchase returns
+           away silently made the two halves of the same statement follow
+           different rules — and hid the credit the shop took from its supplier
+           entirely. The accountant reconciles against the supplier ledger,
+           where that return IS visible; a figure that appears in one place and
+           not the other is exactly what costs them time. */
+        s += row('Add: Purchases', p.purchases.taxable);
+        if (num(p.purchaseReturns.taxable)) {
+            s += row('Less: Purchase returns', -num(p.purchaseReturns.taxable));
+        }
         s += row('Less: Closing stock', -p.stock.closing);
         s += row('Cost of goods sold', p.cogs, 'sub');
         s += row('Gross profit', p.grossProfit, 'tot');
