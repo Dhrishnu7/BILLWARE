@@ -187,14 +187,73 @@ async function dbDeleteCustomer(id) {
     return !error;
 }
 
+/* A stable id for one money movement, generated ONCE where the movement
+   happens and reused on every retry of it. That reuse is the whole point: it
+   is what lets the server recognise a retry of a write that actually landed. */
+function mmOpId(prefix) {
+    return (prefix || 'bal') + '-' + Date.now().toString(36) + '-' +
+           Math.random().toString(36).slice(2, 10);
+}
+window.mmOpId = mmOpId;
+
+/* Set once if the server has no mm_apply_balance_delta, so we stop asking on
+   every credit sale. Cleared by a page reload, which is when someone who has
+   just run the migration would look. */
+let _mmBalanceRpcMissing = false;
+
 /* Upsert customer balance for Khata tracking */
-async function dbUpdateCustomerBalance(name, phone, address, balance) {
+async function dbUpdateCustomerBalance(name, phone, address, balance, opId) {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbUpdateCustomerBalance: no user, aborting.'); return { success: false }; }
     const cName  = (name || '').trim();
     const cPhone = (phone || '').trim();
     const cAddr  = (address || '').trim();
     const cBal   = parseFloat(balance) || 0;
+
+    /* ── The idempotent path ────────────────────────────────────────────
+       Everything below this block is read-modify-write: read the balance, add
+       a delta, write it back. If that write COMMITS but the response is lost
+       — shop wifi, a closed tab, a sleeping phone — the caller cannot tell it
+       from a failure, queues the delta in pendingBalanceUpdates, and
+       dbSyncPendingCustomerBalances applies it a SECOND time. One credit sale
+       billed twice; one refund given twice. Same class as v300.
+
+       No amount of client-side cleverness fixes that: the device genuinely
+       cannot distinguish a lost response from a failed write. It has to be
+       settled where the write happens, so mm_apply_balance_delta() moves the
+       balance and records the op_id in ONE transaction and a repeat op_id is
+       a no-op. It also takes FOR UPDATE, which fixes the lost update when two
+       devices bill the same customer at once — PostgREST cannot express
+       "balance = balance + x", which is why this arithmetic was in the
+       browser to begin with.
+
+       Only used when the caller supplied an op_id; a caller that has not been
+       taught to keep one stable across retries would gain nothing. */
+    if (opId && !_mmBalanceRpcMissing) {
+        try {
+            const { data, error } = await _supabase.rpc('mm_apply_balance_delta', {
+                p_op_id: opId, p_name: cName, p_phone: cPhone, p_address: cAddr, p_delta: cBal
+            });
+            if (!error) {
+                return { success: true, duplicate: !!(data && data.duplicate),
+                         balance: data ? data.balance : undefined };
+            }
+            if (/PGRST202|could not find the function|does not exist|schema cache/i.test(String(error.message || ''))) {
+                _mmBalanceRpcMissing = true;
+                console.warn('[db] mm_apply_balance_delta not found — run migrations/add_balance_ops.sql. ' +
+                             'Falling back to read-modify-write; a retried balance update can double-count until then.');
+            } else {
+                // A real failure (offline, permissions). Report it so the
+                // caller queues a retry — do NOT fall through and write the
+                // balance a second way, which is how a double-count starts.
+                console.error('balance rpc:', error);
+                return { success: false };
+            }
+        } catch (e) {
+            console.error('balance rpc threw:', e);
+            return { success: false };
+        }
+    }
 
     // Try to find existing customer. Uses .limit(1) instead of .maybeSingle()
     // because .maybeSingle() errors out (returning null data) if more than one
@@ -261,11 +320,15 @@ async function dbUpdateCustomerBalance(name, phone, address, balance) {
    has to reduce every copy of it. Clamped at zero, matched case-insensitively
    by name — the cloud lookup inside dbUpdateCustomerBalance is case-SENSITIVE,
    so pass the name exactly as it is stored. */
-async function mmAdjustCustomerBalance(name, phone, address, delta) {
+async function mmAdjustCustomerBalance(name, phone, address, delta, opId) {
     const nm = String(name || '').trim();
     const d  = parseFloat(delta) || 0;
     if (!nm || !d) return false;
     const key = nm.toLowerCase();
+    /* Generated HERE, once, and carried onto the retry queue below, so the
+       retry is recognisably the same money movement rather than a new one.
+       A caller may pass its own to keep an id stable across a wider operation. */
+    const op = opId || mmOpId('adj');
 
     const bumpLocal = (list) => {
         const c = (list || []).find(x => String(x && x.name || '').trim().toLowerCase() === key);
@@ -293,7 +356,7 @@ async function mmAdjustCustomerBalance(name, phone, address, delta) {
 
     let ok = false;
     try {
-        const res = await dbUpdateCustomerBalance(nm, phone || '', address || '', d);
+        const res = await dbUpdateCustomerBalance(nm, phone || '', address || '', d, op);
         ok = !!(res && res.success);
     } catch (e) { console.warn('[db] balance adjust (cloud) failed:', e); }
 
@@ -301,7 +364,7 @@ async function mmAdjustCustomerBalance(name, phone, address, delta) {
     if (!ok && typeof mmLsGet === 'function' && typeof mmLsSet === 'function') {
         try {
             const q = mmLsGet('pendingBalanceUpdates') || [];
-            q.push({ name: nm, phone: phone || '', address: address || '', balance: d });
+            q.push({ name: nm, phone: phone || '', address: address || '', balance: d, opId: op });
             mmLsSet('pendingBalanceUpdates', q);
         } catch (e) {}
     }
@@ -322,7 +385,12 @@ async function dbSyncPendingCustomerBalances() {
     const stillPending = [];
     for (const record of pending) {
         try {
-            const res = await dbUpdateCustomerBalance(record.name, record.phone, record.address, record.balance);
+            /* record.opId is what makes this retry safe: if the original write
+               committed and only its response was lost, the server recognises
+               the id and does nothing instead of applying the delta twice.
+               A record queued before v371 carries no opId and keeps the old
+               best-effort behaviour — there is nothing to match it against. */
+            const res = await dbUpdateCustomerBalance(record.name, record.phone, record.address, record.balance, record.opId);
             if (res && res.success) syncedCount++;
             else stillPending.push(record);
         } catch (e) {

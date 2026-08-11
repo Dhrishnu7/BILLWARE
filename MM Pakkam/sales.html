@@ -2155,24 +2155,32 @@
                 // Khata trusts Supabase's balance over localStorage's once a customer
                 // already exists there, so a silently-dropped sync here made a second
                 // credit sale to the same customer look like it never happened.
+                /* ONE id for this one sale's balance movement, generated here —
+                   before the attempt — and reused by both queue pushes below.
+                   Generating it inside the retry, or once per push, would make
+                   every retry look like a NEW movement and defeat the whole
+                   point: the server recognises a repeat only by this id. It is
+                   keyed to the bill so the same sale can never mint two. */
+                const balOpId = (typeof mmOpId === 'function')
+                    ? mmOpId('sale-' + (bill.billNo || numTotal))
+                    : null;
+                const queueBalance = () => {
+                    if (typeof mmLsGet !== 'function' || typeof mmLsSet !== 'function') return;
+                    const pendingBal = mmLsGet('pendingBalanceUpdates') || [];
+                    pendingBal.push({ name: cust.name, phone: cust.phone || '', address: cust.address || '',
+                                      balance: numTotal, opId: balOpId });
+                    mmLsSet('pendingBalanceUpdates', pendingBal);
+                };
                 try {
                     let balanceSynced = false;
                     if (typeof dbUpdateCustomerBalance === 'function') {
-                        const balRes = await dbUpdateCustomerBalance(cust.name, cust.phone || '', cust.address || '', numTotal);
+                        const balRes = await dbUpdateCustomerBalance(cust.name, cust.phone || '', cust.address || '', numTotal, balOpId);
                         balanceSynced = !!(balRes && balRes.success);
                     }
-                    if (!balanceSynced && typeof mmLsGet === 'function' && typeof mmLsSet === 'function') {
-                        const pendingBal = mmLsGet('pendingBalanceUpdates') || [];
-                        pendingBal.push({ name: cust.name, phone: cust.phone || '', address: cust.address || '', balance: numTotal });
-                        mmLsSet('pendingBalanceUpdates', pendingBal);
-                    }
+                    if (!balanceSynced) queueBalance();
                 } catch(e) {
                     console.warn('Balance sync failed:', e);
-                    if (typeof mmLsGet === 'function' && typeof mmLsSet === 'function') {
-                        const pendingBal = mmLsGet('pendingBalanceUpdates') || [];
-                        pendingBal.push({ name: cust.name, phone: cust.phone || '', address: cust.address || '', balance: numTotal });
-                        mmLsSet('pendingBalanceUpdates', pendingBal);
-                    }
+                    queueBalance();
                 }
             }
 
