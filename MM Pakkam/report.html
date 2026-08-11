@@ -1366,7 +1366,13 @@
                             <th>Type</th>
                             <th>Product</th>
                             <th>Qty</th>
-                            <th>Rate (₹)</th>
+                            <!-- On a SALE row this is the per-unit purchase COST, not the
+                                 selling price: sales.html fills it from the matching
+                                 purchase's rate divided by the pack size. Reading it as
+                                 the sale price predicted a wrong refund during T3, so the
+                                 heading now says what the number is. The money the
+                                 customer paid is in Total. -->
+                            <th title="Per-unit purchase cost — not the selling price. What was charged is in Total.">Cost Rate (₹)</th>
                             <th>GST %</th>
                             <th>Total (₹)</th>
                             <th style="width:44px;"></th>
@@ -5904,6 +5910,14 @@
               +  '<Style ss:ID="lsN"><Font ss:Bold="1" ss:Size="10" ss:Color="#FFFFFF"/><Interior ss:Color="#B91C1C" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>\n'
               /* Warnings — amber, and wrapped so a long sentence stays readable */
               +  '<Style ss:ID="wrn"><Font ss:Size="9" ss:Color="#92400E"/><Interior ss:Color="#FEF9C3" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Top" ss:WrapText="1"/><NumberFormat ss:Format="@"/></Style>\n'
+              /* Wrapping variants of the label styles. dL and stL do not wrap,
+                 which silently clipped the three cross-check labels — the rows
+                 that EXPLAIN the difference between the two gross-profit
+                 figures, so the one place a reader needs the words was the one
+                 place they were cut off. Used with an explicit row height, the
+                 same way the warning rows already are. */
+              +  '<Style ss:ID="dLw"><Font ss:Size="9"/><Alignment ss:Horizontal="Left" ss:Vertical="Top" ss:WrapText="1"/><NumberFormat ss:Format="@"/></Style>\n'
+              +  '<Style ss:ID="stLw"><Font ss:Bold="1" ss:Size="9" ss:Color="#1E3A5F"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Top" ss:WrapText="1"/><NumberFormat ss:Format="@"/></Style>\n'
               +  '<Style ss:ID="dtxt"><NumberFormat ss:Format="@"/><Alignment ss:Horizontal="Left"/><Font ss:Size="9"/></Style>\n'
               +  '</Styles>\n';
 
@@ -5911,7 +5925,10 @@
 
             /* ══ SHEET 1 — PROFIT & LOSS ══ */
             X += '<Worksheet ss:Name="Profit and Loss">\n<Table>\n';
-            X += '<Column ss:Width="300"/>\n<Column ss:Width="115"/>\n<Column ss:Width="70"/>\n';
+            /* 300 was too narrow for the longest labels (the opening-stock line
+               carries its source and date; the cross-check lines carry a whole
+               explanation). Widened, and the three longest also wrap below. */
+            X += '<Column ss:Width="380"/>\n<Column ss:Width="115"/>\n<Column ss:Width="70"/>\n';
             const P3 = s => [sc('', s), sc('', s), sc('', s)];
             let t1 = P3('title'); t1[0] = sc('PROFIT & LOSS  —  ' + storeName, 'title'); X += row(t1);
             let t2 = P3('info');  t2[0] = sc('Period:   ' + period, 'info'); X += row(t2);
@@ -5948,9 +5965,12 @@
             X += erow();
 
             let s4 = P3('sec'); s4[0] = sc('CROSS-CHECK  ·  TWO WAYS OF MEASURING GROSS PROFIT', 'sec'); X += row(s4);
-            X += row([sc('Item margin  (sale price - purchase price, per item sold)', 'dL'), nc(d.itemMargin, 'dN'), ec()]);
-            X += row([sc('Stock movement  (opening + purchases - closing)  <- the accountant’s figure', 'dL'), nc(d.grossProfit, 'dN'), ec()]);
-            X += row([sc('Difference  —  stock that left without being sold (expiry, breakage, unentered purchases)', 'stL'), nc(d.marginGap, 'stN'), sc('', 'stL')]);
+            /* Explicit heights + wrapping styles: these three sentences are the
+               point of the section, and Excel clips rather than overflows once
+               the next cell is occupied — which it always is here, by a number. */
+            X += '<Row ss:Height="28">' + sc('Item margin  (sale price - purchase price, per item sold)', 'dLw') + nc(d.itemMargin, 'dN') + ec() + '</Row>\n';
+            X += '<Row ss:Height="28">' + sc('Stock movement  (opening + purchases - closing)  <- the accountant’s figure', 'dLw') + nc(d.grossProfit, 'dN') + ec() + '</Row>\n';
+            X += '<Row ss:Height="32">' + sc('Difference  —  stock that left without being sold (expiry, breakage, unentered purchases)', 'stLw') + nc(d.marginGap, 'stN') + sc('', 'stLw') + '</Row>\n';
 
             if (d.warnings.length) {
                 X += erow();
@@ -6917,7 +6937,7 @@
       <th>Type</th>
       <th>Product</th>
       <th>Qty</th>
-      <th>Rate (&#8377;)</th>
+      <th>Cost Rate (&#8377;)</th>
       <th>GST %</th>
       <th>Total (&#8377;)</th>
     </tr>
@@ -7103,7 +7123,7 @@
             ═══════════════════════════════════════════════ */
             var sh1 = blankRow('sec'); sh1[0] = sc('SECTION 1  ·  OUTWARD SUPPLIES (SALES)  —  GSTR-1 / B2C', 'sec'); X += row(sh1);
             X += row([sc('Date','hL'), sc('Bill No','hL'), sc('Customer Name','hL'), sc('Product / Medicine','hL'),
-                      sc('Qty','hR'), sc('Rate (Rs)','hR'), sc('GST %','hR'),
+                      sc('Qty','hR'), sc('Cost Rate (Rs)','hR'), sc('GST %','hR'),
                       sc('Taxable Value (Rs)','hR'), sc('CGST (Rs)','hR'), sc('SGST (Rs)','hR'), sc('Bill Total (Rs)','hR')]);
 
             var salBase=0, salCGST=0, salSGST=0, salAmt=0, salBills=0;
@@ -7155,7 +7175,7 @@
             ═══════════════════════════════════════════════ */
             var sh2 = blankRow('sec'); sh2[0] = sc('SECTION 2  ·  INWARD SUPPLIES (PURCHASES)  —  GSTR-2 / Input Tax Credit', 'sec'); X += row(sh2);
             X += row([sc('Date','hL'), sc('Bill No','hL'), sc('Supplier / Firm','hL'), sc('Product / Medicine','hL'),
-                      sc('Qty','hR'), sc('Rate (Rs)','hR'), sc('GST %','hR'),
+                      sc('Qty','hR'), sc('Cost Rate (Rs)','hR'), sc('GST %','hR'),
                       sc('Taxable Value (Rs)','hR'), sc('CGST ITC (Rs)','hR'), sc('SGST ITC (Rs)','hR'), sc('Total (Rs)','hR')]);
 
             var purBase=0, purCGST=0, purSGST=0, purAmt=0, purBills=0;
