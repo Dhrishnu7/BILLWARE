@@ -95,8 +95,20 @@ async function dbAddCustomer(name, phone, address, gstin) {
     const _hasGstinCol = () => cGstin !== '';
 
     // Check for existing record scoped to this user
-    const { data: existing } = await _supabase.from('customers')
+    let { data: existing } = await _supabase.from('customers')
         .select('*').eq('name', cName).eq('phone', cPhone).eq('user_id', user).maybeSingle();
+    /* Case-insensitive fallback, for the same reason as dbUpdateCustomerBalance:
+       the match above is case-SENSITIVE, so "ravi" against a stored "Ravi" on
+       the same phone number fell through and inserted a duplicate. Name is
+       compared case-insensitively, the PHONE still has to match exactly — two
+       different people genuinely do share a first name, and the phone is what
+       tells them apart. */
+    if (!existing) {
+        const { data: ciRows } = await _supabase.from('customers')
+            .select('*').eq('phone', cPhone).eq('user_id', user).order('id', { ascending: true });
+        const want = cName.toLowerCase();
+        existing = (ciRows || []).find(r => String(r && r.name || '').trim().toLowerCase() === want) || null;
+    }
     if (existing) {
         // Already there — the only thing that may have changed is the GSTIN.
         if (cGstin && existing.gstin !== cGstin) {
@@ -193,7 +205,27 @@ async function dbUpdateCustomerBalance(name, phone, address, balance) {
     const { data: existingRows, error: findErr } = await _supabase.from('customers')
         .select('*').eq('name', cName).eq('user_id', user).order('id', { ascending: true }).limit(1);
     if (findErr) { console.error('customer lookup:', findErr); return { success: false }; }
-    const existing = existingRows?.[0] || null;
+    let existing = existingRows?.[0] || null;
+
+    /* The exact match above is case-SENSITIVE, and every local match in the app
+       lowercases. Normally unreachable, because sales.html passes the *stored*
+       name — but on a device with no local cache (a new phone, or the iOS
+       ~7-day eviction that caused the original wipe) typing "ravi" for an
+       existing "Ravi" matched nothing here and fell through to the insert
+       below, creating a SECOND cloud row. Khata then paints two cards for one
+       person, and settling one leaves the other still owing.
+
+       Deliberately a FALLBACK rather than replacing the .eq() above: the exact
+       match is one indexed lookup and covers virtually every call, so the extra
+       fetch only happens when we were about to create a customer anyway.
+       Compared in JS rather than with .ilike() because ilike treats % _ and *
+       as wildcards, so a name containing one would match the wrong row. */
+    if (!existing) {
+        const { data: ciRows } = await _supabase.from('customers')
+            .select('*').eq('user_id', user).order('id', { ascending: true });
+        const want = cName.toLowerCase();
+        existing = (ciRows || []).find(r => String(r && r.name || '').trim().toLowerCase() === want) || null;
+    }
 
     if (existing) {
         // Update balance (add to existing outstanding). Clamped at zero: a

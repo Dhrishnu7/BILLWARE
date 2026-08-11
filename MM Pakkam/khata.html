@@ -15,6 +15,10 @@
     <script src="js/supabase.js"></script>
     <!-- Supplier balances are computed here now, so both this page and the
          Accounts view get the same figure from the same code. -->
+    <!-- Sales returns refunded to the khata move the balance, so the customer
+         statement has to show them. Must load AFTER supabase.js: it reads the
+         adjustments through mmLsGet. -->
+    <script src="js/returns-data.js"></script>
     <script src="js/daybook.js"></script>
     <script src="js/finance.js"></script>
     <script src="js/position.js"></script>
@@ -2134,6 +2138,41 @@
                     debit: 0, credit: parseFloat(p.amount) || 0
                 });
             });
+            /* Credits — sales returns REFUNDED TO THE KHATA.
+               A khata-mode refund reduces what the customer owes, so without a
+               line of its own the money had nowhere to go: `opening` is derived
+               as currentBalance − netFromTxns, so the refund was silently
+               absorbed into "Balance brought forward · Earlier bills" — on the
+               one page that gets printed and WhatsApp'd to the customer. It
+               made the shop look like it was inventing an old debt.
+
+               ONLY khata-mode notes belong here. A cash refund never touched
+               the balance, so listing it would break the very reconciliation
+               this statement exists to show. The mode is read off the note the
+               return was issued with, not guessed from the customer. */
+            try {
+                if (typeof mmReturns !== 'undefined' && mmReturns && typeof mmReturns.load === 'function') {
+                    (mmReturns.load().creditNotes || []).forEach(n => {
+                        if (String(n.mode || '') !== 'khata') return;
+                        const who = String(n.customerName || n.party || '').trim().toLowerCase();
+                        if (who !== key) return;
+                        const items = (n.lines || []).map(l => {
+                            const nm = String(l.product || '').trim();
+                            const q  = parseFloat(l.qty) || 0;
+                            return nm ? (nm + (q ? ' ×' + q : '')) : '';
+                        }).filter(Boolean).join(', ');
+                        txns.push({
+                            date: String(n.date || '').slice(0, 10),
+                            time: '',
+                            sortKey: String(n.date || ''),
+                            label: 'Credit note ' + (n.no || '') + (n.ref ? ' (against ' + n.ref + ')' : ''),
+                            meds: items || 'Goods returned',
+                            debit: 0, credit: parseFloat(n.gross) || 0
+                        });
+                    });
+                }
+            } catch (e) { console.warn('[khata] returns on statement failed:', e); }
+
             txns.sort((a, b) => String(a.sortKey).localeCompare(String(b.sortKey)));
 
             const netFromTxns = txns.reduce((s, t) => s + t.debit - t.credit, 0);

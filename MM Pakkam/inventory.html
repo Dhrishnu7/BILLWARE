@@ -1484,13 +1484,27 @@
             if (mode === 'khata') {
                 const cust = _retFindCustomer(_srBill.customerName);
                 if (cust) {
-                    const newBal = Math.max(0, (parseFloat(cust.balance) || 0) - total);
-                    try {
-                        const all = retCustomers();
-                        const idx = all.findIndex(c => (c.name || '').toLowerCase() === (cust.name || '').toLowerCase());
-                        if (idx >= 0) { all[idx].balance = newBal; localStorage.setItem('mm_customers', JSON.stringify(all)); }
-                    } catch (e) {}
-                    if (typeof dbUpdateCustomerBalance === 'function') dbUpdateCustomerBalance(cust.name, cust.phone || '', cust.address || '', -total).catch(() => {});
+                    /* Move EVERY copy of the balance, through the one helper
+                       that knows where they all are.
+
+                       This used to write the unscoped mm_customers and Supabase
+                       and stop there — leaving the scoped mm_<user>_customers
+                       store holding the pre-refund figure. That is not a
+                       cosmetic gap: _mmMergeCustomerBalances() and khata's own
+                       merge both keep the HIGHER of cloud and local (a sync must
+                       never lose money that is owed), so the untouched store
+                       silently put the refund back on the next page load. The
+                       customer's khata dropped, then returned. Same rule as
+                       v312: anything that REDUCES a balance has to reduce all
+                       three stores, and mmAdjustCustomerBalance is the only
+                       thing that does.
+
+                       Awaited, not fire-and-forget, so an offline refund lands
+                       in the pendingBalanceUpdates retry queue instead of being
+                       dropped by a swallowed .catch(). */
+                    if (typeof mmAdjustCustomerBalance === 'function') {
+                        await mmAdjustCustomerBalance(cust.name, cust.phone || '', cust.address || '', -total);
+                    }
                 }
             }
             if (typeof mmAudit === 'function') mmAudit('Sales return', (_srBill.customerName || 'Walk-in') + ' · ' + retMoney(total), cnNo);
