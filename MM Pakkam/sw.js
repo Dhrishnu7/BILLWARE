@@ -1,6 +1,6 @@
 // â”€â”€ Billware Service Worker â”€â”€
 // IMPORTANT: Change CACHE_NAME on every deploy so installed apps get the latest version
-const CACHE_NAME = 'mm-pakkam-v375';
+const CACHE_NAME = 'mm-pakkam-v376';
 
 // Pages and assets to cache for offline use + instant navigation
 const PRECACHE_URLS = [
@@ -50,6 +50,7 @@ const PRECACHE_URLS = [
     '/js/daybook.js',
     '/js/finance.js',
     '/js/bank-import.js',
+    '/js/bank-match.js',
     '/icon-192.png',
     '/icon-512.png',
     '/manifest.json',
