@@ -1114,7 +1114,8 @@ async function dbGetSupplierPayments() {
     if (error) { console.error('supplier payments fetch:', error); return []; }
     return (data || []).map(r => ({
         id: r.payment_id, firm: r.firm || '', amount: Number(r.amount) || 0,
-        date: r.pay_date || '', note: r.note || '', savedAt: r.saved_at || ''
+        date: r.pay_date || '', note: r.note || '', savedAt: r.saved_at || '',
+        paymentMode: r.payment_mode || 'Cash'
     }));
 }
 window.dbGetSupplierPayments = dbGetSupplierPayments;
@@ -1122,11 +1123,21 @@ window.dbGetSupplierPayments = dbGetSupplierPayments;
 async function dbAddSupplierPayment(p) {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbAddSupplierPayment: no user, aborting.'); return { success: false }; }
-    const { error } = await _supabase.from('supplier_payments').upsert({
+    const row = {
         payment_id: p.id, user_id: user, firm: p.firm || '',
         amount: Number(p.amount) || 0, pay_date: p.date || new Date().toISOString().slice(0, 10),
-        note: p.note || '', saved_at: p.savedAt || new Date().toISOString()
-    }, { onConflict: 'payment_id' });
+        note: p.note || '', saved_at: p.savedAt || new Date().toISOString(),
+        payment_mode: p.paymentMode || 'Cash'
+    };
+    let { error } = await _supabase.from('supplier_payments').upsert(row, { onConflict: 'payment_id' });
+    /* Migration not run yet — drop the column and retry rather than losing the
+       payment. Never drop more than the one the error names: a blanket retry
+       would silently discard a real field. Same rule as dbSaveBill. */
+    if (error && /payment_mode/i.test(String(error.message || ''))) {
+        console.warn('[db] supplier_payments.payment_mode missing — run migrations/add_payment_modes.sql');
+        const legacy = Object.assign({}, row); delete legacy.payment_mode;
+        ({ error } = await _supabase.from('supplier_payments').upsert(legacy, { onConflict: 'payment_id' }));
+    }
     if (error) { console.error('supplier payment add:', error); return { success: false, message: error.message }; }
     return { success: true };
 }
@@ -1489,7 +1500,8 @@ async function dbGetCustomerPayments() {
     if (error) { console.error('customer payments fetch:', error); return []; }
     return (data || []).map(r => ({
         id: r.payment_id, name: r.name || '', amount: Number(r.amount) || 0,
-        date: r.pay_date || '', note: r.note || '', savedAt: r.saved_at || ''
+        date: r.pay_date || '', note: r.note || '', savedAt: r.saved_at || '',
+        paymentMode: r.payment_mode || 'Cash'
     }));
 }
 window.dbGetCustomerPayments = dbGetCustomerPayments;
@@ -1497,11 +1509,19 @@ window.dbGetCustomerPayments = dbGetCustomerPayments;
 async function dbAddCustomerPayment(p) {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbAddCustomerPayment: no user, aborting.'); return { success: false }; }
-    const { error } = await _supabase.from('customer_payments').upsert({
+    const row = {
         payment_id: p.id, user_id: user, name: p.name || '',
         amount: Number(p.amount) || 0, pay_date: p.date || new Date().toISOString().slice(0, 10),
-        note: p.note || '', saved_at: p.savedAt || new Date().toISOString()
-    }, { onConflict: 'payment_id' });
+        note: p.note || '', saved_at: p.savedAt || new Date().toISOString(),
+        payment_mode: p.paymentMode || 'Cash'
+    };
+    let { error } = await _supabase.from('customer_payments').upsert(row, { onConflict: 'payment_id' });
+    // Migration not run — drop only the named column and retry. See dbAddSupplierPayment.
+    if (error && /payment_mode/i.test(String(error.message || ''))) {
+        console.warn('[db] customer_payments.payment_mode missing — run migrations/add_payment_modes.sql');
+        const legacy = Object.assign({}, row); delete legacy.payment_mode;
+        ({ error } = await _supabase.from('customer_payments').upsert(legacy, { onConflict: 'payment_id' }));
+    }
     if (error) { console.error('customer payment add:', error); return { success: false, message: error.message }; }
     return { success: true };
 }

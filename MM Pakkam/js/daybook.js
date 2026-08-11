@@ -193,7 +193,12 @@
                 date: d10(p.date), time: timeOf(p.date, p.savedAt),
                 kind: 'Receipt', ref: '—',
                 party: String(p.name || '').trim() || 'Customer',
-                mode: '—', amount: r2(num(p.amount)), cash: r2(num(p.amount)),
+                /* A khata settled by UPI never reached the drawer. Recorded
+                   before add_payment_modes.sql there is no mode, and 'Cash' is
+                   the honest default — that IS how it was treated. */
+                mode: cap(p.paymentMode || 'Cash'),
+                amount: r2(num(p.amount)), cash: r2(num(p.amount)),
+                acct: routeOf(p.paymentMode || 'Cash'),
                 note: String(p.note || 'Against khata'), items: 0
             });
         });
@@ -205,7 +210,12 @@
                 date: d10(p.date), time: timeOf(p.date, p.savedAt),
                 kind: 'Payment', ref: '—',
                 party: String(p.firm || '').trim() || 'Supplier',
-                mode: '—', amount: r2(num(p.amount)), cash: -r2(num(p.amount)),
+                /* A distributor paid by NEFT leaves the bank, not the till —
+                   and a bank statement is mostly these, which is why
+                   reconciliation needed this before it could work. */
+                mode: cap(p.paymentMode || 'Cash'),
+                amount: r2(num(p.amount)), cash: -r2(num(p.amount)),
+                acct: routeOf(p.paymentMode || 'Cash'),
                 note: String(p.note || ''), items: 0
             });
         });

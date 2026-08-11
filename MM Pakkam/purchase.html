@@ -605,9 +605,23 @@
                     </div>
                     <div class="form-group full-width">
                         <label style="display:flex;align-items:center;gap:9px;cursor:pointer;text-transform:none;letter-spacing:normal;font-weight:600;color:#334155;">
-                            <input type="checkbox" id="paidNowChk" style="width:18px;height:18px;cursor:pointer;">
-                            💵 Paid now (cash purchase) — records a full payment so this bill won't show as owed in the Supplier Ledger
+                            <input type="checkbox" id="paidNowChk" style="width:18px;height:18px;cursor:pointer;"
+                                   onchange="document.getElementById('paidNowModeWrap').style.display = this.checked ? 'flex' : 'none';">
+                            💵 Paid now — records a full payment so this bill won't show as owed in the Supplier Ledger
                         </label>
+                        <!-- Which account the money leaves. This used to be
+                             hardcoded as a cash purchase, so a bill settled by
+                             NEFT emptied the drawer in the books. -->
+                        <div id="paidNowModeWrap" style="display:none;align-items:center;gap:9px;margin-top:0.6rem;padding-left:27px;">
+                            <span style="font-size:0.82rem;font-weight:600;color:#475569;">Paid by</span>
+                            <select id="paidNowMode" style="font-family:inherit;font-size:0.85rem;font-weight:600;color:#1e293b;border:1px solid #cbd5e1;border-radius:9px;padding:0.4rem 0.6rem;background:#f8fafc;cursor:pointer;">
+                                <option value="Cash">Cash</option>
+                                <option value="UPI">UPI</option>
+                                <option value="Card">Card</option>
+                                <option value="Bank">Bank transfer</option>
+                                <option value="Cheque">Cheque</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -1353,11 +1367,13 @@
                         amt += (q * rt) * (1 + g / 100);
                     });
                     if (amt > 0) {
+                        const payMode = (document.getElementById('paidNowMode') || {}).value || 'Cash';
                         const pay = {
                             id: 'sp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
                             firm: firm, amount: Math.round(amt * 100) / 100,
                             date: date || new Date().toISOString().slice(0, 10),
-                            note: 'Cash purchase' + (billNo ? ' · Bill ' + billNo : ''),
+                            note: 'Paid on purchase' + (billNo ? ' · Bill ' + billNo : ''),
+                            paymentMode: payMode,
                             savedAt: new Date().toISOString()
                         };
                         try {

@@ -836,6 +836,12 @@
                 <label>Amount Received (₹) &mdash; type manually</label>
                 <input type="number" id="settleAmount" step="0.01" min="0" placeholder="Enter amount received">
             </div>
+            <div class="form-group">
+                <label>Received by</label>
+                <!-- A khata settled by UPI never reached the drawer; without
+                     this the till count was short by every such settlement. -->
+                <select id="settleMode"></select>
+            </div>
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
                 <button type="button" class="btn-confirm" onclick="confirmSettle()">✓ Save Payment</button>
@@ -856,8 +862,15 @@
                 <input type="number" id="supPayAmount" step="0.01" min="0" placeholder="Enter amount paid">
             </div>
             <div class="form-group">
+                <label>Paid by</label>
+                <!-- Decides which account the money leaves. A distributor paid
+                     by NEFT does not empty the drawer, and until this existed
+                     the app assumed it did. -->
+                <select id="supPayMode"></select>
+            </div>
+            <div class="form-group">
                 <label>Note (optional)</label>
-                <input type="text" id="supPayNote" placeholder="e.g. Bill BL-032, UPI">
+                <input type="text" id="supPayNote" placeholder="e.g. Bill BL-032">
             </div>
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" onclick="closeSupPayModal()">Cancel</button>
@@ -1158,6 +1171,7 @@
             document.getElementById('settleBannerAmt').textContent = `₹${currentBalance.toFixed(2)}`;
             const amtInput = document.getElementById('settleAmount');
             amtInput.value = currentBalance.toFixed(2); // Auto-filled for convenience
+            document.getElementById('settleMode').innerHTML = _payModeOptions('Cash');
             document.getElementById('settleModal').classList.add('open');
             setTimeout(() => { amtInput.focus(); amtInput.select(); }, 150);
         }
@@ -1197,7 +1211,9 @@
                     id: 'cp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
                     name: cust.name, amount: amount,
                     date: new Date().toISOString().slice(0, 10),
-                    note: '', savedAt: new Date().toISOString()
+                    note: '',
+                    paymentMode: (document.getElementById('settleMode') || {}).value || 'Cash',
+                    savedAt: new Date().toISOString()
                 };
                 _custPayments.push(payRec);
                 localStorage.setItem('mm_customer_payments', JSON.stringify(_custPayments));
@@ -2017,6 +2033,7 @@
             document.getElementById('supPayBannerAmt').textContent = '₹' + (parseFloat(owe) || 0).toFixed(2);
             document.getElementById('supPayAmount').value = '';
             document.getElementById('supPayNote').value = '';
+            document.getElementById('supPayMode').innerHTML = _payModeOptions('Cash');
             document.getElementById('supPayModal').classList.add('open');
             setTimeout(() => document.getElementById('supPayAmount').focus(), 60);
         }
@@ -2030,6 +2047,7 @@
                 firm: _supPayFirm, amount: amt,
                 date: new Date().toISOString().slice(0, 10),
                 note: document.getElementById('supPayNote').value.trim(),
+                paymentMode: document.getElementById('supPayMode').value || 'Cash',
                 savedAt: new Date().toISOString()
             };
             _supPayments.push(rec);
@@ -2429,10 +2447,22 @@
            so no shop's figures move until it says otherwise.
         ══════════════════════════════════════════════════════════════════ */
         const FIN_ROUTE_MODES = [
-            { key: 'cash', label: '💵 Cash',  hint: 'Notes and coins across the counter' },
-            { key: 'upi',  label: '📱 UPI',   hint: 'GPay, PhonePe, Paytm, a QR on the counter' },
-            { key: 'card', label: '💳 Card',  hint: 'The card machine’s settlement' }
+            { key: 'cash',   label: '💵 Cash',   hint: 'Notes and coins across the counter' },
+            { key: 'upi',    label: '📱 UPI',    hint: 'GPay, PhonePe, Paytm, a QR on the counter' },
+            { key: 'card',   label: '💳 Card',   hint: 'The card machine’s settlement' },
+            { key: 'bank',   label: '🏦 Bank transfer', hint: 'NEFT, IMPS or RTGS — mostly paying distributors' },
+            { key: 'cheque', label: '🧾 Cheque', hint: 'Leaves the account it is drawn on' }
         ];
+
+        /* The modes a payment can be recorded as. Kept beside the routing list
+           so a mode can never be offered on a form that the routing screen
+           cannot then point at an account. */
+        const PAY_MODES = ['Cash', 'UPI', 'Card', 'Bank', 'Cheque'];
+        function _payModeOptions(sel) {
+            return PAY_MODES.map(m => '<option value="' + m + '"' +
+                (String(sel || 'Cash').toLowerCase() === m.toLowerCase() ? ' selected' : '') +
+                '>' + (m === 'Bank' ? 'Bank transfer' : m) + '</option>').join('');
+        }
 
         function _finRoutingCard() {
             const dests = _finAccts.filter(a => (a.kind === 'cash' || a.kind === 'bank') && a.active !== false);

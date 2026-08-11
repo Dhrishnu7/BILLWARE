@@ -54,7 +54,9 @@ expected_columns(tbl, col, migration) AS (VALUES
     ('shop_profiles',       'opening_debtors', 'add_finance_accounts.sql'),
     ('shop_profiles',       'opening_creditors', 'add_finance_accounts.sql'),
     ('shop_profiles',       'pincode',        'add_customer_gstin.sql'),
-    ('shop_profiles',       'payment_routing', 'add_payment_routing.sql')
+    ('shop_profiles',       'payment_routing', 'add_payment_routing.sql'),
+    ('supplier_payments',   'payment_mode',   'add_payment_modes.sql'),
+    ('customer_payments',   'payment_mode',   'add_payment_modes.sql')
 )
 
 SELECT * FROM (
