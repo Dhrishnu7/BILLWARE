@@ -262,20 +262,41 @@
         return best;
     }
 
-    /* Net cash the DOCUMENTS have moved through this account up to asOf.
-       Only the nominated till, and only from its opening date — everything
-       earlier is already inside the opening figure. */
+    /* Net cash the DOCUMENTS have moved through this account up to asOf,
+       from its opening date — everything earlier is inside the opening figure.
+
+       This used to hand the WHOLE day book to the primary till, because the
+       day book called cash, UPI and card alike "cash". A UPI sale therefore
+       increased the drawer, which is why the till count came up short by the
+       day's UPI and card takings every day, and why a bank account could only
+       ever hold hand-typed entries.
+
+       Now each account collects what was ROUTED to it. The till still gets
+       everything unrouted (byAccount['']), so a shop that has configured
+       nothing sees exactly the figure it saw before — the fix is opt-in by
+       construction rather than by a flag someone has to remember. */
     function documentCashTo(acct, asOf) {
-        if (!acct || acct.kind !== 'cash') return 0;
-        var p = primaryCashAccount();
-        if (!p || p.id !== acct.id) return 0;
+        if (!acct || (acct.kind !== 'cash' && acct.kind !== 'bank')) return 0;
         if (!window.mmDayBook || typeof mmDayBook.load !== 'function') return 0;
         var from = d10(acct.openingDate) || '2000-01-01';
         var to = d10(asOf);
         if (!to || to < from) return 0;
         try {
             var db = mmDayBook.load({ from: from, to: to });
-            return r2(num(db && db.totals && db.totals.net));
+            var by = (db && db.totals && db.totals.byAccount) || null;
+            /* An older day book without byAccount: fall back to the previous
+               behaviour rather than silently reporting zero cash. */
+            if (!by) {
+                var p0 = primaryCashAccount();
+                if (acct.kind === 'cash' && p0 && p0.id === acct.id) {
+                    return r2(num(db && db.totals && db.totals.net));
+                }
+                return 0;
+            }
+            var own = num(by[acct.id]);
+            var p = primaryCashAccount();
+            if (acct.kind === 'cash' && p && p.id === acct.id) own += num(by['']);
+            return r2(own);
         } catch (e) { return 0; }
     }
 
@@ -331,17 +352,27 @@
             });
         });
 
-        /* The documents. Only for the till, and only its cash effect — the
-           Day Book already decides what counts as cash (a credit sale does
-           not, a supplier payment does). */
+        /* The documents, for whichever account they were ROUTED to — the Day
+           Book already decides what counts as cash (a credit sale does not, a
+           supplier payment does) and now also where it landed.
+
+           This must use the same rule as documentCashTo() above, or the
+           statement and the balance quoted beside it disagree and `foots`
+           goes false. The till still collects everything unrouted. */
         var p = primaryCashAccount();
         var isTill = !!(p && p.id === a.id);
-        if (isTill && window.mmDayBook && typeof mmDayBook.load === 'function') {
+        var takesDocs = isTill || a.kind === 'bank' || a.kind === 'cash';
+        var docRows = 0;
+        if (takesDocs && window.mmDayBook && typeof mmDayBook.load === 'function') {
             try {
                 var db = mmDayBook.load({ from: from, to: to });
                 (db.rows || []).forEach(function (r) {
                     var c = num(r.cash);
                     if (!c) return;                          // not a cash movement
+                    var dest = r.acct || '';
+                    var mine = (dest === a.id) || (isTill && dest === '');
+                    if (!mine) return;
+                    docRows++;
                     rows.push({
                         date: d10(r.date),
                         particulars: r.kind || 'Entry',
@@ -400,6 +431,12 @@
             depreciation: dep,
             closing: r2(closing),
             isTill: isTill,
+            /* Whether THIS statement actually absorbed document rows. Since
+               routing, that is no longer the same question as "is it the
+               till" — a bank account taking the UPI takings has documents in
+               it too, and the note explaining where those rows came from
+               belongs on any account that has them. */
+            hasDocs: docRows > 0,
             foots: Math.abs(expected - r2(closing)) < 0.02
         };
     }

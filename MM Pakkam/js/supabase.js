@@ -3072,6 +3072,52 @@ async function dbSetShopPos(city, pincode) {
 }
 window.dbSetShopPos = dbSetShopPos;
 
+/* Where each payment mode's money lands: { upi: '<accountId>', ... }.
+   Written on its own for the same reason as the credit limit and the POS
+   fields above — saving it from the Cash & Capital tab must not blank an
+   address the shop set up months ago.
+
+   Also updates the two LOCAL copies of the profile, because js/daybook.js
+   reads the routing on its very next load and the whole point of this screen
+   is that the effect is visible immediately. The profile exists in two shapes
+   on one device — snake_case from the cloud row, camelCase from localStorage —
+   so both are written. Needs migrations/add_payment_routing.sql. */
+async function dbSetPaymentRouting(map) {
+    const user = _currentUser();
+    if (!user) return { success: false, message: 'Not logged in.' };
+    const clean = {};
+    Object.keys(map || {}).forEach(k => {
+        const v = map[k];
+        // Only a real destination is stored. A blank means "the primary till",
+        // and storing '' for that would be a second way of saying the default.
+        if (typeof v === 'string' && v.trim()) clean[String(k).toLowerCase()] = v.trim();
+    });
+    const { error } = await _supabase.from('shop_profiles')
+        .upsert({ user_id: user, payment_routing: clean,
+                  updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+    if (error) {
+        if (/column|schema cache|PGRST204/i.test(String(error.message || ''))) {
+            return { success: false, message: 'Run migrations/add_payment_routing.sql in Supabase first.' };
+        }
+        console.error('payment routing save:', error);
+        return { success: false, message: error.message };
+    }
+    try {
+        if (window.mmShopProfile) {
+            window.mmShopProfile.payment_routing = clean;
+            window.mmShopProfile.paymentRouting  = clean;
+        }
+        const raw = localStorage.getItem('mm_shop_profile');
+        if (raw) {
+            const o = JSON.parse(raw) || {};
+            o.payment_routing = clean; o.paymentRouting = clean;
+            localStorage.setItem('mm_shop_profile', JSON.stringify(o));
+        }
+    } catch (e) { console.warn('[db] routing local update failed:', e); }
+    return { success: true, routing: clean };
+}
+window.dbSetPaymentRouting = dbSetPaymentRouting;
+
 async function dbSaveShopProfile(profile) {
     const user = _currentUser();
     if (!user) return { success: false, message: 'Not logged in.' };

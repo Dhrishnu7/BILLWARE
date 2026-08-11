@@ -370,6 +370,31 @@
             display: flex; align-items: center; gap: 0.5rem;
             margin: 1.5rem 0 0.7rem; font-weight: 800; color: #334155; font-size: 0.9rem;
         }
+
+        /* Where each payment mode's money lands */
+        .fin-route-card {
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+            padding: 1rem 1.1rem;
+        }
+        .fin-route-lead { margin: 0 0 0.9rem; font-size: 0.82rem; color: #475569; line-height: 1.6; }
+        .fin-route-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+            padding: 0.6rem 0; border-top: 1px solid #f1f5f9; flex-wrap: wrap;
+        }
+        .fin-route-mode { font-weight: 700; color: #1e293b; font-size: 0.86rem; }
+        .fin-route-hint { font-size: 0.72rem; color: #94a3b8; margin-top: 0.1rem; }
+        .fin-route-sel {
+            font-family: inherit; font-size: 0.82rem; font-weight: 600; color: #1e293b;
+            border: 1px solid #cbd5e1; border-radius: 9px; padding: 0.45rem 0.6rem;
+            background: #f8fafc; min-width: 190px; max-width: 100%; cursor: pointer;
+        }
+        .fin-route-sel:focus { outline: 2px solid #0ea5e9; outline-offset: 1px; }
+        .fin-route-foot {
+            margin: 0.9rem 0 0; padding-top: 0.7rem; border-top: 1px solid #f1f5f9;
+            font-size: 0.74rem; color: #64748b; line-height: 1.6;
+        }
+        .fin-route-msg { font-size: 0.76rem; color: #64748b; margin-top: 0.4rem; }
+        .fin-route-msg.bad { color: #b91c1c; font-weight: 700; }
         .fin-group::after {
             content: ''; flex: 1; height: 1px;
             background: linear-gradient(90deg, #e2e8f0, transparent);
@@ -2386,6 +2411,95 @@
         function _finToday() { const d = new Date(), p = n => (n < 10 ? '0' : '') + n;
             return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
 
+        /* ══════════════════════════════════════════════════════════════════
+           WHERE EACH PAYMENT MODE'S MONEY LANDS
+
+           The Day Book has always counted cash, UPI and card alike as cash in
+           the DRAWER, so the till count came up short by the day's UPI and
+           card takings every single day, and a bank account only ever held
+           what someone typed here by hand.
+
+           The destination is the shop's to state, not the app's to assume:
+           one shop's UPI goes straight into a bank-linked current account,
+           another's sits with a PSP until it settles, another takes cards
+           through a different provider again. So this is a setting, and
+           everything else derives from it.
+
+           Unset means the primary till — exactly what the app did before —
+           so no shop's figures move until it says otherwise.
+        ══════════════════════════════════════════════════════════════════ */
+        const FIN_ROUTE_MODES = [
+            { key: 'cash', label: '💵 Cash',  hint: 'Notes and coins across the counter' },
+            { key: 'upi',  label: '📱 UPI',   hint: 'GPay, PhonePe, Paytm, a QR on the counter' },
+            { key: 'card', label: '💳 Card',  hint: 'The card machine’s settlement' }
+        ];
+
+        function _finRoutingCard() {
+            const dests = _finAccts.filter(a => (a.kind === 'cash' || a.kind === 'bank') && a.active !== false);
+            // Nothing to choose between yet — asking would only confuse.
+            if (dests.length < 2) return '';
+            const cur = (window.mmDayBook && typeof mmDayBook.routing === 'function') ? mmDayBook.routing() : {};
+            const till = dests.find(a => a.kind === 'cash');
+
+            const rows = FIN_ROUTE_MODES.map(m => {
+                const sel = String(cur[m.key] || '');
+                const opts = ['<option value=""' + (sel ? '' : ' selected') + '>'
+                            + (till ? escHtml(till.name) + ' (till, default)' : 'The till (default)')
+                            + '</option>']
+                    .concat(dests.filter(a => !till || a.id !== till.id).map(a =>
+                        '<option value="' + escHtml(a.id) + '"' + (sel === a.id ? ' selected' : '') + '>'
+                        + escHtml(a.name) + '</option>')).join('');
+                return `
+                    <div class="fin-route-row">
+                        <div>
+                            <div class="fin-route-mode">${m.label}</div>
+                            <div class="fin-route-hint">${escHtml(m.hint)}</div>
+                        </div>
+                        <select class="fin-route-sel" data-mode="${m.key}" onchange="saveFinRouting()">${opts}</select>
+                    </div>`;
+            }).join('');
+
+            const anySet = FIN_ROUTE_MODES.some(m => cur[m.key]);
+            return `
+                <div class="fin-group">🧭 Where each payment lands</div>
+                <div class="fin-route-card">
+                    <p class="fin-route-lead">
+                        A UPI or card sale is counted in <b>${till ? escHtml(till.name) : 'the till'}</b> unless you say
+                        otherwise — which makes the drawer look short at closing time by the day’s
+                        UPI and card takings. Point each one at the account it really reaches.
+                    </p>
+                    ${rows}
+                    <p class="fin-route-foot">${anySet
+                        ? 'Applies to the Day Book, the till count and every account balance from now on. Past days are re-stated too, because it changes where the money always was — not what was sold.'
+                        : 'Nothing is set, so everything still goes to the till exactly as before.'}</p>
+                    <div id="finRouteMsg" class="fin-route-msg"></div>
+                </div>`;
+        }
+
+        async function saveFinRouting() {
+            const map = {};
+            document.querySelectorAll('.fin-route-sel').forEach(s => { map[s.dataset.mode] = s.value || ''; });
+            const msg = document.getElementById('finRouteMsg');
+            if (msg) { msg.textContent = 'Saving…'; msg.className = 'fin-route-msg'; }
+            let res = { success: false, message: 'Not available.' };
+            try {
+                if (typeof dbSetPaymentRouting === 'function') res = await dbSetPaymentRouting(map);
+            } catch (e) { res = { success: false, message: e && e.message }; }
+            if (res && res.success) {
+                if (typeof mmAudit === 'function') {
+                    mmAudit('Payment routing changed',
+                        FIN_ROUTE_MODES.map(m => m.key + '→' + (map[m.key] || 'till')).join(', '));
+                }
+                /* Repaint from scratch: every balance on this tab is derived
+                   from the routing, so half of them would otherwise still show
+                   the old destination's figure. */
+                renderFinance();
+            } else if (msg) {
+                msg.textContent = '⚠️ ' + ((res && res.message) || 'Could not save.');
+                msg.className = 'fin-route-msg bad';
+            }
+        }
+
         async function loadFinance() {
             /* Cloud first when it is reachable, cache otherwise. Both db
                getters resolve to null when the table is missing, which is the
@@ -2467,6 +2581,8 @@
                         <div class="fin-tile-sub">Not your full position — see Report</div>
                     </div>
                 </div>`;
+
+            html += _finRoutingCard();
 
             const order = ['cash', 'bank', 'deposit', 'asset', 'loan', 'capital'];
             order.forEach(kind => {
@@ -2612,7 +2728,7 @@
                 </div>
                 ${st.foots
                     ? `<div class="fin-foot-ok">✅ Brought forward + in − out${st.depreciation ? ' − depreciation' : ''} = carried forward.${
-                        st.isTill ? ' Includes cash from your bills and supplier payments since ' + escHtml(st.from) + '.' : ''}</div>`
+                        st.hasDocs ? ' Includes money from your bills and supplier payments since ' + escHtml(st.from) + '.' : ''}</div>`
                     /* Never hidden. A statement that does not add up is the one
                        thing a reader must be told before they rely on it. */
                     : `<div class="fin-foot-bad">⚠️ This statement does not add up — the closing balance disagrees with the movements above. Please report this before relying on it.</div>`}`;
@@ -2748,7 +2864,7 @@
                         ${st.foots
                             ? `<span class="ok">✓ Reconciled</span> — brought forward + in − out${st.depreciation ? ' − depreciation' : ''} = carried forward.`
                             : `<span class="bad">⚠ DOES NOT RECONCILE</span> — do not rely on this statement.`}
-                        ${st.isTill ? '<br>Includes cash from bills and supplier payments.' : ''}
+                        ${st.hasDocs ? '<br>Includes money from bills and supplier payments.' : ''}
                     </div>
                     <div style="text-align:right;white-space:nowrap;">
                         Generated ${_finPrintDate(_finToday())}<br>Billware

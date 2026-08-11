@@ -70,6 +70,50 @@
     }
 
     /* ──────────────────────────────────────────────────────────────────
+       PAYMENT ROUTING — which account did this money actually land in?
+
+       isCashMode() above answers "did money move at all", which is a
+       different question from "where did it go", and for years the app
+       conflated them: a UPI sale counted as cash IN THE TILL. The drawer was
+       then short by the day's UPI and card takings every single day, and a
+       bank account could only ever hold hand-typed entries.
+
+       The destination is CONFIGURATION, not a rule — one shop's UPI goes
+       straight to a bank account, another's sits with a PSP until it settles.
+       So the shop names it, per mode, and everything here derives.
+
+       A mode with no mapping returns '' meaning "the primary till", which is
+       precisely the pre-v373 behaviour. That default matters: a shop that has
+       configured nothing must see the same numbers it saw yesterday.
+
+       Read from the shop profile, which comes in TWO SHAPES on one device —
+       snake_case from the raw cloud row, camelCase from localStorage. Reading
+       only one of them is how the Year-End Pack ended up headed "Shop".
+    ────────────────────────────────────────────────────────────────── */
+    function routing() {
+        var p = window.mmShopProfile;
+        var r = p && (p.payment_routing || p.paymentRouting);
+        if (!r) {
+            try {
+                var raw = localStorage.getItem('mm_shop_profile');
+                if (raw) { var o = JSON.parse(raw); r = o && (o.payment_routing || o.paymentRouting); }
+            } catch (e) {}
+        }
+        if (typeof r === 'string') { try { r = JSON.parse(r); } catch (e) { r = null; } }
+        return (r && typeof r === 'object') ? r : {};
+    }
+
+    /* '' = the primary till. Never returns null, so callers cannot forget the
+       default and silently drop a row out of every account. */
+    function routeOf(mode) {
+        var m = key(mode);
+        if (!m || m === 'credit') return '';
+        var r = routing();
+        var id = r[m];
+        return (typeof id === 'string' && id) ? id : '';
+    }
+
+    /* ──────────────────────────────────────────────────────────────────
        load({ from, to }) → { rows, totals, days }
     ────────────────────────────────────────────────────────────────── */
     function load(opts) {
@@ -92,6 +136,7 @@
                 mode: mode === 'credit' ? 'Credit' : (mode.toUpperCase() === 'UPI' ? 'UPI' : cap(mode)),
                 amount: r2(amt),
                 cash: mode === 'credit' ? 0 : r2(amt),
+                acct: mode === 'credit' ? '' : routeOf(mode),
                 note: mode === 'credit' ? 'To khata' : '',
                 items: (b.medicines || []).length
             });
@@ -134,6 +179,9 @@
                 mode: cap(e.paymentMode || 'Cash'),
                 amount: r2(num(e.amount)),
                 cash: -r2(num(e.amount)),
+                /* An expense paid by UPI leaves the bank, not the drawer —
+                   routed by the same map as a sale, in the other direction. */
+                acct: routeOf(e.paymentMode || 'Cash'),
                 note: String(e.note || ''), items: 0
             });
         });
@@ -176,6 +224,7 @@
                         party: String(n.customerName || n.party || '').trim() || 'Walk-in',
                         mode: n.mode ? cap(n.mode) : '—',
                         amount: r2(n.gross), cash: cashOut,
+                        acct: cashOut ? routeOf(n.mode) : '',
                         note: (n.ref ? 'Against ' + n.ref : '') + (n.usable ? '' : ' · tax not readable'),
                         flag: !n.usable, items: (n.lines || []).length
                     });
@@ -205,9 +254,17 @@
 
         var running = 0, totals = { in: 0, out: 0, sales: 0, purchases: 0, count: rows.length };
         var days = {};
+        /* Net cash per DESTINATION account. '' is the primary till, and is
+           where every unrouted row still lands — so a shop that has configured
+           nothing sees byAccount[''] equal to the old totals.net exactly. */
+        var byAccount = {};
         rows.forEach(function (r) {
             running += r.cash;
             r.running = r2(running);
+            if (r.cash) {
+                var a = r.acct || '';
+                byAccount[a] = (byAccount[a] || 0) + r.cash;
+            }
             if (r.cash > 0) totals.in  += r.cash;
             if (r.cash < 0) totals.out += -r.cash;
             if (r.kind === 'Sale')     totals.sales     += r.amount;
@@ -221,7 +278,13 @@
             rows: rows,
             totals: {
                 in: r2(totals.in), out: r2(totals.out), net: r2(totals.in - totals.out),
-                sales: r2(totals.sales), purchases: r2(totals.purchases), count: totals.count
+                sales: r2(totals.sales), purchases: r2(totals.purchases), count: totals.count,
+                /* net is UNCHANGED — it is all cash across every account, which
+                   is what the Day Book screen has always shown. byAccount is
+                   additive, so no existing caller moves. */
+                byAccount: (function () {
+                    var o = {}; for (var k in byAccount) { if (byAccount.hasOwnProperty(k)) o[k] = r2(byAccount[k]); } return o;
+                })()
             },
             days: Object.keys(days).sort().map(function (d) {
                 return { date: d, count: days[d].count, cash: r2(days[d].cash) };
@@ -236,5 +299,9 @@
         return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
     }
 
-    window.mmDayBook = { load: load };
+    /* routeOf/routing are exported because js/finance.js and the Cash &
+       Capital tab must answer "where does UPI go" the SAME way this file does.
+       A second copy of that lookup is how two screens start disagreeing about
+       where the money is. */
+    window.mmDayBook = { load: load, routeOf: routeOf, routing: routing };
 })();
