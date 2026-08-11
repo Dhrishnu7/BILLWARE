@@ -33,7 +33,8 @@ WITH expected_tables(tbl, migration) AS (VALUES
     ('till_counts',        'add_till_counts_table.sql'),
     ('finance_accounts',   'add_finance_accounts.sql'),
     ('finance_entries',    'add_finance_accounts.sql'),
-    ('customer_balance_ops', 'add_balance_ops.sql')
+    ('customer_balance_ops', 'add_balance_ops.sql'),
+    ('bank_reconciliations', 'add_bank_reconciliations.sql')
 ),
 expected_columns(tbl, col, migration) AS (VALUES
     ('bill_items',          'hsn',            'add_hsn_columns.sql'),

@@ -19,6 +19,11 @@
          statement has to show them. Must load AFTER supabase.js: it reads the
          adjustments through mmLsGet. -->
     <script src="js/returns-data.js"></script>
+    <!-- Bank reconciliation. bank-import turns any bank's CSV into rows;
+         bank-match pairs them against the account's own movements. Both are
+         pure — no DOM, no storage — so the screen below owns all the mess. -->
+    <script src="js/bank-import.js"></script>
+    <script src="js/bank-match.js"></script>
     <script src="js/daybook.js"></script>
     <script src="js/finance.js"></script>
     <script src="js/position.js"></script>
@@ -395,6 +400,56 @@
         }
         .fin-route-msg { font-size: 0.76rem; color: #64748b; margin-top: 0.4rem; }
         .fin-route-msg.bad { color: #b91c1c; font-weight: 700; }
+
+        /* Bank reconciliation */
+        .rec-lead { font-size: 0.84rem; color: #475569; line-height: 1.6; margin: 0 0 0.9rem; }
+        .rec-warn { margin: 0 0 1rem; padding: 0.7rem 0.9rem 0.7rem 1.8rem; background: #fffbeb;
+                    border: 1px solid #fcd34d; border-radius: 10px; color: #92400e;
+                    font-size: 0.78rem; line-height: 1.6; }
+        .rec-warn li { margin: 0.2rem 0; }
+        .rec-sum { display: flex; gap: 0.7rem; flex-wrap: wrap; margin-bottom: 1rem; }
+        .rec-sum > div { flex: 1 1 130px; background: #f8fafc; border: 1px solid #e2e8f0;
+                         border-radius: 10px; padding: 0.55rem 0.7rem; }
+        .rec-sum span { display: block; font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;
+                        letter-spacing: 0.05em; font-weight: 700; }
+        .rec-sum b { font-size: 0.86rem; color: #1e293b; }
+        .rec-pile { border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 0.9rem; overflow: hidden; }
+        .rec-pile.ok   { border-color: #bbf7d0; }
+        .rec-pile.warn { border-color: #fcd34d; }
+        .rec-pile.info { border-color: #bfdbfe; }
+        .rec-pile-h { display: flex; justify-content: space-between; align-items: center;
+                      padding: 0.55rem 0.8rem; font-weight: 800; font-size: 0.82rem; color: #334155;
+                      background: #f8fafc; }
+        .rec-pile.ok .rec-pile-h   { background: #f0fdf4; }
+        .rec-pile.warn .rec-pile-h { background: #fffbeb; }
+        .rec-pile.info .rec-pile-h { background: #eff6ff; }
+        .rec-pile-h span { background: #fff; border: 1px solid #e2e8f0; border-radius: 999px;
+                           padding: 0.05rem 0.5rem; font-size: 0.74rem; }
+        .rec-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.8rem;
+                   border-top: 1px solid #f1f5f9; font-size: 0.78rem; flex-wrap: wrap; }
+        .rec-row > span:first-child { color: #94a3b8; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .rec-desc { flex: 1 1 140px; min-width: 0; color: #334155; overflow: hidden; text-overflow: ellipsis; }
+        .rec-amt { font-weight: 700; color: #1e293b; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .rec-tag { font-size: 0.7rem; color: #94a3b8; white-space: nowrap; }
+        .rec-add { padding: 0.25rem 0.6rem !important; font-size: 0.72rem !important; }
+        .rec-empty { padding: 0.6rem 0.8rem; font-size: 0.78rem; color: #94a3b8; }
+        .rec-calc { border: 1px solid #e2e8f0; border-radius: 12px; padding: 0.6rem 0.9rem; margin-bottom: 0.7rem; }
+        .rec-calc > div { display: flex; justify-content: space-between; gap: 1rem; padding: 0.28rem 0;
+                          font-size: 0.8rem; color: #475569; }
+        .rec-calc > div.tot { border-top: 1px solid #e2e8f0; margin-top: 0.25rem; padding-top: 0.45rem;
+                              font-weight: 800; color: #1e293b; }
+        .rec-calc b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .rec-ok  { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; font-weight: 700;
+                   border-radius: 10px; padding: 0.6rem 0.8rem; font-size: 0.82rem; margin-bottom: 0.7rem; }
+        .rec-bad { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; font-weight: 700;
+                   border-radius: 10px; padding: 0.6rem 0.8rem; font-size: 0.82rem; margin-bottom: 0.7rem; }
+        .rec-note { font-size: 0.78rem; color: #64748b; margin-bottom: 0.7rem; }
+        .rec-hist-h { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+                      font-weight: 800; color: #94a3b8; margin: 0.9rem 0 0.35rem; }
+        .rec-hist-row { display: flex; justify-content: space-between; gap: 0.6rem; font-size: 0.76rem;
+                        color: #475569; padding: 0.25rem 0; border-top: 1px solid #f1f5f9; }
+        .rec-hist-row .ok  { color: #166534; font-weight: 700; }
+        .rec-hist-row .bad { color: #b91c1c; font-weight: 700; }
         .fin-group::after {
             content: ''; flex: 1; height: 1px;
             background: linear-gradient(90deg, #e2e8f0, transparent);
@@ -861,7 +916,7 @@
                 <label>Amount Paid (₹)</label>
                 <input type="number" id="supPayAmount" step="0.01" min="0" placeholder="Enter amount paid">
             </div>
-            <div class="form-group">
+            <div class="form-group" id="supPayModeWrap">
                 <label>Paid by</label>
                 <!-- Decides which account the money leaves. A distributor paid
                      by NEFT does not empty the drawer, and until this existed
@@ -875,6 +930,30 @@
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" onclick="closeSupPayModal()">Cancel</button>
                 <button type="button" class="btn-confirm" onclick="confirmSupplierPay()">✓ Save Payment</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ BANK RECONCILIATION ═══ -->
+    <div class="modal-overlay" id="recModal" onclick="if(event.target===this) closeReconcile()">
+        <div class="modal-content" style="max-width:820px;">
+            <div class="modal-header">
+                <h3 id="recTitle">Reconcile</h3>
+                <button class="modal-close" onclick="closeReconcile()">&times;</button>
+            </div>
+            <p class="rec-lead" style="margin-bottom:0.6rem;">
+                Compare this account against the statement your bank gives you. Your books are
+                <b>not changed</b> — anything found is offered, never applied.
+            </p>
+            <div class="form-group">
+                <label>Bank statement (CSV)</label>
+                <input type="file" id="recFile" accept=".csv,text/csv,text/plain" onchange="onRecFile(this)">
+            </div>
+            <div id="recBody"></div>
+            <div id="recFoot"></div>
+            <div id="recHistory"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="closeReconcile()">Close</button>
             </div>
         </div>
     </div>
@@ -2506,6 +2585,214 @@
                 </div>`;
         }
 
+        /* ══════════════════════════════════════════════════════════════════
+           BANK RECONCILIATION — the screen.
+
+           Two people wrote down the same money. This shows where they agree,
+           and isolates where they do not, so the shop reads four odd lines
+           instead of four hundred ordinary ones.
+
+           IT NEVER CHANGES A BOOK BY ITSELF. Everything it finds is offered,
+           never applied. An app that quietly restates the accounts to agree
+           with a file somebody just uploaded is an app whose numbers mean
+           nothing — and the file is the one document here the shop cannot
+           check line by line.
+        ══════════════════════════════════════════════════════════════════ */
+        let _recAcct = null, _recResult = null, _recParsed = null;
+
+        function openReconcile(id) {
+            _recAcct = _finAccts.find(a => a.id === id) || null;
+            if (!_recAcct) return;
+            _recResult = null; _recParsed = null;
+            document.getElementById('recTitle').textContent = 'Reconcile: ' + _recAcct.name;
+            document.getElementById('recFile').value = '';
+            document.getElementById('recBody').innerHTML =
+                `<p class="rec-lead">Download this account's statement from your bank as a <b>CSV</b> or Excel-exported CSV,
+                 then choose the file above. Nothing is changed in your books — you will see what matches and what does not,
+                 and decide from there.</p>`;
+            document.getElementById('recFoot').innerHTML = '';
+            document.getElementById('recModal').classList.add('open');
+            _recRenderHistory();
+        }
+        function closeReconcile() {
+            document.getElementById('recModal').classList.remove('open');
+            _recAcct = null; _recResult = null; _recParsed = null;
+        }
+
+        async function _recRenderHistory() {
+            const el = document.getElementById('recHistory');
+            if (!el || !_recAcct) return;
+            el.innerHTML = '';
+            let hist = [];
+            try { if (typeof dbGetReconciliations === 'function') hist = await dbGetReconciliations(_recAcct.id); } catch (e) {}
+            if (!hist.length) return;
+            el.innerHTML = '<div class="rec-hist-h">Previously reconciled</div>' + hist.slice(0, 5).map(h =>
+                `<div class="rec-hist-row"><span>${escHtml(h.to || '—')}</span>
+                 <span>${_finMoney(h.statementClosing)}</span>
+                 <span class="${Math.abs(h.difference) < 0.02 ? 'ok' : 'bad'}">${
+                    Math.abs(h.difference) < 0.02 ? '✓ agreed' : 'off by ' + _finMoney(h.difference)}</span></div>`).join('');
+        }
+
+        async function onRecFile(input) {
+            const f = input.files && input.files[0];
+            if (!f || !_recAcct) return;
+            const body = document.getElementById('recBody');
+            body.innerHTML = '<p class="rec-lead">Reading…</p>';
+            let text = '';
+            try { text = await f.text(); }
+            catch (e) { body.innerHTML = '<p class="rec-bad">Could not read that file.</p>'; return; }
+
+            if (typeof mmBankImport === 'undefined') {
+                body.innerHTML = '<p class="rec-bad">The statement reader did not load. Refresh the page and try again.</p>';
+                return;
+            }
+            const parsed = mmBankImport.parse(text);
+            _recParsed = parsed;
+            if (!parsed.lines.length) {
+                body.innerHTML = `<p class="rec-bad">No usable rows were found in that file.</p>
+                    <ul class="rec-warn">${(parsed.warnings || []).map(w => '<li>' + escHtml(w) + '</li>').join('')}</ul>
+                    <p class="rec-lead">If your bank only offers PDF, most net-banking sites also have an
+                    “Export to Excel/CSV” option on the same page — that is the one to use.</p>`;
+                return;
+            }
+
+            /* The statement's own running balance must agree with its own
+               movements. It is the bank's document, so a failure here means we
+               READ it wrong — a column mis-mapped or rows dropped — and that
+               has to be said before any of it is believed. */
+            const run = mmBankImport.checkRunning(parsed.lines);
+
+            const from = parsed.lines.reduce((m, l) => (!m || l.date < m) ? l.date : m, '');
+            const to   = parsed.lines.reduce((m, l) => (!m || l.date > m) ? l.date : m, '');
+
+            let book = [];
+            try {
+                const st = mmFinance.statement(_recAcct.id, { from: from, to: to });
+                book = mmBankMatch.fromFinanceStatement(st);
+            } catch (e) { console.warn('book statement failed:', e); }
+
+            const bookBalance = mmFinance.fullBalanceAsOf(_recAcct, to);
+            _recResult = mmBankMatch.reconcile({
+                statement: parsed.lines, book: book, bookBalance: bookBalance
+            });
+            _recRender(from, to, run);
+        }
+
+        function _recRender(from, to, run) {
+            const r = _recResult, s = r.summary;
+            const warn = (_recParsed.warnings || []).slice();
+            if (run && run.checked && !run.ok) {
+                warn.unshift('This statement does not agree with its own running balance ('
+                    + run.bad + ' row' + (run.bad === 1 ? '' : 's') + '). The file was probably read wrong — check the columns before trusting anything below.');
+            }
+
+            const pile = (title, tone, items, render) => `
+                <div class="rec-pile ${tone}">
+                    <div class="rec-pile-h">${title} <span>${items.length}</span></div>
+                    ${items.length ? items.map(render).join('')
+                                   : '<div class="rec-empty">Nothing here — good.</div>'}
+                </div>`;
+
+            document.getElementById('recBody').innerHTML = `
+                ${warn.length ? `<ul class="rec-warn">${warn.map(w => '<li>' + escHtml(w) + '</li>').join('')}</ul>` : ''}
+                <div class="rec-sum">
+                    <div><span>Statement period</span><b>${escHtml(from)} → ${escHtml(to)}</b></div>
+                    <div><span>Rows read</span><b>${s.statementLines}${_recParsed.skipped ? ' (' + _recParsed.skipped + ' skipped)' : ''}</b></div>
+                    <div><span>Matched</span><b>${s.matchedCount}</b></div>
+                </div>
+
+                ${pile('✅ Agreed', 'ok', r.matched, m =>
+                    `<div class="rec-row"><span>${escHtml(m.date)}</span>
+                     <span class="rec-desc">${escHtml(m.line.desc || m.entry.label)}</span>
+                     <span class="rec-amt">${_finMoney(m.amount)}</span>
+                     <span class="rec-tag">${m.dayGap ? m.dayGap + 'd later' : ''}</span></div>`)}
+
+                ${pile('🏦 Only the bank knows — not in your books', 'warn', r.bankOnly, (l, i) =>
+                    `<div class="rec-row"><span>${escHtml(l.date)}</span>
+                     <span class="rec-desc">${escHtml(l.desc || '(no description)')}</span>
+                     <span class="rec-amt">${_finMoney(l.amount)}</span>
+                     <button class="fin-btn primary rec-add" onclick="recAddToBooks(${i})">Add to my books</button></div>`)}
+
+                ${pile('📒 Only your books know — not on the statement', 'info', r.bookOnly, e =>
+                    `<div class="rec-row"><span>${escHtml(e.date)}</span>
+                     <span class="rec-desc">${escHtml(e.label)}</span>
+                     <span class="rec-amt">${_finMoney(e.amount)}</span>
+                     <span class="rec-tag">not yet cleared?</span></div>`)}
+            `;
+
+            /* The identity, printed. If the books do not land exactly where
+               the statement plus the unexplained items say they should, the
+               report is wrong and saying so is the only useful thing to do. */
+            const d = s.difference;
+            document.getElementById('recFoot').innerHTML = `
+                <div class="rec-calc">
+                    <div><span>Closing balance per bank statement</span><b>${s.statementClosing === null ? '—' : _finMoney(s.statementClosing)}</b></div>
+                    <div><span>Add: in your books, not yet at the bank</span><b>${_finMoney(s.bookOnlyTotal)}</b></div>
+                    <div><span>Less: at the bank, not yet in your books</span><b>${_finMoney(-s.bankOnlyTotal)}</b></div>
+                    <div class="tot"><span>So your books should read</span><b>${s.expectedBook === null ? '—' : _finMoney(s.expectedBook)}</b></div>
+                    <div class="tot"><span>Your books actually read</span><b>${s.bookBalance === null ? '—' : _finMoney(s.bookBalance)}</b></div>
+                </div>
+                ${d === null
+                    ? '<div class="rec-note">This statement has no balance column, so the two sides cannot be compared — the piles above are still correct.</div>'
+                    : (s.reconciles
+                        ? '<div class="rec-ok">✅ Everything is explained. The difference is zero.</div>'
+                        : `<div class="rec-bad">⚠️ ${_finMoney(Math.abs(d))} is still unexplained. Something above is wrong, or a movement is missing on one side.</div>`)}
+                <button class="btn-confirm" onclick="recSave()">Save this reconciliation</button>`;
+        }
+
+        /* Offered, never applied automatically — and it creates ONE ordinary
+           movement through the same path as a hand-typed one, so nothing
+           downstream has to know it came from a statement. */
+        async function recAddToBooks(i) {
+            const l = _recResult && _recResult.bankOnly[i];
+            if (!l || !_recAcct) return;
+            const inflow = l.amount > 0;
+            const okGo = await mmConfirm(
+                `Add this to ${_recAcct.name}?\n\n${l.date} · ${l.desc || '(no description)'}\n` +
+                `${inflow ? 'Money in' : 'Money out'}: ${_finMoney(Math.abs(l.amount))}\n\n` +
+                `This creates one movement in your books. It does not change the bank.`,
+                { title: 'Record this movement', okText: 'Yes, add it' });
+            if (!okGo) return;
+            const entry = {
+                id: _finId('fe'), accountId: _recAcct.id, date: l.date,
+                direction: inflow ? 1 : -1, amount: Math.abs(l.amount), interest: 0,
+                kind: inflow ? 'deposit' : 'withdrawal',
+                note: (l.desc || 'From bank statement').slice(0, 180), ref: ''
+            };
+            const res = await dbAddFinanceEntries([entry]);
+            if (res && res.success) {
+                if (typeof mmAudit === 'function') mmAudit('Added from bank statement', _recAcct.name + ' · ' + _finMoney(l.amount));
+                await loadFinance();
+                // Re-run the whole comparison: this changed one of the two sides.
+                const f = document.getElementById('recFile');
+                if (f && f.files && f.files[0]) onRecFile(f);
+            } else {
+                mmAlert((res && res.message) || 'Could not save that movement.');
+            }
+        }
+
+        async function recSave() {
+            if (!_recResult || !_recAcct) return;
+            const s = _recResult.summary;
+            const from = _recParsed.lines[0] ? _recParsed.lines[0].date : '';
+            const to = _recParsed.lines[_recParsed.lines.length - 1]
+                     ? _recParsed.lines[_recParsed.lines.length - 1].date : '';
+            const res = await dbSaveReconciliation({
+                id: _finId('rec'), accountId: _recAcct.id, from: from, to: to,
+                statementClosing: s.statementClosing || 0, bookBalance: s.bookBalance || 0,
+                difference: s.difference || 0, matchedCount: s.matchedCount,
+                bankOnlyCount: s.bankOnlyCount, bookOnlyCount: s.bookOnlyCount
+            });
+            if (res && res.success) {
+                if (typeof mmAudit === 'function') mmAudit('Bank reconciled', _recAcct.name + ' · to ' + to);
+                mmAlert('Saved. ' + (s.reconciles ? 'This account agreed with the bank.' :
+                        'Recorded with ' + _finMoney(Math.abs(s.difference || 0)) + ' still unexplained.'));
+                _recRenderHistory();
+            } else {
+                mmAlert((res && res.message) || 'Could not save.');
+            }
+        }
+
         async function saveFinRouting() {
             const map = {};
             document.querySelectorAll('.fin-route-sel').forEach(s => { map[s.dataset.mode] = s.value || ''; });
@@ -2655,6 +2942,7 @@
                             <div class="fin-acts">
                                 <button class="fin-btn primary" onclick="openFinMove('${escHtml(a.id)}')">+ Movement</button>
                                 <button class="fin-btn" onclick="openFinStatement('${escHtml(a.id)}')">Statement</button>
+                                ${kind === 'bank' ? `<button class="fin-btn" onclick="openReconcile('${escHtml(a.id)}')">🔍 Reconcile</button>` : ''}
                                 <button class="fin-btn" onclick="openFinAccount('${escHtml(a.id)}')">Edit</button>
                                 <button class="fin-btn danger" onclick="deleteFinAccount('${escHtml(a.id)}')">Delete</button>
                             </div>

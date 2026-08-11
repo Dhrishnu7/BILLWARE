@@ -2039,6 +2039,55 @@ async function dbAddFinanceEntries(list) {
 }
 window.dbAddFinanceEntries = dbAddFinanceEntries;
 
+/* ── Bank reconciliations ────────────────────────────────────────────
+   The CONCLUSION of a reconciliation, not the statement behind it — see
+   migrations/add_bank_reconciliations.sql for why the lines are not stored.
+   Needs that migration; until it is run these resolve to "not available"
+   and the screen says so rather than failing. */
+async function dbSaveReconciliation(rec) {
+    const user = _currentUser();
+    if (!user) return { success: false, message: 'Not logged in.' };
+    const { error } = await _supabase.from('bank_reconciliations').upsert({
+        recon_id: rec.id, user_id: user, account_id: rec.accountId,
+        from_date: rec.from || null, to_date: rec.to || null,
+        statement_closing: Number(rec.statementClosing) || 0,
+        book_balance: Number(rec.bookBalance) || 0,
+        difference: Number(rec.difference) || 0,
+        matched_count: Number(rec.matchedCount) || 0,
+        bank_only_count: Number(rec.bankOnlyCount) || 0,
+        book_only_count: Number(rec.bookOnlyCount) || 0,
+        note: String(rec.note || ''), saved_at: new Date().toISOString()
+    }, { onConflict: 'recon_id' });
+    if (error) {
+        if (/relation|does not exist|schema cache|PGRST205/i.test(String(error.message || ''))) {
+            return { success: false, message: 'Run migrations/add_bank_reconciliations.sql in Supabase first.' };
+        }
+        console.error('reconciliation save:', error);
+        return { success: false, message: error.message };
+    }
+    return { success: true };
+}
+window.dbSaveReconciliation = dbSaveReconciliation;
+
+async function dbGetReconciliations(accountId) {
+    const user = _currentUser();
+    if (!user) return [];
+    let q = _supabase.from('bank_reconciliations').select('*').eq('user_id', user);
+    if (accountId) q = q.eq('account_id', accountId);
+    const { data, error } = await q.order('to_date', { ascending: false }).limit(24);
+    if (error) return [];          // table missing = simply no history yet
+    return (data || []).map(r => ({
+        id: r.recon_id, accountId: r.account_id, from: r.from_date || '', to: r.to_date || '',
+        statementClosing: Number(r.statement_closing) || 0,
+        bookBalance: Number(r.book_balance) || 0,
+        difference: Number(r.difference) || 0,
+        matchedCount: r.matched_count || 0,
+        bankOnlyCount: r.bank_only_count || 0, bookOnlyCount: r.book_only_count || 0,
+        note: r.note || '', savedAt: r.saved_at || ''
+    }));
+}
+window.dbGetReconciliations = dbGetReconciliations;
+
 /* Deletes by ref when there is one, so undoing an EMI removes BOTH halves.
    Deleting only the half the user clicked would leave the loan repaid and the
    bank never debited — a silent, self-inflicted reconciliation problem. */
