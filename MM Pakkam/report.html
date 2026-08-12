@@ -7849,10 +7849,21 @@
                     else if (v) filled++;
                 }
                 btn.innerHTML = '✅ Saved!';
-                showToast(
-                    `Backup ${bnum}: ${totalRows.toLocaleString('en-IN')} records across ` +
-                    `${filled} of ${specs.length} data types.`,
-                    missing.length ? 'error' : 'success');
+                const summary = `${totalRows.toLocaleString('en-IN')} records across ` +
+                                `${filled} of ${specs.length} data types.`;
+                showToast(`Backup ${bnum}: ${summary}`, missing.length ? 'error' : 'success');
+
+                /* Record it in the audit trail as well as the local stamp.
+                   The localStorage stamp is per DEVICE, so backing up on the
+                   counter PC left the phone insisting no backup had ever been
+                   taken — the one figure on the Your Data panel that is meant
+                   to be checkable was wrong on the second device. The audit
+                   log already syncs and already carries a timestamp, so this
+                   needs no new column anywhere. */
+                if (typeof mmAudit === 'function') {
+                    mmAudit('Backup taken', summary + (missing.length ? ' INCOMPLETE: ' + missing.join('; ') : ''),
+                            `Backup ${bnum}`);
+                }
                 setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 2000);
             } catch (e) {
                 alert('❌ Backup failed: ' + e.message);
@@ -7897,14 +7908,13 @@
               fmt: 'JSON for the NIC portal', run: 'openEinvModal', portable: true },
         ];
 
-        function openDataModal() {
-            // Last backup, from the stamp Backup already writes. A promise the
-            // shop can check beats a promise it has to believe.
-            const s = (typeof mmCurrentUser === 'function') ? mmCurrentUser() : null;
-            const t = s ? (s.tenant_id || s.username) : 'anon';
-            let when = null;
-            try { when = localStorage.getItem(`mm_last_backup_${t}`); } catch (e) {}
+        /* Paint the last-backup line from a timestamp, or warn if there is none.
+           Split out because it is written twice: once immediately from this
+           device's stamp, then again if the cloud knows about a NEWER backup
+           taken on another device. */
+        function _renderLastBackup(when) {
             const el = document.getElementById('dataLastBackup');
+            if (!el) return;
             if (when) {
                 const days = Math.floor((Date.now() - new Date(when).getTime()) / 86400000);
                 const ago = days <= 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago';
@@ -7913,6 +7923,42 @@
             } else {
                 el.textContent = '⚠️ You have never taken a backup.';
                 el.style.color = '#b45309';
+            }
+        }
+
+        /* Newest of the two, ignoring anything unparseable. A device that has
+           never backed up must not overwrite a real cloud date with "never",
+           and an offline device that just backed up must not be told "never"
+           because the cloud has not caught up. */
+        function _newerStamp(a, b) {
+            const ta = a ? new Date(a).getTime() : NaN;
+            const tb = b ? new Date(b).getTime() : NaN;
+            if (isNaN(ta) && isNaN(tb)) return null;
+            if (isNaN(ta)) return b;
+            if (isNaN(tb)) return a;
+            return ta >= tb ? a : b;
+        }
+
+        function openDataModal() {
+            // Last backup, from the stamp Backup writes on THIS device — shown
+            // at once so the panel never waits on the network.
+            const s = (typeof mmCurrentUser === 'function') ? mmCurrentUser() : null;
+            const t = s ? (s.tenant_id || s.username) : 'anon';
+            let when = null;
+            try { when = localStorage.getItem(`mm_last_backup_${t}`); } catch (e) {}
+            _renderLastBackup(when);
+
+            /* …then ask the audit trail, which syncs across devices. Backing up
+               on the shop PC used to leave the phone reporting "never". If the
+               fetch fails we simply keep the local answer. */
+            if (typeof dbGetAuditLog === 'function') {
+                Promise.resolve(dbGetAuditLog(200)).then(rows => {
+                    const last = (rows || []).filter(r => r && r.action === 'Backup taken')
+                        .map(r => r.at).filter(Boolean)
+                        .sort().pop();
+                    const best = _newerStamp(when, last);
+                    if (best && best !== when) _renderLastBackup(best);
+                }).catch(() => {});
             }
 
             document.getElementById('dataRows').innerHTML = DATA_EXPORTS.map((d, i) => `
