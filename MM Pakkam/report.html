@@ -7906,10 +7906,25 @@
         let _restorePayload = null;
 
         async function backupData() {
+            /* ⚠️ EVERY EXIT FROM HERE MUST SAY SOMETHING.
+               A shop reported "I click Backup and nothing happens", and the
+               page was healthy — no error, every function defined. The button
+               genuinely had silent exits: a cancelled confirm returned without
+               a word, and a download blocked by the browser left the success
+               toast as the only feedback, which is worse than none.
+
+               The button lookup is also inside the guard now. It used to sit
+               above the try, so if the element were ever renamed the whole
+               function died before reaching a catch — silently, again. */
             const btn = document.querySelector('.btn-backup');
-            const orig = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '⏳ Backing up...';
+            const orig = btn ? btn.innerHTML : '';
+            const setBtn = (html, disabled) => {
+                if (!btn) return;
+                btn.innerHTML = html; btn.disabled = !!disabled;
+            };
+            const restore = () => setBtn(orig, false);
+            setBtn('⏳ Backing up...', true);
+            console.log('[backup] started');
 
             try {
                 // Fetch the WHOLE shop from the cloud (no date filter) so the backup
@@ -7951,12 +7966,48 @@
                     backup[spec.key] = spec.single ? (value || null) : (value || []);
                 }
 
+                /* Count BEFORE saving. A backup of nothing is the one outcome
+                   that must never be quiet: if the page failed to load the
+                   shop, this file is empty, and saving it over a good backup
+                   is how a real loss happens. */
+                let preRows = 0;
+                for (const s of specs) {
+                    const v = backup[s.key];
+                    if (Array.isArray(v)) preRows += v.length;
+                }
+                console.log('[backup] collected', preRows, 'records ·', missing.length, 'dataset(s) missing');
+
+                if (preRows === 0) {
+                    /* Name the cause when we know it. "Nothing to back up" is
+                       true but useless; "you are signed out of the cloud" is
+                       something the shop can act on in ten seconds. */
+                    const why = window.mmCloudSessionMissing
+                        ? 'This device is signed out of your cloud data, so nothing could be read.\n\n' +
+                          'Sign out and sign in again, then retry the backup.'
+                        : 'That usually means the page has not loaded your shop yet — not that your ' +
+                          'shop is empty. Reload the page (Ctrl+Shift+R) and try again.';
+                    const anyway = await mmConfirm(
+                        'This backup contains NO records at all.\n\n' + why +
+                        '\n\nYour data in the cloud is unaffected. Saving this file could ' +
+                        'overwrite a good backup with an empty one.\n\nSave it anyway?',
+                        { title: '🛑 Nothing to back up', okText: 'Save the empty file' });
+                    if (!anyway) {
+                        restore();
+                        showToast('Backup stopped — nothing was collected. Reload the page and try again.', 'error');
+                        return;
+                    }
+                }
+
                 if (missing.length) {
                     const goOn = await mmConfirm(
                         'Some data could not be collected:\n\n• ' + missing.join('\n• ') +
                         '\n\nThe file will be saved WITHOUT it. Download anyway?',
                         { title: '⚠️ Backup is incomplete', okText: 'Download anyway' });
-                    if (!goOn) { btn.innerHTML = orig; btn.disabled = false; return; }
+                    if (!goOn) {
+                        restore();
+                        showToast('Backup cancelled — nothing was saved.', 'error');
+                        return;
+                    }
                 }
 
                 const json = JSON.stringify(backup, null, 2);
@@ -7973,8 +8024,20 @@
                 const timeStr = ('0' + nowB.getHours()).slice(-2) + ('0' + nowB.getMinutes()).slice(-2);
                 a.href     = url;
                 a.download = `Backup ${bnum} (${dateStr} ${timeStr}).json`;
+                /* Attach before clicking. A detached anchor works in most
+                   browsers and silently does nothing in some — and a download
+                   that never starts looked identical to success, because the
+                   toast fired regardless. Revoking is deferred too: revoking
+                   the object URL in the same tick can cancel the download
+                   that was just requested. */
+                a.style.display = 'none';
+                document.body.appendChild(a);
                 a.click();
-                URL.revokeObjectURL(url);
+                setTimeout(() => {
+                    try { document.body.removeChild(a); } catch (e) {}
+                    URL.revokeObjectURL(url);
+                }, 2000);
+                console.log('[backup] download requested:', a.download);
 
                 // Stamp the last-backup time (per tenant) so the Inbox reminder + the
                 // dashboard banner go quiet — matches _tenant() in js/notifications.js.

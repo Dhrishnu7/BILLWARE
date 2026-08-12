@@ -454,11 +454,46 @@ async function _mmEnsureSecureSession() {
         const { data } = await db.auth.getSession();
         if (data && data.session) {                     // already have a real session — good
             sessionStorage.removeItem('mm_reauth_prompted');
+            window.mmCloudSessionMissing = false;
             return false;
         }
-        if (sessionStorage.getItem('mm_reauth_prompted')) return false; // avoid loops
+
+        /* ── The cloud token expired. Try to renew it before disturbing anyone.
+              A Supabase JWT lasts about an hour; a shop that leaves the till
+              screen open all morning will outlive it every single day. Bouncing
+              them to the login page for something the library can refresh by
+              itself is the wrong answer. ── */
+        if (db.auth.refreshSession) {
+            try {
+                const r = await db.auth.refreshSession();
+                if (r && r.data && r.data.session) {
+                    sessionStorage.removeItem('mm_reauth_prompted');
+                    window.mmCloudSessionMissing = false;
+                    console.log('[auth] cloud session refreshed');
+                    return false;
+                }
+            } catch (e) { /* fall through to the prompt */ }
+        }
+
+        if (sessionStorage.getItem('mm_reauth_prompted')) {
+            /* ⚠️ THIS USED TO `return false` AND SAY NOTHING.
+               The guard exists to stop a redirect loop, and it did — but it also
+               let the app carry on with NO cloud authentication. Every read then
+               came back with zero rows and no error, so pages rendered ₹0 as
+               though the shop were empty. A real shop hit exactly this: totals
+               showed zero, the shop name reverted to "Billware", and a backup
+               taken in that state would have written an empty file over a good
+               one.
+
+               Never run silently disconnected. Say it, keep saying it, and let
+               the rest of the app refuse the operations that would do damage. */
+            window.mmCloudSessionMissing = true;
+            _mmShowCloudSessionBanner();
+            return false;
+        }
         sessionStorage.setItem('mm_reauth_prompted', '1');
-        await mmAlert('🔒 Security upgrade — please sign in again to keep your shop\'s data protected. Your data is safe; this is a one-time step.');
+        window.mmCloudSessionMissing = true;
+        await mmAlert('🔒 Please sign in again to reconnect to your shop\'s data. Your data is safe — this only signs this device back in.');
         mmClearSession();
         window.location.replace('login.html');
         return true;
@@ -466,6 +501,31 @@ async function _mmEnsureSecureSession() {
         return false;                                   // never block the app on this check
     }
 }
+
+/* A persistent, unmissable bar. Not a toast: a toast disappears, and the whole
+   point is that every figure on the screen is untrustworthy until this is
+   fixed. Clicking it goes to the login page. */
+function _mmShowCloudSessionBanner() {
+    try {
+        if (document.getElementById('mm-cloud-session-banner')) return;
+        const bar = document.createElement('div');
+        bar.id = 'mm-cloud-session-banner';
+        bar.setAttribute('role', 'alert');
+        bar.style.cssText =
+            'position:fixed;top:0;left:0;right:0;z-index:100000;padding:10px 18px;' +
+            'display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;' +
+            "font-family:'Inter',system-ui,sans-serif;font-size:.85rem;font-weight:700;" +
+            'background:linear-gradient(135deg,#b91c1c,#dc2626);color:#fff;' +
+            'box-shadow:0 3px 12px rgba(0,0,0,.22);';
+        bar.innerHTML =
+            '<span>🔌 Not connected to your shop data — figures may show as ₹0. ' +
+            'Your data is safe. Tap here to sign in again.</span>';
+        bar.onclick = function () { try { mmClearSession(); } catch (e) {} window.location.replace('login.html'); };
+        const put = function () { (document.body || document.documentElement).appendChild(bar); };
+        if (document.body) put(); else document.addEventListener('DOMContentLoaded', put);
+    } catch (e) {}
+}
+window._mmShowCloudSessionBanner = _mmShowCloudSessionBanner;
 
 /**
  * Redirect to index.html if logged-in user is not the owner.
