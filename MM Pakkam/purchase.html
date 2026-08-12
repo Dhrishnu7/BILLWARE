@@ -512,6 +512,18 @@
             background: #d1fae5; border-color: #6ee7b7; color: #059669;
         }
         .inv-chip.inv-chip-skip .inv-chip-skip-btn:hover { background: #a7f3d0; }
+        /* The column chooser. A chip is now "this field ← that column of your
+           file", so the control has to be able to name any column — the old
+           Skip/Include button could only ever confirm or discard a guess. */
+        .inv-chip-sel {
+            font-size: 0.76rem; font-weight: 700; font-family: inherit;
+            padding: 4px 8px; border-radius: 8px;
+            border: 1.5px solid #cbd5e1; background: white; color: #334155;
+            cursor: pointer; max-width: 11rem;
+        }
+        .inv-chip-sel:hover { border-color: #0ea5e9; }
+        .inv-chip-sel:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 1px; }
+        .inv-chip.inv-chip-skip .inv-chip-sel { color: #94a3b8; }
         .inv-preview-table { width:100%; border-collapse:collapse; font-size:0.78rem; margin-top:0.5rem; }
         .inv-preview-table th { background:#f1f5f9; padding:5px 8px; text-align:left; font-weight:800; color:#475569; border-bottom:2px solid #e2e8f0; white-space:nowrap; }
         .inv-preview-table td { padding:5px 8px; border-bottom:1px solid #f1f5f9; color:#0f172a; white-space:nowrap; }
@@ -3423,12 +3435,87 @@ window.addEventListener('DOMContentLoaded', () => {
             return (hits / nonEmpty) >= 0.4;
         }
 
+        /* ══════════════════════════════════════════════════════════════════
+           REMEMBERING A DISTRIBUTOR'S LAYOUT
+
+           Keyed on the FILE'S OWN HEADER ROW, not on the supplier name. The
+           headers are what actually identify a layout, and they are known
+           before the shop has picked a firm — whereas the firm box may be
+           empty, misspelled, or one of the several spellings of the same
+           distributor that the supplier merge tool exists to clean up.
+
+           Consequences of that choice, all wanted:
+             · two distributors sending the identical layout share one mapping,
+               which is correct — the mapping is about the columns
+             · a distributor who CHANGES their format gets a new signature and
+               is re-detected once, instead of quietly importing into the
+               wrong fields under a stale mapping
+
+           Stored per user via mmLsSet, so one device's shop cannot see
+           another's. It is a convenience, not shop data: worst case it is
+           forgotten and auto-detect runs, which is exactly today's behaviour.
+           ══════════════════════════════════════════════════════════════════ */
+        const INV_MAP_STORE = 'inv_col_maps';
+
+        /* Header text comes out of a file the shop was handed, so it reaches
+           innerHTML untrusted. This page had no escaper of its own. */
+        function _invEsc(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function _invSignature(hdrs) {
+            return (hdrs || []).map(h => String(h).trim().toLowerCase().replace(/\s+/g, ' '))
+                               .join('|').slice(0, 400);
+        }
+        function _invMapsAll() {
+            try { const v = (typeof mmLsGet === 'function') ? mmLsGet(INV_MAP_STORE) : null;
+                  return (v && typeof v === 'object') ? v : {}; } catch (e) { return {}; }
+        }
+        function _invMapSaved() {
+            if (!_invHdrs || !_invHdrs.length) return null;
+            const all = _invMapsAll();
+            const hit = all[_invSignature(_invHdrs)];
+            return (hit && hit.map) ? hit : null;
+        }
+        function _invMapRemember(map) {
+            if (!_invHdrs || !_invHdrs.length) return;
+            try {
+                const all = _invMapsAll();
+                const firmEl = document.getElementById('firm');
+                all[_invSignature(_invHdrs)] = {
+                    map: map,
+                    firm: firmEl ? String(firmEl.value || '').trim() : '',
+                    headers: _invHdrs.slice(0, 40),
+                    savedAt: new Date().toISOString()
+                };
+                // Keep the newest 40 layouts; a shop deals with a handful of
+                // distributors and this must never grow without bound.
+                const keys = Object.keys(all);
+                if (keys.length > 40) {
+                    keys.sort((a, b) => String(all[a].savedAt || '').localeCompare(String(all[b].savedAt || '')))
+                        .slice(0, keys.length - 40).forEach(k => delete all[k]);
+                }
+                if (typeof mmLsSet === 'function') mmLsSet(INV_MAP_STORE, all);
+            } catch (e) { /* remembering is a convenience — never block an import */ }
+        }
+        function forgetInvMap() {
+            try {
+                const all = _invMapsAll();
+                delete all[_invSignature(_invHdrs)];
+                if (typeof mmLsSet === 'function') mmLsSet(INV_MAP_STORE, all);
+            } catch (e) {}
+            showInvMapper();     // re-run auto-detect from scratch
+        }
+
         function showInvMapper() {
             document.getElementById('invStep1').style.display='none';
             document.getElementById('invStep2').style.display='block';
             document.getElementById('invStep3').style.display='none';
             document.getElementById('invImportBtn').disabled=true;
             document.getElementById('invRowCount').textContent=`${_invRows.length} data row(s) detected`;
+            const saved = _invMapSaved();
 
             // Auto-detect column indices by keyword matching
             const keywords={
@@ -3457,6 +3544,10 @@ window.addEventListener('DOMContentLoaded', () => {
                     idx = -1; // treat as not found → chip pre-skipped → defaults to 1
                 }
 
+                // A remembered choice for this exact layout beats the guess.
+                if (saved && saved.map && saved.map[f.key] !== undefined) idx = saved.map[f.key];
+                else if (saved && saved.map) idx = -1;   // remembered as "don't import"
+
                 const detectedName = idx >= 0 ? (_invHdrs[idx] || 'Col '+(idx+1)) : null;
                 const chip = document.createElement('div');
                 chip.className = 'inv-chip' + (detectedName ? '' : ' inv-chip-skip');
@@ -3464,23 +3555,62 @@ window.addEventListener('DOMContentLoaded', () => {
                 chip.dataset.idx = idx;
                 chip.dataset.skipped = detectedName ? 'false' : 'true';
                 // Extra hint for pack when auto-rejected
-                const hint = (f.key==='pack' && !detectedName)
-                    ? ' <span style="font-size:0.7rem;color:#f59e0b;">(will default to 1)</span>' : '';
+                const hint = (f.key==='pack' && idx < 0)
+                    ? ' <span style="font-size:0.7rem;color:#f59e0b;">(defaults to 1)</span>' : '';
+
+                /* ⚠️ THIS USED TO BE A SKIP/INCLUDE BUTTON AND NOTHING ELSE.
+                   If the keyword guess missed a column there was no way to say
+                   which one it was: "Include" set skipped=false while idx
+                   stayed -1, and buildInvPreview drops anything below 0. So the
+                   button appeared to work and the column silently never
+                   arrived. Any distributor whose headers we did not recognise
+                   simply could not be imported.
+                   The list of the file's OWN headers is the fix — every layout
+                   becomes mappable, which is what makes remembering worthwhile. */
+                const opts = ['<option value="-1"' + (idx < 0 ? ' selected' : '') + '>— don\'t import —</option>']
+                    .concat(_invHdrs.map((h, i) =>
+                        '<option value="' + i + '"' + (i === idx ? ' selected' : '') + '>' +
+                        _invEsc(String(h).trim() || 'Column ' + (i + 1)) + '</option>')).join('');
+
                 chip.innerHTML = `
                     <span class="inv-chip-label">${f.label.replace(' ✱','')}</span>
                     <span class="inv-chip-detected">${detectedName ? '→ ' + detectedName : 'Not found'+hint}</span>
-                    <button type="button" class="inv-chip-skip-btn" onclick="toggleChipSkip(this.closest('.inv-chip'))">
-                        ${chip.dataset.skipped==='true' ? 'Include' : 'Skip'}
-                    </button>`;
+                    <select class="inv-chip-sel" onchange="pickChipCol(this)">${opts}</select>`;
                 container.appendChild(chip);
             });
+
+            // Tell the shop when a remembered layout was used, and let them undo it.
+            const noteEl = document.getElementById('invMapNote');
+            if (noteEl) {
+                noteEl.innerHTML = saved
+                    ? `↩️ Using the column choices you made last time for this layout${saved.firm ? ' (' + _invEsc(saved.firm) + ')' : ''}.
+                       <button type="button" onclick="forgetInvMap()" style="background:none;border:none;color:#0369a1;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:underline;">Detect again</button>`
+                    : '';
+                noteEl.style.display = saved ? 'block' : 'none';
+            }
+        }
+
+        /* The chosen column IS the state. Selecting "don't import" is the same
+           thing the old Skip button meant, so there is one control, not two
+           that can disagree. */
+        function pickChipCol(sel) {
+            const chip = sel.closest('.inv-chip');
+            const idx = parseInt(sel.value, 10);
+            chip.dataset.idx = idx;
+            chip.dataset.skipped = idx >= 0 ? 'false' : 'true';
+            chip.classList.toggle('inv-chip-skip', idx < 0);
+            const lbl = chip.querySelector('.inv-chip-detected');
+            if (lbl) lbl.textContent = idx >= 0
+                ? '→ ' + (String(_invHdrs[idx]).trim() || 'Column ' + (idx + 1))
+                : 'Not imported';
         }
 
         function toggleChipSkip(chip) {
             const skipped = chip.dataset.skipped === 'true';
             chip.dataset.skipped = skipped ? 'false' : 'true';
             chip.classList.toggle('inv-chip-skip', !skipped);
-            chip.querySelector('.inv-chip-skip-btn').textContent = skipped ? 'Skip' : 'Include';
+            const btn = chip.querySelector('.inv-chip-skip-btn');
+            if (btn) btn.textContent = skipped ? 'Skip' : 'Include';
         }
 
         function buildInvPreview() {
@@ -3597,6 +3727,12 @@ window.addEventListener('DOMContentLoaded', () => {
         function _applyInvoiceImport() {
             const map=window._invMap||{};
             if(map.productName===undefined){ showToast('Error','Column mapping lost. Please re-map.'); return; }
+
+            /* Remember the columns HERE, at the moment the shop actually loads
+               them — not at preview. A mapping that was previewed and then
+               abandoned is one the shop rejected, and storing it would hand
+               back the rejected answer next month. */
+            _invMapRemember(map);
 
             // Clear existing rows
             document.getElementById('lineItemsContainer').innerHTML='';
@@ -3894,10 +4030,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
             <!-- Step 2: Map Columns -->
             <div class="modal-bd" id="invStep2" style="display:none">
-                <div class="step-lbl">Review auto-detected columns</div>
+                <div class="step-lbl">Check which column is which</div>
                 <div class="stats-txt" id="invRowCount"></div>
+                <div id="invMapNote" style="display:none;font-size:0.78rem;color:#0369a1;background:#f0f9ff;border:1px solid #bae6fd;border-radius:9px;padding:0.55rem 0.75rem;margin:0.5rem 0 0.2rem;"></div>
                 <div id="invFieldChips" class="inv-chip-grid"></div>
-                <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.8rem;">✱ Product Name is required. Click <strong>Skip</strong> on any field you don't want to import.</div>
+                <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.8rem;">✱ Product Name is required. Every other field can be pointed at any column in your file, or left out. <strong>Your choices are remembered</strong> for the next invoice with the same columns.</div>
             </div>
 
             <!-- Step 3: Preview -->
