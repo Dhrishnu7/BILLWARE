@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Billware — Super Admin</title>
     <meta name="robots" content="noindex, nofollow">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <!-- Cinzel, EB Garamond and UnifrakturCook were only ever used by the
          Gothic Revival skin. Dropping them removes three font downloads the
          light console never renders. -->
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet"></noscript>
     <script src="js/modal.js"></script>
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -305,6 +307,25 @@
         .ocr-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--purple),var(--cyan))}
         .ocr-heavy{color:#B4231F;font-weight:700}
         .ocr-none{color:var(--text3)}
+
+        /* ═══ SUPPORT ISSUE CARD ═══
+           renderPendingIssues() has always emitted .pending-card/.det/.val/
+           .act/.meta, and none of them were ever defined — only .lbl and
+           .approve-btn were, so the card rendered half-styled. Inline styles
+           carried the readable parts, which is why it was never obvious. */
+        .pending-card{
+            background:#fff;border:1px solid var(--border);border-left:3px solid var(--orange);
+            border-radius:12px;padding:14px 16px;margin-bottom:10px;
+            box-shadow:0 1px 2px rgba(15,27,45,.04);
+        }
+        .pending-card .det{margin-bottom:8px}
+        .pending-card .lbl{
+            display:block;font-size:.64rem;font-weight:700;color:var(--text3);
+            text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px;
+        }
+        .pending-card .val{font-size:.86rem;color:var(--text);font-weight:500}
+        .pending-card .meta{font-size:.74rem;color:var(--text3)}
+        .pending-card .act{display:flex;gap:8px;margin-top:12px}
     </style>
     <script src="js/sw-update.js"></script>
 </head>

@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Credit Accounts | Billware</title>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"></noscript>
     <script src="js/modal.js"></script>
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1401,24 +1403,27 @@
 
             let saved = false;
 
-            // Try Supabase
-            try {
-                const result = await dbUpdateCustomerBalance(name, '', '', amount);
-                if (result && result.success) saved = true;
-            } catch(e) { console.warn('Supabase balance update failed:', e); }
+            /* ⚠️ THIS USED TO WRITE ONLY TWO OF THE THREE STORES.
+               It updated Supabase and the unscoped `mm_customers`, and left the
+               scoped `mm_<user>_customers` copy on the old figure — the exact
+               shape of the v370 defect, where a khata refund was silently
+               reverted on the next page load because both merges keep the
+               HIGHER of cloud and local.
 
-            // Always update unscoped localStorage (same key as sales.html uses)
+               It never bit here only because this box refuses anything ≤ 0, so
+               it can only ever RAISE a balance and the stale lower copy loses
+               the merge. Surviving by the direction of the arithmetic is not
+               the same as being correct.
+
+               It also had no op id, so a write that committed while its
+               response was lost would be retried and add the money TWICE — the
+               v371 bug, on a screen whose entire job is money.
+
+               mmAdjustCustomerBalance moves all three stores together, mints
+               one op id, and queues the write for retry when offline. */
             try {
-                const customers = JSON.parse(localStorage.getItem('mm_customers') || '[]');
-                let cust = customers.find(c => (c.name||'').toLowerCase() === name.toLowerCase());
-                if (cust) {
-                    cust.balance = (parseFloat(cust.balance) || 0) + amount;
-                } else {
-                    customers.push({ name, phone: '', address: '', balance: amount });
-                }
-                localStorage.setItem('mm_customers', JSON.stringify(customers));
-                saved = true; // at least localStorage saved
-            } catch(e) { console.warn('localStorage balance update failed:', e); }
+                saved = await mmAdjustCustomerBalance(name, '', '', amount);
+            } catch (e) { console.warn('balance update failed:', e); }
 
             if (btn) { btn.textContent = '✓ Add Balance'; btn.disabled = false; }
 
