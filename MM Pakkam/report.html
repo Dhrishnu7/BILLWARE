@@ -123,14 +123,21 @@
         .au-when { white-space: nowrap; }
         .au-day  { display: block; font-weight: 700; color: #0f172a; font-size: 0.84rem; }
         .au-time { display: block; font-size: 0.76rem; color: #94a3b8; font-variant-numeric: tabular-nums; }
-        .au-user { font-weight: 700; color: #334155; white-space: nowrap; }
+        .au-user { font-weight: 700; color: #334155; overflow-wrap: break-word; }
         /* A pill, because the action is the thing you scan for — and coloured
            by whether it destroyed something, so a deletion cannot hide in a
-           wall of grey text. */
+           wall of grey text.
+
+           It must WRAP. This is a fixed-layout table, so a pill that refuses to
+           break simply overflows its cell and prints on top of the Details
+           column — which is exactly what "Numbered product names removed" did.
+           Action names are written by whoever logs them and have no length
+           limit, so the only safe assumption is that one will be too long. */
         .au-act {
             display: inline-block; font-size: 0.78rem; font-weight: 700;
             padding: 3px 10px; border-radius: 999px; border: 1px solid;
-            white-space: nowrap;
+            white-space: normal; overflow-wrap: break-word;
+            max-width: 100%; line-height: 1.35;
         }
         .au-detail { color: #475569; font-size: 0.86rem; word-break: break-word; }
         .au-ref {
@@ -844,7 +851,7 @@
                              room than before; the detail is the column that was
                              actually starved and it gets what they give up. -->
                         <colgroup>
-                            <col style="width:11%"><col style="width:11%"><col style="width:20%"><col style="width:44%"><col style="width:14%">
+                            <col style="width:11%"><col style="width:11%"><col style="width:22%"><col style="width:44%"><col style="width:12%">
                         </colgroup>
                         <thead><tr><th>When</th><th>User</th><th>Action</th><th>Details</th><th>Ref</th></tr></thead>
                         <tbody id="auditBody"><tr><td colspan="5" style="text-align:center; padding:1.6rem; color:#94a3b8;">Open this tab to load activity…</td></tr></tbody>
