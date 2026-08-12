@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
           // read with the service role: the browser's key is subject to RLS and
           // returns nothing at all across shops. Only the columns the page
           // actually renders are selected — never passwordHash, never pin.
-          const [users, extra, resets, bills, purchases, customers, medicines, shops] =
+          const [users, extra, resets, bills, purchases, customers, medicines, shops, ocr] =
             await Promise.all([
               db.from("mm_users")
                 .select("id,username,role,tenant_id,createdAt,approval_status,payment_status,active_session_token,auth_uid"),
@@ -200,6 +200,19 @@ Deno.serve(async (req) => {
               db.from("customers").select("user_id"),
               db.from("medicines").select("name,user_id"),
               db.from("shop_profiles").select("*"),
+              /* EVERY CLOUD SCAN IS BILLED TO US, so this is the one table that
+                 turns into a conversation with a shop. One row per scan; the
+                 dashboard groups it per tenant.
+
+                 Raw rows rather than a server-side aggregate because PostgREST
+                 cannot GROUP BY, and at the current scale (a 60/day cap per
+                 shop) the volume is small. If this ever gets heavy, replace it
+                 with a SQL view — the client only needs user_id, day and the
+                 token counts, so the shape can stay identical. */
+              db.from("ocr_usage")
+                .select("user_id,day,lines,input_tokens,output_tokens,model")
+                .order("day", { ascending: false })
+                .limit(20000),
             ]);
           return json({
             users: users.data || [],
@@ -210,6 +223,7 @@ Deno.serve(async (req) => {
             customers: customers.data || [],
             medicines: medicines.data || [],
             shops: shops.data || [],
+            ocr: ocr.data || [],
           });
         }
 

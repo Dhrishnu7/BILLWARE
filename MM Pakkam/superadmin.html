@@ -7,7 +7,10 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Cinzel:wght@400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=UnifrakturCook:wght@700&display=swap" rel="stylesheet">
+    <!-- Cinzel, EB Garamond and UnifrakturCook were only ever used by the
+         Gothic Revival skin. Dropping them removes three font downloads the
+         light console never renders. -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="js/modal.js"></script>
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -24,7 +27,7 @@
             --red:     #ef4444;
             --orange:  #f97316;
             --gold:    #f59e0b;
-            --text:    #f1f5f9;
+            --text:    #0F1B2D;
             --text2:   #94a3b8;
             --text3:   #64748b;
         }
@@ -42,7 +45,7 @@
         .inp:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(124,58,237,.15)}
         .login-btn{width:100%;background:linear-gradient(135deg,var(--purple),var(--blue));border:none;border-radius:12px;padding:14px;color:#fff;font-family:inherit;font-size:.95rem;font-weight:600;cursor:pointer;transition:opacity .2s,transform .1s}
         .login-btn:hover{opacity:.9;transform:translateY(-1px)}
-        .login-err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:10px 14px;font-size:.85rem;color:#fca5a5;margin-top:12px;display:none}
+        .login-err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:10px 14px;font-size:.85rem;color:#B4231F;margin-top:12px;display:none}
 
         /* TOP BAR */
         #dashboard{display:none;position:relative;z-index:1}
@@ -52,10 +55,10 @@
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
         .brand h1{font-size:.9rem;font-weight:600;color:var(--text2)}
         .tbr{display:flex;align-items:center;gap:14px}
-        .live-b{display:flex;align-items:center;gap:6px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:50px;padding:4px 12px;font-size:.7rem;color:#6ee7b7;font-weight:600;letter-spacing:.08em}
+        .live-b{display:flex;align-items:center;gap:6px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:50px;padding:4px 12px;font-size:.7rem;color:#047857;font-weight:600;letter-spacing:.08em}
         .live-b::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 1.5s infinite}
         .out-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:5px 12px;color:var(--text2);font-family:inherit;font-size:.78rem;cursor:pointer;transition:all .2s}
-        .out-btn:hover{border-color:var(--red);color:#fca5a5}
+        .out-btn:hover{border-color:var(--red);color:#B4231F}
         #ts{font-size:.7rem;color:var(--text3)}
 
         /* TABS */
@@ -63,8 +66,8 @@
         .tab{padding:10px 18px;border:none;background:none;color:var(--text2);font-family:inherit;font-size:.85rem;font-weight:500;cursor:pointer;border-radius:8px 8px 0 0;transition:all .2s;position:relative;display:flex;align-items:center;gap:6px}
         .tab.active{color:var(--text);background:var(--card)}
         .tab.active::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--purple),var(--blue))}
-        .tab .badge{background:rgba(239,68,68,.2);border:1px solid rgba(239,68,68,.4);border-radius:50px;padding:1px 7px;font-size:.65rem;color:#fca5a5;font-weight:700}
-        .tab .badge.green{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:#6ee7b7}
+        .tab .badge{background:rgba(239,68,68,.2);border:1px solid rgba(239,68,68,.4);border-radius:50px;padding:1px 7px;font-size:.65rem;color:#B4231F;font-weight:700}
+        .tab .badge.green{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:#047857}
         .tab-panel{display:none;padding:28px}
         .tab-panel.active{display:block}
 
@@ -82,7 +85,7 @@
         .sh{display:flex;align-items:center;gap:8px;margin-bottom:16px}
         .sh h2{font-size:.85rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.06em}
         .sh .cnt{background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.3);border-radius:50px;padding:2px 9px;font-size:.7rem;color:var(--purple2);font-weight:600}
-        .sh .cnt.red{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#fca5a5}
+        .sh .cnt.red{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#B4231F}
 
         /* PENDING CARDS */
         .pending-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:28px}
@@ -92,15 +95,15 @@
         .pcard-name{font-weight:600;color:var(--text);font-size:.95rem}
         .pcard-meta{font-size:.72rem;color:var(--text3);margin-top:2px}
         .pcard-actions{display:flex;gap:8px}
-        .approve-btn{flex:1;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.35);border-radius:8px;padding:8px;color:#6ee7b7;font-family:inherit;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s}
+        .approve-btn{flex:1;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.35);border-radius:8px;padding:8px;color:#047857;font-family:inherit;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s}
         .approve-btn:hover{background:rgba(16,185,129,.25)}
-        .reject-btn{flex:1;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:8px;color:#fca5a5;font-family:inherit;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s}
+        .reject-btn{flex:1;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:8px;color:#B4231F;font-family:inherit;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s}
         .reject-btn:hover{background:rgba(239,68,68,.2)}
         .no-pending{text-align:center;padding:32px;color:var(--text3);font-size:.85rem}
 
         /* ONLINE PILLS */
         .online-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
-        .opill{display:flex;align-items:center;gap:6px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);border-radius:50px;padding:5px 14px;font-size:.82rem;color:#6ee7b7;font-weight:500}
+        .opill{display:flex;align-items:center;gap:6px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);border-radius:50px;padding:5px 14px;font-size:.82rem;color:#047857;font-weight:500}
         .opill .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 1.5s infinite}
 
         /* TABLE */
@@ -118,12 +121,12 @@
         .rp{display:inline-block;border-radius:50px;padding:2px 9px;font-size:.68rem;font-weight:600}
         .ro{background:rgba(124,58,237,.15);color:var(--purple2);border:1px solid rgba(124,58,237,.3)}
         .rw{background:rgba(6,182,212,.1);color:#67e8f9;border:1px solid rgba(6,182,212,.2)}
-        .son{display:inline-flex;align-items:center;gap:4px;color:#6ee7b7;font-size:.75rem;font-weight:500}
+        .son{display:inline-flex;align-items:center;gap:4px;color:#047857;font-size:.75rem;font-weight:500}
         .son::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green)}
         .soff{color:var(--text3);font-size:.75rem}
         .mv{font-weight:600;color:var(--text)}
-        .gv{font-weight:700;color:#6ee7b7}
-        .del-btn{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:6px;padding:3px 9px;color:#fca5a5;font-size:.72rem;cursor:pointer;font-family:inherit;transition:all .2s}
+        .gv{font-weight:700;color:#047857}
+        .del-btn{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:6px;padding:3px 9px;color:#B4231F;font-size:.72rem;cursor:pointer;font-family:inherit;transition:all .2s}
         .del-btn:hover{background:rgba(239,68,68,.2);border-color:rgba(239,68,68,.4)}
 
         /* PAYMENT TOGGLE */
@@ -132,7 +135,7 @@
         .pay-slider{position:absolute;inset:0;background:rgba(255,255,255,.1);border-radius:50px;cursor:pointer;transition:.3s;border:1px solid rgba(255,255,255,.15)}
         .pay-slider::before{content:'';position:absolute;width:16px;height:16px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
         input:checked+.pay-slider{background:rgba(16,185,129,.3);border-color:rgba(16,185,129,.5)}
-        input:checked+.pay-slider::before{transform:translateX(20px);background:#6ee7b7}
+        input:checked+.pay-slider::before{transform:translateX(20px);background:#047857}
 
         /* BAR CHART */
         .bi{padding:8px 18px}
@@ -150,7 +153,7 @@
         .adot{width:7px;height:7px;border-radius:50%;background:var(--purple2);margin-top:5px;flex-shrink:0}
         .ab .at{font-size:.8rem;color:var(--text);font-weight:500}
         .ab .am{font-size:.7rem;color:var(--text3);margin-top:1px}
-        .aa{font-size:.78rem;color:#6ee7b7;font-weight:700;flex-shrink:0}
+        .aa{font-size:.78rem;color:#047857;font-weight:700;flex-shrink:0}
 
         /* CARD WRAPPER */
         .cw{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:28px}
@@ -186,97 +189,122 @@
             display: flex; justify-content: space-between; align-items: center;
             padding: 1.2rem 1.5rem; border-bottom: 1px solid var(--border);
         }
-        .modal-header h3 { margin: 0; font-size: 1.1rem; color: #f8fafc; }
+        .modal-header h3 { margin: 0; font-size: 1.1rem; color: #0F1B2D; }
         .modal-header button {
             background: none; border: none; font-size: 1.5rem; color: #94a3b8;
             cursor: pointer; line-height: 1; transition: color 0.2s;
         }
         .modal-header button:hover { color: #ef4444; }
-        .modal-body { padding: 1.5rem; font-size: 0.95rem; color: #cbd5e1; line-height: 1.6; }
+        .modal-body { padding: 1.5rem; font-size: 0.95rem; color: #475569; line-height: 1.6; }
         .modal-body p { margin-bottom: 0.8rem; display: flex; flex-wrap: wrap; }
-        .modal-body strong { color: #f8fafc; display: inline-block; width: 140px; flex-shrink: 0; }
+        .modal-body strong { color: #0F1B2D; display: inline-block; width: 140px; flex-shrink: 0; }
         .modal-body span { flex: 1; word-break: break-word; }
 
         /* ═══════════════════════════════════════════════════════════════
-           🏰 GOTHIC REVIVAL THEME — a Victorian-London control room:
-           oxblood & antique gold on near-black, blackletter title,
-           Cinzel engraved headers, Garamond body. Overrides the palette
-           via the same CSS variables, so every component re-skins at once.
-        ═══════════════════════════════════════════════════════════════ */
+           LIGHT CONSOLE THEME — replaces the Gothic Revival skin.
+
+           The whole page was built on CSS variables, so re-skinning is
+           mostly a matter of redefining them. What variables alone cannot
+           reach are the rules that hardcoded white-on-dark washes
+           (rgba(255,255,255,.04) borders, dark sticky bars, the neon grid)
+           — those are overridden explicitly below.
+           ═══════════════════════════════════════════════════════════════ */
         :root {
-            --bg:      #0a0805;   /* aged near-black */
-            --card:    rgba(201,162,39,0.05);   /* faint gilt */
-            --border:  rgba(201,162,39,0.24);   /* antique-gold hairline */
-            --purple:  #7f1d1d;   /* oxblood (primary accent slot) */
-            --purple2: #c9a227;   /* antique gold */
-            --blue:    #5b1717;   /* deep oxblood */
-            --cyan:    #b8860b;   /* dark goldenrod */
-            --green:   #5c7a52;   /* moss/verdigris */
-            --red:     #b21e1e;   /* crimson */
-            --orange:  #9c6b34;   /* aged bronze */
-            --gold:    #c9a227;
-            --text:    #ece3cf;   /* bone / parchment ink */
-            --text2:   #b7a985;   /* faded ink */
-            --text3:   #8a7c5c;   /* muted sepia */
+            --bg:      #F3F6FB;   /* cool paper */
+            --card:    #FFFFFF;
+            --border:  #E3E9F2;
+            --purple:  #4F46E5;   /* indigo — primary accent slot */
+            --purple2: #7C3AED;
+            --blue:    #2563EB;
+            --cyan:    #0891B2;
+            --green:   #059669;
+            --red:     #DC2626;
+            --orange:  #EA580C;
+            --gold:    #C2740A;
+            --text:    #0F1B2D;
+            --text2:   #4A5C72;
+            --text3:   #8496AC;
         }
         body{
-            font-family:'EB Garamond','Space Grotesk',serif;
-            background:
-                radial-gradient(ellipse 70% 55% at 50% 0%, rgba(127,29,29,.18) 0, transparent 60%),
-                #0a0805;
+            font-family:'Space Grotesk',system-ui,sans-serif;
+            background:var(--bg);
+            color:var(--text);
         }
-        /* Ambient candle-glow + faint gilt lattice instead of the neon grid */
+        /* A soft tint instead of the candle glow — light enough to stay flat */
         body::before{
             background:
-                radial-gradient(ellipse 60% 50% at 12% 18%, rgba(201,162,39,.10) 0, transparent 60%),
-                radial-gradient(ellipse 55% 45% at 88% 82%, rgba(127,29,29,.14) 0, transparent 62%);
+                radial-gradient(ellipse 70% 55% at 8% 12%, rgba(79,70,229,.07) 0, transparent 62%),
+                radial-gradient(ellipse 60% 50% at 92% 88%, rgba(8,145,178,.06) 0, transparent 62%);
         }
         .grid-bg{
             background-image:
-                linear-gradient(rgba(201,162,39,.045) 1px,transparent 1px),
-                linear-gradient(90deg,rgba(201,162,39,.045) 1px,transparent 1px);
+                linear-gradient(rgba(79,70,229,.045) 1px,transparent 1px),
+                linear-gradient(90deg,rgba(79,70,229,.045) 1px,transparent 1px);
             background-size:44px 44px;
-            opacity:.55;
+            opacity:.5;
         }
-        /* Blackletter for the crest/title; Cinzel for headers & tabs */
         .brand h1{
-            font-family:'UnifrakturCook','EB Garamond',serif;
-            font-weight:700; font-size:1.25rem; letter-spacing:.02em;
-            color:var(--gold);
-            text-shadow:0 0 14px rgba(201,162,39,.35);
+            font-family:'Space Grotesk',system-ui,sans-serif;
+            font-weight:700;font-size:1rem;letter-spacing:-.01em;
+            color:var(--text);text-shadow:none;
         }
-        .brand-dot{background:var(--gold);box-shadow:0 0 10px var(--gold)}
-        #loginScreen .login-card h1{
-            font-family:'UnifrakturCook','EB Garamond',serif;
-            font-size:2rem; color:var(--gold);
-            text-shadow:0 0 18px rgba(201,162,39,.4);
-        }
+        .brand-dot{background:var(--purple);box-shadow:0 0 8px rgba(79,70,229,.55)}
+
+        /* Bars and surfaces */
+        .topbar,.tab-bar{background:rgba(255,255,255,.88)}
+        .tab-bar{border-bottom:1px solid var(--border)}
+        .tab.active{color:var(--purple);background:#fff}
+        .tab.active::after{background:linear-gradient(90deg,var(--purple),var(--cyan))}
+        .tab .badge{background:#FEE9E9;border:1px solid #F8C4C4;color:#B4231F}
+        .tab .badge.green{background:#E7F7F0;border-color:#B6E6D3;color:#04785A}
+
+        /* Login */
+        #loginScreen{background:var(--bg)}
         .login-card{
-            background:rgba(18,12,8,.96);
-            border:1px solid var(--border);
-            box-shadow:0 0 60px rgba(127,29,29,.22), inset 0 0 0 1px rgba(201,162,39,.06);
+            background:#fff;border:1px solid var(--border);
+            box-shadow:0 1px 2px rgba(15,27,45,.04),0 24px 60px -28px rgba(15,27,45,.28);
         }
-        .sh h2, .tab{
-            font-family:'Cinzel','EB Garamond',serif;
-            letter-spacing:.08em;
+        #loginScreen .login-card h1{
+            font-family:'Space Grotesk',system-ui,sans-serif;
+            font-size:1.5rem;color:var(--text);text-shadow:none;letter-spacing:-.02em;
         }
-        .sh h2{color:var(--gold);font-weight:600}
-        .tab{font-size:.8rem}
-        .tab.active{color:var(--gold)}
-        .tab.active::after{background:linear-gradient(90deg,var(--gold),var(--red))}
-        .topbar,.tab-bar{background:rgba(10,8,5,.9)}
-        /* Cards get an engraved gilt edge */
+        .login-btn{background:linear-gradient(135deg,var(--purple),var(--blue));box-shadow:0 6px 18px -6px rgba(79,70,229,.55)}
+        .login-err{background:#FEF2F2;border:1px solid #F8C4C4;color:#B4231F}
+        .inp{background:#fff;border:1px solid var(--border);color:var(--text)}
+        .inp:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(79,70,229,.14)}
+        .inp::placeholder{color:var(--text3)}
+
+        /* Cards */
         .sc,.pcard,.cw,.tw{
-            box-shadow:inset 0 0 0 1px rgba(201,162,39,.05), 0 2px 18px rgba(0,0,0,.4);
+            background:#fff;border:1px solid var(--border);
+            box-shadow:0 1px 2px rgba(15,27,45,.04),0 10px 24px -18px rgba(15,27,45,.25);
         }
-        .sc-val{font-family:'Cinzel',serif;color:var(--gold)}
-        .sc:hover{border-color:rgba(201,162,39,.5)}
-        /* Buttons in oxblood/gilt */
-        .login-btn{background:linear-gradient(135deg,var(--red),#5b1717);box-shadow:0 4px 18px rgba(127,29,29,.4)}
-        .rbtn{font-family:'Cinzel',serif;letter-spacing:.04em}
-        .del-btn{font-family:'Cinzel',serif}
-        /* Data tables — parchment ink on aged rows */
-        .tbl thead th{font-family:'Cinzel',serif;letter-spacing:.06em;color:var(--gold)}
+        .sc:hover{border-color:#C7D2FE}
+        .sc-val{font-family:'Space Grotesk',system-ui,sans-serif;color:var(--text)}
+        .sh h2{color:var(--text);font-weight:700;font-family:'Space Grotesk',system-ui,sans-serif;letter-spacing:-.01em}
+
+        /* Tables — the dark washes have to be named explicitly */
+        .tbl thead th{font-family:'Space Grotesk',system-ui,sans-serif;letter-spacing:.06em;color:var(--text3)}
+        .tbl td{border-bottom:1px solid #EEF2F7}
+        .tbl tr:hover td{background:#F7F9FC}
+        .rbtn,.del-btn{font-family:'Space Grotesk',system-ui,sans-serif;letter-spacing:0}
+
+        /* Modals sit on white now */
+        .modal-body strong{color:var(--text)}
+
+        /* ═══ OCR SCAN USAGE — who is actually costing us money ═══
+           Every cloud scan is billed to us per invoice read, so this is the
+           one number that turns into a conversation with a shop. Sorted
+           heaviest first, because that is the only order worth reading. */
+        .ocr-wrap{overflow-x:auto}
+        .ocr-tot{display:flex;flex-wrap:wrap;gap:.9rem;margin-bottom:14px}
+        .ocr-tot div{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 14px;min-width:8.5rem}
+        .ocr-tot b{display:block;font-size:1.4rem;font-weight:700;color:var(--purple);line-height:1.1}
+        .ocr-tot span{font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+        .ocr-bar{height:6px;border-radius:99px;background:#EEF2F7;overflow:hidden;min-width:60px}
+        .ocr-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--purple),var(--cyan))}
+        .ocr-heavy{color:#B4231F;font-weight:700}
+        .ocr-none{color:var(--text3)}
     </style>
     <script src="js/sw-update.js"></script>
 </head>
@@ -323,9 +351,10 @@
         <button class="tab active" onclick="switchTab('overview',this)">👀 Overview</button>
         <button class="tab" onclick="switchTab('accounts',this)">👥 Accounts <span class="badge green" id="tabAcctCount">0</span></button>
         <button class="tab" onclick="switchTab('requests',this)">📩 Requests <span class="badge" id="tabPendCount">0</span></button>
-        <button class="tab" onclick="switchTab('pwdresets',this)">🔑 Resets <span class="badge" id="tabPwdResetCount" style="background:rgba(234,179,8,.2); border-color:rgba(234,179,8,.4); color:#fde047;">0</span></button>
-        <button class="tab" onclick="switchTab('billing',this)">💳 Billing <span class="badge" id="tabOverdueCount" style="background:rgba(239,68,68,.2); border-color:rgba(239,68,68,.4); color:#fca5a5;">0</span></button>
+        <button class="tab" onclick="switchTab('pwdresets',this)">🔑 Resets <span class="badge" id="tabPwdResetCount" style="background:#FEF6E0; border-color:#F5DFA8; color:#8A5A08;">0</span></button>
+        <button class="tab" onclick="switchTab('billing',this)">💳 Billing <span class="badge" id="tabOverdueCount" style="background:rgba(239,68,68,.2); border-color:rgba(239,68,68,.4); color:#B4231F;">0</span></button>
         <button class="tab" onclick="switchTab('support',this)">🎧 Support <span class="badge" id="tabSupportCount" style="background:rgba(14,165,233,.2); border-color:rgba(14,165,233,.4); color:#38bdf8;">0</span></button>
+        <button class="tab" onclick="switchTab('ocr',this)">📸 Scans <span class="badge green" id="tabOcrCount">0</span></button>
         <button class="tab" onclick="switchTab('broadcast',this)">📢 Broadcast</button>
     </div>
 
@@ -449,6 +478,35 @@
     </div>
 
     <!-- TAB: BILLING -->
+    <!-- ═══ OCR SCAN USAGE ═══
+         Every cloud scan costs us money per invoice read, so this answers one
+         question only: which shops are actually spending it. -->
+    <div class="tab-panel" id="tab-ocr">
+        <div class="ocr-tot" id="ocrTotals"></div>
+        <div class="sh"><span>📸</span><h2>Invoice scans by shop</h2>
+            <button class="rbtn" onclick="renderOcr()" style="margin-left:auto">↻ Refresh</button>
+        </div>
+        <p style="font-size:.8rem;color:var(--text3);margin-bottom:14px">
+            Every scan is a paid call to the AI reader. <b>This month</b> is what to charge on;
+            <b>All time</b> shows who has leaned on it since they joined. Shops over
+            <b>100 scans this month</b> are marked — that is the point to have a conversation.
+        </p>
+        <div class="ocr-wrap">
+            <table class="tbl">
+                <thead><tr>
+                    <th>Shop</th>
+                    <th style="text-align:right">This month</th>
+                    <th style="text-align:right">Last 7 days</th>
+                    <th style="text-align:right">All time</th>
+                    <th>Share of all scans</th>
+                    <th style="text-align:right">Lines read</th>
+                    <th>Last scan</th>
+                </tr></thead>
+                <tbody id="ocrBody"><tr><td colspan="7"><div class="ld"><div class="sp"></div>Loading…</div></td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
     <div class="tab-panel" id="tab-billing">
         <div class="stat-grid" id="billingStats" style="margin-bottom:18px"></div>
         <div class="sh"><span>💳</span><h2>Subscriptions</h2>
@@ -573,6 +631,104 @@ function switchTab(id, el) {
     el.classList.add('active');
     if (id === 'broadcast') renderAnnouncements();
     if (id === 'billing') renderBilling();
+    if (id === 'ocr') renderOcr();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   OCR SCAN USAGE — who is spending our money
+
+   Every cloud scan is a paid call, so this table exists to answer one
+   question: which shop do I talk to about the bill.
+
+   ⚠️ THE JOIN THAT MATTERS: ocr_usage.user_id is the SUPABASE AUTH UID
+   (mm-ocr writes data.user.id), NOT the username. It has to be mapped
+   through mm_users.auth_uid or every row looks orphaned.
+
+   Aggregated by TENANT, not by login: a shop with an owner and two workers
+   is one bill, and all three of their scans belong to it.
+   ═══════════════════════════════════════════════════════════════════════ */
+function renderOcr() {
+    const body = document.getElementById('ocrBody');
+    const totals = document.getElementById('ocrTotals');
+    if (!body) return;
+
+    const rows = Array.isArray(window.allOcr) ? window.allOcr : [];
+
+    // auth uid -> the shop that login belongs to
+    const uidToTenant = {};
+    (allUsers || []).forEach(u => {
+        if (u.auth_uid) uidToTenant[u.auth_uid] = u.tenant_id || u.username;
+    });
+
+    const today = new Date();
+    const monthKey = today.toISOString().slice(0, 7);          // YYYY-MM
+    const weekAgo = new Date(today.getTime() - 7 * 86400000).toISOString().slice(0, 10);
+
+    const byShop = {};
+    let grand = 0, grandMonth = 0, orphan = 0;
+    rows.forEach(r => {
+        const day = String(r.day || '').slice(0, 10);
+        // A scan from a login that no longer exists still cost us money, so it
+        // is counted in the totals and shown, never silently dropped.
+        const shop = uidToTenant[r.user_id] || null;
+        const key = shop || '(deleted login)';
+        if (!shop) orphan++;
+        const s = byShop[key] || (byShop[key] = { scans: 0, month: 0, week: 0, lines: 0, last: '' });
+        s.scans++;
+        s.lines += Number(r.lines) || 0;
+        if (day.slice(0, 7) === monthKey) { s.month++; grandMonth++; }
+        if (day >= weekAgo) s.week++;
+        if (day > s.last) s.last = day;
+        grand++;
+    });
+
+    const list = Object.keys(byShop).map(k => Object.assign({ shop: k }, byShop[k]))
+        // Heaviest this month first — that is the order you would read it in.
+        .sort((a, b) => (b.month - a.month) || (b.scans - a.scans));
+
+    const badge = document.getElementById('tabOcrCount');
+    if (badge) badge.textContent = grandMonth;
+
+    if (totals) {
+        const t = (v, l) => `<div><b>${v}</b><span>${l}</span></div>`;
+        totals.innerHTML =
+            t(grandMonth.toLocaleString('en-IN'), 'Scans this month') +
+            t(grand.toLocaleString('en-IN'), 'Scans all time') +
+            t(list.filter(x => x.month > 0).length, 'Shops scanning this month') +
+            t((list[0] && list[0].month) ? escHtml(_ocrName(list[0].shop)) : '—', 'Heaviest this month');
+    }
+
+    if (!list.length) {
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:26px;color:var(--text3)">No scans recorded yet.</td></tr>';
+        return;
+    }
+
+    body.innerHTML = list.map(s => {
+        const pct = grand ? Math.round((s.scans / grand) * 100) : 0;
+        // 100+ in a month is where a scan bill stops being noise.
+        const heavy = s.month >= 100;
+        return `<tr>
+            <td><b>${escHtml(_ocrName(s.shop))}</b>
+                <div style="font-size:.7rem;color:var(--text3)">${escHtml(s.shop)}</div></td>
+            <td style="text-align:right" class="${heavy ? 'ocr-heavy' : ''}">${s.month.toLocaleString('en-IN')}${heavy ? ' ⚠' : ''}</td>
+            <td style="text-align:right">${s.week.toLocaleString('en-IN')}</td>
+            <td style="text-align:right"><b>${s.scans.toLocaleString('en-IN')}</b></td>
+            <td><div style="display:flex;align-items:center;gap:8px">
+                    <div class="ocr-bar" style="flex:1"><i style="width:${pct}%"></i></div>
+                    <span style="font-size:.72rem;color:var(--text3);min-width:2.4rem;text-align:right">${pct}%</span>
+                </div></td>
+            <td style="text-align:right">${s.lines.toLocaleString('en-IN')}</td>
+            <td>${s.last ? escHtml(s.last) : '<span class="ocr-none">—</span>'}</td>
+        </tr>`;
+    }).join('') + (orphan ? `<tr><td colspan="7" style="font-size:.74rem;color:var(--text3);padding-top:12px">
+            ${orphan} scan(s) came from a login that has since been deleted. They still cost us, so they are counted above.
+        </td></tr>` : '');
+}
+
+/* The shop's trading name if we have it, otherwise the tenant key itself. */
+function _ocrName(tenant) {
+    const p = (window.currentShopProfiles || {})[tenant];
+    return (p && (p.shop_name || p.shopName)) || tenant;
 }
 
 // ── CLOCK ──
@@ -614,6 +770,12 @@ async function loadAll() {
 
     window.currentShopProfiles = {};
     (saR.data.shops || []).forEach(p => { window.currentShopProfiles[p.user_id] = p; });
+
+    /* One row per cloud scan. Kept on window so the Scans tab can regroup it
+       without another round trip — and so an older mm-admin that does not
+       return it yet simply shows an empty table instead of breaking. */
+    window.allOcr = saR.data.ocr || [];
+    try { renderOcr(); } catch (e) { console.warn('[sa] scan usage:', e); }
 
     // Update tab badge counts
     const owners = allUsers.filter(u=>u.role==='owner');
@@ -704,10 +866,10 @@ function filterAccounts() {
         const team=allUsers.filter(u2=>(u2.tenant_id||u2.username)===scope).length;
         const isPaid=u.payment_status==='paid';
         const statusBadge=u.approval_status==='pending'
-            ?'<span style="color:#fbbf24;font-size:.7rem">⏳ Pending</span>'
+            ?'<span style="color:#B45309;font-size:.7rem">⏳ Pending</span>'
             :u.approval_status==='rejected'
-                ?'<span style="color:#fca5a5;font-size:.7rem">❌ Rejected</span>'
-                :'<span style="color:#6ee7b7;font-size:.7rem">✅ Approved</span>';
+                ?'<span style="color:#B4231F;font-size:.7rem">❌ Rejected</span>'
+                :'<span style="color:#047857;font-size:.7rem">✅ Approved</span>';
         const onlineSt=u.active_session_token?'<span class="son">Online</span>':'<span class="soff">Offline</span>';
         return `<tr>
             <td style="color:var(--text3);font-size:.72rem">${i+1}</td>
@@ -803,7 +965,7 @@ async function renderRequests() {
 
     const approvedGridEl=document.getElementById('approvedGrid');
     if(approvedGridEl) approvedGridEl.innerHTML=approved.length
-        ?approved.map(u=>mkCard(u,'<div style="font-size:.78rem;color:#6ee7b7">✅ Approved & Active</div>')).join('')
+        ?approved.map(u=>mkCard(u,'<div style="font-size:.78rem;color:#047857">✅ Approved & Active</div>')).join('')
         :'<div class="no-pending">No approved accounts yet</div>';
 }
 
@@ -847,7 +1009,7 @@ async function renderShopEditRequests() {
     // RLS now, so the page's own key returns nothing across tenants.
     const res = await saCall('sa_list_requests');
     if (!res.ok) {
-        grid.innerHTML = `<div class="no-pending" style="color:#f87171">⚠️ Could not load requests.<br><small>${escHtml(res.message)}</small></div>`;
+        grid.innerHTML = `<div class="no-pending" style="color:#DC2626">⚠️ Could not load requests.<br><small>${escHtml(res.message)}</small></div>`;
         return;
     }
     saRequestCache = res.data || {};
@@ -871,7 +1033,7 @@ async function renderShopEditRequests() {
         return;
     }
 
-    const statusColor = { pending: '#fbbf24', approved: '#34d399', rejected: '#f87171' };
+    const statusColor = { pending: '#B45309', approved: '#34d399', rejected: '#DC2626' };
     const statusLabel = { pending: '⏳ Pending', approved: '✅ Approved', rejected: '❌ Rejected' };
 
     grid.innerHTML = visible.map(req => {
@@ -887,7 +1049,7 @@ async function renderShopEditRequests() {
                 </div>
                 <span style="margin-left:auto;font-size:.72rem;font-weight:700;color:${statusColor[req.status]};white-space:nowrap;">${statusLabel[req.status] || req.status}</span>
             </div>
-            <div style="background:rgba(255,255,255,0.06);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:.83rem;color:#cbd5e1;">
+            <div style="background:rgba(255,255,255,0.06);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:.83rem;color:#475569;">
                 <span style="font-size:.68rem;text-transform:uppercase;font-weight:700;color:#64748b;display:block;margin-bottom:3px;">Reason</span>
                 ${req.reason ? escHtml(req.reason) : '<em style="color:#475569">No reason provided</em>'}
             </div>
@@ -942,7 +1104,7 @@ async function renderExtraUserRequests() {
         return;
     }
 
-    const statusColor2 = { pending: '#fbbf24', approved: '#34d399', rejected: '#f87171' };
+    const statusColor2 = { pending: '#B45309', approved: '#34d399', rejected: '#DC2626' };
     const statusLabel2 = { pending: '⏳ Pending', approved: '✅ Approved', rejected: '❌ Rejected' };
 
     grid.innerHTML = visibleExtra.map(req => {
@@ -954,7 +1116,7 @@ async function renderExtraUserRequests() {
                 <div>
                     <div style="font-weight:700;font-size:0.95rem;">👷 ${escHtml(req.requested_username)}</div>
                     <div style="font-size:0.78rem;color:#94a3b8;margin-top:2px;">Shop: <b>${escHtml(req.tenant_id)}</b> &nbsp;·&nbsp; ${dateStr}</div>
-                    <div style="font-size:0.82rem;margin-top:8px;color:#e2e8f0;background:rgba(255,255,255,0.05);border-radius:8px;padding:8px 12px;border:1px solid rgba(255,255,255,0.1);">
+                    <div style="font-size:0.82rem;margin-top:8px;color:#334155;background:rgba(255,255,255,0.05);border-radius:8px;padding:8px 12px;border:1px solid rgba(255,255,255,0.1);">
                         <span style="color:#94a3b8;font-size:0.75rem;">Reason:</span><br>${req.reason ? escHtml(req.reason) : '—'}
                     </div>
                 </div>
@@ -1076,7 +1238,7 @@ function renderRevChart() {
     const sorted=Object.entries(rev).sort((a,b)=>b[1]-a[1]).slice(0,8);
     const max=sorted[0]?.[1]||1;
     document.getElementById('revChart').innerHTML=sorted.length?sorted.map(([n,v])=>`
-        <div class="bi"><div class="bl"><span>${n}</span><span style="color:#6ee7b7">₹${fmt(v)}</span></div>
+        <div class="bi"><div class="bl"><span>${n}</span><span style="color:#047857">₹${fmt(v)}</span></div>
         <div class="bt"><div class="bf" style="width:${(v/max*100).toFixed(1)}%"></div></div></div>`).join('')
         :'<div class="empty">No revenue data</div>';
 }
@@ -1143,9 +1305,9 @@ function _todayStr() { return new Date().toISOString().slice(0, 10); }
 // Status for a shop: suspended > overdue > active > no plan.
 function _billStatus(username) {
     const b = _billing[username] || {};
-    if (b.suspended) return { key: 'suspended', label: '⏸️ Suspended', color: '#fca5a5' };
-    if (b.paid_until && b.paid_until < _todayStr()) return { key: 'overdue', label: '🔴 Overdue', color: '#f87171' };
-    if (b.paid_until) return { key: 'active', label: '✅ Active', color: '#6ee7b7' };
+    if (b.suspended) return { key: 'suspended', label: '⏸️ Suspended', color: '#B4231F' };
+    if (b.paid_until && b.paid_until < _todayStr()) return { key: 'overdue', label: '🔴 Overdue', color: '#DC2626' };
+    if (b.paid_until) return { key: 'active', label: '✅ Active', color: '#047857' };
     return { key: 'none', label: '⚪ No plan', color: 'var(--text3)' };
 }
 
@@ -1196,10 +1358,10 @@ function renderBilling() {
             <td style="color:${st.color};font-weight:600;font-size:.8rem;white-space:nowrap">${st.label}</td>
             <td style="white-space:nowrap">
                 <button class="rbtn" title="Save plan & date" onclick="saveBilling(${uArg})">💾</button>
-                <button class="rbtn" title="Mark paid — extend one month" onclick="markPaid(${uArg})" style="border-color:rgba(16,185,129,.5);color:#6ee7b7">✓ Paid</button>
+                <button class="rbtn" title="Mark paid — extend one month" onclick="markPaid(${uArg})" style="border-color:rgba(16,185,129,.5);color:#047857">✓ Paid</button>
                 ${b.suspended
-                    ? `<button class="rbtn" onclick="unsuspendShop(${uArg},${idArg})" style="border-color:rgba(16,185,129,.5);color:#6ee7b7">▶ Restore</button>`
-                    : `<button class="rbtn" onclick="suspendShop(${uArg},${idArg})" style="border-color:rgba(239,68,68,.5);color:#fca5a5">⏸ Suspend</button>`}
+                    ? `<button class="rbtn" onclick="unsuspendShop(${uArg},${idArg})" style="border-color:rgba(16,185,129,.5);color:#047857">▶ Restore</button>`
+                    : `<button class="rbtn" onclick="suspendShop(${uArg},${idArg})" style="border-color:rgba(239,68,68,.5);color:#B4231F">⏸ Suspend</button>`}
             </td>
         </tr>`;
     }).join('');
@@ -1401,7 +1563,7 @@ async function renderSupportIssues() {
         // `CREATE POLICY "Allow all" ... USING (true)` for the admin to paste —
         // which is precisely the world-readable setup this table just got fixed
         // out of. Never hand that out again.
-        grid.innerHTML = `<div class="no-pending" style="color:#f87171;text-align:left;max-width:600px;margin:0 auto;">
+        grid.innerHTML = `<div class="no-pending" style="color:#DC2626;text-align:left;max-width:600px;margin:0 auto;">
             ⚠️ <strong>Could not load support issues.</strong><br><br>
             <span style="color:#94a3b8;font-size:.82rem;">${escHtml(error.message || 'Server error')}<br><br>
             If this mentions a missing table or policy, run
