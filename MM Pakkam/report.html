@@ -706,6 +706,9 @@
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
+    <!-- The one list of everything the shop owns. Backup and Restore both
+         derive from it; it must load before either runs. -->
+    <script src="js/tenant-data.js"></script>
     <script src="js/returns-data.js"></script>
     <script src="js/tally-export.js"></script>
     <script src="js/gstr1-export.js"></script>
@@ -7728,45 +7731,50 @@
             try {
                 // Fetch the WHOLE shop from the cloud (no date filter) so the backup
                 // is a complete disaster-recovery snapshot, not just transactions.
-                // Feature-detect each helper so a missing one can't break the backup.
-                const _grab = fn => (typeof fn === 'function' ? fn() : Promise.resolve(null));
-                const [
-                    bills, purchases, customers, doctors, medicines,
-                    stockAdjustments, promiseOrders, scheduleHDrugs,
-                    scheduleHRegister, prescriptions, expenses, shopProfile
-                ] = await Promise.all([
-                    _grab(window.dbGetBills),
-                    _grab(window.dbGetPurchases),
-                    _grab(window.dbGetCustomers),
-                    _grab(window.dbGetDoctors),
-                    _grab(window.dbGetMedicines),
-                    _grab(window.dbGetStockAdjustments),
-                    _grab(window.dbGetPromiseOrders),
-                    _grab(window.dbGetScheduleHDrugs),
-                    _grab(window.dbGetScheduleHRegister),
-                    _grab(window.dbGetPrescriptions),
-                    _grab(window.dbGetExpenses),
-                    _grab(window.dbGetShopProfile),
-                ]);
+                //
+                // ⚠️ THIS LIST IS NOT WRITTEN HERE ANY MORE. It is derived from
+                // js/tenant-data.js, because a hand-kept copy of it drifted: this
+                // function used to name 12 datasets while the app had 23, so the
+                // whole Cash & Capital layer, both payment ledgers, staff and the
+                // Schedule-X list were in no backup file — and it still said
+                // "✅ Saved!". Add a table to the registry and it lands here for
+                // free. See js/tenant-data.js for the reasoning.
+                if (!window.mmTenantData) throw new Error('Backup registry (js/tenant-data.js) did not load.');
+                const specs = window.mmTenantData.datasets();
+
+                // Feature-detect each helper so a missing one can't break the
+                // backup — but RECORD the misses instead of swallowing them, so an
+                // incomplete file can never again look like a complete one.
+                const missing = [];
+                const results = await Promise.all(specs.map(async spec => {
+                    const fn = window[spec.get];
+                    if (typeof fn !== 'function') { missing.push(spec.label); return [spec, null]; }
+                    try { return [spec, await fn()]; }
+                    catch (e) { missing.push(spec.label + ' (' + e.message + ')'); return [spec, null]; }
+                }));
 
                 const session = mmCurrentUser();
                 const backup = {
-                    version:           '2.0',
-                    createdAt:         new Date().toISOString(),
-                    user:              session ? session.username : 'unknown',
-                    bills:             bills             || [],
-                    purchases:         purchases         || [],
-                    customers:         customers         || [],
-                    doctors:           doctors           || [],
-                    medicines:         medicines         || [],
-                    stockAdjustments:  stockAdjustments  || [],
-                    promiseOrders:     promiseOrders     || [],
-                    scheduleHDrugs:    scheduleHDrugs    || [],
-                    scheduleHRegister: scheduleHRegister || [],
-                    prescriptions:     prescriptions     || [],
-                    expenses:          expenses          || [],
-                    shopProfile:       shopProfile       || null,
+                    version:   '3.0',
+                    createdAt: new Date().toISOString(),
+                    user:      session ? session.username : 'unknown',
                 };
+                // Stamp what was ASKED for and what actually came back. A restore
+                // can then tell "the shop had no staff" from "staff were never
+                // collected", which a bare empty array cannot express.
+                backup.datasets = specs.map(s => s.key);
+                backup.incomplete = missing;
+                for (const [spec, value] of results) {
+                    backup[spec.key] = spec.single ? (value || null) : (value || []);
+                }
+
+                if (missing.length) {
+                    const goOn = await mmConfirm(
+                        'Some data could not be collected:\n\n• ' + missing.join('\n• ') +
+                        '\n\nThe file will be saved WITHOUT it. Download anyway?',
+                        { title: '⚠️ Backup is incomplete', okText: 'Download anyway' });
+                    if (!goOn) { btn.innerHTML = orig; btn.disabled = false; return; }
+                }
 
                 const json = JSON.stringify(backup, null, 2);
                 const blob = new Blob([json], { type: 'application/json' });
@@ -7791,7 +7799,20 @@
                     localStorage.setItem(`mm_last_backup_${_t2}`, new Date().toISOString());
                 } catch (e) {}
 
+                // Say WHAT was saved, not just that saving happened. A bare
+                // "✅ Saved!" is exactly what let a backup missing eleven
+                // datasets look successful for months.
+                let totalRows = 0, filled = 0;
+                for (const s of specs) {
+                    const v = backup[s.key];
+                    if (Array.isArray(v)) { totalRows += v.length; if (v.length) filled++; }
+                    else if (v) filled++;
+                }
                 btn.innerHTML = '✅ Saved!';
+                showToast(
+                    `Backup ${bnum}: ${totalRows.toLocaleString('en-IN')} records across ` +
+                    `${filled} of ${specs.length} data types.`,
+                    missing.length ? 'error' : 'success');
                 setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 2000);
             } catch (e) {
                 alert('❌ Backup failed: ' + e.message);
@@ -7810,10 +7831,15 @@
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
-                    // Accept any backup that carries at least one known data section
-                    // (v1.0 = bills+purchases only; v2.0 = the whole shop).
-                    const KNOWN = ['bills','purchases','customers','doctors','medicines',
-                        'stockAdjustments','promiseOrders','scheduleHDrugs','scheduleHRegister','prescriptions','expenses'];
+                    // Accept any backup carrying at least one known section, so
+                    // v1.0 (bills+purchases), v2.0 (12 sections) and v3.0 (all of
+                    // them) all still open. The known list comes from the registry
+                    // rather than a second hand-kept copy of the same names.
+                    const KNOWN = window.mmTenantData
+                        ? window.mmTenantData.keys()
+                        : ['bills','purchases','customers','doctors','medicines',
+                           'stockAdjustments','promiseOrders','scheduleHDrugs',
+                           'scheduleHRegister','prescriptions','expenses'];
                     const hasData = data && typeof data === 'object' &&
                         (KNOWN.some(k => Array.isArray(data[k])) || data.shopProfile);
                     if (!hasData) throw new Error('Invalid backup file format.');
@@ -7826,19 +7852,29 @@
                     addRLog(`📅 Backup created: ${data.createdAt ? new Date(data.createdAt).toLocaleString('en-IN') : 'unknown'}`, 'info');
                     addRLog(`👤 User: ${data.user || 'unknown'}`, 'info');
                     addRLog(``, 'info');
+                    // Listed straight off the registry, so a dataset added later
+                    // shows up here without anyone remembering to add a line.
                     const _cnt = k => Array.isArray(data[k]) ? data[k].length : 0;
-                    if (_cnt('purchases'))         addRLog(`📦 Purchases: ${_cnt('purchases')} records`, 'ok');
-                    if (_cnt('bills'))             addRLog(`🧾 Sales Bills: ${_cnt('bills')} records`, 'ok');
-                    if (_cnt('customers'))         addRLog(`👥 Customers (incl. khata): ${_cnt('customers')} records`, 'ok');
-                    if (_cnt('doctors'))           addRLog(`🩺 Doctors: ${_cnt('doctors')} records`, 'ok');
-                    if (_cnt('medicines'))         addRLog(`💊 Medicines: ${_cnt('medicines')} records`, 'ok');
-                    if (_cnt('stockAdjustments'))  addRLog(`📊 Stock adjustments: ${_cnt('stockAdjustments')} records`, 'ok');
-                    if (_cnt('promiseOrders'))     addRLog(`📝 Promise orders: ${_cnt('promiseOrders')} records`, 'ok');
-                    if (_cnt('scheduleHDrugs'))    addRLog(`🅗 Schedule-H drugs: ${_cnt('scheduleHDrugs')} records`, 'ok');
-                    if (_cnt('scheduleHRegister')) addRLog(`🅗 Schedule-H register: ${_cnt('scheduleHRegister')} records`, 'ok');
-                    if (_cnt('prescriptions'))     addRLog(`📄 Prescriptions: ${_cnt('prescriptions')} records`, 'ok');
-                if (_cnt('expenses'))          addRLog(`💸 Expenses: ${_cnt('expenses')} records`, 'ok');
-                    if (data.shopProfile)          addRLog(`🏪 Shop profile: included`, 'ok');
+                    const specs = window.mmTenantData ? window.mmTenantData.datasets() : [];
+                    for (const s of specs) {
+                        if (s.single) { if (data[s.key]) addRLog(`${s.label}: included`, 'ok'); continue; }
+                        if (_cnt(s.key)) addRLog(`${s.label}: ${_cnt(s.key)} records`, 'ok');
+                    }
+                    // An older file genuinely predates these sections — say so
+                    // plainly rather than letting the shop assume it holds
+                    // everything. This is the whole point of the v3.0 change.
+                    const absent = specs.filter(s => data[s.key] === undefined);
+                    if (absent.length) {
+                        addRLog(``, 'info');
+                        addRLog(`⚠️ This file (v${data.version || '1.0'}) predates ${absent.length} newer data type(s):`, 'info');
+                        addRLog(`   ${absent.map(s => s.label).join(', ')}`, 'info');
+                        addRLog(`   Those cannot be restored from it. Take a fresh Backup afterwards.`, 'info');
+                    }
+                    if (Array.isArray(data.incomplete) && data.incomplete.length) {
+                        addRLog(``, 'info');
+                        addRLog(`⚠️ This backup recorded itself as INCOMPLETE when saved:`, 'err');
+                        addRLog(`   ${data.incomplete.join(', ')}`, 'err');
+                    }
                     addRLog(``, 'info');
                     addRLog(`⚠️  This will ADD these records back to the database.`, 'info');
                     addRLog(`   Existing data will NOT be deleted or overwritten.`, 'info');
@@ -8120,6 +8156,50 @@
                     addRLog((r && r.success) ? `  ✅ Shop profile restored` : `  ❌ shop profile failed`, (r && r.success) ? 'ok' : 'err');
                 } else {
                     addRLog(`  ⏩ Shop profile already set — kept existing`, 'info');
+                }
+            }
+
+            /* ── The v3.0 datasets. Every writer below upserts on a stable id
+                 (account_id, entry_id, payment_id, staff_id, recon_id,
+                 user_id+day, user_id+name…), so replaying a file cannot create
+                 duplicates and needs no hand-written dedup key — unlike the
+                 bespoke blocks above, which insert.
+
+                 Driven by the registry, and it only ever returns entries whose
+                 mode is neither 'custom' nor 'none', so nothing above can be
+                 written twice and the audit log is never replayed. ── */
+            if (window.mmTenantData) {
+                for (const spec of window.mmTenantData.restorable()) {
+                    const rows = P[spec.key];
+                    if (!Array.isArray(rows) || !rows.length) continue;
+                    const put = window[spec.put];
+                    if (typeof put !== 'function') {
+                        addRLog(`  ⏩ ${spec.label} skipped — this page cannot write it`, 'info');
+                        continue;
+                    }
+                    addRLog(`⏳ Restoring ${rows.length} ${spec.label}...`, 'info');
+                    let ok = 0, fail = 0;
+                    try {
+                        if (spec.mode === 'bulk' || spec.mode === 'names') {
+                            const payload = spec.mode === 'names'
+                                ? rows.map(r => (typeof r === 'string' ? r : (r && r.name) || '')).filter(Boolean)
+                                : rows;
+                            const r = await put(payload);
+                            if (r && r.success) ok = payload.length; else fail = payload.length;
+                        } else {
+                            for (const row of rows) {
+                                const r = (spec.mode === 'args')
+                                    ? await put.apply(null, spec.spread(row))
+                                    : await put(row);
+                                if (r && r.success) ok++; else fail++;
+                            }
+                        }
+                    } catch (e) {
+                        addRLog(`  ❌ ${spec.label} failed: ${e.message}`, 'err');
+                        continue;
+                    }
+                    addRLog(`  ${ok ? '✅' : '❌'} ${ok} ${spec.label} restored${fail ? ', ❌ ' + fail + ' failed' : ''}`,
+                            ok ? 'ok' : 'err');
                 }
             }
 

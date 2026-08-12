@@ -31,6 +31,12 @@ declare
     -- staff with v357. Salary PAYMENTS need no entry — they are rows in
     -- `expenses`, which is already listed above.
     'till_counts','finance_accounts','finance_entries','staff',
+    -- bank_reconciliations (v377) and customer_balance_ops (v371) were both
+    -- added after the last edit here and left a deleted shop's rows behind.
+    -- ⚠️ This array is the SQL half of js/tenant-data.js, which cannot be read
+    -- from here. When you add a dataset there, add its table here too —
+    -- mmTenantData.tables() prints the list to compare against.
+    'bank_reconciliations','customer_balance_ops',
     -- this shop's own request/queue rows
     'shop_edit_requests','extra_user_requests','password_reset_requests',
     'customer_issues'
