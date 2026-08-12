@@ -1232,6 +1232,12 @@
                     </svg>
                     Year-End Pack
                 </button>
+                <button class="btn-export-excel" onclick="openDataModal()" title="Everything you can take out of Billware, and what opens it" style="background:#475569;">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 3v13m0 0l4-4m-4 4l-4-4"/>
+                    </svg>
+                    Your Data
+                </button>
                 <button class="btn-backup" onclick="backupData()" title="Download all your data as a backup file">
                     <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -1549,6 +1555,40 @@
          statements are missing — every one already exists on some screen — but
          that they are exported separately, on different date ranges, and the
          mismatch is what the accountant bills for. -->
+    <!-- ═══ YOUR DATA ═══
+         Every way out of Billware, in one place, in the shop's own words.
+
+         This panel COMPUTES NOTHING and EXPORTS NOTHING itself. Each row calls
+         the function that already sits behind its toolbar button. A second
+         code path producing "the same" file is exactly how the backup came to
+         miss eleven datasets — so there is deliberately only one of each.
+
+         It exists because the export buttons are spread across one crowded
+         toolbar that mixes four different jobs (filing a return, handing off
+         to an accountant, submitting to a portal, owning your data), so a shop
+         cannot look at that row and see what it is actually able to take with
+         it. That question deserves a plain answer. -->
+    <div class="modal-overlay" id="dataModal" style="display:none;" onclick="if(event.target===this) closeDataModal()">
+        <div class="modal-content" style="max-width:660px;">
+            <div class="modal-header">
+                <div class="modal-title">📤 Your Data</div>
+                <button class="modal-close" onclick="closeDataModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin:0 0 0.6rem;font-size:0.9rem;line-height:1.65;color:#334155;">
+                    Everything you enter into Billware can be downloaded at any time, in formats
+                    that open <b>without us</b>. No export fee, and nothing to ask permission for.
+                </p>
+                <div id="dataLastBackup" style="font-size:0.82rem;font-weight:700;margin:0 0 1rem;"></div>
+                <div id="dataRows"></div>
+                <p style="margin:1rem 0 0;font-size:0.78rem;line-height:1.6;color:#64748b;">
+                    Sales, purchases, stock and the Schedule-H register also export to Excel from
+                    their own pages — the button sits on each page's toolbar.
+                </p>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="yearEndModal" style="display:none;" onclick="if(event.target===this) closeYearEndModal()">
         <div class="modal-content" style="max-width:620px;">
             <div class="modal-header">
@@ -7819,6 +7859,100 @@
                 btn.innerHTML = orig;
                 btn.disabled = false;
             }
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           YOUR DATA — the panel behind the 📤 button.
+
+           `run` names an EXISTING function. Nothing here builds a file; it
+           only opens the door that is already there. If a row ever needs
+           export logic of its own, that is the signal to fix the underlying
+           export instead — two paths to one file is the bug we just spent the
+           day removing from Backup.
+
+           `portable` is the honest bit and the reason the panel is worth
+           having: a JSON backup that only Billware can read is a safety net,
+           NOT a way out, and saying so is what makes the rest believable.
+           ══════════════════════════════════════════════════════════════════ */
+        const DATA_EXPORTS = [
+            { name: 'Complete backup',
+              desc: 'Every record you have — bills, purchases, khata, cash &amp; bank accounts, staff, registers.',
+              fmt: 'JSON file', run: 'backupData', portable: false,
+              note: 'Restores back into Billware. Your safety net if anything is ever lost.' },
+            { name: 'Year-End Pack',
+              desc: 'One file for your accountant: profit &amp; loss, what you own and owe, assets, loans and GST for the year.',
+              fmt: 'Opens in any browser', run: 'openYearEndModal', portable: true },
+            { name: 'GST Excel',
+              desc: 'Your sales and tax figures as a spreadsheet.',
+              fmt: 'Excel', run: 'exportGSTExcel', portable: true },
+            { name: 'Tally vouchers',
+              desc: 'Sales, purchases, credit and debit notes as vouchers for your accountant.',
+              fmt: 'XML for Tally', run: 'openTallyModal', portable: false,
+              note: 'Ask your accountant to try one month first.' },
+            { name: 'GSTR-1',
+              desc: 'The monthly return, in the format the GST portal expects.',
+              fmt: 'JSON for the GST portal', run: 'openGstrModal', portable: true },
+            { name: 'e-Invoice / e-Way bill',
+              desc: 'Bulk upload file for the government e-invoice portal.',
+              fmt: 'JSON for the NIC portal', run: 'openEinvModal', portable: true },
+        ];
+
+        function openDataModal() {
+            // Last backup, from the stamp Backup already writes. A promise the
+            // shop can check beats a promise it has to believe.
+            const s = (typeof mmCurrentUser === 'function') ? mmCurrentUser() : null;
+            const t = s ? (s.tenant_id || s.username) : 'anon';
+            let when = null;
+            try { when = localStorage.getItem(`mm_last_backup_${t}`); } catch (e) {}
+            const el = document.getElementById('dataLastBackup');
+            if (when) {
+                const days = Math.floor((Date.now() - new Date(when).getTime()) / 86400000);
+                const ago = days <= 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago';
+                el.textContent = '✅ Last backup: ' + ago + ' (' + new Date(when).toLocaleDateString('en-IN') + ')';
+                el.style.color = days > 14 ? '#b45309' : '#047857';
+            } else {
+                el.textContent = '⚠️ You have never taken a backup.';
+                el.style.color = '#b45309';
+            }
+
+            document.getElementById('dataRows').innerHTML = DATA_EXPORTS.map((d, i) => `
+                <div style="display:flex;gap:12px;align-items:flex-start;padding:0.85rem 0;border-top:1px solid #f1f5f9;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:800;color:#0f172a;font-size:0.92rem;">${d.name}</div>
+                        <div style="font-size:0.8rem;color:#475569;line-height:1.55;margin-top:2px;">${d.desc}</div>
+                        <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                            <span style="font-size:0.7rem;font-weight:700;color:#475569;background:#f1f5f9;border-radius:999px;padding:2px 9px;">${d.fmt}</span>
+                            ${d.portable
+                                ? `<span style="font-size:0.7rem;font-weight:700;color:#047857;background:#ecfdf5;border-radius:999px;padding:2px 9px;">Opens anywhere</span>`
+                                : `<span style="font-size:0.7rem;font-weight:700;color:#92400e;background:#fffbeb;border-radius:999px;padding:2px 9px;">Needs the right software</span>`}
+                        </div>
+                        ${d.note ? `<div style="font-size:0.74rem;color:#94a3b8;margin-top:5px;">${d.note}</div>` : ''}
+                    </div>
+                    <button class="search-btn" data-run="${i}" style="flex:0 0 auto;white-space:nowrap;">⬇ Get it</button>
+                </div>`).join('');
+
+            // Wired by listener rather than inline onclick, so a function that
+            // does not exist is reported here instead of failing silently at
+            // the click.
+            document.querySelectorAll('#dataRows button[data-run]').forEach(b => {
+                b.addEventListener('click', () => {
+                    const d = DATA_EXPORTS[parseInt(b.dataset.run, 10)];
+                    const fn = window[d.run];
+                    if (typeof fn !== 'function') { showToast(`${d.name} is unavailable on this page.`, 'error'); return; }
+                    closeDataModal();
+                    fn();
+                });
+            });
+
+            const m = document.getElementById('dataModal');
+            m.style.display = 'flex';
+            requestAnimationFrame(() => m.classList.add('open'));
+        }
+
+        function closeDataModal() {
+            const m = document.getElementById('dataModal');
+            m.classList.remove('open');
+            setTimeout(() => { m.style.display = 'none'; }, 200);
         }
 
         function loadRestoreFile(event) {
