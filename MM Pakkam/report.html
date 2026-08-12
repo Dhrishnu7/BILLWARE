@@ -114,6 +114,35 @@
            A labelled band per job rather than one long wrapped row. The label
            is the point: it answers "which of these do I want?" before the
            shop has to read eleven button captions and guess. */
+        /* ── Audit trail ──────────────────────────────────────────────────
+           Read down a column, not across a row: you are usually scanning for
+           WHEN something happened or WHAT was done, so those get fixed widths
+           and everything else gives way to the detail. */
+        #auditTable td { vertical-align: top; padding: 0.7rem 0.9rem; line-height: 1.55; }
+        #auditTable tbody tr:hover { background: #f8fafc; }
+        .au-when { white-space: nowrap; }
+        .au-day  { display: block; font-weight: 700; color: #0f172a; font-size: 0.84rem; }
+        .au-time { display: block; font-size: 0.76rem; color: #94a3b8; font-variant-numeric: tabular-nums; }
+        .au-user { font-weight: 700; color: #334155; white-space: nowrap; }
+        /* A pill, because the action is the thing you scan for — and coloured
+           by whether it destroyed something, so a deletion cannot hide in a
+           wall of grey text. */
+        .au-act {
+            display: inline-block; font-size: 0.78rem; font-weight: 700;
+            padding: 3px 10px; border-radius: 999px; border: 1px solid;
+            white-space: nowrap;
+        }
+        .au-detail { color: #475569; font-size: 0.86rem; word-break: break-word; }
+        .au-ref {
+            color: #94a3b8; font-size: 0.75rem;
+            font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            word-break: break-all;
+        }
+        @media (max-width: 700px) {
+            .au-detail { font-size: 0.82rem; }
+            .au-ref { display: none; }   /* an id is never what you scan for on a phone */
+        }
+
         .action-groups {
             display: flex; flex-wrap: wrap; gap: 0.9rem 1.6rem;
             margin-top: 1.1rem; padding-top: 1rem;
@@ -811,8 +840,11 @@
                     style="display:block; width:100%; max-width:360px; padding:0.55rem 0.85rem; margin-bottom:1rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:0.86rem; font-family:inherit; box-sizing:border-box;">
                 <div style="overflow-x:auto;">
                     <table class="report-table" id="auditTable" style="table-layout:fixed; min-width:640px;">
+                        <!-- When and User are stacked/nowrap so they need less
+                             room than before; the detail is the column that was
+                             actually starved and it gets what they give up. -->
                         <colgroup>
-                            <col style="width:16%"><col style="width:13%"><col style="width:22%"><col style="width:35%"><col style="width:14%">
+                            <col style="width:11%"><col style="width:11%"><col style="width:20%"><col style="width:44%"><col style="width:14%">
                         </colgroup>
                         <thead><tr><th>When</th><th>User</th><th>Action</th><th>Details</th><th>Ref</th></tr></thead>
                         <tbody id="auditBody"><tr><td colspan="5" style="text-align:center; padding:1.6rem; color:#94a3b8;">Open this tab to load activity…</td></tr></tbody>
@@ -6154,23 +6186,73 @@
             try { localStorage.setItem('mm_audit_log', JSON.stringify(_auditData.slice(0, 500))); } catch (e) {}
             renderAuditTable();
         }
+        /* ── Account ids, turned back into account names ──────────────────
+           Older rows recorded the routing as "upi→fa-msiw4voob2pbv", which is
+           unreadable and therefore un-auditable. New rows store the name
+           (khata.html), but the history is immutable and still holds ids, so
+           they are resolved HERE at display time.
+
+           This is a display aid, not an edit: an id that no longer resolves —
+           a deleted account — is left exactly as recorded rather than being
+           quietly dropped, because "an account that no longer exists" is
+           itself something an auditor needs to see. */
+        let _acctNames = null;                 // null = not fetched yet
+        function _humanIds(text) {
+            if (!text || !_acctNames) return text || '';
+            return String(text).replace(/fa-[a-z0-9]+/gi, m => _acctNames[m] || m);
+        }
+
+        /* Colour by what the action DID, not by which page logged it. Anything
+           destructive has to be findable by eye when you are scrolling a long
+           trail looking for the moment something disappeared. */
+        function _actionTone(action) {
+            const a = String(action || '').toLowerCase();
+            if (/delet|remove|clear|wipe/.test(a))        return ['#b91c1c', '#fef2f2', '#fecaca'];
+            if (/backup|restore|export/.test(a))          return ['#047857', '#ecfdf5', '#a7f3d0'];
+            if (/chang|edit|updat|correct|merge/.test(a)) return ['#b45309', '#fffbeb', '#fde68a'];
+            return ['#334155', '#f1f5f9', '#e2e8f0'];
+        }
+
         function renderAuditTable() {
             const body = document.getElementById('auditBody');
             const q = (document.getElementById('auditSearch').value || '').trim().toLowerCase();
-            const rows = _auditData.filter(a => !q || (a.actor + ' ' + a.action + ' ' + a.detail + ' ' + a.ref).toLowerCase().includes(q));
+
+            /* Fetch the account names once, then repaint. Deliberately does not
+               block the first paint — the trail is readable without them. */
+            if (_acctNames === null && typeof dbGetFinanceAccounts === 'function') {
+                _acctNames = {};
+                Promise.resolve(dbGetFinanceAccounts()).then(list => {
+                    (list || []).forEach(a => { if (a && a.id) _acctNames[a.id] = a.name || a.id; });
+                    renderAuditTable();
+                }).catch(() => {});
+            }
+
+            const rows = _auditData.filter(a => !q ||
+                (a.actor + ' ' + a.action + ' ' + _humanIds(a.detail) + ' ' + a.ref).toLowerCase().includes(q));
             if (!rows.length) {
                 body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.6rem;color:#94a3b8;">' +
                     (_auditData.length ? 'No matches.' : 'No activity logged yet.') + '</td></tr>';
                 return;
             }
             body.innerHTML = rows.slice(0, 300).map(a => {
-                let when = '—';
-                try { when = a.at ? new Date(a.at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true }) : '—'; } catch (e) {}
-                return '<tr><td style="white-space:nowrap;">' + _aEsc(when) + '</td>'
-                    + '<td><b>' + _aEsc(a.actor || '—') + '</b></td>'
-                    + '<td style="font-weight:600;">' + _aEsc(a.action || '') + '</td>'
-                    + '<td style="color:#64748b;">' + _aEsc(a.detail || '') + '</td>'
-                    + '<td style="color:#94a3b8;">' + _aEsc(a.ref || '') + '</td></tr>';
+                let day = '—', time = '';
+                try {
+                    if (a.at) {
+                        const d = new Date(a.at);
+                        day  = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+                        time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                    }
+                } catch (e) {}
+                const [fg, bg, bd] = _actionTone(a.action);
+                const detail = _humanIds(a.detail);
+                return '<tr>'
+                    + '<td class="au-when"><span class="au-day">' + _aEsc(day) + '</span>'
+                      + (time ? '<span class="au-time">' + _aEsc(time) + '</span>' : '') + '</td>'
+                    + '<td class="au-user">' + _aEsc(a.actor || '—') + '</td>'
+                    + '<td><span class="au-act" style="color:' + fg + ';background:' + bg + ';border-color:' + bd + ';">'
+                      + _aEsc(a.action || '') + '</span></td>'
+                    + '<td class="au-detail">' + _aEsc(detail) + '</td>'
+                    + '<td class="au-ref">' + _aEsc(a.ref || '') + '</td></tr>';
             }).join('');
         }
 
