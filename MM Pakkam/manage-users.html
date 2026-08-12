@@ -249,6 +249,7 @@
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
+<script src="js/lang.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
@@ -275,6 +276,26 @@
             <div class="breadcrumb"><a href="index.html">Home</a> &rsaquo; Manage Users</div>
             <h1>👥 Manage Users</h1>
             <p>Add workers and manage access</p>
+        </div>
+
+        <!-- Language. Permanent home for the setting once the dashboard has
+             stopped asking. Applies to the person signed in right now, not to
+             the shop — see mmLang() for why it is not stored tenant-scoped. -->
+        <div class="card" style="margin-bottom:1.2rem;">
+            <div class="card-header">
+                <div class="card-title">
+                    <div class="card-title-icon">
+                        <svg width="17" height="17" fill="none" stroke="#2563eb" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/>
+                        </svg>
+                    </div>
+                    Language
+                </div>
+                <span style="font-size:0.78rem;color:#94a3b8;" id="langWho"></span>
+            </div>
+            <div style="padding:1rem 0.2rem 0.2rem;">
+                <div id="langPicker"></div>
+            </div>
         </div>
 
         <div class="users-layout">
@@ -495,6 +516,16 @@
 
         let _session      = mmGetSession();
         let _resetTarget  = null;
+
+        /* Language applies to whoever is signed in on THIS device, so name
+           them — otherwise an owner reasonably reads it as a shop setting
+           and expects it to reach the counter staff's screen too. */
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof mmRenderLangPicker !== 'function') return;
+            const who = document.getElementById('langWho');
+            if (who && _session && _session.username) who.textContent = 'for ' + _session.username;
+            mmRenderLangPicker('langPicker');
+        });
         let _renameTarget = null;
         let _deleteTarget = null;
 

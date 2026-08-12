@@ -511,8 +511,18 @@
         // -- Auth Guard --
         mmRequireAuth();
         document.addEventListener('DOMContentLoaded', () => mmInjectUserBar());
+/* The dashboard asks ONCE. After a language has been chosen the prompt is
+   gone from the home page for good and the setting lives on the Users page.
+   Note it stays visible for the rest of THIS page load after choosing — the
+   sample sentence switching under their finger is the confirmation. */
 document.addEventListener('DOMContentLoaded', () => {
-    if (typeof mmRenderLangPicker === 'function') mmRenderLangPicker('langPicker');
+    const el = document.getElementById('langPicker');
+    if (!el) return;
+    if (typeof mmRenderLangPicker !== 'function' || (typeof mmLangChosen === 'function' && mmLangChosen())) {
+        el.remove();
+        return;
+    }
+    mmRenderLangPicker('langPicker', { showMoved: true });
 });
     </script>
 

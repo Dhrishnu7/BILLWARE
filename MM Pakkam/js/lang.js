@@ -252,31 +252,63 @@ const MM_STRINGS = {
         en: 'Language set to {name}',
         ta: 'மொழி {name}-ஆ மாறிடுச்சு',
         hi: 'भाषा {name} पर सेट हो गई'
+    },
+    /* The live sample. Choosing a language has to LOOK like it did
+       something — Phase 1 only translates dialogs, so without this the
+       page stays English and the switch reads as broken. */
+    'lang.preview.label': {
+        en: 'A warning will now look like this:',
+        ta: 'இனிமே warning இப்படி வரும்:',
+        hi: 'अब warning ऐसी दिखेगी:'
+    },
+    'lang.moved': {
+        en: 'You can change this any time from 👥 Users.',
+        ta: 'இதை எப்பவேணா 👥 Users-ல மாத்திக்கலாம்.',
+        hi: 'इसे कभी भी 👥 Users से बदल सकते हैं।'
     }
 };
 
 /* ─────────────────────────────────────────────────────────────
    Which language is this USER on?
 
-   Per user, not per shop, and deliberately so: the owner may work
-   in English while the counter staff work in Tamil, on the very
-   same shop's data. mmLsSet scopes the key by username already,
-   so two people sharing one till each keep their own setting.
+   NOT stored through mmLsGet/mmLsSet. Those scope by tenant_id,
+   which for a WORKER is the owner's username — so every member of
+   a shop would share one setting and the owner switching to Tamil
+   would switch the whole counter with them.
+
+   Keyed on the logged-in username instead, so an owner working in
+   English and a counter hand working in Tamil can share one till.
+   Falls back to an unscoped key when nobody is signed in, which is
+   only ever the login screen.
 ───────────────────────────────────────────────────────────── */
+function _mmLangKey() {
+    let u = '';
+    try {
+        const s = (typeof mmGetSession === 'function') ? mmGetSession() : null;
+        if (s && s.username) u = String(s.username);
+    } catch (e) {}
+    return u ? ('mm_lang_' + u) : 'mm_lang';
+}
+
 function mmLang() {
     if (window.__mmLangOverride) return window.__mmLangOverride;   // tests only
     try {
-        if (typeof mmLsGet === 'function') {
-            const v = mmLsGet('lang');
-            if (v && MM_STRINGS && MM_LANGS.some(l => l.code === v)) return v;
-        }
+        const v = localStorage.getItem(_mmLangKey());
+        if (v && MM_LANGS.some(l => l.code === v)) return v;
     } catch (e) {}
     return 'en';
 }
 
+/* Has this person ever actually chosen? Distinct from "is on English",
+   because the dashboard prompt should disappear once they have picked —
+   including when they deliberately picked English. */
+function mmLangChosen() {
+    try { return !!localStorage.getItem(_mmLangKey()); } catch (e) { return false; }
+}
+
 function mmSetLang(code) {
     if (!MM_LANGS.some(l => l.code === code)) return false;
-    try { if (typeof mmLsSet === 'function') mmLsSet('lang', code); } catch (e) {}
+    try { localStorage.setItem(_mmLangKey(), code); } catch (e) {}
     try { document.documentElement.setAttribute('lang', code); } catch (e) {}
     return true;
 }
@@ -310,33 +342,51 @@ function mmTHas(key) { return Object.prototype.hasOwnProperty.call(MM_STRINGS, k
 /* ─────────────────────────────────────────────────────────────
    The switch. Rendered into whatever element id is passed.
 ───────────────────────────────────────────────────────────── */
-function mmRenderLangPicker(elId) {
+function mmRenderLangPicker(elId, opts) {
     const host = document.getElementById(elId);
     if (!host) return;
+    opts = opts || {};
     const cur = mmLang();
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    /* A REAL warning, rendered in the chosen language. Without this the
+       switch looks broken: only dialogs are translated, so the page around
+       it stays English and nothing appears to happen when you click. */
+    const sample = mmT('bin.empty');
+
     host.innerHTML =
         '<div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap; justify-content:center;">'
-      + '<span style="font-size:0.82rem; color:#64748b; font-weight:600;">🌐 ' + mmT('lang.title') + '</span>'
+      + '<span style="font-size:0.82rem; color:#64748b; font-weight:600;">🌐 ' + esc(mmT('lang.title')) + '</span>'
       + MM_LANGS.map(l =>
             '<button type="button" data-lang="' + l.code + '" '
           + 'style="padding:0.3rem 0.75rem; border-radius:999px; cursor:pointer; font-size:0.82rem; font-weight:700;'
           + 'border:1.5px solid ' + (l.code === cur ? '#2563eb' : '#cbd5e1') + ';'
           + 'background:' + (l.code === cur ? '#2563eb' : '#fff') + ';'
           + 'color:' + (l.code === cur ? '#fff' : '#475569') + ';">'
-          + l.native + '</button>').join('')
+          + esc(l.native) + '</button>').join('')
       + '</div>'
       + '<div style="font-size:0.72rem; color:#94a3b8; margin-top:0.4rem; text-align:center;">'
-      + mmT('lang.note') + '</div>';
+      + esc(mmT('lang.note')) + '</div>'
+      + '<div style="max-width:520px; margin:0.6rem auto 0; padding:0.6rem 0.8rem; border-radius:10px;'
+      + 'background:#f8fafc; border:1px solid #e2e8f0; text-align:center;">'
+      + '<div style="font-size:0.68rem; color:#94a3b8; font-weight:600; margin-bottom:0.25rem;">'
+      + esc(mmT('lang.preview.label')) + '</div>'
+      + '<div id="' + elId + '_sample" style="font-size:0.82rem; color:#334155; line-height:1.5;">'
+      + esc(sample) + '</div></div>'
+      + (opts.showMoved
+            ? '<div style="font-size:0.72rem; color:#64748b; margin-top:0.5rem; text-align:center;">'
+              + esc(mmT('lang.moved')) + '</div>'
+            : '');
 
     host.querySelectorAll('button[data-lang]').forEach(b => {
         b.onclick = () => {
             const code = b.getAttribute('data-lang');
             if (!mmSetLang(code)) return;
-            mmRenderLangPicker(elId);                    // re-render in the new language
-            const name = (MM_LANGS.find(l => l.code === code) || {}).native || code;
-            const msg = mmT('lang.saved', { name: name });
-            if (typeof showToast === 'function') showToast(msg, 'success');
-            else if (typeof mmAlert === 'function') mmAlert(msg);
+            /* Re-render in the new language. The sample sentence changing
+               under their finger IS the confirmation — no toast needed, and
+               no dependency on a page happening to define one. */
+            mmRenderLangPicker(elId, opts);
+            if (typeof opts.onChoose === 'function') { try { opts.onChoose(code); } catch (e) {} }
         };
     });
 }
