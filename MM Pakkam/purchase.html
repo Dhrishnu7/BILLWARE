@@ -521,6 +521,28 @@
             border: 1.5px solid #cbd5e1; background: white; color: #334155;
             cursor: pointer; max-width: 11rem;
         }
+        /* A box the scanner was not sure of. Amber, not red: the value is
+           probably right and is certainly the best reading available — this is
+           "look at me", not "this is wrong". The mark clears the moment the
+           shop touches the box, because touching it IS the check. */
+        .ocr-unsure {
+            background: #fffbeb !important;
+            border-color: #f59e0b !important;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+        }
+        .ocr-unsure:focus { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35); }
+        #ocrUnsureBar {
+            display: none; align-items: center; gap: 0.7rem; flex-wrap: wrap;
+            background: #fffbeb; border: 1.5px solid #fcd34d; border-radius: 12px;
+            padding: 0.6rem 0.9rem; margin: 0 0 0.9rem;
+            font-size: 0.84rem; font-weight: 700; color: #92400e;
+        }
+        #ocrUnsureBar .ou-btn {
+            margin-left: auto; background: #f59e0b; color: white; border: none;
+            border-radius: 9px; padding: 0.4rem 0.9rem; font-weight: 800;
+            font-size: 0.8rem; font-family: inherit; cursor: pointer;
+        }
+        #ocrUnsureBar .ou-btn:hover { background: #d97706; }
         .inv-chip-sel:hover { border-color: #0ea5e9; }
         .inv-chip-sel:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 1px; }
         .inv-chip.inv-chip-skip .inv-chip-sel { color: #94a3b8; }
@@ -662,6 +684,14 @@
 
                 <!-- ═══ Line Items Section ═══ -->
                 <div class="section-label">💊 Product Items</div>
+                <!-- Only ever shown after a scan, and only while something is
+                     still unchecked. It counts down as the shop works through
+                     them, so "done" is visible rather than assumed. -->
+                <div id="ocrUnsureBar">
+                    <span>⚠️</span>
+                    <span class="ou-text"></span>
+                    <button type="button" class="ou-btn" onclick="jumpToUnsure()">Go to next →</button>
+                </div>
                 <div class="line-items-container" id="lineItemsContainer">
                     <!-- Line items will be rendered here by JS -->
                 </div>
@@ -1805,6 +1835,10 @@ window.addEventListener('DOMContentLoaded', () => {
                     if(!raw||raw.length<2){ showToast('Empty File','No data rows found.'); return; }
                     _invHdrs=raw[0].map(String);
                     _invRows=raw.slice(1).filter(r=>r.some(c=>String(c).trim()));
+                    /* A typed file carries no doubt, and stale flags from a
+                       previous scan would paint amber boxes on figures nothing
+                       ever guessed at. */
+                    _invFlags=[];
                     showInvMapper();
                 } catch(err){ showToast('Read Error','Could not read file.'); }
             };
@@ -1886,6 +1920,9 @@ window.addEventListener('DOMContentLoaded', () => {
             _lastTurnDeg = 0;               // no orientation guessing on this path
             _invHdrs = out.headers;
             _invRows = out.rows;
+            /* Which fields on which lines the scanner doubted. Only the CSV/
+               Excel path leaves this empty — a typed file has no doubt in it. */
+            _invFlags = out.flags || [];
 
             /* Bill number and supplier, but only into boxes that are still
                empty — the shop may have typed them before opening the scanner,
@@ -3455,6 +3492,89 @@ window.addEventListener('DOMContentLoaded', () => {
            another's. It is a convenience, not shop data: worst case it is
            forgotten and auto-detect runs, which is exactly today's behaviour.
            ══════════════════════════════════════════════════════════════════ */
+        /* ══════════════════════════════════════════════════════════════════
+           WHAT THE SCANNER WASN'T SURE OF
+
+           The model already names the fields it could not read confidently,
+           per line, and it has since the cloud scanner shipped. Until now only
+           the TALLY survived the trip: the shop was told "batchNo on 3
+           line(s)" and then had to read all forty rows to find which three.
+
+           So the boxes it doubted are marked. Four amber cells on a forty-line
+           invoice is a thirty-second check against the paper; forty rows of
+           "please verify" is one nobody does.
+
+           Two rules this must obey:
+             · MARK, NEVER DISCARD. The value stays in the box. A blank would
+               be safer-looking and worse — the shop loses the model's best
+               reading and has to find the row on the paper from nothing.
+             · A model's own confidence is NOT calibrated. This means "worth a
+               look", never "this one is right", so nothing is auto-accepted
+               and an unflagged field is not certified correct either.
+           ══════════════════════════════════════════════════════════════════ */
+        let _invFlags = [];
+
+        /* Model field name → the class on the matching input in a line row. */
+        const FLAG_TO_INPUT = {
+            productName: 'li-productName', batchNo: 'li-batchNo', expiry: 'li-expireDate',
+            expireDate: 'li-expireDate', quantity: 'li-quantity', mrp: 'li-mrp',
+            rate: 'li-rate', gstPercent: 'li-gst', gst: 'li-gst', pack: 'li-pack',
+            hsn: 'li-hsn', freeQty: 'li-free', amount: 'li-total',
+        };
+
+        function _markUncertainFields() {
+            let marked = 0;
+            const rows = document.querySelectorAll('#lineItemsContainer .line-item');
+            rows.forEach((rowEl, i) => {
+                (_invFlags[i] || []).forEach(field => {
+                    const cls = FLAG_TO_INPUT[field];
+                    if (!cls) return;
+                    const el = rowEl.querySelector('.' + cls);
+                    if (!el) return;
+                    el.classList.add('ocr-unsure');
+                    el.title = 'The scanner was not sure it read this correctly — check it against the paper.';
+                    /* The mark is the shop's to clear, and touching the box IS
+                       the check. Clearing it on edit only would leave a box
+                       amber forever when the scan turned out to be right. */
+                    const clear = () => {
+                        el.classList.remove('ocr-unsure');
+                        el.removeAttribute('title');
+                        _updateUnsureCount();
+                    };
+                    el.addEventListener('input', clear, { once: true });
+                    el.addEventListener('blur', clear, { once: true });
+                    marked++;
+                });
+            });
+            _updateUnsureCount();
+            return marked;
+        }
+
+        function _updateUnsureCount() {
+            const el = document.getElementById('ocrUnsureBar');
+            if (!el) return;
+            const n = document.querySelectorAll('#lineItemsContainer .ocr-unsure').length;
+            if (!n) { el.style.display = 'none'; return; }
+            el.style.display = 'flex';
+            el.querySelector('.ou-text').textContent =
+                n === 1 ? '1 box needs a check against the paper'
+                        : n + ' boxes need a check against the paper';
+        }
+
+        /* Walk them in order. On a long invoice the flagged rows are scattered,
+           and hunting amber boxes by scrolling is the problem this was meant to
+           remove. */
+        function jumpToUnsure() {
+            const all = [...document.querySelectorAll('#lineItemsContainer .ocr-unsure')];
+            if (!all.length) return;
+            const active = document.activeElement;
+            const at = all.indexOf(active);
+            const next = all[(at + 1) % all.length];
+            next.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            next.focus();
+            if (typeof next.select === 'function') next.select();
+        }
+
         const INV_MAP_STORE = 'inv_col_maps';
 
         /* Header text comes out of a file the shop was handed, so it reaches
@@ -3817,7 +3937,15 @@ window.addEventListener('DOMContentLoaded', () => {
             updateGrandTotal();
             closeInvoiceImportModal();
             saveDraft(); // persist import so a refresh won't lose the data
-            showToast(`✅ ${lineItemCounter} items loaded!`, 'Review, adjust, then click Save All Purchases.');
+
+            /* Mark what the scanner doubted, and say HOW MANY — the point of
+               the whole feature is that "check everything" becomes a number
+               the shop can actually work through. */
+            const unsure = _markUncertainFields();
+            showToast(`✅ ${lineItemCounter} items loaded!`,
+                unsure
+                    ? unsure + ' box' + (unsure === 1 ? '' : 'es') + ' highlighted in amber — check those against the paper, then Save All Purchases.'
+                    : 'Review, adjust, then click Save All Purchases.');
         }
 
         // ── Initialize: restore draft if available, else start with one blank item ──

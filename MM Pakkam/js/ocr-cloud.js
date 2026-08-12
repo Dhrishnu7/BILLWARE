@@ -181,7 +181,8 @@
 
     function _mapLines(lines) {
         var rows = [];
-        var uncertain = {};   // field -> count
+        var uncertain = {};   // field -> count, for the summary line
+        var flags = [];       // per row: which fields the model was unsure of
         var arith = [];       // rows where qty x rate does not make amount
         var mrpBelowRate = [];
         var noName = 0;
@@ -203,10 +204,22 @@
             ];
             if (!name) noName++;
 
+            /* Two records of the same fact, for two different jobs.
+               `uncertain` is the tally behind the summary line ("batchNo on 3
+               line(s)"). `flags` keeps WHICH LINE each doubt belongs to.
+
+               Only the tally used to survive, so the shop was told three batch
+               numbers were doubtful and then had to read all forty rows to
+               find them. The model told us the row number; we were throwing it
+               away one line before it was needed. */
+            var lineFlags = [];
             (ln.uncertain || []).forEach(function (f) {
                 var k = String(f || '').trim();
-                if (k) uncertain[k] = (uncertain[k] || 0) + 1;
+                if (!k) return;
+                uncertain[k] = (uncertain[k] || 0) + 1;
+                if (lineFlags.indexOf(k) < 0) lineFlags.push(k);
             });
+            flags.push(lineFlags);
 
             var q = _num(row[3]), r = _num(row[5]), a = _num(row[8]), m = _num(row[4]);
             /* Reported, never corrected. Which of the three figures is wrong
@@ -225,7 +238,7 @@
             rows.push(row);
         });
 
-        return { rows: rows, uncertain: uncertain, arith: arith,
+        return { rows: rows, uncertain: uncertain, flags: flags, arith: arith,
                  mrpBelowRate: mrpBelowRate, noName: noName };
     }
 
@@ -381,6 +394,11 @@
                 say('Done', 100);
                 return {
                     rows: mapped.rows,
+                    /* Parallel to rows, one entry per line: the field names the
+                       model said it was unsure of. The page turns these into
+                       highlighted boxes so the shop checks four cells against
+                       the paper instead of re-reading forty rows. */
+                    flags: mapped.flags,
                     headers: HEADERS.slice(),
                     invoice: {
                         supplierName: _clean(result.supplierName),
