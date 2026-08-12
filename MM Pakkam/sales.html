@@ -613,6 +613,7 @@
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
+<script src="js/lang.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <!-- Must load AFTER keyboard-nav.js: combo.js listens in the capture phase so
          it commits the highlighted medicine before keyboard-nav's Enter handler
@@ -1333,8 +1334,8 @@
             renderBarcodeManager();
         }
         async function deleteBarcodeMapping(code) {
-            const ok = await mmConfirm('Delete the barcode link for:\n' + code + '\n\nThe medicine and its stock are NOT deleted — only this scan shortcut.',
-                { title: '🗑️ Delete link', okText: 'Delete' });
+            const ok = await mmConfirm(mmT('sales.barcode.del', { code: code }),
+                { title: '🗑️ ' + mmT('btn.delete'), okText: mmT('btn.delete') });
             if (!ok) return;
             if (typeof dbDeleteBarcode === 'function') { try { await dbDeleteBarcode(code); } catch (e) {} }
             renderBarcodeManager();
@@ -1892,12 +1893,13 @@
                     const billAmt = parseFloat(String(document.getElementById('grandTotal').textContent).replace(/[^0-9.]/g, '')) || 0;
                     if (currentBal + billAmt > limit + 0.005) {
                         const notify = (typeof mmAlert === 'function') ? mmAlert : (m) => { alert(m); };
-                        await notify('⛔ Khata limit exceeded for ' + customerName + '.\n\n'
-                            + 'Current pending: ₹' + currentBal.toFixed(2) + '\n'
-                            + 'This bill: ₹' + billAmt.toFixed(2) + '\n'
-                            + 'Would become: ₹' + (currentBal + billAmt).toFixed(2) + '\n'
-                            + 'Credit limit: ₹' + limit.toFixed(2) + '\n\n'
-                            + 'Collect a payment first, or raise the limit in Accounts → Credit Limit.');
+                        await notify(mmT('sales.khata.limit', {
+                            name: customerName,
+                            cur:  '₹' + currentBal.toFixed(2),
+                            bill: '₹' + billAmt.toFixed(2),
+                            tot:  '₹' + (currentBal + billAmt).toFixed(2),
+                            lim:  '₹' + limit.toFixed(2)
+                        }));
                         _isSaving = false;
                         return;
                     }
@@ -1913,14 +1915,14 @@
             const _missingForH1 = _hasH1 && (!_docVal || !_custVal);
             if (_missingForH || _missingForH1) {
                 const msg = _hasH1
-                    ? 'This bill has a Schedule H1/X drug, which legally needs BOTH patient name and doctor.\n\n'
-                        + (!_custVal ? '• Patient name missing\n' : '')
-                        + (!_docVal  ? '• Doctor missing\n' : '')
-                        + '\nWithout them it will show as "Missing Rx" in the register.'
-                    : 'This bill has a Schedule H drug but no doctor is entered.\n\nWithout a doctor it will show as "Missing Rx" in the Schedule H register.';
+                    ? mmT('sales.h1.head')
+                        + (!_custVal ? mmT('sales.h1.no.patient') : '')
+                        + (!_docVal  ? mmT('sales.h1.no.doctor')  : '')
+                        + mmT('sales.h1.tail')
+                    : mmT('sales.h.msg');
                 const goBack = await mmConfirm(msg, {
-                    title: _hasH1 ? '⛔ Schedule H1/X needs patient + doctor' : '⚠️ Missing doctor for Schedule H',
-                    okText: 'Go back & add', cancelText: 'Save anyway'
+                    title: _hasH1 ? mmT('sales.h1.title') : mmT('sales.h.title'),
+                    okText: mmT('btn.goback.add'), cancelText: mmT('btn.save.anyway2')
                 });
                 if (goBack) {
                     const focusEl = (_hasH1 && !_custVal)
@@ -1969,10 +1971,13 @@
             const _displayed = parseFloat(String(document.getElementById('grandTotal').textContent).replace(/[^0-9.]/g, ''));
             if (!isNaN(_displayed) && Math.abs(_displayed - _computed) > 0.5) {
                 const goOn = await mmConfirm(
-                    'The total on screen (₹' + _displayed.toFixed(2) + ') does not match this bill\'s own items (₹' + _computed.toFixed(2) + ').\n\n' +
-                    'The items are what will be saved, so ₹' + _computed.toFixed(2) + ' is the figure that will be used.\n\n' +
-                    'Check the bill before saving if that is not what you expect.',
-                    { title: '⚠️ Total does not match the items', okText: 'Save with ₹' + _computed.toFixed(2), cancelText: 'Go back' });
+                    mmT('sales.total.mismatch', {
+                        shown: '₹' + _displayed.toFixed(2),
+                        calc:  '₹' + _computed.toFixed(2)
+                    }),
+                    { title: mmT('sales.total.mismatch.title'),
+                      okText: mmT('sales.total.saveWith', { calc: '₹' + _computed.toFixed(2) }),
+                      cancelText: mmT('btn.goback') });
                 if (!goOn) { _isSaving = false; btn.disabled = false; btn.innerHTML = '💾 Save Bill'; return; }
             }
             const grandTotal = _computed.toFixed(2);
@@ -1996,11 +2001,10 @@
             if (_saleDate && _saleDate > _todayStr) {
                 const _ahead = Math.round((Date.parse(_saleDate + 'T00:00:00Z') - Date.parse(_todayStr + 'T00:00:00Z')) / 86400000);
                 const goOn = await mmConfirm(
-                    'This bill is dated ' + _saleDate + ' — ' + _ahead + ' day(s) from now.\n\n' +
-                    'A future date puts the sale in a GST period you cannot file yet, and hides it from ' +
-                    'every report that stops at today, including the day\'s own takings.\n\n' +
-                    'Change the Date box to today unless you truly mean to date it ahead.',
-                    { title: '⚠️ This bill is dated in the future', okText: 'Save it anyway', cancelText: 'Go back and fix the date' });
+                    mmT('sales.future.date', { date: _saleDate, n: _ahead }),
+                    { title: mmT('sales.future.date.title'),
+                      okText: mmT('btn.save.itanyway'),
+                      cancelText: mmT('btn.goback.date') });
                 if (!goOn) { _isSaving = false; btn.disabled = false; btn.innerHTML = '💾 Save Bill'; return; }
             }
 
@@ -2405,7 +2409,7 @@
             const hasData = (document.getElementById('customerName').value.trim() !== '') ||
                 Array.from(document.querySelectorAll('[id^="product_"]')).some(i => i.value.trim() !== '');
             if (hasData && typeof mmConfirm === 'function') {
-                const ok = await mmConfirm('Start a fresh bill? The current unsaved entries will be cleared.', { title: 'New Bill', okText: 'Clear & Start' });
+                const ok = await mmConfirm(mmT('sales.newbill'), { title: mmT('sales.newbill.title'), okText: mmT('btn.clear.start') });
                 if (!ok) return;
             }
             _salesResetForm();
@@ -2504,7 +2508,7 @@
         const setMedList = list => localStorage.setItem(ML_KEY, JSON.stringify(list));
 
         async function clearImportedMedicines() {
-            if (await mmConfirm('Clear all rows and start a fresh bill?', { okText: 'Clear All' })) {
+            if (await mmConfirm(mmT('sales.clear.rows'), { okText: mmT('btn.clear.all') })) {
                 document.getElementById('medicineRows').innerHTML = '';
                 rowCount = 0;
                 addRow(); // reset to one blank row

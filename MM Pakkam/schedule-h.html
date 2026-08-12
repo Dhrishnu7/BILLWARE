@@ -1101,6 +1101,7 @@
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
+<script src="js/lang.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <script src="js/drug-master.js"></script>
 </head>
@@ -2179,7 +2180,7 @@
 
         /* ── Clear Imported: wipe the register rows and start with one blank row ── */
         async function clearShImported() {
-            if (await mmConfirm('Clear all items and start fresh?', { okText: 'Clear All' })) {
+            if (await mmConfirm(mmT('sh.clear.items'), { okText: mmT('btn.clear.all') })) {
                 document.getElementById('shDrugRows').innerHTML = '';
                 shRowCounter = 0;
                 addShDrugRow(true);
@@ -3119,7 +3120,7 @@
         }
 
         async function deleteEntry(id) {
-            if (!await mmConfirm('Delete this register entry?\nYou can restore it from the Bin within 30 days.', { danger: true, okText: 'Delete' })) return;
+            if (!await mmConfirm(mmT('sh.del.entry'), { danger: true, okText: mmT('btn.delete') })) return;
             const all   = getRegister();
             const entry = all.find(e => e.id === id);
             if (!entry) return;
@@ -3273,14 +3274,14 @@
             showToast('Restored', `${entry.drugName || 'Entry'} is back in the register.`);
         }
         async function deleteShPermanently(binId) {
-            if (!await mmConfirm('Permanently delete this entry? This cannot be undone.', { danger: true, okText: 'Delete Forever' })) return;
+            if (!await mmConfirm(mmT('sh.del.perm'), { danger: true, okText: mmT('btn.delete.forever') })) return;
             saveShBin(getShBin().filter(b => b.binId !== binId));
             renderShBin();
             updateShBinBadge();
         }
         async function emptyShBin() {
             if (getShBin().length === 0) return;
-            if (!await mmConfirm('Permanently delete ALL entries in the Bin? This cannot be undone.', { danger: true, okText: 'Empty Bin' })) return;
+            if (!await mmConfirm(mmT('sh.bin.empty'), { danger: true, okText: mmT('btn.empty.bin') })) return;
             saveShBin([]);
             renderShBin();
             updateShBinBadge();
@@ -3432,7 +3433,7 @@
         }
 
         async function clearAllDrugs() {
-            if (!await mmConfirm('Remove ALL Schedule H drugs from the list?', { danger: true, okText: 'Remove All' })) return;
+            if (!await mmConfirm(mmT('sh.drugs.clear'), { danger: true, okText: mmT('btn.remove.all') })) return;
             localStorage.removeItem(SH_DRUGS_KEY);
             renderDrugList();
             refreshDrugDatalist();
@@ -3933,7 +3934,7 @@
         }
 
         async function deleteRx(id) {
-            const ok = await mmConfirm('Delete this prescription softcopy? This cannot be undone.', { title: 'Delete Prescription', danger: true });
+            const ok = await mmConfirm(mmT('sh.rx.del'), { title: mmT('sh.rx.title'), danger: true });
             if (!ok) return;
             setRxList(getRxList().filter(r => r.id !== id));
             renderPrescriptions();

@@ -14,6 +14,7 @@
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
+<script src="js/lang.js"></script>
     <script src="js/auth.js?v=3"></script>
     <script src="js/sw-update.js"></script>
     <script src="js/keyboard-nav.js"></script>
@@ -1000,7 +1001,7 @@
         // aren't both wiped out / the wrong one deleted.
         async function deleteEntry(type, name, phone) {
             const label = type === 'customer' ? 'Customers' : (type === 'doctor' ? 'Doctors' : 'Suppliers');
-            const confirmed = await mmConfirm(`⚠️ Delete "${name}" from ${label}?\n\nThis cannot be undone.`, { danger: true, okText: 'Delete' });
+            const confirmed = await mmConfirm(mmT('dir.del', { name: name, label: label }), { danger: true, okText: mmT('btn.delete') });
             if (!confirmed) return;
             phone = phone || '';
 

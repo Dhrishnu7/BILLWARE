@@ -766,6 +766,7 @@
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
+<script src="js/lang.js"></script>
     <!-- The one list of everything the shop owns. Backup and Restore both
          derive from it; it must load before either runs. -->
     <script src="js/tenant-data.js"></script>
@@ -4159,7 +4160,7 @@
             const khataNote = khataPre
                 ? `\n\nThis was a CREDIT bill, so ₹${khataPre.amount.toFixed(2)} will also come off ${khataPre.name}'s khata balance.`
                 : '';
-            if (!await mmConfirm(`Delete this ${type === 'sales' ? 'sale' : 'purchase'} record? It will go to the Bin for 30 days.${khataNote}`, { danger: true, okText: 'Delete' })) return;
+            if (!await mmConfirm(mmT('del.record', { kind: type === 'sales' ? 'sale' : 'purchase', note: khataNote }), { danger: true, okText: mmT('btn.delete') })) return;
 
             /* A WRONG PURCHASE IS USUALLY A WRONG INVOICE, NOT A WRONG LINE.
                A mis-scanned or mis-typed bill puts twenty or thirty products
@@ -4683,7 +4684,7 @@
         }
 
         async function deletePermanently(binId, btn) {
-            if (!await mmConfirm('Permanently delete this record? It cannot be recovered.', { danger: true, okText: 'Delete Forever' })) return;
+            if (!await mmConfirm(mmT('del.record.perm'), { danger: true, okText: mmT('btn.delete.forever') })) return;
             const bin = getBin().filter(x => x.binId !== binId);
             saveBin(bin);
             renderBin();
@@ -4691,7 +4692,7 @@
         }
 
         async function emptyBin() {
-            if (!await mmConfirm('Empty the entire Bin? All items will be permanently deleted.', { danger: true, okText: 'Empty Bin' })) return;
+            if (!await mmConfirm(mmT('bin.empty'), { danger: true, okText: mmT('btn.empty.bin') })) return;
             saveBin([]);
             renderBin();
             showToast('🗑️ Bin emptied.', 'success');

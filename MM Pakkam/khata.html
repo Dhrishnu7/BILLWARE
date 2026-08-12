@@ -15,6 +15,7 @@
     <script src="js/auth.js?v=3"></script>
     <script src="js/sw-update.js"></script>
     <script src="js/supabase.js"></script>
+<script src="js/lang.js"></script>
     <!-- Supplier balances are computed here now, so both this page and the
          Accounts view get the same figure from the same code. -->
     <!-- Sales returns refunded to the khata move the balance, so the customer
@@ -2057,8 +2058,8 @@
         async function removeExpense(id) {
             const e = _expenses.find(x => x.id === id);
             if (!e) return;
-            if (!await mmConfirm(`Delete this ${_esc(e.category)} expense of ${_inr(e.amount)}?`,
-                                 { danger: true, okText: 'Delete' })) return;
+            if (!await mmConfirm(mmT('khata.exp.del', { cat: _esc(e.category), amt: _inr(e.amount) }),
+                                 { danger: true, okText: mmT('btn.delete') })) return;
             _expenses = _expenses.filter(x => x.id !== id);
             _expSaveLocal();
             renderExpenses(document.getElementById('expSearch').value);

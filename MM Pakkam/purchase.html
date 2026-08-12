@@ -580,6 +580,7 @@
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase.js"></script>
+<script src="js/lang.js"></script>
     <script src="js/keyboard-nav.js"></script>
     <script src="js/drug-master.js"></script>
     <!-- PWA -->
@@ -1203,13 +1204,13 @@
             }
 
             if (hasEmptyName) {
-                if (!await mmConfirm('Some items have empty product names. Save anyway?', { okText: 'Save Anyway' })) {
+                if (!await mmConfirm(mmT('pur.no.names'), { okText: mmT('btn.save.anyway') })) {
                     _isSaving = false;
                     return;
                 }
             }
             if (hasMissingDetails) {
-                if (!await mmConfirm('You have entered a Product Name but left some details (Batch, Expiry, Qty, MRP, or Rate) empty or zero. Are you sure you want to save this incomplete record?', { okText: 'Save Anyway' })) {
+                if (!await mmConfirm(mmT('pur.incomplete'), { okText: mmT('btn.save.anyway') })) {
                     _isSaving = false;
                     return;
                 }
@@ -1551,7 +1552,7 @@
 
         // ── Clear Imported: wipe all line items and reset to one blank row ──
         async function clearImportedMedicines() {
-            if (await mmConfirm('Clear all imported items and start fresh?', { okText: 'Clear All' })) {
+            if (await mmConfirm(mmT('pur.clear.import'), { okText: mmT('btn.clear.all') })) {
                 const container = document.getElementById('lineItemsContainer');
                 container.innerHTML = '';
                 lineItemCounter = 0;
