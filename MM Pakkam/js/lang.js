@@ -25,6 +25,35 @@
    confirmation dialog is far more dangerous than an English one.
 ───────────────────────────────────────────────────────────── */
 
+/* ─────────────────────────────────────────────────────────────
+   ⛔ TURNED OFF — 2026-08-13
+
+   Everything below still works. It is switched off deliberately.
+
+   Reason: translation is only PARTIAL. The dialogs that were
+   translated are not the whole set — roughly nineteen confirmations
+   that move money, delete a Schedule H register entry, or overwrite
+   a backup are still English. A shop reading a mostly-Tamil app
+   stops treating an English dialog as "a language I cannot read"
+   and starts treating it as "something technical, press OK" — and
+   those are precisely the dialogs where pressing OK costs something.
+   Partial cover is worse than none for that specific set.
+
+   ── Why this flag and not just deleting the pickers ──
+   Anyone who ALREADY chose Tamil has mm_lang_<username> sitting in
+   their localStorage. Removing the pickers alone would strand them
+   in Tamil with no control left on screen to get back. The flag
+   makes mmLang() answer 'en' for everybody, chosen or not, so no
+   stored preference can outlive the switch.
+
+   ── To turn it back on ──
+   Set this to true and restore the picker call sites (git show the
+   commit that added this comment). Before doing that, finish the
+   nineteen confirmations, and get a real Tamil or Hindi speaker to
+   read the strings — nobody has, they are all machine-written.
+───────────────────────────────────────────────────────────── */
+const MM_LANG_ENABLED = false;
+
 const MM_LANGS = [
     { code: 'en', label: 'English',  native: 'English' },
     { code: 'ta', label: 'Tamil',    native: 'தமிழ்' },
@@ -504,6 +533,10 @@ function _mmLangKey() {
 
 function mmLang() {
     if (window.__mmLangOverride) return window.__mmLangOverride;   // tests only
+    /* The switch. Deliberately AFTER the test override so the machinery
+       stays testable, and BEFORE the stored value so a preference chosen
+       while the feature was live cannot survive it being turned off. */
+    if (!MM_LANG_ENABLED) return 'en';
     try {
         const v = localStorage.getItem(_mmLangKey());
         if (v && MM_LANGS.some(l => l.code === v)) return v;
@@ -515,10 +548,12 @@ function mmLang() {
    because the dashboard prompt should disappear once they have picked —
    including when they deliberately picked English. */
 function mmLangChosen() {
+    if (!MM_LANG_ENABLED) return true;      // never prompt while switched off
     try { return !!localStorage.getItem(_mmLangKey()); } catch (e) { return false; }
 }
 
 function mmSetLang(code) {
+    if (!MM_LANG_ENABLED) return false;
     if (!MM_LANGS.some(l => l.code === code)) return false;
     try { localStorage.setItem(_mmLangKey(), code); } catch (e) {}
     try { document.documentElement.setAttribute('lang', code); } catch (e) {}
@@ -641,6 +676,7 @@ function mmApplyT(root) {
    in on it is far more likely to want the same one than English.
 ───────────────────────────────────────────────────────────── */
 function mmAdoptLang() {
+    if (!MM_LANG_ENABLED) return false;
     try {
         const s = (typeof mmGetSession === 'function') ? mmGetSession() : null;
         if (!s || !s.username) return false;
@@ -660,6 +696,9 @@ function mmAdoptLang() {
 function mmRenderLangPicker(elId, opts) {
     const host = document.getElementById(elId);
     if (!host) return;
+    /* Belt and braces: the call sites are gone, but a page that ever calls
+       this again must not resurrect the switch by accident. */
+    if (!MM_LANG_ENABLED) { host.innerHTML = ''; return; }
     opts = opts || {};
     const cur  = mmLang();
     const dark = opts.variant === 'dark';       // login.html is an ocean-glass page

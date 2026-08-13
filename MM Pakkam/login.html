@@ -514,16 +514,8 @@
                 <a href="setup.html" class="alt-link" data-mmt="login.create">Create an account →</a>
             </div>
 
-            <!-- The language switch belongs HERE, not only on the dashboard.
-                 A new owner goes login → create account → shop wizard and does
-                 not reach the dashboard until the wizard is already filled in
-                 and approved, so a choice offered only there arrives too late
-                 to help with the one form they must get right. Signed out, the
-                 choice lands on the unscoped key and mmAdoptLang() carries it
-                 onto their own account the moment they sign in.
-                 No sample sentence: this page translates itself, so the page
-                 changing under their finger IS the confirmation. -->
-            <div id="langPicker" style="margin-top:1.1rem;"></div>
+            <!-- The language switch was here. Removed 2026-08-13 — see the
+                 switch at the top of js/lang.js. -->
 
             <p class="login-footer-txt">&copy; 2026 Billware &mdash; Secured Access</p>
         </div>
@@ -538,15 +530,6 @@
                 }
             } catch(e) { /* continue to show login */ }
         })();
-
-        /* The picker. Dark variant because this page is ocean-glass, and no
-           sample sentence because the page itself repaints — mmApplyT runs
-           from the picker's own click handler. */
-        document.addEventListener('DOMContentLoaded', () => {
-            if (typeof mmRenderLangPicker === 'function') {
-                mmRenderLangPicker('langPicker', { variant: 'dark', sample: false });
-            }
-        });
 
         // ── Password visibility toggle ──
         function togglePw() {

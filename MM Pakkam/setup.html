@@ -548,10 +548,8 @@
                     <a href="#" onclick="window.location.href='login.html';return false;" data-mmt="setup.signin">Sign in</a>
                 </div>
 
-                <!-- Same reasoning as login.html: this is the second screen a
-                     new owner ever sees, and the wizard right after it is the
-                     one form they must get right. -->
-                <div id="langPicker" style="margin-top:1.1rem;"></div>
+                <!-- The language switch was here. Removed 2026-08-13 — see the
+                     switch at the top of js/lang.js. -->
                 <p class="footer-txt">&copy; 2026 Billware</p>
             `;
         }
@@ -617,16 +615,6 @@
         // â”€â”€ Init: always show the create account form â”€â”€
         renderSetup();
 
-        /* renderSetup() injects the whole form, so lang.js's own load-time
-           pass would have found an empty page had it run first. It runs on
-           DOMContentLoaded, which is after this inline script, so the markup
-           is already there — but the picker still has to be drawn, and
-           drawing it needs the host that renderSetup just created. */
-        document.addEventListener('DOMContentLoaded', () => {
-            if (typeof mmRenderLangPicker === 'function') {
-                mmRenderLangPicker('langPicker', { variant: 'dark', sample: false });
-            }
-        });
     </script>
     <script>
         if (!window.mmSwManaged && 'serviceWorker' in navigator) {

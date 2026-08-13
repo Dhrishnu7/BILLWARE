@@ -511,19 +511,6 @@
         // -- Auth Guard --
         mmRequireAuth();
         document.addEventListener('DOMContentLoaded', () => mmInjectUserBar());
-/* The dashboard asks ONCE. After a language has been chosen the prompt is
-   gone from the home page for good and the setting lives on the Users page.
-   Note it stays visible for the rest of THIS page load after choosing — the
-   sample sentence switching under their finger is the confirmation. */
-document.addEventListener('DOMContentLoaded', () => {
-    const el = document.getElementById('langPicker');
-    if (!el) return;
-    if (typeof mmRenderLangPicker !== 'function' || (typeof mmLangChosen === 'function' && mmLangChosen())) {
-        el.remove();
-        return;
-    }
-    mmRenderLangPicker('langPicker', { showMoved: true });
-});
     </script>
 
     <!-- Navbar -->
@@ -589,9 +576,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <p>Select an action below to get started</p>
         </div>
 
-        <!-- Language switch. Per USER, not per shop: the owner can work in
-             English while the counter staff work in Tamil, on the same data. -->
-        <div id="langPicker" style="max-width:1100px; margin:0 auto 1.4rem;"></div>
+        <!-- The dashboard language prompt was here. Removed 2026-08-13 — see
+             the switch at the top of js/lang.js. -->
 
         <!-- Backup-overdue reminder (shown by JS when it's been 7+ days / never) -->
         <div id="backupBanner" style="display:none; position:relative; align-items:center; gap:0.8rem; max-width:1100px; margin:0 auto 1.4rem; padding:0.9rem 2.6rem 0.9rem 1.2rem; border-radius:14px; background:linear-gradient(135deg,#fef3c7,#fde68a); border:1.5px solid #fcd34d; color:#92400e; box-shadow:0 4px 14px rgba(245,158,11,0.18);">

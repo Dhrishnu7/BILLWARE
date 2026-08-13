@@ -294,8 +294,8 @@
                 <div class="step-label">Approval</div>
             </div>
         </div>
-        <!-- Last chance to switch before the longest form in the app. -->
-        <div id="langPicker" style="margin-top:18px;"></div>
+        <!-- The language switch was here. Removed 2026-08-13 — see the switch
+             at the top of js/lang.js. -->
     </div>
 
     <div class="card" id="setupCard" style="position:relative;">
@@ -1011,9 +1011,6 @@ async function saveAndContinue() {
    quickest way to notice a GSTIN that is valid but belongs to another state. */
 document.addEventListener('DOMContentLoaded', function () {
     if (window.mmGstValid) mmGstValid.attach(document.getElementById('gstin'), 'gstin');
-    if (typeof mmRenderLangPicker === 'function') {
-        mmRenderLangPicker('langPicker', { sample: false });
-    }
 });
 
 function skipSetup() {
