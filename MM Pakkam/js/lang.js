@@ -265,6 +265,218 @@ const MM_STRINGS = {
         en: 'You can change this any time from 👥 Users.',
         ta: 'இதை எப்பவேணா 👥 Users-ல மாத்திக்கலாம்.',
         hi: 'इसे कभी भी 👥 Users से बदल सकते हैं।'
+    },
+
+/* ── Phase 2 ──────────────────────────────────────────────────
+   The path a shop walks ONCE and never again: sign in → create the
+   account → fill the shop wizard → enter the first purchase. Get it
+   wrong and they never reach the part that works.
+
+   What belongs here is the text that EXPLAINS — page headings and
+   subtitles, field hints, tooltips, validation messages, the waiting
+   screen. What does NOT belong here is a one-word field label:
+   Username, Password, GSTIN, PIN Code, Batch, MRP, HSN are the words
+   the shop already uses, on the portal and on the distributor's
+   invoice, and translating them makes the form harder to read. Same
+   code-mixing rule as Phase 1, applied to a bigger surface.
+
+   These are reached through data-mmt in the markup rather than an
+   mmT() call, so the English stays in the page as the fallback. See
+   mmApplyT below.
+───────────────────────────────────────────────────────────── */
+
+    /* ══ Sign in ══ */
+    'login.head': {
+        en: 'Welcome back',
+        ta: 'வரவேற்கிறோம்',
+        hi: 'फिर से स्वागत है'
+    },
+    'login.sub': {
+        en: 'Sign in to continue to your dashboard',
+        ta: 'உங்க dashboard-க்கு போக sign in பண்ணுங்க',
+        hi: 'अपने dashboard पर जाने के लिए sign in करें'
+    },
+    'login.user.ph':   { en: 'Enter your username', ta: 'Username-ஐ போடுங்க', hi: 'अपना username डालें' },
+    'login.pw.ph':     { en: 'Enter your password', ta: 'Password-ஐ போடுங்க', hi: 'अपना password डालें' },
+    'login.remember':  { en: 'Keep me signed in',   ta: 'Sign in பண்ணியே வெச்சுக்கோங்க', hi: 'मुझे sign in रखें' },
+    'login.forgot':    { en: 'Forgot password?',    ta: 'Password மறந்துட்டீங்களா?', hi: 'Password भूल गए?' },
+    'login.btn':       { en: 'Sign In',             ta: 'Sign In பண்ணு', hi: 'Sign In करें' },
+    'login.new':       { en: 'New store owner?',    ta: 'புது கடை உரிமையாளரா?', hi: 'नए store owner हैं?' },
+    'login.create':    { en: 'Create an account →', ta: 'Account ஒண்ணு உருவாக்குங்க →', hi: 'Account बनाएं →' },
+    'login.err.bad':    { en: 'Invalid username or password.', ta: 'Username இல்லைனா password தப்பா இருக்கு.', hi: 'Username या password ग़लत है।' },
+    'login.err.nouser': { en: 'Please enter your username.',   ta: 'Username-ஐ போடுங்க.', hi: 'कृपया अपना username डालें।' },
+    'login.err.nopw':   { en: 'Please enter your password.',   ta: 'Password-ஐ போடுங்க.', hi: 'कृपया अपना password डालें।' },
+
+    /* ══ Forgot password ══ */
+    'fp.title':     { en: 'Reset Password',         ta: 'Password-ஐ மாத்து', hi: 'Password reset करें' },
+    'fp.req.title': { en: 'Request Password Reset', ta: 'Password reset-க்கு request பண்ணு', hi: 'Password reset की request करें' },
+    'fp.pin.title': { en: 'Enter Reset PIN',        ta: 'Reset PIN-ஐ போடுங்க', hi: 'Reset PIN डालें' },
+    'fp.req.msg': {
+        en: 'Enter your username and the reason for your reset. Your super admin will review it.',
+        ta: 'உங்க username-ம், எதுக்கு reset வேணும்ங்கிற காரணமும் போடுங்க. Super admin அதை பாத்து முடிவு பண்ணுவாங்க.',
+        hi: 'अपना username और reset का कारण डालें। आपका super admin इसे देखकर फ़ैसला करेगा।'
+    },
+    'fp.reason.ph': { en: 'e.g. Forgot my password', ta: 'உ.ம். Password மறந்துட்டேன்', hi: 'जैसे: password भूल गया' },
+    'fp.req.btn':   { en: 'Submit Request',          ta: 'Request அனுப்பு', hi: 'Request भेजें' },
+    'fp.havepin':   { en: 'I already have a Reset PIN', ta: 'என்கிட்ட ஏற்கனவே Reset PIN இருக்கு', hi: 'मेरे पास पहले से Reset PIN है' },
+    'fp.pin.msg': {
+        en: 'Enter your username, the 6-digit PIN provided by your admin, and your new password.',
+        ta: 'உங்க username, admin கொடுத்த 6-இலக்க PIN, அப்புறம் புது password — மூணையும் போடுங்க.',
+        hi: 'अपना username, admin से मिला 6-अंकों का PIN, और नया password डालें।'
+    },
+    'fp.newpw.ph':  { en: 'Enter new password',   ta: 'புது password-ஐ போடுங்க', hi: 'नया password डालें' },
+    'fp.setpw':     { en: 'Set New Password',     ta: 'புது password-ஐ set பண்ணு', hi: 'नया password set करें' },
+    'fp.back':      { en: '← Back to Request Reset', ta: '← திரும்ப reset request-க்கு போ', hi: '← वापस reset request पर' },
+
+    /* ══ Create account ══ */
+    'setup.badge': { en: 'New Store Account', ta: 'புது கடை Account', hi: 'नया Store Account' },
+    'setup.head':  { en: 'Create Account',    ta: 'Account உருவாக்குங்க', hi: 'Account बनाएं' },
+    'setup.sub': {
+        en: 'Each account is a completely independent store. Your data is private and isolated from all other accounts.',
+        ta: 'ஒவ்வொரு account-ம் தனித்தனி கடை. உங்க data உங்களுக்கு மட்டும்தான் — வேற எந்த account-க்கும் தெரியாது.',
+        hi: 'हर account एक बिल्कुल अलग store है। आपका data सिर्फ़ आपका है — किसी दूसरे account को नहीं दिखेगा।'
+    },
+    'setup.user.ph':    { en: 'e.g. your_name',           ta: 'உ.ம். your_name', hi: 'जैसे: your_name' },
+    'setup.pw.ph':      { en: 'Create a strong password', ta: 'கடினமான password ஒண்ணு வெச்சுக்கோங்க', hi: 'एक मज़बूत password बनाएं' },
+    'setup.confirm.ph': { en: 'Re-enter your password',   ta: 'அதே password-ஐ மறுபடி போடுங்க', hi: 'वही password दोबारा डालें' },
+    'setup.have':       { en: 'Already have an account?', ta: 'ஏற்கனவே account இருக்கா?', hi: 'पहले से account है?' },
+    'setup.signin':     { en: 'Sign in',                  ta: 'Sign in பண்ணுங்க', hi: 'Sign in करें' },
+    'setup.creating':   { en: 'Creating account...',      ta: 'Account உருவாக்குறோம்...', hi: 'Account बन रहा है...' },
+    'setup.created':    { en: 'Account Created!',         ta: 'Account உருவாகிடுச்சு!', hi: 'Account बन गया!' },
+    'setup.err.user':   { en: 'Username must be at least 3 characters.', ta: 'Username-ல குறைஞ்சது 3 எழுத்து இருக்கணும்.', hi: 'Username में कम से कम 3 अक्षर होने चाहिए।' },
+    'setup.err.pw':     { en: 'Password must be at least 6 characters.', ta: 'Password-ல குறைஞ்சது 6 எழுத்து இருக்கணும்.', hi: 'Password में कम से कम 6 अक्षर होने चाहिए।' },
+    'setup.err.match':  { en: 'Passwords do not match.',  ta: 'ரெண்டு password-ம் ஒண்ணா இல்லை.', hi: 'दोनों password एक जैसे नहीं हैं।' },
+    /* The strength meter. Its whole job is to be read at a glance. */
+    'pw.enter':    { en: 'Enter a password', ta: 'Password போடுங்க',  hi: 'Password डालें' },
+    'pw.tooshort': { en: 'Too short',        ta: 'ரொம்ப சின்னது',      hi: 'बहुत छोटा है' },
+    'pw.weak':     { en: 'Weak',             ta: 'பலவீனமா இருக்கு',    hi: 'कमज़ोर है' },
+    'pw.moderate': { en: 'Moderate',         ta: 'பரவாயில்ல',          hi: 'ठीक-ठाक है' },
+    'pw.strong':   { en: 'Strong ✨',        ta: 'நல்லா இருக்கு ✨',   hi: 'मज़बूत है ✨' },
+
+    /* ══ Shop setup wizard ══ */
+    'ss.head': { en: 'Set Up Your Shop', ta: 'உங்க கடையை set பண்ணுங்க', hi: 'अपनी दुकान सेट करें' },
+    'ss.sub': {
+        en: 'This information will appear on your invoices and bills',
+        ta: 'இங்க போடுறது எல்லாம் உங்க bill-லயும் invoice-லயும் அச்சாகும்',
+        hi: 'यह जानकारी आपके bill और invoice पर छपेगी'
+    },
+    'ss.sec.identity': { en: 'Store Identity',    ta: 'கடை விவரம்',        hi: 'दुकान की पहचान' },
+    'ss.sec.address':  { en: 'Address',           ta: 'முகவரி',            hi: 'पता' },
+    'ss.sec.legal':    { en: 'Legal Information', ta: 'சட்டப்பூர்வ விவரம்', hi: 'क़ानूनी जानकारी' },
+    'ss.sec.terms':    { en: 'Terms & Conditions (shown on invoice)', ta: 'விதிமுறைகள் (invoice-ல அச்சாகும்)', hi: 'नियम व शर्तें (invoice पर छपेंगी)' },
+    'ss.sec.footer':   { en: 'Invoice Footer Message', ta: 'Invoice அடியில வர்ற செய்தி', hi: 'Invoice के नीचे का संदेश' },
+    'ss.f.shopname':   { en: 'Shop / Store Name', ta: 'கடை பேரு',          hi: 'दुकान का नाम' },
+    'ss.f.prefix':     { en: 'Invoice Prefix',    ta: 'Bill எண் Prefix',   hi: 'Bill नंबर का Prefix' },
+    'ss.f.prefix.hint':{ en: 'Bills will be numbered: SL-001, SL-002…', ta: 'Bill-க்கு இப்படி எண் வரும்: SL-001, SL-002…', hi: 'Bill के नंबर ऐसे बनेंगे: SL-001, SL-002…' },
+    'ss.f.phone':      { en: 'Phone Number',      ta: 'Phone நம்பர்',      hi: 'Phone नंबर' },
+    'ss.f.addr1':      { en: 'Address Line 1',    ta: 'முகவரி வரி 1',      hi: 'पता लाइन 1' },
+    'ss.f.addr2':      { en: 'Address Line 2 (Area, District)', ta: 'முகவரி வரி 2 (ஏரியா, மாவட்டம்)', hi: 'पता लाइन 2 (एरिया, ज़िला)' },
+    'ss.f.city':       { en: 'Town / City',       ta: 'ஊர் / நகரம்',       hi: 'शहर / कस्बा' },
+    'ss.f.city.ph':    { en: 'e.g. Coimbatore',   ta: 'உ.ம். கோயம்புத்தூர்', hi: 'जैसे: कोयंबटूर' },
+    'ss.addr.note': {
+        en: 'Required for e-Invoice and e-Way bills. GSTR-1 and Tally do not need them.',
+        ta: 'e-Invoice-க்கும் e-Way bill-க்கும் இது கட்டாயம். GSTR-1-க்கும் Tally-க்கும் இது தேவையில்லை.',
+        hi: 'e-Invoice और e-Way bill के लिए ज़रूरी है। GSTR-1 और Tally को इनकी ज़रूरत नहीं।'
+    },
+    'ss.f.dl':     { en: 'Drug Licence No (DL No)', ta: 'Drug Licence நம்பர் (DL No)', hi: 'Drug Licence नंबर (DL No)' },
+    'ss.f.footer': { en: 'Closing message printed at the bottom of each bill', ta: 'ஒவ்வொரு bill-ஓட அடியிலயும் அச்சாகும் முடிவு செய்தி', hi: 'हर bill के नीचे छपने वाला आख़िरी संदेश' },
+    'ss.term1.ph': { en: 'e.g. Goods once sold cannot be taken back or exchanged.', ta: 'உ.ம். விற்ற பொருள் திரும்ப எடுக்கப்படாது, மாத்தித் தரப்படாது.', hi: 'जैसे: बिका हुआ सामान वापस या exchange नहीं होगा।' },
+    'ss.term2.ph': { en: 'e.g. Medicines should be stored as per manufacturer guidelines.', ta: 'உ.ம். மருந்துகளை தயாரிப்பாளர் சொன்னபடி பாதுகாக்கவும்.', hi: 'जैसे: दवाइयों को निर्माता के निर्देशों के अनुसार रखें।' },
+    'ss.term3.ph': { en: 'e.g. Subject to local jurisdiction only.', ta: 'உ.ம். உள்ளூர் நீதிமன்ற எல்லைக்கு மட்டுமே உட்பட்டது.', hi: 'जैसे: सिर्फ़ स्थानीय न्यायालय के अधिकार क्षेत्र में।' },
+    'ss.footer.ph': { en: 'e.g. "Wishing you a speedy recovery!"', ta: 'உ.ம். "சீக்கிரம் குணமாகட்டும்!"', hi: 'जैसे: "जल्दी स्वस्थ हों!"' },
+    'ss.submit':   { en: 'Save Shop Details & Submit for Approval', ta: 'கடை விவரத்தை save பண்ணி ஒப்புதலுக்கு அனுப்பு', hi: 'दुकान की जानकारी save करके मंज़ूरी के लिए भेजें' },
+    'ss.skip':     { en: "Skip for now (I'll fill this later)", ta: 'இப்போ வேண்டாம் (அப்புறமா நிரப்பிக்கிறேன்)', hi: 'अभी छोड़ें (बाद में भर दूंगा)' },
+    'ss.saving':   { en: 'Saving...', ta: 'Save ஆகுது...', hi: 'Save हो रहा है...' },
+
+    /* Waiting for approval — the screen a new shop stares at longest. */
+    'ss.pending.title': { en: 'Request Submitted!',        ta: 'Request அனுப்பியாச்சு!', hi: 'Request भेज दी गई!' },
+    'ss.pending.badge': { en: '⏳ Awaiting Admin Approval', ta: '⏳ Admin ஒப்புதலுக்காக காத்திருக்கு', hi: '⏳ Admin की मंज़ूरी का इंतज़ार' },
+    'ss.pending.l1':    { en: 'Your account and shop details have been submitted.', ta: 'உங்க account-ம் கடை விவரமும் அனுப்பியாச்சு.', hi: 'आपका account और दुकान की जानकारी भेज दी गई है।' },
+    'ss.pending.l2':    { en: 'The administrator will review and approve your account.', ta: 'Administrator அதை பாத்து ஒப்புதல் கொடுப்பாங்க.', hi: 'Administrator इसे देखकर मंज़ूरी देंगे।' },
+    'ss.pending.l3':    { en: "Once approved, you'll be able to log in and start billing.", ta: 'ஒப்புதல் கிடைச்சதும் login பண்ணி billing ஆரம்பிக்கலாம்.', hi: 'मंज़ूरी मिलते ही आप login करके billing शुरू कर सकते हैं।' },
+    'ss.pending.sub':   { en: 'Your account is awaiting admin approval', ta: 'உங்க account admin ஒப்புதலுக்கு காத்திருக்கு', hi: 'आपका account admin की मंज़ूरी के इंतज़ार में है' },
+    'ss.golo':          { en: 'Go to Login →', ta: 'Login-க்கு போ →', hi: 'Login पर जाएं →' },
+    'ss.almost':        { en: 'Almost Done!', ta: 'கிட்டத்தட்ட முடிஞ்சிடுச்சு!', hi: 'बस थोड़ा और!' },
+    'ss.almost.sub':    { en: 'Your shop is set up and waiting for approval', ta: 'உங்க கடை set ஆயிடுச்சு, ஒப்புதலுக்கு காத்திருக்கு', hi: 'आपकी दुकान सेट हो गई है, मंज़ूरी का इंतज़ार है' },
+
+    /* Coming back later to EDIT the profile */
+    'ss.head.settings': { en: 'Shop Settings', ta: 'கடை Settings', hi: 'दुकान की Settings' },
+    'ss.sub.settings':  { en: 'Update your store details and invoice information', ta: 'கடை விவரத்தையும் invoice விவரத்தையும் update பண்ணுங்க', hi: 'अपनी दुकान और invoice की जानकारी update करें' },
+    'ss.checking':      { en: 'Checking permissions…', ta: 'Permission-ஐ சரிபாக்குறோம்…', hi: 'Permission जाँची जा रही है…' },
+    'ss.savechanges':   { en: 'Save Changes', ta: 'மாற்றங்களை save பண்ணு', hi: 'बदलाव save करें' },
+    'ss.back.dash':     { en: '← Back to Dashboard', ta: '← Dashboard-க்கு திரும்பு', hi: '← Dashboard पर वापस' },
+    'ss.approved':      { en: '✅ Your edit request was approved. Make your changes and save.', ta: '✅ உங்க edit request-க்கு ஒப்புதல் கிடைச்சிடுச்சு. மாற்றம் பண்ணி save பண்ணுங்க.', hi: '✅ आपकी edit request मंज़ूर हो गई। बदलाव करके save करें।' },
+    'ss.locked.title':  { en: 'Editing is locked', ta: 'Edit பண்ண முடியாது — பூட்டி இருக்கு', hi: 'Editing बंद है' },
+    'ss.locked.sub':    { en: 'Send a request to Super Admin to unlock editing', ta: 'Edit பண்ண Super Admin-க்கு request அனுப்புங்க', hi: 'Editing खोलने के लिए Super Admin को request भेजें' },
+    'ss.req.btn':       { en: 'Request Edit Permission', ta: 'Edit permission கேட்டு request பண்ணு', hi: 'Edit permission की request करें' },
+    'ss.req.reason':    { en: 'Reason for editing', ta: 'எதுக்கு edit பண்றீங்க', hi: 'Edit करने का कारण' },
+    'ss.req.reason.ph': { en: 'e.g. Our shop name changed, phone number updated, need to correct GSTIN...', ta: 'உ.ம். கடை பேரு மாறிடுச்சு, phone நம்பர் மாறிடுச்சு, GSTIN-ஐ சரி பண்ணணும்...', hi: 'जैसे: दुकान का नाम बदल गया, phone नंबर बदला, GSTIN ठीक करना है...' },
+    'ss.req.send':      { en: 'Send Request', ta: 'Request அனுப்பு', hi: 'Request भेजें' },
+    'ss.req.cancel':    { en: 'Cancel', ta: 'வேண்டாம்', hi: 'रहने दें' },
+    'ss.req.pending':   { en: 'Edit Request Pending', ta: 'Edit request காத்திருக்கு', hi: 'Edit Request बाकी है' },
+    'ss.req.noreason':  { en: '⚠️ Please enter a reason for your edit request.', ta: '⚠️ எதுக்கு edit பண்றீங்கன்னு காரணம் போடுங்க.', hi: '⚠️ कृपया edit request का कारण लिखें।' },
+    'ss.req.sent':      { en: "✅ Request sent! You'll be able to edit once the Super Admin approves it.", ta: '✅ Request அனுப்பியாச்சு! Super Admin ஒப்புதல் கொடுத்ததும் edit பண்ணலாம்.', hi: '✅ Request भेज दी गई! Super Admin की मंज़ूरी के बाद आप edit कर सकेंगे।' },
+
+    'ss.err.shopname': { en: 'Please enter your shop name.', ta: 'கடை பேரை போடுங்க.', hi: 'कृपया दुकान का नाम डालें।' },
+    'ss.err.prefix':   { en: 'Please enter an invoice prefix (e.g. MM).', ta: 'Invoice prefix ஒண்ணு போடுங்க (உ.ம். MM).', hi: 'Invoice prefix डालें (जैसे MM)।' },
+    'ss.err.phone':    { en: 'Please enter your phone number.', ta: 'Phone நம்பரை போடுங்க.', hi: 'कृपया phone नंबर डालें।' },
+    'ss.err.addr':     { en: 'Please enter your address.', ta: 'முகவரியை போடுங்க.', hi: 'कृपया पता डालें।' },
+    /* Appended to the checker's own reason, which stays English — that
+       part names a GSTIN rule and is quoted from the portal. */
+    'ss.err.gstin.blank': { en: ' Leave it blank if you are not GST registered.', ta: ' GST registration இல்லைனா இதை காலியா விட்டுடுங்க.', hi: ' अगर GST registration नहीं है तो इसे खाली छोड़ दें।' },
+    'ss.err.session':  { en: 'Session missing. Please refresh the page (Ctrl+Shift+R) or log in again.', ta: 'Session கிடைக்கல. Page-ஐ refresh பண்ணுங்க (Ctrl+Shift+R), இல்லைனா மறுபடி login பண்ணுங்க.', hi: 'Session नहीं मिला। Page refresh करें (Ctrl+Shift+R) या दोबारा login करें।' },
+
+    /* ══ The first purchase ══ */
+    'pur.head': { en: 'Add Purchase', ta: 'Purchase சேர்', hi: 'Purchase जोड़ें' },
+    'pur.sub': {
+        en: 'Add multiple items in one go — same bill, multiple products',
+        ta: 'ஒரே நேரத்துல பல item சேர்க்கலாம் — ஒரே bill, பல product',
+        hi: 'एक साथ कई items जोड़ें — एक ही bill, कई products'
+    },
+    'pur.sec.bill':  { en: '📋 Bill Details',  ta: '📋 Bill விவரம்', hi: '📋 Bill की जानकारी' },
+    'pur.sec.items': { en: '💊 Product Items', ta: '💊 மருந்து / பொருள் பட்டியல்', hi: '💊 दवाई / सामान की सूची' },
+    'pur.f.billno.ph': { en: 'e.g. BL-001', ta: 'உ.ம். BL-001', hi: 'जैसे: BL-001' },
+    'pur.f.firm':      { en: 'Supplier / Firm', ta: 'Supplier / நிறுவனம்', hi: 'Supplier / फ़र्म' },
+    'pur.f.firm.ph':   { en: 'Pick a supplier or type a new one…', ta: 'Supplier-ஐ தேர்ந்தெடுங்க, இல்லைனா புதுசா type பண்ணுங்க…', hi: 'Supplier चुनें या नया type करें…' },
+    'pur.paidnow': {
+        en: "💵 Paid now — records a full payment so this bill won't show as owed in the Supplier Ledger",
+        ta: '💵 இப்பவே பணம் கொடுத்தாச்சு — முழு payment-ஆ பதிவாகும், அதனால இந்த bill Supplier Ledger-ல பாக்கியா காட்டாது',
+        hi: '💵 अभी भुगतान कर दिया — पूरा payment दर्ज होगा, तो यह bill Supplier Ledger में बकाया नहीं दिखेगा'
+    },
+    'pur.paidby':        { en: 'Paid by', ta: 'எப்படி கொடுத்தீங்க', hi: 'किससे दिया' },
+    'pur.import.clear':  { en: '🗑️ Clear Imported', ta: '🗑️ Import பண்ணதை clear பண்ணு', hi: '🗑️ Imported हटाएं' },
+    'pur.import.names':  { en: '📋 Import Medicine Names', ta: '📋 Medicine பேர்களை import பண்ணு', hi: '📋 Medicine के नाम import करें' },
+    'pur.import.invoice':{ en: '📥 Import Full Invoice', ta: '📥 முழு invoice-ஐயும் import பண்ணு', hi: '📥 पूरा invoice import करें' },
+    'pur.ocr.offline':   { en: '⬇️ Save Scanner Offline', ta: '⬇️ Scanner-ஐ offline-ல சேமி', hi: '⬇️ Scanner offline सेव करें' },
+    'pur.ocr.offline.tip': {
+        en: 'Save the invoice scanner on this device so it works without internet',
+        ta: 'Invoice scanner-ஐ இந்த device-ல சேமிச்சு வெச்சா internet இல்லாமலும் வேலை செய்யும்',
+        hi: 'Invoice scanner को इस device पर सेव करें ताकि बिना internet के भी चले'
+    },
+    'pur.ocr.next':   { en: 'Go to next →', ta: 'அடுத்ததுக்கு போ →', hi: 'अगले पर जाएं →' },
+    'pur.additem':    { en: 'Add Another Item', ta: 'இன்னொரு item சேர்', hi: 'एक और item जोड़ें' },
+    'pur.grandtotal': { en: 'Grand Total', ta: 'மொத்தம்', hi: 'कुल योग' },
+    'pur.cancel':     { en: 'Cancel', ta: 'வேண்டாம்', hi: 'रहने दें' },
+    'pur.save':       { en: 'Save All Purchases', ta: 'எல்லா purchase-ஐயும் save பண்ணு', hi: 'सारे purchases save करें' },
+    'pur.li.remove':  { en: '✕ Remove', ta: '✕ நீக்கு', hi: '✕ हटाएं' },
+    'pur.li.product.ph': { en: 'Type or select medicine…', ta: 'Medicine-ஐ type பண்ணுங்க, இல்லைனா தேர்ந்தெடுங்க…', hi: 'Medicine type करें या चुनें…' },
+    'pur.li.barcode.hint': {
+        en: '(optional — scan or type to link this medicine for billing)',
+        ta: '(விருப்பம் — billing-ல scan பண்ண, இந்த medicine-க்கு barcode-ஐ இணைக்கலாம்)',
+        hi: '(वैकल्पिक — billing में scan करने के लिए इस medicine से barcode जोड़ें)'
+    },
+    'pur.li.barcode.ph': { en: 'Scan or type the barcode…', ta: 'Barcode-ஐ scan பண்ணுங்க, இல்லைனா type பண்ணுங்க…', hi: 'Barcode scan करें या type करें…' },
+    'pur.li.free.hint':  { en: '(scheme — not charged)', ta: '(scheme — இதுக்கு காசு இல்லை)', hi: '(scheme — इसका पैसा नहीं)' },
+    'pur.li.total.ph':   { en: 'Auto-calculated', ta: 'தானா கணக்கிடும்', hi: 'अपने आप जुड़ेगा' },
+    'pur.li.h.tip': {
+        en: 'Schedule H drug? Auto-lights for known H drugs — tap to override. Confirmed H items are logged to the H register.',
+        ta: 'Schedule H drug-ஆ? தெரிஞ்ச H drug-க்கு தானா எரியும் — வேணும்னா தட்டி மாத்திக்கலாம். H-ன்னு உறுதி பண்ணதெல்லாம் H register-ல பதிவாகும்.',
+        hi: 'Schedule H drug है? जाने-पहचाने H drugs पर अपने आप जलता है — बदलने के लिए tap करें। पक्के किए गए H items H register में दर्ज होते हैं।'
+    },
+    'pur.li.gst.tip': {
+        en: 'GST slab — medicines are 0, 5, 12 or 18%',
+        ta: 'GST slab — மருந்துக்கு 0, 5, 12 இல்லைனா 18%',
+        hi: 'GST slab — दवाइयों पर 0, 5, 12 या 18%'
     }
 };
 
@@ -340,41 +552,157 @@ function mmT(key, vars) {
 function mmTHas(key) { return Object.prototype.hasOwnProperty.call(MM_STRINGS, key); }
 
 /* ─────────────────────────────────────────────────────────────
+   PHASE 2 — translating text that sits in the PAGE, not in a call
+
+   Phase 1 was dialogs: a page builds the sentence at the moment it
+   needs it, so mmT('key') slots straight in. The hint lines are the
+   opposite — they are static markup, hundreds of them, and rewriting
+   each one into a JS call would put user-facing sentences back into
+   the pages, which is the exact thing lang.js replaced.
+
+   So the page marks the element and keeps its English:
+
+       <div class="hint" data-mmt="setup.prefix.hint">
+           Bills will be numbered: SL-001, SL-002…
+       </div>
+       <input data-mmt-ph="login.user.ph" placeholder="Enter your username">
+       <button data-mmt-title="pur.h.tip" title="Schedule H drug?…">
+
+   The English in the file is the fallback of last resort: if this
+   script never loads, or the key is missing, or the walker throws,
+   the shop still reads an English sentence rather than a blank box
+   or a raw key. mmApplyT() then overwrites it from the dictionary —
+   including for English, so the dictionary stays the single source
+   of truth and the two cannot quietly drift apart.
+
+   ── Why it refuses elements that have children ──
+   data-mmt sets textContent, which would delete any child element.
+   A label like  <label>Shop Name <span>*</span></label>  would lose
+   its required star and nobody would notice until a shop skipped a
+   mandatory field. Rather than guess, the walker leaves such an
+   element ALONE and warns: the wording stays English, which is a
+   visible, harmless failure. Wrap the words in their own span to
+   translate them.
+───────────────────────────────────────────────────────────── */
+function mmApplyT(root) {
+    const scope = root || document;
+    if (!scope || typeof scope.querySelectorAll !== 'function') return 0;
+    let applied = 0;
+
+    const each = (attr, fn) => {
+        let nodes;
+        try { nodes = scope.querySelectorAll('[' + attr + ']'); } catch (e) { return; }
+        nodes.forEach(el => {
+            const key = el.getAttribute(attr);
+            if (!key) return;
+            if (!mmTHas(key)) {
+                try { console.warn('[lang] ' + attr + ' points at a missing key:', key); } catch (e) {}
+                return;                       // leave the English that is already there
+            }
+            const txt = mmT(key);
+            if (!txt || txt === key) return;  // never blank a line, never print a raw key
+            /* fn returns false when it declined. The count is the only thing a
+               caller can check, so it must mean "this many lines actually
+               changed" — counting a refusal would report success for a line
+               still sitting there in English. */
+            try { if (fn(el, txt) !== false) applied++; } catch (e) {}
+        });
+    };
+
+    each('data-mmt', (el, txt) => {
+        if (el.children && el.children.length) {
+            try { console.warn('[lang] data-mmt on an element with children, skipped:', el.getAttribute('data-mmt')); } catch (e) {}
+            return false;
+        }
+        el.textContent = txt;
+    });
+    each('data-mmt-ph',    (el, txt) => { el.setAttribute('placeholder', txt); });
+    each('data-mmt-title', (el, txt) => { el.setAttribute('title', txt); });
+
+    return applied;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Carrying a choice made BEFORE sign-in
+
+   The language is keyed per real user (mm_lang_<username>), but the
+   first screens a new owner sees — login, create account, the shop
+   wizard — happen with nobody signed in, so the choice lands on the
+   unscoped `mm_lang` key. Without this, picking Tamil on the login
+   screen would be forgotten the instant they signed in, and the
+   wizard they were about to fill in is the whole reason they picked.
+
+   Adopted ONCE per user, and only when that user has never chosen —
+   an owner who deliberately set English is not overruled by whatever
+   the last person left on the shared counter machine.
+
+   The unscoped key is deliberately NOT cleared: it is the login
+   screen's own language on this device, and the next person to sign
+   in on it is far more likely to want the same one than English.
+───────────────────────────────────────────────────────────── */
+function mmAdoptLang() {
+    try {
+        const s = (typeof mmGetSession === 'function') ? mmGetSession() : null;
+        if (!s || !s.username) return false;
+        const userKey = 'mm_lang_' + s.username;
+        if (localStorage.getItem(userKey)) return false;          // they have chosen
+        const pre = localStorage.getItem('mm_lang');
+        if (!pre || !MM_LANGS.some(l => l.code === pre)) return false;
+        localStorage.setItem(userKey, pre);
+        try { document.documentElement.setAttribute('lang', pre); } catch (e) {}
+        return true;
+    } catch (e) { return false; }
+}
+
+/* ─────────────────────────────────────────────────────────────
    The switch. Rendered into whatever element id is passed.
 ───────────────────────────────────────────────────────────── */
 function mmRenderLangPicker(elId, opts) {
     const host = document.getElementById(elId);
     if (!host) return;
     opts = opts || {};
-    const cur = mmLang();
-    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const cur  = mmLang();
+    const dark = opts.variant === 'dark';       // login.html is an ocean-glass page
+    const esc  = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    /* A REAL warning, rendered in the chosen language. Without this the
-       switch looks broken: only dialogs are translated, so the page around
-       it stays English and nothing appears to happen when you click. */
-    const sample = mmT('bin.empty');
+    const c = dark
+        ? { label:'rgba(148,163,184,0.95)', note:'rgba(148,163,184,0.65)', off:'rgba(255,255,255,0.06)',
+            offText:'rgba(226,232,240,0.85)', offBorder:'rgba(255,255,255,0.16)', on:'#0891b2', onBorder:'#22d3ee',
+            box:'rgba(255,255,255,0.04)', boxBorder:'rgba(255,255,255,0.10)', boxText:'rgba(226,232,240,0.9)' }
+        : { label:'#64748b', note:'#94a3b8', off:'#fff',
+            offText:'#475569', offBorder:'#cbd5e1', on:'#2563eb', onBorder:'#2563eb',
+            box:'#f8fafc', boxBorder:'#e2e8f0', boxText:'#334155' };
+
+    /* The sample exists because a preference with no visible effect reads as a
+       dead button. On a page that translates ITSELF (data-mmt), the page IS the
+       confirmation and the canned sentence is just noise — those pass sample:false. */
+    const wantSample = opts.sample !== false;
+    const sample = wantSample ? mmT('bin.empty') : '';
 
     host.innerHTML =
         '<div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap; justify-content:center;">'
-      + '<span style="font-size:0.82rem; color:#64748b; font-weight:600;">🌐 ' + esc(mmT('lang.title')) + '</span>'
+      + '<span style="font-size:0.82rem; color:' + c.label + '; font-weight:600;">🌐 ' + esc(mmT('lang.title')) + '</span>'
       + MM_LANGS.map(l =>
             '<button type="button" data-lang="' + l.code + '" '
           + 'style="padding:0.3rem 0.75rem; border-radius:999px; cursor:pointer; font-size:0.82rem; font-weight:700;'
-          + 'border:1.5px solid ' + (l.code === cur ? '#2563eb' : '#cbd5e1') + ';'
-          + 'background:' + (l.code === cur ? '#2563eb' : '#fff') + ';'
-          + 'color:' + (l.code === cur ? '#fff' : '#475569') + ';">'
+          + 'font-family:inherit;'
+          + 'border:1.5px solid ' + (l.code === cur ? c.onBorder : c.offBorder) + ';'
+          + 'background:' + (l.code === cur ? c.on : c.off) + ';'
+          + 'color:' + (l.code === cur ? '#fff' : c.offText) + ';">'
           + esc(l.native) + '</button>').join('')
       + '</div>'
-      + '<div style="font-size:0.72rem; color:#94a3b8; margin-top:0.4rem; text-align:center;">'
+      + '<div style="font-size:0.72rem; color:' + c.note + '; margin-top:0.4rem; text-align:center;">'
       + esc(mmT('lang.note')) + '</div>'
-      + '<div style="max-width:520px; margin:0.6rem auto 0; padding:0.6rem 0.8rem; border-radius:10px;'
-      + 'background:#f8fafc; border:1px solid #e2e8f0; text-align:center;">'
-      + '<div style="font-size:0.68rem; color:#94a3b8; font-weight:600; margin-bottom:0.25rem;">'
-      + esc(mmT('lang.preview.label')) + '</div>'
-      + '<div id="' + elId + '_sample" style="font-size:0.82rem; color:#334155; line-height:1.5;">'
-      + esc(sample) + '</div></div>'
+      + (wantSample
+            ? '<div style="max-width:520px; margin:0.6rem auto 0; padding:0.6rem 0.8rem; border-radius:10px;'
+              + 'background:' + c.box + '; border:1px solid ' + c.boxBorder + '; text-align:center;">'
+              + '<div style="font-size:0.68rem; color:' + c.note + '; font-weight:600; margin-bottom:0.25rem;">'
+              + esc(mmT('lang.preview.label')) + '</div>'
+              + '<div id="' + elId + '_sample" style="font-size:0.82rem; color:' + c.boxText + '; line-height:1.5;">'
+              + esc(sample) + '</div></div>'
+            : '')
       + (opts.showMoved
-            ? '<div style="font-size:0.72rem; color:#64748b; margin-top:0.5rem; text-align:center;">'
+            ? '<div style="font-size:0.72rem; color:' + c.label + '; margin-top:0.5rem; text-align:center;">'
               + esc(mmT('lang.moved')) + '</div>'
             : '');
 
@@ -382,9 +710,11 @@ function mmRenderLangPicker(elId, opts) {
         b.onclick = () => {
             const code = b.getAttribute('data-lang');
             if (!mmSetLang(code)) return;
-            /* Re-render in the new language. The sample sentence changing
-               under their finger IS the confirmation — no toast needed, and
-               no dependency on a page happening to define one. */
+            /* Repaint the page's own marked-up text first, then the picker.
+               On a Phase 2 page the headings and hints changing under their
+               finger IS the confirmation — no toast needed, and no dependency
+               on a page happening to define one. */
+            try { mmApplyT(document); } catch (e) {}
             mmRenderLangPicker(elId, opts);
             if (typeof opts.onChoose === 'function') { try { opts.onChoose(code); } catch (e) {} }
         };
@@ -394,3 +724,18 @@ function mmRenderLangPicker(elId, opts) {
 /* Reflect the stored language on the <html> tag so the browser
    picks sensible fonts and hyphenation for Tamil / Devanagari. */
 try { document.documentElement.setAttribute('lang', mmLang()); } catch (e) {}
+
+/* Every page that loads lang.js gets its marked-up text translated on
+   load — a page opts in by putting data-mmt on something, not by
+   remembering to call this. Pages that build markup later (purchase
+   line items, the shop-setup footer) call mmApplyT(el) again themselves.
+
+   mmAdoptLang runs first so a choice made on the login screen is already
+   the user's own by the time the first signed-in page paints. */
+try {
+    document.addEventListener('DOMContentLoaded', function () {
+        try { mmAdoptLang(); } catch (e) {}
+        try { document.documentElement.setAttribute('lang', mmLang()); } catch (e) {}
+        try { mmApplyT(document); } catch (e) {}
+    });
+} catch (e) {}

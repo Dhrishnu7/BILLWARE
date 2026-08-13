@@ -14,6 +14,10 @@
     <link rel="preconnect" href="https://jwyyjdwlbgjijmwillow.supabase.co" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/auth.js?v=3"></script>
+    <!-- After auth.js on purpose: lang.js reads mmGetSession() to key the
+         language per real user, and this is the screen where a brand-new
+         owner makes that choice with nobody signed in yet. -->
+    <script src="js/lang.js"></script>
     <script src="js/sw-update.js"></script>
     <script src="js/supabase.js"></script>
     <style>
@@ -412,8 +416,8 @@
 
             <!-- Header -->
             <div class="login-header">
-                <h2>Welcome back</h2>
-                <p>Sign in to continue to your dashboard</p>
+                <h2 data-mmt="login.head">Welcome back</h2>
+                <p data-mmt="login.sub">Sign in to continue to your dashboard</p>
             </div>
 
             <!-- Error box -->
@@ -424,7 +428,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01"/>
                     </svg>
                 </span>
-                <span class="error-text" id="errorText">Invalid username or password.</span>
+                <span class="error-text" id="errorText" data-mmt="login.err.bad">Invalid username or password.</span>
             </div>
 
             <!-- Login Form -->
@@ -440,7 +444,7 @@
                             </svg>
                         </span>
                         <input type="text" id="loginUsername"
-                               placeholder="Enter your username"
+                               placeholder="Enter your username" data-mmt-ph="login.user.ph"
                                autocomplete="username" spellcheck="false" required>
                     </div>
                 </div>
@@ -456,7 +460,7 @@
                             </svg>
                         </span>
                         <input type="password" id="loginPassword"
-                               placeholder="Enter your password"
+                               placeholder="Enter your password" data-mmt-ph="login.pw.ph"
                                autocomplete="current-password" required>
                         <button type="button" class="pw-toggle" id="pwToggle"
                                 onclick="togglePw()" aria-label="Toggle password visibility">
@@ -488,9 +492,9 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                             </svg>
                         </div>
-                        <span class="remember-label">Keep me signed in</span>
+                        <span class="remember-label" data-mmt="login.remember">Keep me signed in</span>
                     </label>
-                    <a href="#" class="forgot-link" onclick="showForgotPassword(); return false;">Forgot password?</a>
+                    <a href="#" class="forgot-link" onclick="showForgotPassword(); return false;" data-mmt="login.forgot">Forgot password?</a>
                 </div>
 
                 <!-- Submit -->
@@ -498,7 +502,7 @@
                     <svg id="btnIcon" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
                     </svg>
-                    <span id="btnText">Sign In</span>
+                    <span id="btnText" data-mmt="login.btn">Sign In</span>
                 </button>
             </form>
 
@@ -506,9 +510,20 @@
 
             <!-- New store owner -->
             <div class="alt-row">
-                <span>New store owner?</span>
-                <a href="setup.html" class="alt-link">Create an account →</a>
+                <span data-mmt="login.new">New store owner?</span>
+                <a href="setup.html" class="alt-link" data-mmt="login.create">Create an account →</a>
             </div>
+
+            <!-- The language switch belongs HERE, not only on the dashboard.
+                 A new owner goes login → create account → shop wizard and does
+                 not reach the dashboard until the wizard is already filled in
+                 and approved, so a choice offered only there arrives too late
+                 to help with the one form they must get right. Signed out, the
+                 choice lands on the unscoped key and mmAdoptLang() carries it
+                 onto their own account the moment they sign in.
+                 No sample sentence: this page translates itself, so the page
+                 changing under their finger IS the confirmation. -->
+            <div id="langPicker" style="margin-top:1.1rem;"></div>
 
             <p class="login-footer-txt">&copy; 2026 Billware &mdash; Secured Access</p>
         </div>
@@ -523,6 +538,15 @@
                 }
             } catch(e) { /* continue to show login */ }
         })();
+
+        /* The picker. Dark variant because this page is ocean-glass, and no
+           sample sentence because the page itself repaints — mmApplyT runs
+           from the picker's own click handler. */
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof mmRenderLangPicker === 'function') {
+                mmRenderLangPicker('langPicker', { variant: 'dark', sample: false });
+            }
+        });
 
         // ── Password visibility toggle ──
         function togglePw() {
@@ -571,7 +595,7 @@
         function setBtnDefault() {
             loginBtn.disabled = false;
             document.getElementById('btnIcon').outerHTML = `<svg id="btnIcon" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>`;
-            btnText.textContent = 'Sign In';
+            btnText.textContent = mmT('login.btn');
         }
 
         // ── Main login handler ──
@@ -585,12 +609,12 @@
 
             // Inline validation
             if (!username) {
-                showError('Please enter your username.');
+                showError(mmT('login.err.nouser'));
                 document.getElementById('loginUsername').focus();
                 return;
             }
             if (!password) {
-                showError('Please enter your password.');
+                showError(mmT('login.err.nopw'));
                 document.getElementById('loginPassword').focus();
                 return;
             }
@@ -619,7 +643,9 @@
                     showForceLoginModal(result.message, username, password, remember);
                 } else {
                     setBtnDefault();
-                    showError(result.message || 'Invalid username or password.');
+                    /* result.message is the server's own wording and stays as
+                       sent; only the generic fallback is translatable. */
+                    showError(result.message || mmT('login.err.bad'));
                     document.getElementById('loginPassword').value = '';
                     document.getElementById('loginPassword').focus();
                 }
@@ -812,31 +838,34 @@
         <div class="modal-overlay" id="forgotPwdModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); backdrop-filter:blur(4px); z-index:9999; align-items:center; justify-content:center;">
             <div class="modal" style="background:#fff; width:90%; max-width:400px; border-radius:20px; padding:2rem; box-shadow:0 20px 40px rgba(0,0,0,0.2); position:relative; animation: fadeUp 0.3s ease;">
                 <button onclick="document.getElementById('forgotPwdModal').style.display='none'" style="position:absolute; top:1rem; right:1.5rem; background:none; border:none; font-size:1.8rem; cursor:pointer; color:#64748b;">&times;</button>
+                <!-- No data-mmt: showForgotPassword() always overwrites this
+                     title, so a marker here would only be read as translated
+                     when it never is. The two assignments below carry it. -->
                 <h2 style="margin-top:0; color:#0f172a; font-weight:800; margin-bottom:1.5rem;" id="fpTitle">Reset Password</h2>
 
                 <!-- Section 1: Request Reset -->
                 <div id="fpRequestSection">
-                    <p style="font-size:0.9rem; color:#475569; margin-bottom:1rem; line-height:1.5;">Enter your username and the reason for your reset. Your super admin will review it.</p>
+                    <p style="font-size:0.9rem; color:#475569; margin-bottom:1rem; line-height:1.5;" data-mmt="fp.req.msg">Enter your username and the reason for your reset. Your super admin will review it.</p>
                     <div class="form-group">
                         <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">Username</label>
-                        <input type="text" id="fpReqUsername" class="form-control" placeholder="Enter your username" style="color:#0f172a;">
+                        <input type="text" id="fpReqUsername" class="form-control" placeholder="Enter your username" data-mmt-ph="login.user.ph" style="color:#0f172a;">
                     </div>
                     <div class="form-group" style="margin-top:1rem;">
                         <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">Reason</label>
-                        <input type="text" id="fpReqReason" class="form-control" placeholder="e.g. Forgot my password" style="color:#0f172a;">
+                        <input type="text" id="fpReqReason" class="form-control" placeholder="e.g. Forgot my password" data-mmt-ph="fp.reason.ph" style="color:#0f172a;">
                     </div>
-                    <button class="btn" style="width:100%; margin-top:1.5rem; background:#0f172a; color:#fff;" onclick="submitFpRequest()">Submit Request</button>
+                    <button class="btn" style="width:100%; margin-top:1.5rem; background:#0f172a; color:#fff;" onclick="submitFpRequest()" data-mmt="fp.req.btn">Submit Request</button>
                     <div style="text-align:center; margin-top:1rem;">
-                        <a href="#" onclick="showFpPinSection(); return false;" style="font-size:0.85rem; color:#0ea5e9; font-weight:600; text-decoration:none;">I already have a Reset PIN</a>
+                        <a href="#" onclick="showFpPinSection(); return false;" style="font-size:0.85rem; color:#0ea5e9; font-weight:600; text-decoration:none;" data-mmt="fp.havepin">I already have a Reset PIN</a>
                     </div>
                 </div>
 
                 <!-- Section 2: Enter PIN -->
                 <div id="fpPinSection" style="display:none;">
-                    <p style="font-size:0.9rem; color:#475569; margin-bottom:1rem; line-height:1.5;">Enter your username, the 6-digit PIN provided by your admin, and your new password.</p>
+                    <p style="font-size:0.9rem; color:#475569; margin-bottom:1rem; line-height:1.5;" data-mmt="fp.pin.msg">Enter your username, the 6-digit PIN provided by your admin, and your new password.</p>
                     <div class="form-group">
                         <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">Username</label>
-                        <input type="text" id="fpPinUsername" class="form-control" placeholder="Enter your username" style="color:#0f172a;">
+                        <input type="text" id="fpPinUsername" class="form-control" placeholder="Enter your username" data-mmt-ph="login.user.ph" style="color:#0f172a;">
                     </div>
                     <div class="form-group" style="margin-top:1rem;">
                         <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">6-Digit PIN</label>
@@ -845,7 +874,7 @@
                     <div class="form-group" style="margin-top:1rem;">
                         <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem; color:#475569;">New Password</label>
                         <div style="position:relative;">
-                            <input type="password" id="fpPinNewPwd" class="form-control" placeholder="Enter new password" style="color:#0f172a; padding-right:44px;">
+                            <input type="password" id="fpPinNewPwd" class="form-control" placeholder="Enter new password" data-mmt-ph="fp.newpw.ph" style="color:#0f172a; padding-right:44px;">
                             <button type="button" onclick="
                                 var inp=document.getElementById('fpPinNewPwd');
                                 var ico=document.getElementById('fpPwdEyeIcon');
@@ -864,9 +893,9 @@
                             </button>
                         </div>
                     </div>
-                    <button class="btn" style="width:100%; margin-top:1.5rem; background:#059669; color:#fff;" onclick="submitFpPin()">Set New Password</button>
+                    <button class="btn" style="width:100%; margin-top:1.5rem; background:#059669; color:#fff;" onclick="submitFpPin()" data-mmt="fp.setpw">Set New Password</button>
                     <div style="text-align:center; margin-top:1rem;">
-                        <a href="#" onclick="showFpRequestSection(); return false;" style="font-size:0.85rem; color:#64748b; font-weight:600; text-decoration:none;">&larr; Back to Request Reset</a>
+                        <a href="#" onclick="showFpRequestSection(); return false;" style="font-size:0.85rem; color:#64748b; font-weight:600; text-decoration:none;" data-mmt="fp.back">&larr; Back to Request Reset</a>
                     </div>
                 </div>
             </div>
@@ -880,12 +909,12 @@
             function showFpRequestSection() {
                 document.getElementById('fpRequestSection').style.display = 'block';
                 document.getElementById('fpPinSection').style.display = 'none';
-                document.getElementById('fpTitle').innerText = 'Request Password Reset';
+                document.getElementById('fpTitle').innerText = mmT('fp.req.title');
             }
             function showFpPinSection() {
                 document.getElementById('fpRequestSection').style.display = 'none';
                 document.getElementById('fpPinSection').style.display = 'block';
-                document.getElementById('fpTitle').innerText = 'Enter Reset PIN';
+                document.getElementById('fpTitle').innerText = mmT('fp.pin.title');
             }
 
             async function submitFpRequest() {

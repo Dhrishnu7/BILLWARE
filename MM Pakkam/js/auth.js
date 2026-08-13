@@ -96,6 +96,20 @@ const MM_KEEP_KEYS = new Set([
 // NOT covered by this and are wiped like everything else.
 const MM_PENDING_SCOPED_RE = /^mm_.+_pending_(sales|purchases)$/;
 
+// The chosen language: `mm_lang` (this device's login screen) and
+// `mm_lang_<username>` (one real person's choice — see js/lang.js).
+//
+// These were being wiped, which meant a counter hand who set Tamil got
+// English back the next morning and had to find the setting again. The wipe
+// was right to be suspicious and wrong on the facts: this holds no business
+// data, only a three-letter code, and it is keyed per USERNAME so one staff
+// member's choice is never read for another. Which language somebody prefers
+// is the same kind of device fact as which printer is attached, and sits
+// beside mm_thermal_printer for the same reason.
+//
+// A regex rather than a KEEP_KEYS entry because the username is in the key.
+const MM_LANG_KEY_RE = /^mm_lang(_.+)?$/;
+
 // Marks which tenant the cached business data currently belongs to.
 const MM_DATA_OWNER_KEY = 'mm_data_owner';
 
@@ -109,6 +123,7 @@ function _mmClearBusinessData() {
             if (MM_KEEP_KEYS.has(k)) continue;
             if (k.startsWith('sb-')) continue;            // Supabase Auth tokens
             if (MM_PENDING_SCOPED_RE.test(k)) continue;   // other shops' offline queues
+            if (MM_LANG_KEY_RE.test(k)) continue;         // a person's chosen language
             doomed.push(k);
         }
         doomed.forEach(k => { try { localStorage.removeItem(k); } catch {} });
