@@ -8206,13 +8206,35 @@
         const MIG_XLSX_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
         let _migKind = '', _migRows = [], _migHeaderIdx = 0, _migMap = {}, _migPlan = null, _migBuilt = null;
 
+        /* BOTH the inline display AND the .open class are required on this page.
+           `.modal-overlay` is `opacity:0; pointer-events:none` by default and
+           only `.modal-overlay.open` makes it visible and clickable, so setting
+           display alone puts a fully-built dialog on screen that cannot be seen
+           or touched — which is exactly how this shipped in v396 and read as a
+           dead button. Modal conventions are PAGE-LOCAL in this codebase (v378);
+           copy the one the page already uses, never the one another page uses. */
         function openMigrateModal() {
             _migKind = ''; _migRows = []; _migMap = {}; _migPlan = null; _migBuilt = null;
             migShowStep(1);
             migRenderKinds();
-            document.getElementById('migrateModal').style.display = 'flex';
+            const m = document.getElementById('migrateModal');
+            m.style.display = 'flex';
+            /* Force a layout so the browser has a painted opacity:0 to fade
+               FROM, then add the class synchronously. The neighbouring modals
+               use requestAnimationFrame for this, but a rAF callback is not
+               guaranteed to run when the page is not compositing — a
+               background tab, a very slow device — and if it does not, the
+               dialog stays at opacity:0 / pointer-events:none: fully built,
+               invisible, unclickable. js/modal.js already uses this reflow
+               form for the same reason. */
+            void m.offsetWidth;
+            m.classList.add('open');
         }
-        function closeMigrateModal() { document.getElementById('migrateModal').style.display = 'none'; }
+        function closeMigrateModal() {
+            const m = document.getElementById('migrateModal');
+            m.classList.remove('open');
+            setTimeout(() => { m.style.display = 'none'; }, 200);
+        }
         function migShowStep(n) {
             [1, 2, 3, 4].forEach(i => {
                 const el = document.getElementById('migStep' + i);
