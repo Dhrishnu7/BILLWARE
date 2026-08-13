@@ -2135,7 +2135,13 @@
                 const oweLabel = owe > 0.005 ? 'You owe' : (owe < -0.005 ? 'Supplier owes you' : 'Settled');
                 return '<div style="background:#fff;border:1.5px solid #e0e7ff;border-radius:18px;padding:1.1rem 1.2rem;box-shadow:0 2px 10px rgba(99,102,241,0.06);">'
                     + '<div style="font-weight:800;font-size:1.05rem;color:#1e293b;margin-bottom:2px;">' + escHtml(s.firm) + '</div>'
-                    + '<div style="font-size:0.76rem;color:#94a3b8;margin-bottom:0.8rem;">Purchased ₹' + s.purchased.toFixed(2)
+                    /* The opening is named separately and never folded into
+                       "Purchased" — a shop checking this card against its own
+                       records must be able to see which part of the figure
+                       came from bills and which was carried over. */
+                    + '<div style="font-size:0.76rem;color:#94a3b8;margin-bottom:0.8rem;">'
+                    + (s.opening ? 'Brought forward ₹' + s.opening.toFixed(2) + ' · ' : '')
+                    + 'Purchased ₹' + s.purchased.toFixed(2)
                     + (s.returned ? ' · Returned ₹' + s.returned.toFixed(2) : '') + ' · Paid ₹' + s.paid.toFixed(2) + '</div>'
                     + '<div style="display:flex;justify-content:space-between;align-items:flex-end;">'
                     + '<div><div style="font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;">' + oweLabel + '</div>'
@@ -3760,8 +3766,23 @@
             if (d === null) return;
             const debtors = Math.max(0, parseFloat(String(d).replace(/[^0-9.]/g, '')) || 0);
 
+            /* Two places can now state what was owed to suppliers: this lump
+               sum, and a per-supplier opening on the Suppliers tab. Added
+               together they are correct only if the shop did not enter the
+               same money twice — so say what is already itemised and let them
+               decide, rather than silently adding or silently replacing.
+               Whichever the app picked on its own would be wrong for someone. */
+            let already = 0;
+            try {
+                const m = JSON.parse(localStorage.getItem('mm_supplier_openings') || '{}');
+                Object.keys(m).forEach(k => { already += parseFloat(m[k]) || 0; });
+            } catch (e) {}
             const c = await mmPrompt(
-                'And how much did you already owe your suppliers on that day?',
+                'And how much did you already owe your suppliers on that day?'
+                + (already > 0
+                    ? '\n\n⚠️ You have already entered ' + _finMoney(already) + ' against individual suppliers'
+                      + ' on the Suppliers tab. Put ONLY what those do not cover here, or the same money is counted twice.'
+                    : ''),
                 cur.creditors ? String(cur.creditors) : '',
                 { title: '⚙️ Opening balances — suppliers', placeholder: 'e.g. 48000', okText: 'Next' }
             );

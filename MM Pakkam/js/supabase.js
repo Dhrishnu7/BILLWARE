@@ -1543,19 +1543,77 @@ async function dbGetSuppliers() {
     if (!user) { console.warn('[db] dbGetSuppliers: no user, aborting.'); return []; }
     const { data, error } = await _supabase.from('suppliers').select('*').eq('user_id', user).order('name');
     if (error) { console.error('suppliers fetch:', error); return []; }
-    return (data || []).map(r => ({ name: r.name || '', gstin: r.gstin || '', phone: r.phone || '', address: r.address || '' }));
+    const rows = (data || []).map(r => ({
+        name: r.name || '', gstin: r.gstin || '', phone: r.phone || '', address: r.address || '',
+        opening: Number(r.opening_balance) || 0, openingDate: r.opening_date || ''
+    }));
+    /* Cached as a plain name→amount map because js/position.js is
+       SYNCHRONOUS and pure: it reads localStorage and cannot await a fetch.
+       Written on every read so the map cannot outlive the truth.
+
+       Keyed on the supplier's REAL name, not a lowercased one: position.js
+       feeds these keys straight into slot(), which both records the name for
+       the merge tool and applies the shop's own merge map. A lowercased key
+       would put "sun pharma" in front of the shop beside its own "Sun Pharma"
+       and look like a duplicate it needed to fix. */
+    _cacheSupplierOpenings(rows);
+    return rows;
 }
 window.dbGetSuppliers = dbGetSuppliers;
 
-async function dbAddSupplier(name, gstin, phone, address) {
+function _cacheSupplierOpenings(rows) {
+    try {
+        const m = {};
+        (rows || []).forEach(r => {
+            const amt = Number(r.opening) || 0;
+            if (amt) m[String(r.name || '').trim()] = amt;
+        });
+        localStorage.setItem('mm_supplier_openings', JSON.stringify(m));
+    } catch (e) {}
+}
+
+/* `opening` is what the shop already owed this supplier before Billware.
+   It is stored on the supplier and read ONLY by the balance formula — it
+   never becomes a purchase (which would invent stock and input credit) and
+   never becomes a payment (which would move money that did not move). */
+async function dbAddSupplier(name, gstin, phone, address, opening, openingDate) {
     const user = _currentUser();
     if (!user) { console.warn('[db] dbAddSupplier: no user, aborting.'); return { success: false }; }
     const nm = (name || '').trim();
     if (!nm) return { success: false, message: 'Supplier name required.' };
-    const { error } = await _supabase.from('suppliers').upsert({
+
+    const base = {
         user_id: user, name: nm, gstin: (gstin || '').trim(),
         phone: (phone || '').trim(), address: (address || '').trim()
-    }, { onConflict: 'user_id,name' });
+    };
+    const row = Object.assign({}, base);
+    const hasOpening = opening !== undefined && opening !== null && opening !== '';
+    if (hasOpening) {
+        row.opening_balance = Number(opening) || 0;
+        if (openingDate) row.opening_date = openingDate;
+    }
+
+    /* Keep the figure on THIS device first, so the supplier ledger is right
+       immediately even if the column does not exist yet or the shop is
+       offline. Same order as dbAddBarcode: cache, then cloud. */
+    if (hasOpening) {
+        try {
+            const m = JSON.parse(localStorage.getItem('mm_supplier_openings') || '{}');
+            const amt = Number(opening) || 0;
+            if (amt) m[nm] = amt; else delete m[nm];
+            localStorage.setItem('mm_supplier_openings', JSON.stringify(m));
+        } catch (e) {}
+    }
+
+    let { error } = await _supabase.from('suppliers').upsert(row, { onConflict: 'user_id,name' });
+    /* Migration not run yet — drop ONLY the columns the error names and retry,
+       rather than losing the supplier entirely. Never a blanket retry: that is
+       how a payment_mode went missing and a credit sale became a cash one. */
+    if (error && /opening_balance|opening_date/i.test(String(error.message || ''))) {
+        console.warn('[db] suppliers.opening_balance missing — run migrations/add_supplier_opening.sql. ' +
+                     'The opening is kept on this device until then.');
+        ({ error } = await _supabase.from('suppliers').upsert(base, { onConflict: 'user_id,name' }));
+    }
     if (error) { console.error('supplier add:', error); return { success: false, message: error.message }; }
     return { success: true };
 }

@@ -8243,9 +8243,13 @@
               + 'padding:0.5rem 1rem;color:#6d28d9;font-family:inherit;font-weight:800;font-size:0.82rem;cursor:pointer;white-space:nowrap;">'
               + 'Choose file</button></div>').join('')
               + '<div style="margin-top:0.9rem;font-size:0.79rem;color:#64748b;line-height:1.6;">'
-              + '<b>What you owe suppliers</b> cannot be brought in per supplier yet — a supplier balance is worked out '
-              + 'from their bills and your payments, so there is nowhere honest to put an opening figure. '
-              + 'Put the total into <b>Cash &amp; Capital → Opening Balances</b> instead.</div>';
+              + 'Balances you bring in show as <b>Brought forward</b> — kept separate from bills, so you can always '
+              + 'see which part was carried over. If you also type a total into '
+              + '<b>Cash &amp; Capital → Opening Balances</b>, leave out whatever you have already itemised here, '
+              + 'or the same money is counted twice.<br><br>'
+              + '<b>Old bills, purchases and register entries are deliberately not imported.</b> Those returns were '
+              + 'already filed from the old software, and re-entering them would clash with your new bill numbers. '
+              + 'Print them from the old system before its licence lapses.</div>';
 
             /* Wired by listener, not inline onclick: a missing handler then
                fails visibly here instead of becoming a dead button. */
@@ -8466,7 +8470,15 @@
                             if (okBal) { balances++; balMoney += rec.balance; }
                         }
                     } else if (_migKind === 'suppliers') {
-                        await dbAddSupplier(rec.name, rec.gstin || '', rec.phone || '', rec.address || '');
+                        /* A supplier upserts on name, so re-importing simply
+                           rewrites the same row — including the opening, which
+                           is SET rather than added and therefore cannot double.
+                           Only a positive figure is sent: a negative would mean
+                           the supplier owes the shop, which an opening balance
+                           is not the place to express. */
+                        const openBal = (rec.balance && rec.balance > 0) ? rec.balance : undefined;
+                        await dbAddSupplier(rec.name, rec.gstin || '', rec.phone || '', rec.address || '', openBal);
+                        if (openBal) { balances++; balMoney += openBal; }
                     } else if (_migKind === 'doctors') {
                         await dbAddDoctor(rec.name, rec.phone || '', rec.clinic || '', '', rec.regNo || '');
                     } else if (_migKind === 'barcodes') {
@@ -8491,8 +8503,14 @@
                      + (failed ? '⚠️ Imported with some problems' : '✅ Brought across') + '</div>'
                      + '<div style="font-size:0.87rem;line-height:1.7;color:#334155;">'
                      + '<b>' + done + '</b> ' + migEsc(mmMigrate.KINDS[_migKind].label.split('(')[0].trim().toLowerCase()) + ' added.';
-            if (_migKind === 'customers' && balances) {
+            if ((_migKind === 'customers' || _migKind === 'suppliers') && balances) {
                 html += '<br><b>' + balances + '</b> opening balances set, totalling <b>' + money(balMoney) + '</b>.';
+                if (_migKind === 'suppliers') {
+                    html += '<br><span style="font-size:0.8rem;color:#64748b;">These show as '
+                          + '<b>Brought forward</b> on each supplier. If you also typed a total into '
+                          + 'Cash &amp; Capital → Opening Balances, reduce it by this amount so the '
+                          + 'same money is not counted twice.</span>';
+                }
             }
             if (_migKind === 'stock') {
                 html += '<br>Entered as an opening-stock bill named <b>' + migEsc(mmMigrate.OPENING_BILL)

@@ -63,15 +63,26 @@
        in two places for months (see _mmNormalizeBills) — the two drift, and
        the screen that disagrees is whichever one nobody is looking at.
 
-       balance = purchases (inclusive of GST) − purchase returns − payments.
+       balance = OPENING + purchases (inclusive of GST) − purchase returns − payments.
        `payments` is passed in because khata.html merges its cloud copy before
        calling; anything else can pass the local cache.
+
+       ── The opening, added v397 ──
+       What the shop already owed a distributor before it started using
+       Billware. It gets its own field on the supplier rather than being
+       expressed as a document, because the two available documents both lie:
+       a purchase would add stock that is not on the shelf and input tax
+       credit that was never earned, and a payment would move money that never
+       moved. Held apart, it changes this one figure and nothing else — it is
+       read here and nowhere else in the app.
     ────────────────────────────────────────────────────────────────── */
     function suppliers(payments) {
         var purchases = readJson('mm_purchases');
         var adjustments = (typeof mmLsGet === 'function') ? (mmLsGet('stockAdjustments') || []) : [];
         var merges = {};
         try { merges = JSON.parse(localStorage.getItem('mm_supplier_merges') || '{}') || {}; } catch (e) {}
+        var openings = {};
+        try { openings = JSON.parse(localStorage.getItem('mm_supplier_openings') || '{}') || {}; } catch (e) {}
 
         var map = {}, rawSet = {};
         function slot(firm) {
@@ -82,9 +93,21 @@
             if (mapped === '__HIDDEN__') return null;      // junk entry — skip
             var canonical = mapped || raw;                 // fold variants together
             var k = key(canonical);
-            if (!map[k]) map[k] = { firm: canonical.trim(), purchased: 0, returned: 0, paid: 0 };
+            if (!map[k]) map[k] = { firm: canonical.trim(), opening: 0, purchased: 0, returned: 0, paid: 0 };
             return map[k];
         }
+
+        /* Seeded FIRST, and this is why: a supplier the shop owes money to but
+           has not yet bought from in Billware has no purchase, no return and no
+           payment — so without this it would have no slot at all and the debt
+           would simply not appear anywhere. That is the exact case a migrated
+           shop is in on day one. */
+        Object.keys(openings).forEach(function (nameKey) {
+            var amt = num(openings[nameKey]);
+            if (!amt) return;
+            var s = slot(nameKey);
+            if (s) s.opening += amt;
+        });
 
         purchases.forEach(function (p) {
             var s = slot(p.firm || p.supplierName || '');
@@ -108,8 +131,8 @@
         });
         var data = Object.keys(map).map(function (k) {
             var s = map[k];
-            return { firm: s.firm, purchased: s.purchased, returned: s.returned,
-                     paid: s.paid, balance: s.purchased - s.returned - s.paid };
+            return { firm: s.firm, opening: s.opening, purchased: s.purchased, returned: s.returned,
+                     paid: s.paid, balance: s.opening + s.purchased - s.returned - s.paid };
         }).sort(function (a, b) { return b.balance - a.balance; });
 
         return { data: data, rawNames: names };

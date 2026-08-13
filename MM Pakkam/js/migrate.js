@@ -134,14 +134,20 @@ const KINDS = {
         ]
     },
     suppliers: {
-        label: 'Suppliers / distributors',
-        hint:  'Their names and details. See the note about amounts owed.',
+        label: 'Suppliers  (and what you owe them)',
+        hint:  'Distributors, their details, and any balance carried over.',
         fields: [
             { key:'name',    label:'Supplier name', req:true, type:'text',
               syn:['name','suppliername','supplier','firm','firmname','partyname','party','distributor','vendor','company','ledgername'] },
             { key:'phone',   label:'Phone',   type:'phone', syn:['phone','mobile','mobileno','contact','contactno','phoneno'] },
             { key:'gstin',   label:'GSTIN',   type:'text',  syn:['gstin','gstno','gst','gstinno','tinno','tin'] },
-            { key:'address', label:'Address', type:'text',  syn:['address','addr','area','city','town','place'] }
+            { key:'address', label:'Address', type:'text',  syn:['address','addr','area','city','town','place'] },
+            /* v397. Stored on the supplier and read only by the balance
+               formula — it never becomes a purchase or a payment, so it
+               cannot touch stock, GST, the till or the P&L. */
+            { key:'balance', label:'Amount you owe them', type:'money',
+              syn:['balance','outstanding','due','dues','closingbalance','closing','payable','amount','amountdue',
+                   'pending','pendingamount','oldbalance','openingbalance','opening','credit','bal'] }
         ]
     },
     doctors: {
@@ -351,7 +357,7 @@ function plan(records, existing, kind) {
             return;
         }
         res.create.push(rec);
-        if (kind === 'customers' && rec.balance) res.money += rec.balance;
+        if ((kind === 'customers' || kind === 'suppliers') && rec.balance) res.money += rec.balance;
         if (kind === 'stock') res.money += (Number(rec.quantity) || 0) * (Number(rec.rate) || 0);
     });
     res.count = res.create.length;
