@@ -102,6 +102,36 @@
     var lastFocused = null;        // element to restore focus to on close
     var prevBodyOverflow = '';
 
+    /* ─────────────────────────────────────────────────────────────
+       BACKING OUT IS NOT THE SAME AS ANSWERING
+
+       Escape and a click on the backdrop used to resolve to the CANCEL
+       value. That is right when the second button is a refusal
+       ("Cancel", "Go back") — backing out and refusing are the same
+       thing, and every existing call site relies on it.
+
+       It is wrong when the second button is a real ANSWER. khata asked
+       "Is Ravi's ₹500 per DAY or per MONTH?" with Per month / Per day
+       as the two buttons, so pressing Escape — the universal "I have
+       not decided" gesture — silently recorded Per day, the option
+       that then multiplies by days worked. Three ways of declining to
+       answer all committed the expensive answer.
+
+       Two opt-in controls, both defaulting to the old behaviour so no
+       existing dialog changes:
+
+         dismiss: <value>    what Esc / backdrop resolve to, when that
+                             must differ from the cancel BUTTON. Use
+                             null for "no answer given".
+         dismissible: false  Esc and backdrop do nothing at all. For
+                             questions with no safe default, where the
+                             only way out is to choose.
+
+       A button click always means what the button says; only the
+       ways of NOT choosing are affected.
+    ───────────────────────────────────────────────────────────── */
+    var getDismissValue = null;    // fn → value for Esc/backdrop, or null if not dismissible
+
     function ensureOverlay() {
         if (overlay) return;
         overlay = document.createElement('div');
@@ -112,11 +142,14 @@
 
         // Listeners attached ONCE (overlay + document persist for the app's life).
         overlay.addEventListener('click', function (e) {
-            if (e.target === overlay && activeResolve && getCancelValue) close(getCancelValue());
+            if (e.target === overlay && activeResolve && getDismissValue) close(getDismissValue());
         });
         document.addEventListener('keydown', function (e) {
             if (!activeResolve) return;
-            if (e.key === 'Escape') { e.preventDefault(); close(getCancelValue()); }
+            /* Enter is NOT a way of backing out — it activates the confirm
+               button, which is an explicit choice, so it stays as it was even
+               on a dialog that refuses to be dismissed. */
+            if (e.key === 'Escape') { if (getDismissValue) { e.preventDefault(); close(getDismissValue()); } }
             else if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); close(getConfirmValue()); }
             else if (e.key === 'Tab') trapFocus(e);
         });
@@ -137,6 +170,7 @@
         activeResolve = null;
         getConfirmValue = null;
         getCancelValue = null;
+        getDismissValue = null;
         overlay.classList.remove('mmd-open');
         try { document.body.style.overflow = prevBodyOverflow; } catch (e) {}
         setTimeout(function () { if (overlay && !activeResolve) overlay.innerHTML = ''; }, 240);
@@ -169,8 +203,15 @@
     function open(kind, message, opts) {
         opts = opts || {};
         ensureOverlay();
-        // If a dialog is already open, resolve it first so we never deadlock.
-        if (activeResolve) close(getCancelValue ? getCancelValue() : undefined);
+        /* If a dialog is already open, resolve it first so we never deadlock.
+           Being shoved aside by another dialog is not an answer either, so
+           prefer the dismiss value where one was set. Something must be
+           resolved — a hung promise is worse than a wrong one — so a
+           non-dismissible dialog still falls back to its cancel value here. */
+        if (activeResolve) {
+            close(getDismissValue ? getDismissValue()
+                : getCancelValue ? getCancelValue() : undefined);
+        }
 
         var isConfirm = kind === 'confirm';
         var isPrompt = kind === 'prompt';
@@ -238,6 +279,17 @@
 
         getConfirmValue = function () { return isPrompt ? (input ? input.value : '') : isConfirm ? true : undefined; };
         getCancelValue = function () { return isPrompt ? null : isConfirm ? false : undefined; };
+
+        /* Esc / backdrop. Defaults to the cancel value, so every dialog that
+           does not opt in behaves exactly as before. `dismissible: false`
+           leaves this null, and the two listeners then ignore both gestures. */
+        if (opts.dismissible === false) {
+            getDismissValue = null;
+        } else if (Object.prototype.hasOwnProperty.call(opts, 'dismiss')) {
+            getDismissValue = function () { return opts.dismiss; };
+        } else {
+            getDismissValue = getCancelValue;
+        }
 
         okBtn.addEventListener('click', function () { close(getConfirmValue()); });
         if (cancelBtnEl) cancelBtnEl.addEventListener('click', function () { close(getCancelValue()); });

@@ -1778,10 +1778,21 @@
             if (parseFloat(amt) > 0) {
                 // Plain text: the modal renders the message as text, so escaping
                 // here would print the entities rather than the name.
+                /* dismissible:false — this is a UNIT, and there is no safe
+                   default for a unit. "Per day" sat on the cancel button, so
+                   Escape or a backdrop tap answered "per day" — the option
+                   that then multiplies by days worked. A ₹500 monthly wage
+                   recorded per-day and pre-filled across 26 days is the same
+                   ₹10,000 → ₹1,20,000 mistake as v360, arriving by a third
+                   route: not by guessing the unit from a typed label, but by
+                   treating "I did not answer" as an answer.
+
+                   The rule from v361 stands and is now actually enforced:
+                   never infer the unit — ASK, and make them answer. */
                 const perMonth = await mmConfirm(
                     `Is ${String(name).trim()}'s ${_stInr(parseFloat(amt))} per DAY or per MONTH?`,
                     { title: '💰 What does that amount mean?',
-                      okText: 'Per month', cancelText: 'Per day' });
+                      okText: 'Per month', cancelText: 'Per day', dismissible: false });
                 basis = perMonth ? 'Per month' : 'Per day';
             }
 
@@ -1810,10 +1821,18 @@
         async function editStaff(id) {
             const s = _staff.find(x => x.id === id);
             if (!s) return;
+            /* This is a MENU, not a question — both buttons do something, so
+               backing out has to mean "neither". It used to resolve to the
+               cancel value, and the cancel button here changes somebody's
+               employment status: pressing Escape marked a working staff member
+               as left (or quietly re-hired one). dismiss:null gives that
+               gesture its own answer, and null does nothing. */
             const what = await mmConfirm(
                 `${s.name}\n\nEdit their details, or mark them as ${s.active === false ? 'active again' : 'no longer working here'}?`,
                 { title: '👤 ' + s.name, okText: 'Edit details',
-                  cancelText: s.active === false ? 'Mark active' : 'Mark left' });
+                  cancelText: s.active === false ? 'Mark active' : 'Mark left',
+                  dismiss: null });
+            if (what === null) return;              // backed out — change nothing
             if (what) { await openStaffAdd(s); return; }
             /* Never DELETE a person who has been paid — their payments are
                expense records the accounts depend on, and a name that vanishes

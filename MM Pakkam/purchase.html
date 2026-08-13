@@ -1307,7 +1307,14 @@
                         shMatches.length + ' item(s) in this purchase are Schedule H drugs:\n\n• ' +
                         uniqueNames.join('\n• ') +
                         '\n\nAdd them to the Schedule H register so they appear in the H Report?',
-                        { title: '💊 Schedule H drugs found', okText: 'Add to register', cancelText: 'Skip' }
+                        /* dismissible:false — "Skip" is the cancel button, so
+                           Escape or a backdrop tap used to quietly leave these
+                           H drugs out of the register. Skipping is a legitimate
+                           choice; making it by accident is not, and an
+                           incomplete H register is a licence problem rather
+                           than a bug report. */
+                        { title: '💊 Schedule H drugs found', okText: 'Add to register',
+                          cancelText: 'Skip', dismissible: false }
                     );
                     if (addToRegister) {
                         const shRegister = JSON.parse(localStorage.getItem('mm_schedule_h_register') || '[]');

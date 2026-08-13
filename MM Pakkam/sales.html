@@ -1920,9 +1920,16 @@
                         + (!_docVal  ? mmT('sales.h1.no.doctor')  : '')
                         + mmT('sales.h1.tail')
                     : mmT('sales.h.msg');
+                /* dismissible:false — "Save anyway" is the cancel button here,
+                   so Escape or a tap on the backdrop used to file a Schedule H
+                   sale with no doctor. That is the register the shop's licence
+                   rests on, and it fails silently: the bill saves, and the
+                   entry shows as "Missing Rx" only when someone reads the
+                   register. There is no safe default, so the till must choose. */
                 const goBack = await mmConfirm(msg, {
                     title: _hasH1 ? mmT('sales.h1.title') : mmT('sales.h.title'),
-                    okText: mmT('btn.goback.add'), cancelText: mmT('btn.save.anyway2')
+                    okText: mmT('btn.goback.add'), cancelText: mmT('btn.save.anyway2'),
+                    dismissible: false
                 });
                 if (goBack) {
                     const focusEl = (_hasH1 && !_custVal)
@@ -3169,7 +3176,14 @@
                             `The invoice image has been saved to your phone.\n\n` +
                             `WhatsApp will now open the chat for this number with the bill.\n\n` +
                             `📎 To also send the IMAGE: in the chat, tap 📎 (attach) → Gallery → pick the invoice (the newest image).`,
-                            { title: 'Sending the bill', emoji: '📱', okText: 'Open WhatsApp', cancelText: "Don't show again" }
+                            /* dismiss:null — "Don't show again" is the cancel
+                               button, so Escape or a backdrop tap switched the
+                               tip off for good. Turning off a hint you have
+                               not read yet is a small loss, but it is silent
+                               and there is no setting anywhere to turn it back
+                               on. Only an explicit click suppresses it now. */
+                            { title: 'Sending the bill', emoji: '📱', okText: 'Open WhatsApp',
+                              cancelText: "Don't show again", dismiss: null }
                         );
                         if (keep === false) { try { localStorage.setItem('mm_bill_attach_hint_off', '1'); } catch (e) {} }
                     }
