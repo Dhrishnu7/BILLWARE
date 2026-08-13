@@ -174,8 +174,13 @@ const KINDS = {
               syn:['batchno','batch','batchnumber','btno','bno','lot','lotno','batchcode'] },
             { key:'expireDate', label:'Expiry', type:'expiry',
               syn:['expiry','expirydate','expdate','exp','expdt','expiredate','edate','expmonth'] },
+            /* NOT 'balance'. "Closing Balance" is a money column in almost
+               every export, and matching it here gave a khata sheet both of
+               stock's required fields — stock then scored within 2 of
+               customers and detection refused to call it, which is how this
+               was found. 'balqty' / 'closingqty' cover the real stock case. */
             { key:'quantity', label:'Quantity', req:true, type:'int',
-              syn:['quantity','qty','stock','closingqty','closingstock','balqty','balance','nos','units','pcs'] },
+              syn:['quantity','qty','stock','closingqty','closingstock','balqty','balqnty','nos','units','pcs'] },
             { key:'pack',     label:'Pack size', type:'int',
               syn:['pack','packing','packsize','unitperpack','strip','conv','packqty'] },
             { key:'mrp',      label:'MRP', type:'money',
@@ -280,6 +285,66 @@ function autoMap(headers, kind) {
         map[f.key] = -1;      // visibly unmapped, never silently blank
     });
     return map;
+}
+
+/* ── "What IS this file?" ─────────────────────────────────────
+   Old software rarely exports one neat file per thing. It exports a
+   workbook with a sheet per master, or the shop sends whatever the
+   Export button produced. Asking them to know whether a sheet is
+   "customers" or "suppliers" before they can even look at it is the
+   kind of question that ends a trial.
+
+   So: score every sheet against every kind and say what it looks
+   like. A REQUIRED field is worth far more than an optional one —
+   a sheet with a name and a phone could be customers, suppliers or
+   doctors, and what separates them is the presence of the columns
+   only one of them has.
+
+   This SUGGESTS. The shop still confirms the kind and still confirms
+   every column, exactly as if they had chosen it by hand.
+─────────────────────────────────────────────────────────────── */
+function scoreKind(headers, kind) {
+    const spec = KINDS[kind];
+    if (!spec) return { kind: kind, score: 0, mapped: 0, missingReq: 1, fields: [] };
+    const map = autoMap(headers, kind);
+    let score = 0, mapped = 0, missingReq = 0;
+    const fields = [];
+    spec.fields.forEach(f => {
+        const hit = map[f.key] >= 0;
+        if (hit) {
+            mapped++;
+            fields.push(f.label);
+            score += f.req ? 10 : 3;
+        } else if (f.req) {
+            missingReq++;
+            score -= 25;          // a kind that cannot even be built is not the answer
+        }
+    });
+    /* Distinctive columns break the tie between look-alike masters. A
+       "Batch" or "Expiry" column means stock and nothing else; a barcode
+       column means barcodes. Without this a stock sheet scores as
+       "customers" purely because it has a name column. */
+    const hk = (headers || []).map(hkey).join('|');
+    if (kind === 'stock'     && /batch|expiry|exp|mrp|qty|quantity/.test(hk)) score += 8;
+    if (kind === 'barcodes'  && /barcode|ean|upc/.test(hk))                   score += 12;
+    if (kind === 'doctors'   && /doctor|clinic|prescriber|regno|mci/.test(hk)) score += 12;
+    if (kind === 'suppliers' && /supplier|distributor|vendor|firm/.test(hk))   score += 10;
+    if (kind === 'customers' && /customer|khata|party|patient/.test(hk))       score += 6;
+    return { kind: kind, score: score, mapped: mapped, missingReq: missingReq, fields: fields };
+}
+
+/* Best guess for one sheet, or '' when nothing fits well enough.
+   Refusing to guess is a real answer: a blank "we could not tell,
+   please choose" is honest, while a confident wrong guess sends a
+   supplier list into the customer ledger. */
+function detectKind(headers) {
+    const all = Object.keys(KINDS).map(k => scoreKind(headers, k))
+                      .sort((a, b) => b.score - a.score);
+    const best = all[0];
+    if (!best || best.missingReq > 0 || best.score < 12) return { kind: '', all: all };
+    /* Too close to call is the same as not knowing. */
+    if (all[1] && (best.score - all[1].score) < 5) return { kind: '', all: all };
+    return { kind: best.kind, all: all };
 }
 
 /* ── Rows → records ───────────────────────────────────────────
@@ -424,7 +489,8 @@ window.mmMigrate = {
     norm: norm, hkey: hkey, idkey: idkey,
     money: money, intOf: intOf, phone: phone, expiry: expiry,
     sniffDelimiter: sniffDelimiter, parseCsv: parseCsv, findHeaderRow: findHeaderRow,
-    autoMap: autoMap, buildRecords: buildRecords, plan: plan, keyOf: keyOf,
+    autoMap: autoMap, scoreKind: scoreKind, detectKind: detectKind,
+    buildRecords: buildRecords, plan: plan, keyOf: keyOf,
     openingOpId: openingOpId, stockToPurchase: stockToPurchase,
     OPENING_BILL: OPENING_BILL, OPENING_FIRM: OPENING_FIRM
 };
