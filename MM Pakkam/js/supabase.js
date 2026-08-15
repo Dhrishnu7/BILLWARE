@@ -2022,6 +2022,73 @@ function _mmFinRead(key) {
     try { return JSON.parse(localStorage.getItem(key) || '[]') || []; } catch (e) { return []; }
 }
 
+/* ⚠️ REPLACING THE LOCAL COPY WITH THE CLOUD COPY DESTROYS OFFLINE WORK.
+   dbSaveFinanceAccount and dbAddFinanceEntries both write LOCALLY FIRST and
+   then attempt the cloud — deliberately, so the figures survive a missing
+   migration. But if that cloud write failed (offline, RLS, a dropped
+   connection) the row exists only on this device, and the next sync used to
+   do a flat `localStorage.setItem(key, cloudRows)`.
+
+   The guards already there only covered a null or EMPTY cloud. The dangerous
+   case is the ORDINARY one: 20 entries in the cloud, a 21st recorded offline.
+   The cloud array is non-empty, so it overwrote — and the EMI payment, the
+   capital injection, the asset purchase simply vanished, taking the account
+   balance back with it. Not "failed to upload": actively deleted.
+
+   So: keep the cloud as the truth for anything it knows about, KEEP every
+   local-only row, and push those rows up. Ids are stable and both writers
+   upsert on them, so the backfill cannot duplicate. */
+function _mmFinMerge(key, cloud, backfill) {
+    if (!cloud || !cloud.length) return;   // null = no table; empty = leave local alone
+    const local = _mmFinRead(key);
+    const cloudIds = new Set(cloud.map(r => r && r.id).filter(Boolean));
+    const localOnly = local.filter(r => r && r.id && !cloudIds.has(r.id));
+    _mmFinLocal(key, cloud.concat(localOnly));
+    if (localOnly.length && typeof backfill === 'function') {
+        console.warn('[db] ' + key + ': ' + localOnly.length
+                   + ' row(s) exist only on this device — pushing to the cloud.');
+        try { Promise.resolve(backfill(localOnly)).catch(() => {}); } catch (e) {}
+    }
+}
+window._mmFinMerge = _mmFinMerge;
+window._mmFinRead  = _mmFinRead;
+
+/* Doctors have the same hole as the finance rows, for the same reason.
+   doctor.html and directory.html push a doctor into mm_doctors "as offline
+   fallback" WHETHER OR NOT the cloud save succeeded, and the sync then did a
+   flat `setItem('mm_doctors', cloudRows)` — so a doctor added while the cloud
+   was unreachable was deleted by the next sync.
+
+   Merged on name+phone rather than an id because the local rows carry no id
+   ({name, phone, clinic, address}), and name+phone is already the identity
+   this app uses for a doctor everywhere else — name alone was fixed years ago
+   precisely because two doctors share a name. */
+function _mmMergeDoctors(cloud) {
+    if (!cloud || !cloud.length) return cloud;
+    const key = d => String((d && d.name) || '').trim().toLowerCase()
+              + '|' + String((d && d.phone) || '').trim();
+    let local = [];
+    try { local = JSON.parse(localStorage.getItem('mm_doctors') || '[]') || []; } catch (e) {}
+    if (!Array.isArray(local) || !local.length) return cloud;
+
+    const seen = new Set(cloud.map(key));
+    const localOnly = local.filter(d => d && d.name && !seen.has(key(d)));
+    if (!localOnly.length) return cloud;
+
+    console.warn('[db] mm_doctors: ' + localOnly.length
+               + ' doctor(s) exist only on this device — pushing to the cloud.');
+    if (typeof dbAddDoctor === 'function') {
+        localOnly.forEach(d => {
+            try {
+                dbAddDoctor(d.name || '', d.phone || '', d.clinic || '', d.address || '', d.regNo || '')
+                    .catch(() => {});
+            } catch (e) {}
+        });
+    }
+    return cloud.concat(localOnly);
+}
+window._mmMergeDoctors = _mmMergeDoctors;
+
 async function dbGetFinanceAccounts() {
     const user = _currentUser();
     if (!user) return [];
@@ -2751,11 +2818,17 @@ async function dbSyncCoreData() {
            on the device. An empty array from a table that DOES exist is also
            left alone, matching every other store below: the shop may have
            entered figures offline and the cloud simply has not seen them. */
-        if (finAccounts && finAccounts.length) localStorage.setItem('mm_finance_accounts', JSON.stringify(finAccounts));
-        if (finEntries  && finEntries.length)  localStorage.setItem('mm_finance_entries',  JSON.stringify(finEntries));
+        /* Union-merged, not overwritten — see _mmFinMerge. A flat overwrite
+           here deleted anything recorded while the cloud was unreachable.
+           The account backfill loops because dbSaveFinanceAccount takes one
+           account; the entry backfill takes the array in a single call. */
+        _mmFinMerge('mm_finance_accounts', finAccounts,
+            rows => Promise.all(rows.map(a => dbSaveFinanceAccount(a).catch(() => {}))));
+        _mmFinMerge('mm_finance_entries', finEntries,
+            rows => dbAddFinanceEntries(rows));
 
         if (customers && customers.length) localStorage.setItem('mm_customers', JSON.stringify(_mmMergeCustomerBalances(customers)));
-        if (doctors && doctors.length)     localStorage.setItem('mm_doctors', JSON.stringify(doctors));
+        if (doctors && doctors.length)     localStorage.setItem('mm_doctors', JSON.stringify(_mmMergeDoctors(doctors)));
         if (medicines && medicines.length) localStorage.setItem('mm_medicine_list', JSON.stringify(medicines));
         if (purchases && purchases.length) localStorage.setItem('mm_purchases', JSON.stringify(purchases));
         if (adjustments && adjustments.length) mmLsSet('stockAdjustments', adjustments);
@@ -3319,8 +3392,8 @@ async function dbSyncDown() {
         // is what doubled every shop's bill list — see _mmNormalizeBills.
         if (bills && bills.length) localStorage.setItem('mm_sales', JSON.stringify(_mmNormalizeBills(bills)));
         if (customers && customers.length) localStorage.setItem('mm_customers', JSON.stringify(_mmMergeCustomerBalances(customers)));
-        if (doctors && doctors.length) localStorage.setItem('mm_doctors', JSON.stringify(doctors));
-        
+        if (doctors && doctors.length) localStorage.setItem('mm_doctors', JSON.stringify(_mmMergeDoctors(doctors)));
+
         console.log('[Sync] Cloud data restored successfully.');
     } catch(e) {
         console.error('[Sync] Failed to sync down:', e);

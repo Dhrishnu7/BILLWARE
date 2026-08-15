@@ -2956,14 +2956,20 @@
                signal that the migration has not been run — NOT a signal that
                the shop has no accounts. Wiping the cache on that would throw
                away figures the owner typed. */
+            /* Union-merged via _mmFinMerge rather than overwritten. The guard
+               below used to be `if (a && a.length) setItem(...)`, which is
+               safe for a MISSING table but not for the ordinary case: a cloud
+               that has 20 entries and a device that has a 21st recorded while
+               offline. The non-empty cloud won and the offline movement was
+               deleted. This is the same page that shows the balance it moved. */
             try {
-                if (typeof dbGetFinanceAccounts === 'function') {
-                    const a = await dbGetFinanceAccounts();
-                    if (a && a.length) localStorage.setItem('mm_finance_accounts', JSON.stringify(a));
+                if (typeof dbGetFinanceAccounts === 'function' && typeof _mmFinMerge === 'function') {
+                    _mmFinMerge('mm_finance_accounts', await dbGetFinanceAccounts(),
+                        rows => Promise.all(rows.map(x => dbSaveFinanceAccount(x).catch(() => {}))));
                 }
-                if (typeof dbGetFinanceEntries === 'function') {
-                    const e = await dbGetFinanceEntries();
-                    if (e && e.length) localStorage.setItem('mm_finance_entries', JSON.stringify(e));
+                if (typeof dbGetFinanceEntries === 'function' && typeof _mmFinMerge === 'function') {
+                    _mmFinMerge('mm_finance_entries', await dbGetFinanceEntries(),
+                        rows => dbAddFinanceEntries(rows));
                 }
             } catch (e) { console.warn('finance fetch:', e); }
 
