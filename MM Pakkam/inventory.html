@@ -2401,8 +2401,18 @@
            by exact lowercase. That would have manufactured the exact phantom
            row this whole guard exists to prevent, while looking like a fix. */
         const matched = findStockRow(name);
+        /* ONE variable, used by BOTH writes below. It used to be inlined into
+           the cloud record only, and the localStorage mirror a few lines down
+           still wrote the TYPED name — so a shop that typed "Dolo 650" got
+           "DOLO 650 TAB" in the cloud and "Dolo 650" in the local cache.
+           The local cache is what the stock ledger, the P&L and the Report
+           actually read, so the adjustment went missing from every screen
+           until a resync happened to overwrite the row from the cloud. The
+           guard above stops a name that matches NOTHING; this stops a name
+           that matched something from being filed under a different one. */
+        const canonicalName = (matched && matched.name) || name;
         const record = {
-            productName: (matched && matched.name) || name,
+            productName: canonicalName,
             batchNo: batch, qtyBefore, qtyAfter, qtyDelta, reason, note
         };
 
@@ -2418,7 +2428,7 @@
         // Keep the cloud id — see _saveReturnAdjustment; an id-less cache entry
         // gets re-inserted by the pending-sync retry on every page load.
         const localEntry = {
-            product_name: name, batch_no: batch,
+            product_name: canonicalName, batch_no: batch,
             qty_before: qtyBefore, qty_after: qtyAfter, qty_delta: qtyDelta,
             reason, note, created_at: new Date().toISOString()
         };
