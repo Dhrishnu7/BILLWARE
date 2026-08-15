@@ -770,23 +770,34 @@
     <!-- The one list of everything the shop owns. Backup and Restore both
          derive from it; it must load before either runs. -->
     <script src="js/tenant-data.js"></script>
+    <!-- Stays eager: tally-export, gstr1-export, gstr3b and prefile-check all
+         read mmReturns, and it also backs the P&L figures painted on load. -->
     <script src="js/returns-data.js"></script>
-    <script src="js/tally-export.js"></script>
-    <script src="js/gstr1-export.js"></script>
-    <script src="js/einvoice-export.js"></script>
+    <!-- Stays eager: used by the GSTIN fixer and the buyer-list screen, not
+         only by prefile-check, and it is small. -->
     <script src="js/gst-validate.js"></script>
-    <script src="js/prefile-check.js"></script>
-    <script src="js/gstr3b.js"></script>
+    <!-- These four back screens that render as the page loads (Accounts,
+         Where You Stand, Day Book, Cash & Capital), so they cannot be deferred. -->
     <script src="js/daybook.js"></script>
     <script src="js/finance.js"></script>
     <script src="js/pnl.js"></script>
     <script src="js/position.js"></script>
-    <!-- Loaded AFTER every module it packages: yearend.js calls mmPnl, mmPosition,
-         mmFinance, mmTally and mmGstr1, and computes nothing of its own. -->
-    <script src="js/yearend.js"></script>
     <script src="js/keyboard-nav.js"></script>
-    <!-- Migration engine: pure parsing + planning, no DOM and no writes. -->
-    <script src="js/migrate.js"></script>
+
+    <!-- ── DELIBERATELY NOT LOADED HERE ──────────────────────────────────────
+         tally-export · gstr1-export · einvoice-export · prefile-check ·
+         gstr3b · yearend · migrate  =  ~175 KB of JavaScript that only ever
+         runs after somebody presses a button, yet was downloaded, parsed and
+         compiled on EVERY visit to this page. report.html was executing over
+         1 MB of script to show a report.
+
+         They are fetched on first press by mmNeed() — search for LAZY_MODULES
+         below. All seven stay in sw.js's PRECACHE_URLS, so an offline shop
+         still gets them from the service-worker cache.
+
+         This is the v119 fix (mmLoadScript for xlsx/html2canvas) finally
+         applied to our own modules, where the waste was four times larger.
+         ────────────────────────────────────────────────────────────────── -->
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0d9488">
@@ -2344,9 +2355,71 @@
            js/yearend.js, which packages the existing modules and computes
            nothing — see its header for why that matters.
            ══════════════════════════════════════════════════════════════════ */
+        /* ══════════════════════════════════════════════════════════════════
+           MODULES THAT LOAD WHEN A BUTTON IS PRESSED, NOT BEFORE
+
+           ~175 KB of export machinery used to be downloaded, parsed and
+           compiled on every visit to this page, so that a shop could look at
+           a report. Now each arrives on first press and is cached by
+           mmLoadScript for the rest of the session (and by the service worker
+           between sessions — all seven are still in sw.js PRECACHE_URLS, so
+           this works offline).
+
+           ⚠️ THE KEYS ARE THE REAL GLOBAL NAMES, WHICH ARE NOT WHAT YOU WOULD
+           GUESS: prefile-check.js exports mmPreFile (capital F) and yearend.js
+           exports mmYearEnd (capital E). A wrong key here fails at the moment
+           the shop presses the button, not at load — so it is checked below by
+           looking for the global AFTER the fetch, never by trusting that the
+           script tag resolved.
+           ══════════════════════════════════════════════════════════════════ */
+        const LAZY_MODULES = {
+            mmTally:    'js/tally-export.js',
+            mmGstr1:    'js/gstr1-export.js',
+            mmEinvoice: 'js/einvoice-export.js',
+            mmPreFile:  'js/prefile-check.js',
+            mmGstr3b:   'js/gstr3b.js',
+            mmYearEnd:  'js/yearend.js',
+            mmMigrate:  'js/migrate.js',
+        };
+
+        /* Callers must name EVERY module they reach, including the ones their
+           module calls in turn — these files depend on each other:
+             yearend      → mmTally, mmGstr1
+             prefile-check→ mmTally, mmGstr1, mmEinvoice
+             gstr3b       → mmGstr1
+           (mmReturns, mmGstValid, mmPnl, mmPosition, mmFinance and mmDaybook
+           stay loaded eagerly, so nothing needs to ask for those.) */
+        async function mmNeed() {
+            const names = Array.prototype.slice.call(arguments);
+            for (const n of names) {
+                if (window[n]) continue;
+                const src = LAZY_MODULES[n];
+                if (!src) throw new Error('mmNeed: no module registered for ' + n);
+                await mmLoadScript(src);
+                // Assert the VALUE arrived, not merely that the fetch resolved.
+                // A 200 response carrying a syntax error resolves happily and
+                // leaves the global undefined.
+                if (!window[n]) throw new Error(src + ' loaded but did not define ' + n);
+            }
+        }
+
+        /* One place to turn a failed fetch into something a shop can act on.
+           Wrapped at every entry point: without this, a dead connection on
+           first press makes the button look broken with nothing on screen. */
+        async function mmNeedOrWarn() {
+            try { await mmNeed.apply(null, arguments); return true; }
+            catch (e) {
+                console.error('[report] lazy module failed:', e);
+                mmAlert('Could not open that yet — this part of Billware is still downloading. '
+                      + 'Check your internet and press it again.');
+                return false;
+            }
+        }
+
         let _yepBuilt = null;
 
-        function openYearEndModal() {
+        async function openYearEndModal() {
+            if (!await mmNeedOrWarn('mmYearEnd', 'mmTally', 'mmGstr1')) return;
             const sel = document.getElementById('yepYear');
             const years = (window.mmYearEnd ? mmYearEnd.availableYears() : []);
             if (!years.length) { mmAlert('No sales or purchases yet — there is nothing to pack.'); return; }
@@ -2440,7 +2513,8 @@
            Monthly, with its own month picker — the report's From/To could be
            any range at all, and half a month would produce a wrong return.
         ══════════════════════════════════════════════════════════════════ */
-        function openGstrModal() {
+        async function openGstrModal() {
+            if (!await mmNeedOrWarn('mmGstr1')) return;
             const m = document.getElementById('gstrModal');
             // Default to LAST month: GSTR-1 is filed after the month closes, so
             // that is nearly always the one being prepared.
@@ -2623,7 +2697,9 @@
         ══════════════════════════════════════════════════════════════════ */
         let _g3b = null;
 
-        function openGstr3bModal() {
+        async function openGstr3bModal() {
+            // gstr3b.js reads mmGstr1 for the outward-supply figures.
+            if (!await mmNeedOrWarn('mmGstr3b', 'mmGstr1')) return;
             const m = document.getElementById('gstr3bModal');
             m.classList.add('open'); m.style.display = 'flex';
             refreshGstr3b();
@@ -2901,7 +2977,10 @@
         ══════════════════════════════════════════════════════════════════ */
         let _preFile = null;
 
-        function openPreFile() {
+        async function openPreFile() {
+            // The pre-filing check rebuilds all three exports to compare them,
+            // so it needs every one of them present.
+            if (!await mmNeedOrWarn('mmPreFile', 'mmTally', 'mmGstr1', 'mmEinvoice')) return;
             const m = document.getElementById('preFileModal');
             m.classList.add('open'); m.style.display = 'flex';
             refreshPreFile();
@@ -3418,7 +3497,8 @@
         let _einvRows  = [];      // index → row, so the DOM can refer to a bill safely
         let _einvTransport = {};  // billNo → { on, distance, vehicleNo, transMode, transporterId }
 
-        function openEinvModal() {
+        async function openEinvModal() {
+            if (!await mmNeedOrWarn('mmEinvoice')) return;
             const cfg = mmEinvoice.loadCfg();
             const sp  = window.mmShopProfile || {};
             const loc = document.getElementById('einvLoc');
@@ -3621,7 +3701,11 @@
 
         /* ── Buyer address fixer ───────────────────────────────────────── */
         let _einvBuyerFix = [];
-        function openEinvBuyers() {
+        async function openEinvBuyers() {
+            // Reachable only from the e-invoice panel today, so mmEinvoice is
+            // already here — asked for anyway, because "only reachable from"
+            // is a claim about the UI that a later button can quietly break.
+            if (!await mmNeedOrWarn('mmEinvoice')) return;
             if (!_einvBuilt) return;
             _einvBuyerFix = _einvBuilt.needBuyerDetails;
             document.getElementById('einvBuyerList').innerHTML = _einvBuyerFix.map((b, i) => `
@@ -3769,7 +3853,8 @@
             ['purchRetLedger','Purchase returns ledger','debit notes to suppliers'],
         ];
 
-        function openTallyModal() {
+        async function openTallyModal() {
+            if (!await mmNeedOrWarn('mmTally')) return;
             const cfg = mmTally.loadCfg();
             const m = document.getElementById('tallyModal');
             const box = document.getElementById('tallyFields');
@@ -8254,7 +8339,8 @@
            or touched — which is exactly how this shipped in v396 and read as a
            dead button. Modal conventions are PAGE-LOCAL in this codebase (v378);
            copy the one the page already uses, never the one another page uses. */
-        function openMigrateModal() {
+        async function openMigrateModal() {
+            if (!await mmNeedOrWarn('mmMigrate')) return;
             _migKind = ''; _migRows = []; _migMap = {}; _migPlan = null; _migBuilt = null;
             migShowStep(1);
             migRenderKinds();
