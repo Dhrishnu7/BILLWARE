@@ -1235,6 +1235,13 @@
 
                     <div style="display:flex; gap:0.6rem; flex-wrap:wrap; justify-content:flex-end; margin-bottom:0.9rem;">
                         <button type="button" class="clear-btn-sm" onclick="clearShImported()">🗑️ Clear Imported</button>
+                        <!-- The list is added to automatically by _ensureShDrug() whenever an
+                             H drug is registered, and until now there was NO way to take an
+                             entry out again: renderDrugList() returned early because this
+                             markup did not exist, so removeDrug(), clearAllDrugs() and the
+                             ✕ chips were all unreachable dead code. A wrongly detected drug
+                             could only be cleared from the browser console. -->
+                        <button type="button" class="import-btn-sm" onclick="openDrugListModal()">💊 Manage Drug List</button>
                         <button type="button" class="import-btn-sm" onclick="openImportModal()">📋 Import Drug Names</button>
                         <button type="button" class="import-btn-sm inv-btn" onclick="openInvoiceImportModal()">📥 Import Full Invoice</button>
                     </div>
@@ -1607,6 +1614,55 @@
     <div class="rx-viewer" id="rxViewer" onclick="closeRxViewer()">
         <button class="rx-viewer-close" type="button" onclick="closeRxViewer()">×</button>
         <img id="rxViewerImg" src="" alt="Prescription" onclick="event.stopPropagation()">
+    </div>
+
+    <!-- ── Manage Drug List Modal ──────────────────────────────────────────
+         Uses THIS page's modal convention (.modal-overlay > .modal-card >
+         .modal-hd/.modal-bd/.modal-ft, shown with .open). Modal CSS is
+         page-local in this codebase — copying report.html's .modal-content
+         markup here would render an unstyled box, which is exactly what
+         happened in v378.
+
+         The IDs below are the ones renderDrugList() has always looked for
+         (#drugSearch #drugCountBadge #drugGrid #drugEmptyState
+         #drugSearchPrompt), so that function needed no changes at all — it
+         was only ever returning early because these elements were missing.
+         .drug-grid/.drug-chip/.del-chip/.drug-count-badge CSS was likewise
+         still in the stylesheet, orphaned when the old tab was removed. -->
+    <div class="modal-overlay" id="drugListModal">
+        <div class="modal-card">
+            <div class="modal-hd">
+                <h3>💊 Schedule H Drug List <span class="drug-count-badge" id="drugCountBadge">0 drugs</span></h3>
+                <button class="modal-x" type="button" onclick="closeDrugListModal()">×</button>
+            </div>
+            <div class="modal-bd">
+                <p style="margin:0 0 0.9rem; font-size:0.86rem; color:#475569; line-height:1.6;">
+                    These are the medicines this shop treats as Schedule H. Selling one
+                    demands a doctor and patient, and logs a line in the register.
+                    <b>Remove anything that landed here by mistake.</b>
+                </p>
+                <input type="text" id="drugSearch" oninput="renderDrugList()"
+                       placeholder="Search for a medicine to remove…"
+                       style="width:100%; padding:0.7rem 0.9rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:0.95rem; margin-bottom:0.9rem;">
+                <div id="drugSearchPrompt" style="display:none; padding:1rem; color:#64748b; font-size:0.9rem; background:#f8fafc; border-radius:10px;">
+                    Type a name above to find it. The list is not shown in full on purpose —
+                    it can run to hundreds of medicines.
+                </div>
+                <div id="drugEmptyState" style="display:none; padding:1rem; color:#64748b; font-size:0.9rem;">
+                    No Schedule H drugs recorded yet. The list fills itself as you record
+                    them in the register.
+                </div>
+                <div class="drug-grid" id="drugGrid" style="display:none;"></div>
+                <p style="margin:1rem 0 0; font-size:0.8rem; color:#94a3b8; line-height:1.6;">
+                    A medicine you remove will come back if you record it in the register
+                    again — the list is maintained from what you actually handle.
+                </p>
+            </div>
+            <div class="modal-ft">
+                <button type="button" class="clear-btn-sm" onclick="clearAllDrugs()">🗑️ Remove all</button>
+                <button type="button" class="import-btn-sm" onclick="closeDrugListModal()">Done</button>
+            </div>
+        </div>
     </div>
 
     <!-- ── Import Drug List Modal ── -->
@@ -3421,26 +3477,86 @@
             return true;
         }
 
-        function removeDrug(name) {
-            const drugs = getDrugList().filter(d => d !== name);
-            setDrugList(drugs);
+        function openDrugListModal() {
+            const s = document.getElementById('drugSearch');
+            if (s) s.value = '';
+            document.getElementById('drugListModal').classList.add('open');
+            renderDrugList();
+            if (s) s.focus();
+        }
+        function closeDrugListModal() {
+            document.getElementById('drugListModal').classList.remove('open');
+        }
+
+        /* ⚠️ THE DELETE HAS TO REACH THE CLOUD OR IT DOES NOT HAPPEN.
+           _mmSyncScheduleDrugLists() in js/supabase.js merges these lists as a
+           pure UNION of local ∪ cloud, so a name still sitting in the cloud is
+           put straight back into localStorage on the next sync — with no error
+           and nothing on screen. This used to fire the cloud delete and forget
+           it, so removing a drug while offline looked like it worked and then
+           quietly undid itself. Now the cloud write is awaited and a failure
+           leaves the list ALONE and says so, rather than showing a removal
+           that is going to reverse. Same family as the khata refund that
+           silently reverted (see mmAdjustCustomerBalance). */
+        async function removeDrug(name) {
+            const before = getDrugList();
+            if (!before.some(d => d === name)) return;
+
+            const left = before.length - 1;
+            if (!await mmConfirm(
+                    `Stop treating "${name}" as a Schedule H drug?\n\n`
+                  + `Selling it will no longer ask for a doctor and patient, and will no `
+                  + `longer be written into the register. ${left} drug${left === 1 ? '' : 's'} `
+                  + `would be left in the list.`,
+                    { danger: true, okText: 'Remove it' })) return;
+
+            let cloudOk = true;
+            if (typeof dbDeleteScheduleHDrug === 'function') {
+                try { cloudOk = await dbDeleteScheduleHDrug(name); }
+                catch (e) { console.warn('cloud drug delete failed:', e); cloudOk = false; }
+            }
+            if (!cloudOk) {
+                await mmAlert(`Could not remove "${name}" — the change never reached the cloud, `
+                            + `so it would reappear the next time this device syncs. `
+                            + `Check your internet and try again.`);
+                return;
+            }
+
+            setDrugList(before.filter(d => d !== name));
             renderDrugList();
             refreshDrugDatalist();
-            showToast('Removed', `"${name}" removed from list.`);
-            if (typeof dbDeleteScheduleHDrug === 'function') {
-                dbDeleteScheduleHDrug(name).catch(e => console.warn('cloud drug delete failed:', e));
-            }
+            refreshShMetrics();   // the "Total H Drugs" card, or it stays stale
+            showToast('Removed', `"${name}" is no longer a Schedule H drug — ${left} left in the list.`);
         }
 
         async function clearAllDrugs() {
-            if (!await mmConfirm(mmT('sh.drugs.clear'), { danger: true, okText: mmT('btn.remove.all') })) return;
+            const n = getDrugList().length;
+            if (!n) { showToast('Nothing to remove', 'The list is already empty.'); return; }
+            if (!await mmConfirm(
+                    `Remove all ${n} medicines from the Schedule H list?\n\n`
+                  + `None of them will ask for a doctor or be written into the register `
+                  + `until they are recorded again. This cannot be undone.`,
+                    { danger: true, okText: `Remove all ${n}` })) return;
+
+            // Same reasoning as removeDrug: the union merge resurrects anything
+            // the cloud still holds, so the local wipe waits on the cloud wipe.
+            let cloudOk = true;
+            if (typeof dbClearScheduleHDrugs === 'function') {
+                try { cloudOk = await dbClearScheduleHDrugs(); }
+                catch (e) { console.warn('cloud drug clear failed:', e); cloudOk = false; }
+            }
+            if (!cloudOk) {
+                await mmAlert('Could not clear the list — the change never reached the cloud, '
+                            + 'so every name would come back on the next sync. '
+                            + 'Check your internet and try again.');
+                return;
+            }
+
             localStorage.removeItem(SH_DRUGS_KEY);
             renderDrugList();
             refreshDrugDatalist();
-            showToast('Cleared!', 'All Schedule H drugs removed.');
-            if (typeof dbClearScheduleHDrugs === 'function') {
-                dbClearScheduleHDrugs().catch(e => console.warn('cloud drug clear failed:', e));
-            }
+            refreshShMetrics();   // the "Total H Drugs" card, or it stays stale
+            showToast('Cleared!', `All ${n} Schedule H drugs removed.`);
         }
 
         function renderDrugList() {
