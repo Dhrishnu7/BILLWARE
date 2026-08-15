@@ -321,10 +321,51 @@
                     <label><span data-mmt="ss.f.prefix">Invoice Prefix</span> <span>*</span></label>
                     <input type="text" id="invoicePrefix" placeholder="e.g. SL" maxlength="6">
                     <div class="hint" data-mmt="ss.f.prefix.hint">Bills will be numbered: SL-001, SL-002…</div>
+                    <!-- Shown only when it can actually bite: two shops under ONE
+                         GSTIN must not repeat an invoice number, or the portal
+                         rejects the WHOLE GSTR-1 upload (RET291107). Until now the
+                         only check here was that the prefix is non-empty.
+                         This is also the setup mistake that cannot be self-corrected:
+                         editing the profile afterwards needs an approved
+                         shop_edit_requests row. -->
+                    <div class="hint" id="prefixWarn" style="display:none;color:#b45309;font-weight:600;">
+                        ⚠️ Running more than one shop under the same GSTIN? Give each shop a
+                        different prefix. Two shops both numbering SL-001 will get your whole
+                        GST return rejected.
+                    </div>
                 </div>
                 <div class="field">
                     <label><span data-mmt="ss.f.phone">Phone Number</span> <span>*</span></label>
                     <input type="tel" id="phone" placeholder="">
+                </div>
+            </div>
+        </div>
+
+        <!-- MORE THAN ONE SHOP
+             Asked here because setup is the only moment the answer is obvious.
+             NOTHING READS IT YET — the combined dashboard is Step 3 of the
+             multi-branch plan (migrations/add_branch_groups.sql). Capturing it
+             now is the difference between building that screen and phoning
+             owners to ask which two accounts belong to the same person.
+             The shops stay fully separate either way: this is a note for the
+             admin at approval time, not a permission.
+
+             No data-mmt markers in this block ON PURPOSE. The language pack is
+             switched off (MM_LANG_ENABLED = false in js/lang.js) and mmApplyT
+             renders a missing key AS THE KEY, so an untranslated marker would
+             print "ss.f.linked" on screen. Add keys when it is re-enabled. -->
+        <div class="card-section">
+            <div class="section-title">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 21v-5a1 1 0 011-1h2a1 1 0 011 1v5"/></svg>
+                <span>More Than One Shop?</span>
+            </div>
+            <div class="field" style="margin-bottom:0">
+                <label>If you already run another shop on Billware, its username</label>
+                <input type="text" id="linkedShop" placeholder="e.g. sharma-gandhipuram" oninput="_syncPrefixWarn()">
+                <div class="hint">
+                    Leave blank if this is your only shop. Each shop still keeps its own
+                    drug licence, Schedule H register, GST number and bill numbering —
+                    that is what the law requires. We check this by hand before approving.
                 </div>
             </div>
         </div>
@@ -379,7 +420,7 @@
                 </div>
                 <div class="field">
                     <label>GSTIN</label>
-                    <input type="text" id="gstin" placeholder="e.g. 33XXXXXYYYYYZZ" maxlength="15">
+                    <input type="text" id="gstin" placeholder="e.g. 33XXXXXYYYYYZZ" maxlength="15" oninput="_syncPrefixWarn()">
                 </div>
             </div>
         </div>
@@ -650,6 +691,18 @@ function removeLoading() {
 }
 
 
+/* The prefix warning is only worth showing when it can actually apply — a
+   shop that names another shop, or one that has a GSTIN a second shop could
+   share. Always-on it would be noise; never-on is how a GST return gets
+   rejected. Called from both fields' oninput and from populateForm, so it is
+   right on a fresh form and on an edit. */
+function _syncPrefixWarn() {
+    const g = (document.getElementById('gstin')       || {}).value || '';
+    const l = (document.getElementById('linkedShop')  || {}).value || '';
+    const w = document.getElementById('prefixWarn');
+    if (w) w.style.display = (g.trim() || l.trim()) ? 'block' : 'none';
+}
+
 function populateForm(data) {
     document.getElementById('shopName').value      = data.shop_name      || '';
     document.getElementById('invoicePrefix').value = data.invoice_prefix || '';
@@ -665,6 +718,9 @@ function populateForm(data) {
     document.getElementById('term2').value = terms[1] || '';
     document.getElementById('term3').value = terms[2] || '';
     document.getElementById('footerMsg').value = data.footer_msg || '';
+    const ls = document.getElementById('linkedShop');
+    if (ls) ls.value = data.linked_shop || '';
+    _syncPrefixWarn();
 }
 
 /* DEAD as of v393 — nothing calls this; initEditMode() uses
@@ -908,6 +964,7 @@ async function saveAndContinue() {
     const term2    = document.getElementById('term2').value.trim();
     const term3    = document.getElementById('term3').value.trim();
     const footer   = document.getElementById('footerMsg').value.trim();
+    const linked   = ((document.getElementById('linkedShop') || {}).value || '').trim();
 
     if (!shopName) return showErr(mmT('ss.err.shopname'));
     if (!prefix)   return showErr(mmT('ss.err.prefix'));
@@ -941,9 +998,20 @@ async function saveAndContinue() {
         return; 
     }
 
+    // A shop cannot be its own other shop. Caught here rather than at approval,
+    // because a self-link would later put one branch in a group with itself and
+    // read as a two-shop owner who has only ever had one.
+    if (linked && linked.toLowerCase() === String(userId).toLowerCase()) {
+        showErr('That is this shop\'s own username. Enter your OTHER shop\'s username, or leave it blank.');
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> <span data-mmt="ss.savechanges">Save Changes</span>`;
+        mmApplyT(btn);
+        return;
+    }
+
     const terms = [term1, term2, term3].filter(Boolean).join('\n');
 
-    const { error } = await sb.from('shop_profiles').upsert({
+    const row = {
         user_id:        userId,
         shop_name:      shopName,
         address_line1:  addr1,
@@ -956,18 +1024,44 @@ async function saveAndContinue() {
         invoice_prefix: prefix,
         terms:          terms,
         footer_msg:     footer,
+        linked_shop:    linked,
         updated_at:     new Date().toISOString(),
-    }, { onConflict: 'user_id' });
+    };
+
+    let { error } = await sb.from('shop_profiles').upsert(row, { onConflict: 'user_id' });
+
+    /* If add_linked_shop.sql has not been run yet, Postgres rejects the whole
+       row for one unknown column and the shop loses its ENTIRE profile save
+       over a field it did not ask for. Retry without it, exactly as dbSaveBill
+       does for saved_at — and drop ONLY the column the error names, never a
+       blind retry that could silently discard real data. */
+    if (error && /linked_shop/i.test(error.message || '')) {
+        console.warn('[shop-setup] linked_shop column missing; saving without it. Run migrations/add_linked_shop.sql');
+        delete row.linked_shop;
+        ({ error } = await sb.from('shop_profiles').upsert(row, { onConflict: 'user_id' }));
+    }
 
     if (error) {
         // First-time setup runs BEFORE the admin approves the shop, so the new owner
         // has no tenant membership yet and RLS (correctly) refuses this cloud write.
         // That's expected — don't alarm them with a red failure.
         if (!isEditMode) {
+            /* ⚠️ Hand-written payload — anything missing here is dropped in
+               silence, and this is the ONLY path a brand-new shop's details
+               travel down. `city` and `pincode` were missing: v299 added them
+               as separate fields because e-invoice and e-way bill cannot be
+               built without them, and every pre-approval shop lost them again
+               right here. The owner could not fix it either — the wizard runs
+               once and editing needs an approved shop_edit_request.
+               mm-admin's submit_shop_profile has the matching list; both must
+               gain a field together. */
             const profile = {
                 shop_name: shopName, invoice_prefix: prefix, phone: phone,
-                address_line1: addr1, address_line2: addr2, dl_no: dlNo,
+                address_line1: addr1, address_line2: addr2,
+                city: city, pincode: pincode,
+                dl_no: dlNo,
                 gstin: gstin, terms: terms, footer_msg: footer,
+                linked_shop: linked,
             };
             // Save it through the server, which holds the service role and is not
             // subject to RLS. This is what puts the shop details in front of the

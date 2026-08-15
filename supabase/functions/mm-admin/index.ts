@@ -427,17 +427,33 @@ Deno.serve(async (req) => {
       if (row.approval_status !== "pending") {
         return json({ error: "This shop is already approved. Request an edit instead." }, 409);
       }
+      // ⚠️ This list is hand-written, so anything missing from it is dropped in
+      // SILENCE — and this is the ONLY path a brand-new shop's details travel
+      // down, because setup runs before approval. Two were missing:
+      //   · city / pincode. v299 added them as their own fields precisely
+      //     because an e-invoice and an e-way bill cannot be built from one
+      //     free-text address line — and then every pre-approval shop lost
+      //     them here anyway. The owner could not put them back either: the
+      //     profile is a one-time wizard and editing needs an approved
+      //     shop_edit_requests row.
+      //   · linked_shop, which is only ever ASKED at first-time setup.
+      // Same family as restoreFromBin dropping paymentMode, then the khata
+      // balance, then savedAt, then customerId. Add the column here whenever
+      // one is added to the form.
       const { error } = await db.from("shop_profiles").upsert({
         user_id: row.username,
         shop_name: s.shop_name || "",
         phone: s.phone || "",
         address_line1: s.address_line1 || "",
         address_line2: s.address_line2 || "",
+        city: s.city || "",
+        pincode: s.pincode || "",
         dl_no: s.dl_no || "",
         gstin: s.gstin || "",
         invoice_prefix: s.invoice_prefix || "",
         terms: s.terms || "",
         footer_msg: s.footer_msg || "",
+        linked_shop: s.linked_shop || "",
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id" });
       return error ? json({ error: error.message }, 400) : json({ ok: true });
