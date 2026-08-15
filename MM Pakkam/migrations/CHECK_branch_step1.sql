@@ -60,43 +60,75 @@ with probe as (
       from public.memberships m
       left join public.mm_users u
              on lower(u.username) = lower(m.username)
-)
-select
-    username,
-    witness_memberships,
-    witness_mm_users,
-    current_tenant_returns,
-    case
-        when current_tenant_returns is null                      then 'FAIL · returned NULL'
-        when current_tenant_returns <> witness_memberships       then 'FAIL · moved tenant'
-        when witness_mm_users is null                            then 'PASS · (no mm_users row to cross-check)'
-        when current_tenant_returns <> witness_mm_users          then 'FAIL · disagrees with mm_users'
-        else 'PASS'
-    end as verdict
-  from probe
- order by verdict desc, username;
-
--- ── The control. ───────────────────────────────────────────────────────────
--- If impersonation silently did nothing, every row above would carry the SAME
+),
+-- The verdict is computed in its own CTE so the ORDER BY below can sort on it.
+-- Postgres accepts a bare output alias in ORDER BY but NOT an alias inside an
+-- expression, so `order by (verdict like 'FAIL%')` against the select list
+-- errors with 42703 "column verdict does not exist".
+judged as (
+    select
+        username,
+        witness_memberships,
+        witness_mm_users,
+        current_tenant_returns,
+        case
+            when current_tenant_returns is null                 then 'FAIL · returned NULL'
+            when current_tenant_returns <> witness_memberships  then 'FAIL · moved tenant'
+            when witness_mm_users is null                       then 'PASS · (no mm_users row to cross-check)'
+            when current_tenant_returns <> witness_mm_users     then 'FAIL · disagrees with mm_users'
+            else 'PASS'
+        end as verdict
+      from probe
+),
+-- ── The control, in the SAME result grid. ──────────────────────────────────
+-- If impersonation silently did nothing, every user row would carry the SAME
 -- tenant and still say PASS for whichever user happened to be resolved. This
--- asserts the probe genuinely varies per user: the number of DISTINCT answers
--- must equal the number of distinct tenants in memberships.
+-- asserts the probe genuinely varies: the number of DISTINCT answers must
+-- equal the number of distinct tenants in memberships.
 --
--- On a database with only ONE tenant this cannot discriminate, and it says so
+-- On a database with only ONE tenant it cannot discriminate, and it says so
 -- rather than claiming a pass it did not earn.
-select
-    count(distinct public.mm_step1_probe(m.auth_uid)) as distinct_answers,
-    count(distinct m.tenant_id)                       as distinct_tenants,
-    case
-        when count(distinct m.tenant_id) < 2
-            then 'INCONCLUSIVE · only one tenant exists, the probe cannot be shown to vary'
-        when count(distinct public.mm_step1_probe(m.auth_uid)) = count(distinct m.tenant_id)
-            then 'PASS · the probe really does resolve per user'
-        else 'FAIL · impersonation is not working, PART A above proves nothing'
-    end as verdict
-  from public.memberships m;
+--
+-- It is UNIONed onto the per-user rows on purpose. The Supabase SQL editor
+-- only shows the LAST statement's grid, so a control run as a second
+-- statement would silently replace the table it is meant to qualify.
+control as (
+    select count(distinct public.mm_step1_probe(m.auth_uid)) as answers,
+           count(distinct m.tenant_id)                       as tenants
+      from public.memberships m
+)
+select row_type, username, witness_memberships, witness_mm_users,
+       current_tenant_returns, verdict
+  from (
+        select 1 as ord,
+               case when verdict like 'FAIL%' then 0 else 1 end as sub,
+               'user'::text as row_type,
+               username, witness_memberships, witness_mm_users,
+               current_tenant_returns, verdict
+          from judged
 
-drop function if exists public.mm_step1_probe(uuid);
+        union all
+
+        select 2, 0, 'CONTROL'::text,
+               'distinct answers = ' || answers::text,
+               'distinct tenants = ' || tenants::text,
+               null::text,
+               null::text,
+               case
+                   when tenants < 2
+                       then 'INCONCLUSIVE · only one tenant exists, the probe cannot be shown to vary'
+                   when answers = tenants
+                       then 'PASS · the probe really does resolve per user'
+                   else 'FAIL · impersonation is not working, the rows above prove nothing'
+               end
+          from control
+       ) z
+ -- failures float to the top, the control sits last.
+ order by ord, sub, username;
+
+-- NOTE: mm_step1_probe is deliberately NOT dropped here. A trailing DROP would
+-- be the last statement, and the editor shows the last statement's result — so
+-- the grid above would be replaced by an empty one. It is dropped after PART C.
 
 
 -- ╔══════════════════════════════════════════════════════════════════════════╗
@@ -183,88 +215,113 @@ select 'no RLS policy references current_scope() yet',
 -- valid branch claim. Today that branch is unreachable, because the primary
 -- key permits only one membership per user — so it would ship untested.
 --
--- Here we drop the key inside a transaction, give one real user a second
--- membership, and check that the answer becomes NULL rather than one of the
--- two tenants picked arbitrarily. Then ROLLBACK puts everything back.
--- Nothing below survives the transaction. Read the Messages / Notices tab.
+-- Here we drop the key, give one real user a second membership, and check the
+-- answer becomes NULL rather than one of the two tenants picked arbitrarily.
+--
+-- ⚠️ THIS RETURNS A ROW, NOT A NOTICE — on purpose. The first version of this
+-- part wrote its verdict with RAISE NOTICE and ended in `rollback;`. The
+-- editor reported "Success" either way, because a notice never fails a query:
+-- a FAIL verdict would have looked exactly like a PASS. Do not go back to it.
 
-begin;
-
-create or replace function public.mm_step1_probe(p_uid uuid)
+create or replace function public.mm_step1_denytest()
 returns text
 language plpgsql
 volatile
-security definer
-set search_path = public
 as $$
-declare r text;
-begin
-    perform set_config('request.jwt.claims',
-                       json_build_object('sub', p_uid)::text, true);
-    select public.current_tenant() into r;
-    return r;
-end;
-$$;
-
-do $$
 declare
     v_uid    uuid;
     v_name   text;
     v_pk     text;
     v_before text;
     v_after  text;
+    v_msg    text;
 begin
     select auth_uid, username into v_uid, v_name
       from public.memberships
      order by created_at nulls last
      limit 1;
 
-    if v_uid is null then
-        raise notice 'SKIPPED · there are no memberships to probe.';
-        return;
-    end if;
+    if v_uid is null then return 'SKIPPED · no memberships to probe'; end if;
 
-    -- CONTROL: it must return a real tenant before we do anything, or a NULL
-    -- afterwards would prove nothing at all.
-    v_before := public.mm_step1_probe(v_uid);
+    -- A BEGIN..EXCEPTION block is a SUBTRANSACTION. Raising at the end of it
+    -- unwinds everything inside — including the DDL — while the message
+    -- survives in sqlerrm. That is how this returns a grid and still undoes
+    -- itself, with no trailing `rollback;` anyone can forget to run.
+    begin
+        perform set_config('request.jwt.claims',
+                           json_build_object('sub', v_uid)::text, true);
+        -- CONTROL: it must resolve to a real tenant here, or a NULL further
+        -- down would prove nothing at all.
+        v_before := public.current_tenant();
 
-    -- Look the key up rather than assuming it is called memberships_pkey.
-    select conname into v_pk
-      from pg_constraint
-     where conrelid = 'public.memberships'::regclass
-       and contype  = 'p';
+        -- Look the key up rather than assuming it is called memberships_pkey.
+        select conname into v_pk
+          from pg_constraint
+         where conrelid = 'public.memberships'::regclass
+           and contype  = 'p';
 
-    if v_pk is null then
-        raise notice 'SKIPPED · memberships has no primary key to drop.';
-        return;
-    end if;
+        if v_pk is null then
+            raise exception using errcode = 'ZZ001',
+                  message = 'SKIPPED · memberships has no primary key to drop';
+        end if;
 
-    execute format('alter table public.memberships drop constraint %I', v_pk);
-    insert into public.memberships (auth_uid, tenant_id, role, username)
-    values (v_uid, '__mm_step1_probe_branch__', 'worker', v_name);
+        execute format('alter table public.memberships drop constraint %I', v_pk);
+        insert into public.memberships (auth_uid, tenant_id, role, username)
+        values (v_uid, '__mm_step1_probe_branch__', 'worker', v_name);
 
-    v_after := public.mm_step1_probe(v_uid);
+        perform set_config('request.jwt.claims',
+                           json_build_object('sub', v_uid)::text, true);
+        v_after := public.current_tenant();
 
-    raise notice '───────────────────────────────────────────────';
-    raise notice 'user under test        : %', v_name;
-    raise notice 'CONTROL, one membership: % (must NOT be null)', coalesce(v_before, '<null>');
-    raise notice 'with two memberships   : % (must be null)',     coalesce(v_after,  '<null>');
+        v_msg := format('user=%s | ONE membership=%s | TWO memberships=%s | %s',
+                 v_name,
+                 coalesce(v_before, '<null>'),
+                 coalesce(v_after,  '<null>'),
+                 case
+                     when v_before is null
+                         then 'FAIL · the control failed, nothing was tested'
+                     when v_after is null
+                         then 'PASS · denies, never guesses'
+                     else 'FAIL · it guessed ' || v_after ||
+                          ' — a guessed branch files a bill into the wrong shop''s GST series'
+                 end);
 
-    if v_before is null then
-        raise notice 'VERDICT: FAIL · the control failed. This user resolved to nothing';
-        raise notice '         even before the second membership, so nothing was tested.';
-    elsif v_after is null then
-        raise notice 'VERDICT: PASS · two memberships and no claim denies, never guesses.';
-    else
-        raise notice 'VERDICT: FAIL · it picked "%" out of two. A guessed branch would', v_after;
-        raise notice '         file a bill into the wrong shop''s GST series.';
-    end if;
-    raise notice '───────────────────────────────────────────────';
+        raise exception using errcode = 'ZZ001', message = v_msg;
+    exception when sqlstate 'ZZ001' then
+        return sqlerrm;
+    end;
 end;
 $$;
 
-rollback;
+select public.mm_step1_denytest() as part_c_result;
 
--- Belt and braces: the probe was created inside the transaction above and died
--- with the rollback, but if you ran the parts out of order, this removes it.
-drop function if exists public.mm_step1_probe(uuid);
+
+-- ── Cleanup + proof the rollback took. Run AFTER reading the row above. ─────
+--   drop function if exists public.mm_step1_probe(uuid);
+--   drop function if exists public.mm_step1_denytest();
+--
+--   select 'primary key restored' as check,
+--          (select count(*) from pg_constraint
+--            where conrelid = 'public.memberships'::regclass and contype = 'p')::text,
+--          case when (select count(*) from pg_constraint
+--                      where conrelid = 'public.memberships'::regclass
+--                        and contype = 'p') = 1
+--               then 'PASS' else 'FAIL · RESTORE IT NOW, LOGIN IS BROKEN' end
+--   union all
+--   select 'no probe row survived',
+--          (select count(*) from public.memberships
+--            where tenant_id = '__mm_step1_probe_branch__')::text,
+--          case when (select count(*) from public.memberships
+--                      where tenant_id = '__mm_step1_probe_branch__') = 0
+--               then 'PASS' else 'FAIL · delete that row' end;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- RESULT — run 2026-08-15 against production, all green
+--   A  4 users (Dhrishnu, Lavanya D, Natri, susan) all PASS; control PASS
+--      with 4 distinct answers for 4 distinct tenants, so each row really was
+--      resolved separately rather than one answer copied down the grid.
+--   B  all six assumptions PASS.
+--   C  susan → 'susan' with one membership, <null> with two. PASS.
+--   Cleanup: primary key restored, no probe row survived, functions dropped.
+-- ════════════════════════════════════════════════════════════════════════════
