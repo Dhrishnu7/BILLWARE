@@ -3131,10 +3131,39 @@
             inp.value = ''; inp.focus();
             renderScheduleXList();
         }
-        function removeScheduleXDrug(name) {
-            _setXDrugs(_getXDrugs().filter(d => d.trim().toLowerCase() !== String(name).trim().toLowerCase()));
-            if (typeof dbDeleteScheduleXDrug === 'function') dbDeleteScheduleXDrug(name).catch(() => {});
+        /* Schedule X is the NARCOTICS list, and this had neither a confirmation
+           nor a working delete: one click removed it, and the cloud write was
+           fired and forgotten into a UNION merge that puts anything the cloud
+           still holds straight back. Identical to the H list bug fixed in v402
+           — the same mistake, on the more dangerous of the two registers. */
+        async function removeScheduleXDrug(name) {
+            const before = _getXDrugs();
+            const key = String(name).trim().toLowerCase();
+            if (!before.some(d => d.trim().toLowerCase() === key)) return;
+
+            const left = before.length - 1;
+            if (!await mmConfirm(
+                    `Stop treating "${name}" as a Schedule X drug?\n\n`
+                  + `Selling it will no longer demand a patient and prescriber, and will no `
+                  + `longer be logged. ${left} drug${left === 1 ? '' : 's'} would be left `
+                  + `on the narcotics list.`,
+                    { danger: true, okText: 'Remove it' })) return;
+
+            let cloudOk = true;
+            if (typeof dbDeleteScheduleXDrug === 'function') {
+                try { cloudOk = await dbDeleteScheduleXDrug(name); }
+                catch (e) { console.warn('cloud X drug delete failed:', e); cloudOk = false; }
+            }
+            if (!cloudOk) {
+                await mmAlert(`Could not remove "${name}" — the change never reached the cloud, `
+                            + `so it would reappear the next time this device syncs. `
+                            + `Check your internet and try again.`);
+                return;
+            }
+
+            _setXDrugs(before.filter(d => d.trim().toLowerCase() !== key));
             renderScheduleXList();
+            showToast('Removed', `"${name}" is no longer a Schedule X drug — ${left} left.`);
         }
 
         /* ── Edit a register entry (mainly to fix a "Missing Rx" by adding the

@@ -1034,6 +1034,35 @@
         let _khataCustomers   = [];
         let _custPayments     = [];   // per-customer payment records (statement credits)
 
+        /* ⚠️ A PAYMENT THAT NEVER REACHED THE CLOUD USED TO STAY LOST FOREVER.
+           Both payment lists merge local ∪ cloud by id, and the write that
+           creates them is fired and forgotten (`dbAddCustomerPayment(p).catch()`).
+           So if that write failed — offline, RLS, a dropped connection — the
+           row lived in ONE device's localStorage and nothing ever pushed it up.
+
+           That is not a cosmetic gap. The customer BALANCE syncs on its own
+           (customers.balance is updated separately and awaited), so the other
+           device shows the reduced balance with no credit line behind it — and
+           the Statement folds any unexplained difference into "Balance brought
+           forward", on the page that gets printed and WhatsApp'd to the
+           customer. It is also one iOS cache eviction away from vanishing
+           outright, which is exactly how the original khata wipe happened.
+
+           So: every load, push anything the cloud does not have. The writers
+           upsert on a stable payment_id, so replaying cannot duplicate — and
+           running on every load IS the retry, which is what makes
+           fire-and-forget acceptable here and not at the write site. */
+        function _backfillPayments(rows, cloud, addFn, label) {
+            if (typeof addFn !== 'function') return 0;
+            const cloudIds = new Set((cloud || []).map(p => p && p.id).filter(Boolean));
+            const localOnly = (rows || []).filter(p => p && p.id && !cloudIds.has(p.id));
+            if (!localOnly.length) return 0;
+            console.warn('[khata] ' + label + ': ' + localOnly.length
+                       + ' payment(s) exist only on this device — pushing to the cloud.');
+            localOnly.forEach(p => { try { addFn(p).catch(() => {}); } catch (e) {} });
+            return localOnly.length;
+        }
+
         // Load customer payments from local cache + cloud, de-duped by id.
         async function loadCustomerPayments() {
             let local = [];
@@ -1044,6 +1073,7 @@
             [...local, ...cloud].forEach(p => { if (p && p.id && !byId.has(p.id)) byId.set(p.id, p); });
             _custPayments = [...byId.values()];
             try { localStorage.setItem('mm_customer_payments', JSON.stringify(_custPayments)); } catch (e) {}
+            _backfillPayments(_custPayments, cloud, window.dbAddCustomerPayment, 'customer payments');
         }
 
         // ── Load shop name from Supabase profile ──
@@ -2096,6 +2126,10 @@
             [...local, ...cloud].forEach(p => { if (p && p.id && !byId.has(p.id)) byId.set(p.id, p); });
             _supPayments = [...byId.values()];
             try { localStorage.setItem('mm_supplier_payments', JSON.stringify(_supPayments)); } catch (e) {}
+            // Same repair as the customer side — and this list also collects the
+            // "Paid now" rows written by purchase.html, which is a second write
+            // site with the same fire-and-forget shape.
+            _backfillPayments(_supPayments, cloud, window.dbAddSupplierPayment, 'supplier payments');
             computeSupplierData();
             renderSuppliers(document.getElementById('supSearch').value);
         }

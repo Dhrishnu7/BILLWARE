@@ -492,13 +492,48 @@ async function dbAddScheduleHDrugs(names) {
 }
 window.dbAddScheduleHDrugs = dbAddScheduleHDrugs;
 
-async function dbDeleteScheduleHDrug(name) {
+/* ⚠️ THE DELETE MUST BE CASE-INSENSITIVE, AND IT MUST NOT LIE.
+   Two things made the old one-line version silently useless:
+
+   1. `.eq('name', …)` matches EXACTLY, but the unique index is `user_id,name`
+      on plain text — which is case-sensitive — so the cloud can genuinely hold
+      "Morphine" AND "MORPHINE" as two rows. Meanwhile _mmSyncScheduleDrugLists
+      dedupes the local copy case-INsensitively and keeps whichever spelling it
+      saw first. So the name on screen need not be the spelling in the cloud,
+      and an exact delete then matches nothing.
+   2. Deleting zero rows is NOT an error in PostgREST, so it returned `true`
+      having removed nothing — and because those lists merge as a UNION of
+      local ∪ cloud, the name reappeared on the next sync. The caller awaited
+      a success that had not happened.
+
+   So: find every case-variant, delete each by its EXACT stored spelling, and
+   return false only on a real error. Matching client-side rather than with
+   ilike on purpose — a drug name may contain % or _ ("Betnovate 0.1%"), which
+   ilike would treat as wildcards and delete more than asked. */
+async function _dbDeleteDrugByName(table, name) {
     const user = _currentUser();
-    if (!user) { console.warn('[db] dbDeleteScheduleHDrug: no user, aborting.'); return false; }
-    const { error } = await _supabase.from('schedule_h_drugs')
-        .delete().eq('user_id', user).eq('name', (name || '').trim());
-    if (error) { console.error('schedule_h drug delete:', error); return false; }
+    if (!user) { console.warn('[db] ' + table + ' delete: no user, aborting.'); return false; }
+    const target = String(name || '').trim().toLowerCase();
+    if (!target) return false;
+
+    const { data: rows, error: readErr } = await _supabase.from(table)
+        .select('name').eq('user_id', user);
+    if (readErr) { console.error(table + ' read before delete:', readErr); return false; }
+
+    const hits = (rows || []).filter(r => String(r.name || '').trim().toLowerCase() === target);
+    // Absent from the cloud is the state we wanted. Nothing to resurrect it.
+    if (!hits.length) return true;
+
+    for (const h of hits) {
+        const { error } = await _supabase.from(table)
+            .delete().eq('user_id', user).eq('name', h.name);
+        if (error) { console.error(table + ' drug delete:', error); return false; }
+    }
     return true;
+}
+
+async function dbDeleteScheduleHDrug(name) {
+    return await _dbDeleteDrugByName('schedule_h_drugs', name);
 }
 window.dbDeleteScheduleHDrug = dbDeleteScheduleHDrug;
 
@@ -537,13 +572,10 @@ async function dbAddScheduleXDrugs(names) {
 }
 window.dbAddScheduleXDrugs = dbAddScheduleXDrugs;
 
+// Same case-sensitivity and zero-row-lie problem as the H list, and this one
+// is the NARCOTICS register — see _dbDeleteDrugByName above.
 async function dbDeleteScheduleXDrug(name) {
-    const user = _currentUser();
-    if (!user) { console.warn('[db] dbDeleteScheduleXDrug: no user, aborting.'); return false; }
-    const { error } = await _supabase.from('schedule_x_drugs')
-        .delete().eq('user_id', user).eq('name', (name || '').trim());
-    if (error) { console.error('schedule_x drug delete:', error); return false; }
-    return true;
+    return await _dbDeleteDrugByName('schedule_x_drugs', name);
 }
 window.dbDeleteScheduleXDrug = dbDeleteScheduleXDrug;
 
