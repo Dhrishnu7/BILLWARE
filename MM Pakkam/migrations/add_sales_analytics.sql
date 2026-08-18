@@ -329,6 +329,31 @@ $$;
 -- district on file, silently changes what every other number means. Without this
 -- the Insights tab would answer questions it has no data for and look confident
 -- doing it.
+--
+-- ⚠️ IT MUST BE DRIVEN BY THE SAME SET THE LEADERBOARD IS.
+-- The first version listed shops from `mm_users where role = 'owner'` while the
+-- leaderboard grouped on `bills.user_id`. Those are not the same set, and on
+-- 2026-08-18 they disagreed: a card appeared for "niga store" — tenant
+-- SanjaiSuba, whose owner had been deleted while its bills survived — and the
+-- coverage table below it could not show that shop AT ALL, because it had no
+-- owner row. The one table whose job is to explain the cards was the one place
+-- the problem was invisible.
+--
+-- So it now unions in any tenant that has bills but no owner account, and marks
+-- it `orphan`. That is the same choice the Scans tab makes for scans from a
+-- deleted login: count it, label it, never silently drop it. Zero orphans is
+-- the expected state — the cascade bug that caused this one is fixed in
+-- fix_cascade_tenant_key.sql — but "expected" is not "guaranteed", and a
+-- reconciliation that can only report agreement is not a reconciliation.
+-- ⚠️ DROP FIRST. PostgreSQL refuses `create or replace function` when the
+-- RETURNS TABLE shape changes — "cannot change return type of existing
+-- function" — and this function gained the `orphan` column on 2026-08-18. Every
+-- other definition in this file is a plain replace; this one is not, and
+-- without the drop a re-run of the file fails halfway through, leaving the
+-- grants at the bottom unapplied. The grants are re-issued below, which matters
+-- because dropping a function discards them.
+drop function if exists public.mm_sa_coverage();
+
 create or replace function public.mm_sa_coverage()
 returns table (
     shop        text,
@@ -343,14 +368,30 @@ returns table (
     first_day   date,
     last_day    date,
     value       numeric,
-    bad_dates   bigint
+    bad_dates   bigint,
+    orphan      boolean
 )
 language sql
 stable
 as $$
+    with owners as (
+        select distinct coalesce(nullif(btrim(tenant_id), ''), username) as tenant_id
+          from public.mm_users
+         where role = 'owner'
+    ),
+    tenants as (
+        select tenant_id, false as orphan from owners
+        union all
+        -- Tenants that have sales but nobody who owns them.
+        select distinct b.user_id, true
+          from public.bills b
+         where not exists (select 1 from owners o where o.tenant_id = b.user_id)
+    )
     select
         u.tenant_id                                          as shop,
-        coalesce(nullif(btrim(sp.shop_name), ''), u.tenant_id) as shop_name,
+        coalesce(nullif(btrim(sp.shop_name), ''), u.tenant_id)
+            || case when u.orphan then '  ⚠️ DELETED SHOP — data left behind' else '' end
+                                                             as shop_name,
         nullif(btrim(sp.city), '')     as city,
         nullif(btrim(sp.pincode), '')  as pincode,
         nullif(btrim(sp.district), '') as district,
@@ -364,14 +405,17 @@ as $$
         -- Rows whose date could not be read at all. They are excluded from every
         -- leaderboard above, so their count has to be visible somewhere.
         count(*) filter (where b.id is not null
-                           and public.mm_bill_day(b.date::text) is null) as bad_dates
-    from (select distinct coalesce(tenant_id, username) as tenant_id
-          from public.mm_users where role = 'owner') u
+                           and public.mm_bill_day(b.date::text) is null) as bad_dates,
+        bool_or(u.orphan)                                          as orphan
+    from tenants u
     left join public.shop_profiles sp on sp.user_id = u.tenant_id
     left join public.bills b          on b.user_id  = u.tenant_id
     left join public.bill_items bi    on bi.bill_id = b.id
-    group by 1, 2, 3, 4, 5, 6, 7
-    order by value desc;
+    group by u.tenant_id, u.orphan, sp.shop_name, sp.city, sp.pincode,
+             sp.district, sp.state, sp.gstin
+    -- Orphans first: they are the row you most need to see, and they are also
+    -- the row most likely to be small enough to sort to the bottom on value.
+    order by bool_or(u.orphan) desc, value desc;
 $$;
 
 

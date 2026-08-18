@@ -1033,6 +1033,23 @@ function renderInsights() {
                 `${missing.length > 6 ? ' and others' : ''}. Fill it in from the coverage table below.`);
         }
     }
+    /* A tenant with sales but no owner account. This should never happen — the
+       store-delete cascade erases a shop's data with it — but on 2026-08-18 one
+       did: a card appeared for a shop that was nowhere in Accounts, because the
+       cascade resolved the tenant from `username` while the data is filed under
+       `tenant_id`. It also turned out the cascade had been ABORTING outright
+       since v357 on a uuid/text mismatch in `staff`.
+       Both are fixed (migrations/fix_cascade_tenant_key.sql). This stays
+       because it is what surfaced them, and because a check that can only ever
+       report "fine" is not a check. */
+    const orphans = (inData.coverage || []).filter(c => c.orphan);
+    if (orphans.length) {
+        warn.push(`🚨 <b>${orphans.length} shop(s) have sales but no owner account.</b> ` +
+            `Their data outlived the shop being deleted: ` +
+            orphans.map(c => escHtml(c.shop) + ' (' + Number(c.bills) + ' bills)').join(', ') +
+            `. They ARE counted in the rankings above. Investigate before trusting ` +
+            `any total — and check migrations/fix_cascade_tenant_key.sql has been applied.`);
+    }
     const badDates = (inData.coverage || []).reduce((a, c) => a + (Number(c.bad_dates) || 0), 0);
     if (badDates) {
         warn.push(`<b>${badDates.toLocaleString('en-IN')} bill line(s) have an unreadable date</b> ` +
@@ -1140,7 +1157,15 @@ function toggleCoverage() {
 function renderCoverage() {
     const el = document.getElementById('inCoverage');
     if (!inData) return;
-    const cov = inData.coverage || [];
+    /* Orphans first, then biggest shop. mm_sa_coverage() already orders this
+       way, so this is belt AND braces on purpose: the ordering of the one row
+       that means "something is wrong" must not depend on the server having the
+       current version of a function. An un-migrated database returning rows in
+       any order would otherwise bury it at the bottom of the table. */
+    const cov = (inData.coverage || []).slice().sort(function (a, b) {
+        return (b.orphan ? 1 : 0) - (a.orphan ? 1 : 0) ||
+               (Number(b.value) || 0) - (Number(a.value) || 0);
+    });
     if (!cov.length) { el.innerHTML = '<div class="in-empty">No shops yet.</div>'; return; }
 
     const miss = v => v ? escHtml(v) : '<span class="in-miss">— missing</span>';
@@ -1170,8 +1195,12 @@ function renderCoverage() {
                     try ${escHtml(s.district)}${s.districtIsGuess ? '?' : ''}</span>`;
             }
         }
-        return `<tr>
-            <td><b>${escHtml(c.shop_name)}</b>
+        // An orphan is the one row here that is not a fact about a shop but a
+        // fact about a bug, so it is coloured like one.
+        const orph = c.orphan
+            ? ' <span class="in-chip solo">no owner account</span>' : '';
+        return `<tr${c.orphan ? ' style="background:#FDECEA"' : ''}>
+            <td><b>${escHtml(c.shop_name)}</b>${orph}
                 <div style="font-size:.7rem;color:var(--text3)">${escHtml(c.shop)}</div></td>
             <td>${miss(c.pincode)}</td>
             <td>${miss(c.district)}${hint}</td>
