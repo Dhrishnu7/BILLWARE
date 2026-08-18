@@ -9281,6 +9281,15 @@
                         addressLine1:  sp.address_line1  || sp.addressLine1  || '',
                         addressLine2:  sp.address_line2  || sp.addressLine2  || '',
                         phone:         sp.phone          || '',
+                        // city/pincode/linkedShop were dropped here too — a
+                        // restored shop came back unable to raise an e-invoice.
+                        // Both spellings are accepted because older backup files
+                        // hold the snake_case column names.
+                        city:          sp.city           || '',
+                        pincode:       sp.pincode        || '',
+                        district:      sp.district       || '',
+                        state:         sp.state          || '',
+                        linkedShop:    sp.linked_shop    || sp.linkedShop    || '',
                         dlNo:          sp.dl_no          || sp.dlNo          || '',
                         gstin:         sp.gstin          || '',
                         invoicePrefix: sp.invoice_prefix || sp.invoicePrefix || 'MM',

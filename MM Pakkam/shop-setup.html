@@ -15,6 +15,10 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/keyboard-nav.js"></script>
     <script src="js/gst-validate.js"></script>
+    <!-- Suggests district/state from the PIN code and the GSTIN state code.
+         Must come AFTER gst-validate.js — it reads mmGstValid.STATES rather
+         than keeping a second copy of the state table. -->
+    <script src="js/geo-india.js"></script>
     <!-- This page has no auth.js, so mmGetSession() is absent and lang.js
          falls back to the unscoped key — which is exactly the one the login
          and create-account screens just wrote. -->
@@ -402,6 +406,24 @@
                     <input type="text" id="shopPincode" placeholder="e.g. 641001" maxlength="6" inputmode="numeric">
                 </div>
             </div>
+            <!-- District and State. The town above is free text, so it can never
+                 group anything — "Chennai", "chennai" and "Madras" are three
+                 different towns to a computer. These two are filled in for the
+                 shop from the PIN code and the GSTIN, and left editable, because
+                 a PIN prefix can straddle two districts and districts get split
+                 and renamed. The suggestion proposes; the shop decides. -->
+            <div class="row">
+                <div class="field">
+                    <label><span data-mmt="ss.f.district">District</span></label>
+                    <input type="text" id="shopDistrict" list="districtList" placeholder="e.g. Coimbatore">
+                    <datalist id="districtList"></datalist>
+                </div>
+                <div class="field">
+                    <label><span data-mmt="ss.f.state">State</span></label>
+                    <input type="text" id="shopState" placeholder="e.g. Tamil Nadu">
+                </div>
+            </div>
+            <div id="geoHint" style="font-size:0.76rem;line-height:1.5;margin-top:-4px;display:none"></div>
             <div style="font-size:0.76rem;color:#94a3b8;line-height:1.5;margin-top:-4px;" data-mmt="ss.addr.note">
                 Required for e-Invoice and e-Way bills. GSTR-1 and Tally do not need them.
             </div>
@@ -711,6 +733,8 @@ function populateForm(data) {
     document.getElementById('addressLine2').value  = data.address_line2  || '';
     document.getElementById('shopCity').value      = data.city           || '';
     document.getElementById('shopPincode').value   = data.pincode        || '';
+    document.getElementById('shopDistrict').value  = data.district       || '';
+    document.getElementById('shopState').value     = data.state          || '';
     document.getElementById('dlNo').value          = data.dl_no          || '';
     document.getElementById('gstin').value         = data.gstin          || '';
     const terms = (data.terms || '').split('\n');
@@ -958,6 +982,8 @@ async function saveAndContinue() {
     const addr2    = document.getElementById('addressLine2').value.trim();
     const city     = document.getElementById('shopCity').value.trim();
     const pincode  = document.getElementById('shopPincode').value.trim();
+    const district = document.getElementById('shopDistrict').value.trim();
+    const state    = document.getElementById('shopState').value.trim();
     const dlNo     = document.getElementById('dlNo').value.trim();
     const gstin    = document.getElementById('gstin').value.trim().toUpperCase();
     const term1    = document.getElementById('term1').value.trim();
@@ -1018,6 +1044,8 @@ async function saveAndContinue() {
         address_line2:  addr2,
         city:           city,
         pincode:        pincode,
+        district:       district,
+        state:          state,
         phone:          phone,
         dl_no:          dlNo,
         gstin:          gstin,
@@ -1059,6 +1087,7 @@ async function saveAndContinue() {
                 shop_name: shopName, invoice_prefix: prefix, phone: phone,
                 address_line1: addr1, address_line2: addr2,
                 city: city, pincode: pincode,
+                district: district, state: state,
                 dl_no: dlNo,
                 gstin: gstin, terms: terms, footer_msg: footer,
                 linked_shop: linked,
@@ -1103,8 +1132,86 @@ async function saveAndContinue() {
 
 /* Live check on the shop's own GSTIN, with the state name echoed back — the
    quickest way to notice a GSTIN that is valid but belongs to another state. */
+/* ─────────────────────────────────────────────────────────────────────────
+   DISTRICT / STATE — suggested, never imposed
+
+   The shop already types a PIN code and (usually) a GSTIN. Between them the
+   district and state are almost always knowable, so asking the shop to type
+   them again is asking them to make a mistake. But almost always is not
+   always: a PIN prefix can straddle two districts, and districts get split
+   and renamed by the state faster than any bundled list gets updated.
+
+   So the rules here are strict:
+     · a suggestion only ever fills a field the shop has left BLANK. Once
+       they have typed something, nothing overwrites it — including a later
+       edit to the PIN code.
+     · the suggestion is always explained on screen ("from your PIN code"),
+       because a box that fills itself for no visible reason is a box nobody
+       reads before pressing Save.
+     · if the GSTIN and the PIN code disagree about the state, NEITHER is
+       applied and the disagreement is shown. That is a typo or a shop
+       billing from another state, and both want a human.
+   ───────────────────────────────────────────────────────────────────────── */
+function _geoRefresh(force) {
+    if (!window.mmGeo) return;
+    const pin  = (document.getElementById('shopPincode') || {}).value || '';
+    const gst  = (document.getElementById('gstin')       || {}).value || '';
+    const dEl  = document.getElementById('shopDistrict');
+    const sEl  = document.getElementById('shopState');
+    const hint = document.getElementById('geoHint');
+    if (!dEl || !sEl || !hint) return;
+
+    const s = mmGeo.suggest(pin, gst);
+
+    // Offer the districts of whichever state we now believe this is.
+    const list = mmGeo.districtsFor(s.state || sEl.value);
+    const dl = document.getElementById('districtList');
+    if (dl) dl.innerHTML = list.map(function (d) {
+        return '<option value="' + d.replace(/"/g, '&quot;') + '">';
+    }).join('');
+
+    const notes = [];
+    if (s.conflict) {
+        hint.style.display = 'block';
+        hint.style.color = '#b45309';
+        hint.textContent = '⚠️ ' + s.conflict.message +
+            ' Please set the district and state yourself.';
+        return;
+    }
+    // `force` is only true when the shop edits the PIN code by hand, which is
+    // the one moment a stale auto-fill should be replaced.
+    if (s.state && (!sEl.value.trim() || (force && sEl.dataset.auto === '1'))) {
+        sEl.value = s.state; sEl.dataset.auto = '1';
+        notes.push('State filled in from your ' + s.stateSource + '.');
+    }
+    if (s.district && (!dEl.value.trim() || (force && dEl.dataset.auto === '1'))) {
+        dEl.value = s.district; dEl.dataset.auto = '1';
+        notes.push(s.districtIsGuess
+            ? 'District guessed from your PIN code — this PIN covers more than one district, so please check it.'
+            : 'District filled in from your PIN code.');
+    }
+    hint.style.color = '#94a3b8';
+    hint.style.display = notes.length ? 'block' : 'none';
+    hint.textContent = notes.join(' ') + (notes.length ? ' You can change either.' : '');
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     if (window.mmGstValid) mmGstValid.attach(document.getElementById('gstin'), 'gstin');
+
+    const pinEl = document.getElementById('shopPincode');
+    const gstEl = document.getElementById('gstin');
+    const dEl   = document.getElementById('shopDistrict');
+    const sEl   = document.getElementById('shopState');
+    // Typing in either box marks it as the shop's own answer, so no later
+    // suggestion may replace it.
+    [dEl, sEl].forEach(function (el) {
+        if (el) el.addEventListener('input', function () { el.dataset.auto = ''; });
+    });
+    if (pinEl) pinEl.addEventListener('input', function () { _geoRefresh(true); });
+    if (gstEl) gstEl.addEventListener('input', function () { _geoRefresh(false); });
+    // Existing shops opening the form in edit mode: populateForm() has already
+    // run, so this only fills what is genuinely still empty.
+    setTimeout(function () { _geoRefresh(false); }, 300);
 });
 
 function skipSetup() {

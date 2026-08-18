@@ -3361,6 +3361,19 @@ async function dbSaveShopProfile(profile) {
             address_line1:  profile.addressLine1  || '',
             address_line2:  profile.addressLine2  || '',
             phone:          profile.phone         || '',
+            /* ⚠️ ANOTHER HAND-WRITTEN FIELD LIST. Anything absent here is
+               written as blank, silently. Three were already missing and are
+               added now: city and pincode (an e-invoice or e-way bill cannot be
+               built without them, so a restored shop could not file), and
+               linked_shop. district/state joined them with the Insights tab.
+               This is the same family as restoreFromBin dropping paymentMode,
+               then the khata balance, then savedAt, then customerId — add the
+               column HERE whenever one is added to shop_profiles. */
+            city:           profile.city          || '',
+            pincode:        profile.pincode       || '',
+            district:       profile.district      || '',
+            state:          profile.state         || '',
+            linked_shop:    profile.linkedShop    || '',
             dl_no:          profile.dlNo          || '',
             gstin:          profile.gstin         || '',
             invoice_prefix: profile.invoicePrefix || 'MM',

@@ -227,6 +227,78 @@ Deno.serve(async (req) => {
           });
         }
 
+        /* ── SALES INSIGHTS ────────────────────────────────────────────────
+           Which medicine sells most, per shop / pincode / district / state,
+           and how that moves with the season.
+
+           ⚠️ THIS ONE DOES NOT FOLLOW THE sa_list PATTERN, ON PURPOSE.
+           Every other action here ships raw rows and lets the browser group
+           them. That works for scans because cloud OCR is capped at 60/day per
+           shop. Sales have no cap: one shop with a year of billing is tens of
+           thousands of bill_items, so sending them all to superadmin.html to be
+           counted in JavaScript would fail — slowly and confusingly — somewhere
+           around the fifth customer. PostgREST cannot GROUP BY, so the roll-up
+           lives in SQL (migrations/add_sales_analytics.sql) and what comes back
+           here is already finished rows.
+
+           Requires that migration. Without it every call returns a clear
+           "not installed yet" rather than an empty table that looks like a shop
+           with no sales. */
+        case "sa_analytics": {
+          const LEVELS = ["shop", "pincode", "district", "state", "month", "season", "all"];
+          const level = LEVELS.includes(String(body.level)) ? String(body.level) : "shop";
+          // Rupee value is the default ranking, not units: one till types a
+          // strip of 10 as qty 1 and another types it as qty 10, so quantity is
+          // not comparable ACROSS shops. Value is.
+          const by = String(body.by) === "qty" ? "qty" : "value";
+          const limit = Math.min(Math.max(Number(body.limit) || 5, 1), 50);
+          const from = body.from ? String(body.from).slice(0, 10) : null;
+          const to = body.to ? String(body.to).slice(0, 10) : null;
+
+          const [leaders, coverage] = await Promise.all([
+            db.rpc("mm_sa_product_leaders", {
+              p_from: from, p_to: to, p_level: level, p_by: by, p_limit: limit,
+            }),
+            db.rpc("mm_sa_coverage"),
+          ]);
+          if (leaders.error || coverage.error) {
+            const msg = String(leaders.error?.message || coverage.error?.message || "");
+            if (/does not exist|schema cache|PGRST202/i.test(msg)) {
+              return json({
+                error: "Sales analytics is not installed on the database yet. " +
+                       "Run migrations/add_sales_analytics.sql in the Supabase SQL editor.",
+              }, 501);
+            }
+            return json({ error: msg }, 400);
+          }
+          return json({
+            leaders: leaders.data || [],
+            coverage: coverage.data || [],
+            level, by, from, to, limit,
+          });
+        }
+
+        /* One medicine, month by month — the drill-down behind a leaderboard
+           row. Takes the NORMALISED key the leaderboard returned, not the
+           display name: the display name is whichever spelling happened to be
+           most common, and looking it up again would re-split the product. */
+        case "sa_product_trend": {
+          const key = String(body.product_norm || "").trim();
+          if (!key) return json({ error: "Missing product." }, 400);
+          const { data, error } = await db.rpc("mm_sa_product_trend", {
+            p_product_norm: key,
+            p_from: body.from ? String(body.from).slice(0, 10) : null,
+            p_to: body.to ? String(body.to).slice(0, 10) : null,
+          });
+          if (error) {
+            if (/does not exist|schema cache|PGRST202/i.test(String(error.message))) {
+              return json({ error: "Run migrations/add_sales_analytics.sql first." }, 501);
+            }
+            return json({ error: error.message }, 400);
+          }
+          return json({ trend: data || [], product_norm: key });
+        }
+
         case "sa_list_requests": {
           // shop_edit_requests / customer_issues / mm_announcements / shop_billing
           // are per-tenant tables under RLS (see migrations/fix_cross_account_leaks.sql).
@@ -448,6 +520,13 @@ Deno.serve(async (req) => {
         address_line2: s.address_line2 || "",
         city: s.city || "",
         pincode: s.pincode || "",
+        // Added with the Insights tab. city cannot group a report (free text)
+        // and pincode cannot be read by a human, so district/state are their
+        // own confirmed fields — suggested from the pincode and the GSTIN state
+        // code by js/geo-india.js, chosen by the shop. Listed HERE because this
+        // is still the only path a pre-approval shop's details travel down.
+        district: s.district || "",
+        state: s.state || "",
         dl_no: s.dl_no || "",
         gstin: s.gstin || "",
         invoice_prefix: s.invoice_prefix || "",

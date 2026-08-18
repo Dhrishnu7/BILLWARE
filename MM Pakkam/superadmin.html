@@ -306,6 +306,50 @@
         .ocr-bar{height:6px;border-radius:99px;background:#EEF2F7;overflow:hidden;min-width:60px}
         .ocr-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--purple),var(--cyan))}
         .ocr-heavy{color:#B4231F;font-weight:700}
+
+        /* ── INSIGHTS ──────────────────────────────────────────────────────
+           Every class used by renderInsights() is defined here. A leaderboard
+           silently missing its bar or its chip still renders numbers, so an
+           undefined class would not look broken — it would look fine and read
+           wrong. */
+        .in-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:14px;
+            background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+        .in-bar label{display:flex;flex-direction:column;gap:4px;font-size:.66rem;
+            color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+        .in-bar select,.in-bar input{font-family:inherit;font-size:.82rem;padding:6px 9px;
+            border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text)}
+        .in-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+        .in-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+        .in-card h3{font-size:.92rem;font-weight:700;margin:0 0 2px;
+            font-family:'Space Grotesk',system-ui,sans-serif;letter-spacing:-.01em}
+        .in-sub{font-size:.7rem;color:var(--text3);margin-bottom:12px;display:flex;
+            flex-wrap:wrap;gap:6px;align-items:center}
+        .in-row{display:grid;grid-template-columns:1.35rem 1fr auto;gap:9px;align-items:baseline;
+            padding:7px 0;border-bottom:1px solid #EEF2F7}
+        .in-row:last-child{border-bottom:none}
+        .in-rank{font-size:.72rem;font-weight:700;color:var(--text3);text-align:right}
+        .in-name{font-size:.83rem;font-weight:600;cursor:pointer;
+            overflow:hidden;text-overflow:ellipsis}
+        .in-name:hover{color:var(--purple);text-decoration:underline}
+        .in-meta{font-size:.68rem;color:var(--text3);font-weight:400}
+        .in-val{font-size:.83rem;font-weight:700;white-space:nowrap;text-align:right}
+        .in-val small{display:block;font-size:.64rem;color:var(--text3);font-weight:500}
+        .in-mini{grid-column:2/4;height:4px;border-radius:99px;background:#EEF2F7;overflow:hidden}
+        .in-mini i{display:block;height:100%;border-radius:99px;
+            background:linear-gradient(90deg,var(--purple),var(--cyan))}
+        /* Sample-size chips. Amber and red are not decoration here — they are
+           the difference between a district and one shop. */
+        .in-chip{display:inline-block;font-size:.62rem;font-weight:700;padding:2px 7px;
+            border-radius:99px;text-transform:uppercase;letter-spacing:.04em;
+            background:#EEF2F7;color:#5B6B80;border:1px solid var(--border)}
+        .in-chip.thin{background:#FEF6E0;border-color:#F5DFA8;color:#8A5A08}
+        .in-chip.solo{background:#FDECEA;border-color:#F7C9C4;color:#B4231F}
+        .in-note{background:#FEF6E0;border:1px solid #F5DFA8;color:#7A5207;border-radius:12px;
+            padding:11px 14px;font-size:.8rem;margin-bottom:14px;line-height:1.5}
+        .in-note b{color:#8A5A08}
+        .in-empty{background:#fff;border:1px dashed var(--border);border-radius:14px;
+            padding:26px;text-align:center;color:var(--text3);font-size:.84rem}
+        .in-miss{color:#B4231F;font-weight:600}
         .ocr-none{color:var(--text3)}
 
         /* ═══ SUPPORT ISSUE CARD ═══
@@ -328,6 +372,10 @@
         .pending-card .act{display:flex;gap:8px;margin-top:12px}
     </style>
     <script src="js/sw-update.js"></script>
+    <!-- Insights tab: geo-india reads mmGstValid.STATES for the GSTIN state
+         code, so gst-validate MUST load first. -->
+    <script src="js/gst-validate.js"></script>
+    <script src="js/geo-india.js"></script>
 </head>
 <body>
 <div class="grid-bg"></div>
@@ -376,6 +424,7 @@
         <button class="tab" onclick="switchTab('billing',this)">💳 Billing <span class="badge" id="tabOverdueCount" style="background:rgba(239,68,68,.2); border-color:rgba(239,68,68,.4); color:#B4231F;">0</span></button>
         <button class="tab" onclick="switchTab('support',this)">🎧 Support <span class="badge" id="tabSupportCount" style="background:rgba(14,165,233,.2); border-color:rgba(14,165,233,.4); color:#38bdf8;">0</span></button>
         <button class="tab" onclick="switchTab('ocr',this)">📸 Scans <span class="badge green" id="tabOcrCount">0</span></button>
+        <button class="tab" onclick="switchTab('insights',this)">📊 Insights</button>
         <button class="tab" onclick="switchTab('broadcast',this)">📢 Broadcast</button>
     </div>
 
@@ -528,6 +577,76 @@
         </div>
     </div>
 
+    <!-- ═══ SALES INSIGHTS ═══
+         What sells, where, and when. Every figure carries the number of shops
+         it was built from, because with a handful of pilot shops a "district"
+         is often one shop wearing a district's name. -->
+    <div class="tab-panel" id="tab-insights">
+        <div class="in-bar">
+            <label>Period
+                <select id="inPeriod" onchange="onInsightPeriod()">
+                    <option value="30">Last 30 days</option>
+                    <option value="90" selected>Last 3 months</option>
+                    <option value="365">Last 12 months</option>
+                    <option value="ytd">This financial year</option>
+                    <option value="all">All time</option>
+                    <option value="custom">Custom…</option>
+                </select>
+            </label>
+            <label id="inFromWrap" style="display:none">From <input type="date" id="inFrom"></label>
+            <label id="inToWrap"   style="display:none">To <input type="date" id="inTo"></label>
+            <label>Group by
+                <select id="inLevel">
+                    <option value="shop" selected>Shop</option>
+                    <option value="pincode">Pincode (area)</option>
+                    <option value="district">District</option>
+                    <option value="state">State</option>
+                    <option value="season">Season</option>
+                    <option value="month">Month</option>
+                    <option value="all">Everything together</option>
+                </select>
+            </label>
+            <label>Rank by
+                <select id="inBy">
+                    <option value="value" selected>₹ Sold</option>
+                    <option value="qty">Units</option>
+                </select>
+            </label>
+            <label>Show top
+                <select id="inLimit">
+                    <option>3</option><option selected>5</option>
+                    <option>10</option><option>20</option>
+                </select>
+            </label>
+            <button class="rbtn" onclick="loadInsights()">↻ Run</button>
+        </div>
+
+        <p style="font-size:.8rem;color:var(--text3);margin:0 0 14px">
+            <b>₹ Sold</b> is the safer ranking across shops — one till types a strip of 10 as
+            <i>1</i> and another types it as <i>10</i>, so <b>Units</b> only compares fairly
+            <i>within</i> one shop. Names are matched after stripping punctuation, pack sizes
+            and words like “tab”, so <i>DOLO-650mg TAB</i> and <i>Dolo 650</i> count as one medicine.
+        </p>
+
+        <div class="ocr-tot" id="inTotals"></div>
+        <div id="inWarn"></div>
+        <div id="inTrend"></div>
+
+        <div class="sh"><span>🏆</span><h2 id="inHeading">Top medicines</h2>
+            <span class="cnt" id="inGroupCount">0</span>
+        </div>
+        <div id="inBoards"><div class="ld"><div class="sp"></div>Loading…</div></div>
+
+        <div class="sh" style="margin-top:30px"><span>🧭</span><h2>Data coverage — read this first</h2>
+            <button class="rbtn" onclick="toggleCoverage()" style="margin-left:auto" id="inCovBtn">Show</button>
+        </div>
+        <p style="font-size:.8rem;color:var(--text3);margin-bottom:14px">
+            What every number above is actually made of. A shop that stopped billing, or has no
+            district on file, silently changes what the rankings mean.
+        </p>
+        <div id="inCoverage" style="display:none"></div>
+    </div>
+
     <div class="tab-panel" id="tab-billing">
         <div class="stat-grid" id="billingStats" style="margin-bottom:18px"></div>
         <div class="sh"><span>💳</span><h2>Subscriptions</h2>
@@ -653,6 +772,10 @@ function switchTab(id, el) {
     if (id === 'broadcast') renderAnnouncements();
     if (id === 'billing') renderBilling();
     if (id === 'ocr') renderOcr();
+    /* First open only. Unlike the other tabs this one is a real aggregate query
+       over every bill in the system, so it must not be dragged along by the
+       60-second loadAll() refresh — the ↻ Run button is the way to re-fetch. */
+    if (id === 'insights' && !inLoadedOnce) loadInsights();
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -750,6 +873,316 @@ function renderOcr() {
 function _ocrName(tenant) {
     const p = (window.currentShopProfiles || {})[tenant];
     return (p && (p.shop_name || p.shopName)) || tenant;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SALES INSIGHTS — what sells, where, and when
+
+   Unlike every other tab, NOTHING here is grouped in the browser. The rows
+   arrive already aggregated from mm_sa_product_leaders (see
+   migrations/add_sales_analytics.sql); sending every bill line of every shop
+   here to be counted in JavaScript would stop working around the fifth
+   customer. This file's job is to draw them and to keep them honest.
+
+   "Keeping them honest" is most of the code below:
+     · every card states how many SHOPS it was built from, and anything under
+       three is chipped amber or red. With a handful of pilot shops a district
+       ranking is usually one shop wearing a district's name, and a number
+       that hides its sample size is a confident liar.
+     · shops with no district/state on file are counted and named, because
+       they are silently absent from the geography rankings rather than
+       showing up as a zero.
+     · units and rupees are both shown, and the page says why rupees is the
+       safer cross-shop ranking.
+   ═══════════════════════════════════════════════════════════════════════ */
+let inData = null;          // last successful sa_analytics payload
+let inLoadedOnce = false;   // first open loads; after that it is manual
+
+function onInsightPeriod() {
+    const custom = document.getElementById('inPeriod').value === 'custom';
+    document.getElementById('inFromWrap').style.display = custom ? '' : 'none';
+    document.getElementById('inToWrap').style.display   = custom ? '' : 'none';
+}
+
+/* The selected period as {from, to} ISO days, or nulls for all-time.
+   Built from local date parts, never from toISOString() on a local Date — that
+   shifts by the UTC offset and would drop a day of sales at each end. */
+function _inRange() {
+    const v = document.getElementById('inPeriod').value;
+    const iso = d => d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+    const today = new Date();
+
+    if (v === 'all') return { from: null, to: null };
+    if (v === 'custom') {
+        return {
+            from: document.getElementById('inFrom').value || null,
+            to:   document.getElementById('inTo').value   || null
+        };
+    }
+    if (v === 'ytd') {
+        // Indian financial year: 1 April to 31 March.
+        const y = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+        return { from: y + '-04-01', to: iso(today) };
+    }
+    const days = Number(v) || 90;
+    const from = new Date(today.getTime() - days * 86400000);
+    return { from: iso(from), to: iso(today) };
+}
+
+async function loadInsights() {
+    const boards = document.getElementById('inBoards');
+    boards.innerHTML = '<div class="ld"><div class="sp"></div>Crunching sales…</div>';
+    document.getElementById('inTrend').innerHTML = '';
+
+    const r = _inRange();
+    const res = await saCall('sa_analytics', {
+        from:  r.from,
+        to:    r.to,
+        level: document.getElementById('inLevel').value,
+        by:    document.getElementById('inBy').value,
+        limit: Number(document.getElementById('inLimit').value) || 5
+    });
+    if (!res.ok) {
+        inData = null;
+        boards.innerHTML = '<div class="in-empty">' + escHtml(res.message) + '</div>';
+        document.getElementById('inTotals').innerHTML = '';
+        document.getElementById('inWarn').innerHTML = '';
+        return;
+    }
+    inLoadedOnce = true;
+    inData = res.data;
+    renderInsights();
+    renderCoverage();
+}
+
+const _inMoney = v => '₹' + Math.round(Number(v) || 0).toLocaleString('en-IN');
+const _inNum   = v => (Math.round((Number(v) || 0) * 100) / 100).toLocaleString('en-IN');
+
+const IN_LEVEL_WORD = {
+    shop: 'shop', pincode: 'area', district: 'district',
+    state: 'state', month: 'month', season: 'season', all: 'period'
+};
+
+function renderInsights() {
+    const boards = document.getElementById('inBoards');
+    if (!inData) return;
+
+    const rows  = inData.leaders || [];
+    const level = inData.level || 'shop';
+    const by    = inData.by || 'value';
+    const isGeo = (level === 'pincode' || level === 'district' || level === 'state');
+
+    document.getElementById('inHeading').textContent =
+        'Top medicines by ' + (IN_LEVEL_WORD[level] || level);
+
+    // Preserve server order (biggest group first, then rank within the group).
+    const groups = [];
+    const byKey = {};
+    rows.forEach(r => {
+        let g = byKey[r.group_key];
+        if (!g) {
+            g = byKey[r.group_key] = {
+                key: r.group_key,
+                label: r.group_label || r.group_key,
+                qty: Number(r.group_qty) || 0,
+                value: Number(r.group_value) || 0,
+                bills: Number(r.group_bills) || 0,
+                shops: 0,
+                items: []
+            };
+            groups.push(g);
+        }
+        g.shops = Math.max(g.shops, Number(r.shops) || 0);
+        g.items.push(r);
+    });
+
+    // ── Totals ──
+    const totalValue = groups.reduce((a, g) => a + g.value, 0);
+    const totalBills = groups.reduce((a, g) => a + g.bills, 0);
+    const allProducts = new Set(rows.map(r => r.product_norm));
+    const top = rows.length ? rows.reduce((a, b) =>
+        (Number(b.value) || 0) > (Number(a.value) || 0) ? b : a) : null;
+    const t = (v, l) => `<div><b>${v}</b><span>${l}</span></div>`;
+    document.getElementById('inTotals').innerHTML =
+        t(_inMoney(totalValue), 'Sales in range') +
+        t(totalBills.toLocaleString('en-IN'), 'Bills counted') +
+        t(groups.length.toLocaleString('en-IN'), (IN_LEVEL_WORD[level] || 'group') + 's with sales') +
+        t(top ? escHtml(top.product) : '—', 'Biggest single seller');
+
+    // ── Honesty notes ──
+    const warn = [];
+    const thin = groups.filter(g => g.shops > 0 && g.shops < 3);
+    if (isGeo && thin.length) {
+        const solo = thin.filter(g => g.shops === 1).length;
+        warn.push(`<b>${thin.length} of ${groups.length} ${IN_LEVEL_WORD[level]}s ` +
+            `are built from fewer than 3 shops</b>` +
+            (solo ? ` — ${solo} of them from a single shop` : '') +
+            `. Those rows describe that shop, not that ${IN_LEVEL_WORD[level]}. ` +
+            `They are marked on each card.`);
+    }
+    if (isGeo) {
+        const cov = inData.coverage || [];
+        const field = level === 'pincode' ? 'pincode' : level;
+        const missing = cov.filter(c => Number(c.lines) > 0 && !c[field]);
+        if (missing.length) {
+            warn.push(`<b>${missing.length} shop(s) with sales have no ${escHtml(field)} on file</b>, ` +
+                `so they are missing from this ranking entirely — not shown as zero, ` +
+                `just absent: ${missing.slice(0, 6).map(c => escHtml(c.shop_name)).join(', ')}` +
+                `${missing.length > 6 ? ' and others' : ''}. Fill it in from the coverage table below.`);
+        }
+    }
+    const badDates = (inData.coverage || []).reduce((a, c) => a + (Number(c.bad_dates) || 0), 0);
+    if (badDates) {
+        warn.push(`<b>${badDates.toLocaleString('en-IN')} bill line(s) have an unreadable date</b> ` +
+            `and are excluded from every figure on this page.`);
+    }
+    document.getElementById('inWarn').innerHTML =
+        warn.length ? '<div class="in-note">' + warn.join('<br><br>') + '</div>' : '';
+
+    document.getElementById('inGroupCount').textContent = groups.length;
+
+    if (!groups.length) {
+        boards.innerHTML = '<div class="in-empty">No sales in this period.' +
+            (isGeo ? ' Shops also need a ' + escHtml(level) + ' on file to appear here.' : '') +
+            '</div>';
+        return;
+    }
+
+    // ── Cards ──
+    boards.innerHTML = '<div class="in-grid">' + groups.map(g => {
+        // The chip is the sample size. Only meaningful where a group is
+        // supposed to span shops — "1 shop" is the definition of a shop card,
+        // not a warning about it.
+        let chip = '';
+        if (isGeo || level === 'all' || level === 'month' || level === 'season') {
+            const cls = g.shops <= 1 ? 'solo' : (g.shops < 3 ? 'thin' : '');
+            chip = `<span class="in-chip ${cls}">${g.shops} shop${g.shops === 1 ? '' : 's'}</span>`;
+        }
+        const rowsHtml = g.items.map(it => {
+            const v = Number(it.value) || 0;
+            const q = Number(it.qty) || 0;
+            const share = g.value > 0 ? Math.round((v / g.value) * 100) : 0;
+            const primary   = by === 'qty' ? _inNum(q) + ' u' : _inMoney(v);
+            const secondary = by === 'qty' ? _inMoney(v) : _inNum(q) + ' units';
+            return `<div class="in-row">
+                    <div class="in-rank">${it.rnk}</div>
+                    <div class="in-name" title="Month-by-month for this medicine"
+                         onclick="showTrend('${escAttr(it.product_norm)}','${escAttr(it.product)}')"
+                    >${escHtml(it.product)}
+                        <span class="in-meta">· ${Number(it.bills).toLocaleString('en-IN')} bills</span>
+                    </div>
+                    <div class="in-val">${primary}<small>${secondary}</small></div>
+                    <div class="in-mini"><i style="width:${share}%"></i></div>
+                </div>`;
+        }).join('');
+        return `<div class="in-card">
+                <h3>${escHtml(g.label)}</h3>
+                <div class="in-sub">${_inMoney(g.value)} total ·
+                    ${g.bills.toLocaleString('en-IN')} bills ${chip}</div>
+                ${rowsHtml}
+            </div>`;
+    }).join('') + '</div>';
+}
+
+/* One medicine, month by month. Answers the question the leaderboard raises
+   but cannot settle: is this actually seasonal, or just big all year? */
+async function showTrend(productNorm, label) {
+    const box = document.getElementById('inTrend');
+    box.innerHTML = '<div class="ld"><div class="sp"></div>Loading trend…</div>';
+    const r = _inRange();
+    const res = await saCall('sa_product_trend',
+        { product_norm: productNorm, from: r.from, to: r.to });
+    if (!res.ok) { box.innerHTML = '<div class="in-note">' + escHtml(res.message) + '</div>'; return; }
+
+    const t = res.data.trend || [];
+    if (!t.length) { box.innerHTML = '<div class="in-note">No monthly data for that medicine.</div>'; return; }
+
+    const peak = t.reduce((a, b) => (Number(b.value) || 0) > (Number(a.value) || 0) ? b : a);
+    const max  = Number(peak.value) || 1;
+    const bySeason = {};
+    t.forEach(m => { bySeason[m.season] = (bySeason[m.season] || 0) + (Number(m.value) || 0); });
+    const topSeason = Object.keys(bySeason).sort((a, b) => bySeason[b] - bySeason[a])[0] || '—';
+
+    box.innerHTML = `<div class="in-card" style="margin-bottom:16px">
+        <h3>📈 ${escHtml(label)} — month by month</h3>
+        <div class="in-sub">Busiest month <b>&nbsp;${escHtml(peak.month)}</b> ·
+            strongest season <b>&nbsp;${escHtml(topSeason)}</b>
+            <span class="in-chip">${t.length} month${t.length === 1 ? '' : 's'} of data</span>
+            <button class="rbtn" style="margin-left:auto"
+                onclick="document.getElementById('inTrend').innerHTML=''">✕ Close</button>
+        </div>
+        ${t.map(m => {
+            const v = Number(m.value) || 0;
+            return `<div class="in-row">
+                <div class="in-rank" style="font-size:.66rem">${escHtml(String(m.month).slice(5))}</div>
+                <div class="in-name" style="cursor:default">${escHtml(m.season)}
+                    <span class="in-meta">· ${Number(m.shops)} shop(s)</span></div>
+                <div class="in-val">${_inMoney(v)}<small>${_inNum(m.qty)} units</small></div>
+                <div class="in-mini"><i style="width:${Math.round((v / max) * 100)}%"></i></div>
+            </div>`;
+        }).join('')}
+    </div>`;
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function toggleCoverage() {
+    const el = document.getElementById('inCoverage');
+    const on = el.style.display === 'none';
+    el.style.display = on ? '' : 'none';
+    document.getElementById('inCovBtn').textContent = on ? 'Hide' : 'Show';
+}
+
+/* Per-shop coverage: what each shop actually contributed, and what is missing
+   from its profile. This is the table to read before believing anything above
+   it — which is why the geography gaps are red and named rather than blank. */
+function renderCoverage() {
+    const el = document.getElementById('inCoverage');
+    if (!inData) return;
+    const cov = inData.coverage || [];
+    if (!cov.length) { el.innerHTML = '<div class="in-empty">No shops yet.</div>'; return; }
+
+    const miss = v => v ? escHtml(v) : '<span class="in-miss">— missing</span>';
+    el.innerHTML = `<div class="ocr-wrap"><table class="tbl">
+        <thead><tr>
+            <th>Shop</th><th>Pincode</th><th>District</th><th>State</th>
+            <th style="text-align:right">Bills</th><th style="text-align:right">Lines</th>
+            <th style="text-align:right">Sold</th><th>First sale</th><th>Last sale</th>
+        </tr></thead><tbody>` + cov.map(c => {
+        // The GSTIN is the registered fact; a stored state that disagrees with
+        // it is reported, never quietly corrected.
+        let flag = '';
+        if (window.mmGeo && c.gstin && c.state) {
+            const byGst = window.mmGeo.stateFromGstin(c.gstin);
+            if (byGst && byGst !== c.state) {
+                flag = ` <span class="in-chip solo" title="GSTIN says ${escAttr(byGst)}">GSTIN says ${escHtml(byGst)}</span>`;
+            }
+        }
+        // A shop with no district gets a suggestion from its pincode — shown as
+        // a suggestion, for a human to apply. Nothing here writes anything.
+        let hint = '';
+        if (window.mmGeo && !c.district && c.pincode) {
+            const s = window.mmGeo.suggest(c.pincode, c.gstin);
+            if (s.district) {
+                hint = ` <span class="in-chip ${s.districtIsGuess ? 'thin' : ''}"
+                    title="From the pincode. Confirm with the shop before setting it.">
+                    try ${escHtml(s.district)}${s.districtIsGuess ? '?' : ''}</span>`;
+            }
+        }
+        return `<tr>
+            <td><b>${escHtml(c.shop_name)}</b>
+                <div style="font-size:.7rem;color:var(--text3)">${escHtml(c.shop)}</div></td>
+            <td>${miss(c.pincode)}</td>
+            <td>${miss(c.district)}${hint}</td>
+            <td>${miss(c.state)}${flag}</td>
+            <td style="text-align:right">${Number(c.bills).toLocaleString('en-IN')}</td>
+            <td style="text-align:right">${Number(c.lines).toLocaleString('en-IN')}</td>
+            <td style="text-align:right"><b>${_inMoney(c.value)}</b></td>
+            <td>${c.first_day ? escHtml(c.first_day) : '<span class="ocr-none">—</span>'}</td>
+            <td>${c.last_day ? escHtml(c.last_day) : '<span class="ocr-none">—</span>'}</td>
+        </tr>`;
+    }).join('') + '</tbody></table></div>';
 }
 
 // ── CLOCK ──
