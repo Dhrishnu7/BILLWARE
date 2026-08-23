@@ -1442,9 +1442,30 @@
         }
 
         // ── Add Balance (Manual Restore) ──
+
+        /* ONE op id per intended movement — NOT one per button press.
+
+           This box used to let mmAdjustCustomerBalance mint a fresh id on
+           every call. The dialog stays open when the save fails, and the
+           failure message invited a retry, so four presses of one intended
+           ₹100 became four DIFFERENT money movements: four local increments
+           and four queued records the server had no way to recognise as the
+           same thing. The op id is the only mechanism that makes a retry
+           idempotent, and generating a new one per press disables it exactly
+           when it is needed.
+
+           Minted per OPENING of the dialog, and re-minted if the name or
+           amount is edited: reopening the box, or typing a different figure,
+           is a deliberate new movement and must not be swallowed as a
+           duplicate. Cleared once the cloud write actually lands. */
+        let _addBalOp    = null;
+        let _addBalOpFor = '';
+
         function openAddBalanceModal() {
             document.getElementById('addBalName').value   = '';
             document.getElementById('addBalAmount').value = '';
+            _addBalOp    = null;
+            _addBalOpFor = '';
             document.getElementById('addBalanceModal').classList.add('open');
             setTimeout(() => document.getElementById('addBalName').focus(), 100);
         }
@@ -1480,20 +1501,60 @@
                response was lost would be retried and add the money TWICE — the
                v371 bug, on a screen whose entire job is money.
 
-               mmAdjustCustomerBalance moves all three stores together, mints
-               one op id, and queues the write for retry when offline. */
+               mmAdjustCustomerBalance moves all three stores together and
+               queues the write for retry when offline. The op id is supplied
+               from HERE rather than left to it: it has no way of knowing that
+               two calls a second apart are the same intended movement, and
+               left to itself it mints a fresh one per press. See _addBalOp. */
+            const opKey = name.toLowerCase() + '|' + amount;
+            if (!_addBalOp || _addBalOpFor !== opKey) {
+                _addBalOp    = mmOpId('adj');
+                _addBalOpFor = opKey;
+            }
+
             try {
-                saved = await mmAdjustCustomerBalance(name, '', '', amount);
+                saved = await mmAdjustCustomerBalance(name, '', '', amount, _addBalOp);
             } catch (e) { console.warn('balance update failed:', e); }
 
             if (btn) { btn.textContent = '✓ Add Balance'; btn.disabled = false; }
 
             if (saved) {
+                _addBalOp = null; _addBalOpFor = '';
                 closeAddBalanceModal();
                 await loadAndRenderKhata();
                 alert(`✅ ₹${amount.toFixed(2)} added to ${name}'s balance!`);
+                return;
+            }
+
+            /* The CLOUD write failed — which is not the same as nothing having
+               happened, and saying "Failed to save" here is what made someone
+               press this button four times in a row.
+
+               mmAdjustCustomerBalance updates the local stores BEFORE it ever
+               touches the network, then queues the delta in
+               pendingBalanceUpdates for dbSyncPendingCustomerBalances to
+               retry. By the time we get false, the money is already on this
+               device's books and scheduled to reach the cloud. Every merge in
+               the app keeps the higher of cloud and local, so the figure on
+               screen is already the new one.
+
+               So: confirm the queue actually holds THIS movement (by the op id
+               we now control), and if it does, report it as saved-but-pending
+               and name the figure — rather than implying the entry was lost
+               and inviting the retry that duplicates it. Only if it is not
+               queued has nothing been recorded. */
+            const queued = (mmLsGet('pendingBalanceUpdates') || [])
+                .some(r => r && r.opId === _addBalOp);
+
+            if (queued) {
+                closeAddBalanceModal();
+                await loadAndRenderKhata();
+                alert(`✅ ₹${amount.toFixed(2)} added to ${name}'s balance — saved on this device.\n\n` +
+                      `⏳ It hasn't reached the cloud yet and will sync by itself once the ` +
+                      `connection is back.\n\nDo NOT add it again — it is already recorded.`);
             } else {
-                alert('Failed to save. Please check your connection.');
+                alert(`❌ Could not save ₹${amount.toFixed(2)} for ${name}.\n\n` +
+                      `Nothing was recorded, so it is safe to try again.`);
             }
         }
 
