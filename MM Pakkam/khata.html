@@ -1474,6 +1474,36 @@
             document.getElementById('addBalanceModal').classList.remove('open');
         }
 
+        /* Name the figure the card will actually SHOW, not just the delta.
+
+           "₹100.00 added to Sanjai's balance" reads identically whether the
+           total became ₹100 or ₹500 — which is exactly how a double-count
+           went unnoticed on 2026-08-23. A confirmation that names only the
+           movement cannot be checked against anything; one that names the
+           resulting balance is wrong on screen the moment the arithmetic is.
+
+           Read AFTER loadAndRenderKhata() so this is the merged, rendered
+           figure — what the customer's card is about to display — rather than
+           whatever this one device happened to hold. Falls back to the local
+           store, and to saying NOTHING if neither knows: a confirmation that
+           invents a total is worse than one that omits it. */
+        function _nowOwesLine(name) {
+            const key   = String(name || '').trim().toLowerCase();
+            const match = list => (list || []).find(
+                x => String(x && x.name || '').trim().toLowerCase() === key);
+
+            let c = null;
+            try {
+                if (typeof _allKhataCustomers !== 'undefined') c = match(_allKhataCustomers);
+            } catch (e) {}
+            if (!c) {
+                try { c = match(JSON.parse(localStorage.getItem('mm_customers') || '[]')); }
+                catch (e) {}
+            }
+            if (!c) return '';
+            return `\n\n${name} now owes ₹${(parseFloat(c.balance) || 0).toFixed(2)}.`;
+        }
+
         async function confirmAddBalance() {
             const name   = document.getElementById('addBalName').value.trim();
             const amount = parseFloat(document.getElementById('addBalAmount').value);
@@ -1522,7 +1552,7 @@
                 _addBalOp = null; _addBalOpFor = '';
                 closeAddBalanceModal();
                 await loadAndRenderKhata();
-                alert(`✅ ₹${amount.toFixed(2)} added to ${name}'s balance!`);
+                alert(`✅ ₹${amount.toFixed(2)} added to ${name}'s balance!` + _nowOwesLine(name));
                 return;
             }
 
@@ -1549,8 +1579,9 @@
             if (queued) {
                 closeAddBalanceModal();
                 await loadAndRenderKhata();
-                alert(`✅ ₹${amount.toFixed(2)} added to ${name}'s balance — saved on this device.\n\n` +
-                      `⏳ It hasn't reached the cloud yet and will sync by itself once the ` +
+                alert(`✅ ₹${amount.toFixed(2)} added to ${name}'s balance — saved on this device.` +
+                      _nowOwesLine(name) +
+                      `\n\n⏳ It hasn't reached the cloud yet and will sync by itself once the ` +
                       `connection is back.\n\nDo NOT add it again — it is already recorded.`);
             } else {
                 alert(`❌ Could not save ₹${amount.toFixed(2)} for ${name}.\n\n` +
