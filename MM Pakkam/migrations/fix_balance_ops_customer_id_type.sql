@@ -111,12 +111,50 @@ grant execute on function public.mm_apply_balance_delta(text, text, text, text, 
     to anon, authenticated;
 
 
--- ── BLOCK 3 ── prove it works, and move no money ─────────────────────────
--- p_delta 0 against a name that does not exist would CREATE a customer, so
--- this deliberately targets a real one and adds nothing. Expect:
---   applied=true, duplicate=false  on the first run
---   applied=false, duplicate=true  on every run after (the op_id repeats)
--- Either is a pass. A 42804 means block 1 did not run.
-select public.mm_apply_balance_delta(
-    'selftest-fix-balance-ops-42804', 'Sanjai', '', '', 0
-) as result;
+-- ── BLOCK 3 ── the verdict ───────────────────────────────────────────────
+-- ⚠️ Do NOT try to self-test by CALLING mm_apply_balance_delta from the SQL
+-- editor. current_tenant() -> current_branch() -> auth.uid(), and auth.uid()
+-- is NULL here, so the function raises
+--   P0001 mm_apply_balance_delta: no tenant or no op_id
+-- on its FIRST line — before touching a single table. That is exactly the
+-- probe that "verified" this function on 2026-08-11 and could never have
+-- caught the bug: it proves the function EXISTS, not that it WORKS.
+--
+-- Expect exactly:  customers_id_type = uuid
+--                  ops_customer_id_type = text
+--                  function_has_cast = yes
+select
+    (select data_type from information_schema.columns
+      where table_schema = 'public' and table_name = 'customers'
+        and column_name = 'id')                                as customers_id_type,
+    (select data_type from information_schema.columns
+      where table_schema = 'public' and table_name = 'customer_balance_ops'
+        and column_name = 'customer_id')                       as ops_customer_id_type,
+    (select case when pg_get_functiondef(oid) like '%v_row.id::text%'
+                 then 'yes' else 'NO - block 2 did not run' end
+       from pg_proc where proname = 'mm_apply_balance_delta' limit 1)
+                                                               as function_has_cast;
+
+
+-- ── BLOCK 4 ── run the exact statement that used to raise 42804 ──────────
+-- This is the real functional proof: it takes a genuine customers row the
+-- same way the function does (%rowtype), performs the identical insert, and
+-- removes the test row again. It moves no money and leaves nothing behind.
+--
+-- PASS = "Success. No rows returned."   Any error is a real failure:
+--   42804  -> block 1 did not run
+--   SKIPPED -> the table has no customers to test against
+do $$
+declare
+    v_row public.customers%rowtype;
+begin
+    select * into v_row from public.customers limit 1;
+    if not found then
+        raise exception 'SKIPPED: no customers to test against';
+    end if;
+
+    insert into public.customer_balance_ops (op_id, user_id, customer_id, name, delta)
+    values ('selftest-42804', 'selftest', v_row.id::text, 'selftest', 0);
+
+    delete from public.customer_balance_ops where op_id = 'selftest-42804';
+end $$;
