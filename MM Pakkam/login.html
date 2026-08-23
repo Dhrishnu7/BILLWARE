@@ -361,7 +361,41 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Billware">
     <link rel="apple-touch-icon" href="/icon-512.png">
-    <meta name="mobile-web-app-capable" content="yes"></head>
+    <meta name="mobile-web-app-capable" content="yes">    <!-- ══════════════════════════════════════════════════════════════
+         MOBILE PERFORMANCE  (added 2026-08-23)
+
+         Same pass as the counter pages, but this screen is DARK, so the
+         opaque fallback is a dark blue - never #ffffff.
+
+         This page does not scroll (body is overflow:hidden and centres a
+         single card), so there is no fixed background to unpin here. What
+         costs is the blur itself: blur(24px) saturate(140%) has to be
+         rasterised before the login card can paint, on the very first
+         screen a shop ever sees.
+
+         --card is rgba(9,40,63,0.58); over this page's gradient that
+         composites to about #082942, lifted very slightly here so the card
+         still reads as raised against the background. The 1px --line border
+         is what delineates it once the blur is gone.
+
+         The Forgot Password and Force Login modals keep their blur: they
+         are scrims, they do not scroll, and they are absent at load.
+
+         Purely additive - nothing above is edited. To revert, delete this.
+         ══════════════════════════════════════════════════════════════ -->
+    <style>
+    @media (max-width: 820px) {
+        .auth-card {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+
+        .auth-card {
+            background: #0a2b45;
+        }
+    }
+    </style>
+</head>
 <body>
 
     <!-- Ambient background -->

@@ -624,6 +624,38 @@
     <!-- xlsx (Excel import) and html2canvas (bill softcopy) are heavy and only
          needed on demand — they're lazy-loaded via mmLoadScript() when used, so
          they never block page load. -->
+    <!-- ══════════════════════════════════════════════════════════════
+         MOBILE PERFORMANCE  (added 2026-08-23)
+
+         A phone's compositor can scroll neither a fixed background nor a
+         live backdrop blur. Both force a full-viewport repaint on EVERY
+         scroll frame, which is what made billing feel laggy at the counter.
+         Desktop is left exactly as it was - it has the GPU for the glass.
+
+         The surfaces below MUST also go opaque. Their white is only 70-90%
+         and it is the blur that keeps text legible over the page gradient;
+         removing the blur while leaving them see-through would put the
+         gradient straight through the card behind the text.
+
+         Purely additive - nothing above is edited. To revert, delete this.
+         ══════════════════════════════════════════════════════════════ -->
+    <style>
+    @media (max-width: 820px) {
+        /* the gradient stays, it just stops being repainted every frame */
+        body { background-attachment: scroll; }
+
+        header,
+        .form-card {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+
+        header,
+        .form-card {
+            background: #ffffff;
+        }
+    }
+    </style>
 </head>
 <body>
     <script>
