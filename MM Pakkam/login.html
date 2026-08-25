@@ -5,6 +5,128 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | Billware</title>
     <meta name="description" content="Secure login to Billware — smart pharmacy billing system.">
+
+    <!-- ══════════ BROWSER SUPPORT GATE — must stay FIRST and stay ES5 ══════════
+         The app is written in modern JS: optional chaining (?.) and nullish
+         coalescing (??) appear in auth.js, supabase.js, drug-master.js,
+         thermal-print.js and in this page's own inline script. Those are SYNTAX,
+         not functions — a browser below Chrome/Edge 80 (Feb 2020) cannot parse
+         the file at all and throws the WHOLE script away before one line runs.
+
+         What that looked like before this gate existed: the login screen drew
+         perfectly (the redirect check below swallows its own ReferenceError),
+         the shop typed their password, clicked Sign In — and nothing happened.
+         No error box, no spinner. handleLogin() reaches mmHasUsers(), which no
+         longer exists, and that call sits OUTSIDE the try/catch further down,
+         so the error was silent. A dead button on a page that looked fine.
+
+         THIS BLOCK MUST BE ES5. No arrow functions, no let/const, no template
+         literals — it has to run on the very browsers that choke on everything
+         else here, or it is useless. Feature-detect by compiling the syntax in
+         a try/catch; never sniff the user agent.                            -->
+    <script>
+    (function () {
+        /* FAIL OPEN. Only a SyntaxError means "this engine cannot parse it".
+           Under a Content-Security-Policy without 'unsafe-eval' — one an
+           antivirus proxy or a future header can impose — new Function throws
+           EvalError on a perfectly good browser, and treating that as failure
+           would lock out every shop at once. Blocking a working till is far
+           worse than letting an old browser through to its own error. */
+        function canParse(src) {
+            try { new Function(src); return true; }
+            catch (e) { return !(e instanceof SyntaxError); }
+        }
+        var syntaxOk = canParse('var o = {}; return o?.x;')
+                    && canParse('return null ?? 1;');
+
+        /* Blocked site data is the other silent killer: the browser parses
+           everything fine, but the session can never be stored, so the shop
+           is bounced back to this screen forever. Test first-party storage
+           for real rather than trusting a privacy-mode flag. */
+        var storageOk = true;
+        try {
+            window.localStorage.setItem('__mm_probe', '1');
+            window.localStorage.removeItem('__mm_probe');
+        } catch (e) { storageOk = false; }
+
+        if (syntaxOk && storageOk) { return; }
+
+        var heading, body, steps;
+        if (!syntaxOk) {
+            heading = 'This browser is too old';
+            body    = 'Billware needs Google Chrome 80 or newer (released 2020). '
+                    + 'The browser on this computer cannot run the app.';
+            steps   = ['Install or update Google Chrome from google.com/chrome',
+                       'Open Billware again in Chrome',
+                       'On Windows 7 or 8.1, Chrome 109 is the last version — it works fine'];
+        } else {
+            heading = 'Browser storage is blocked';
+            body    = 'Billware has to save your sign-in on this computer, and this '
+                    + 'browser is blocking site data. Signing in will not stick.';
+            steps   = ['Turn off Private / Incognito browsing',
+                       'Allow cookies and site data for this site',
+                       'Then reload this page'];
+        }
+
+        function render() {
+            if (!document.body) { return; }
+            var i, li;
+            var wrap = document.createElement('div');
+            wrap.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;'
+                + 'z-index:2147483647;background:#0a2b45;overflow:auto;'
+                + 'font-family:Segoe UI,Tahoma,Arial,sans-serif;padding:24px;';
+
+            var card = document.createElement('div');
+            card.style.cssText = 'max-width:520px;margin:6vh auto;background:#ffffff;'
+                + 'border-radius:16px;padding:32px 28px;color:#0f172a;'
+                + 'box-shadow:0 20px 40px rgba(0,0,0,0.3);';
+
+            var h = document.createElement('div');
+            h.style.cssText = 'font-size:22px;font-weight:800;margin-bottom:12px;color:#b91c1c;';
+            h.appendChild(document.createTextNode(heading));
+
+            var p = document.createElement('div');
+            p.style.cssText = 'font-size:15px;line-height:1.6;margin-bottom:18px;color:#334155;';
+            p.appendChild(document.createTextNode(body));
+
+            var ol = document.createElement('ol');
+            ol.style.cssText = 'font-size:15px;line-height:1.9;margin:0 0 20px 20px;color:#0f172a;';
+            for (i = 0; i < steps.length; i++) {
+                li = document.createElement('li');
+                li.appendChild(document.createTextNode(steps[i]));
+                ol.appendChild(li);
+            }
+
+            /* Printed on purpose: a photo of this screen tells support exactly
+               which browser the shop is on, with no phone call needed. */
+            var det = document.createElement('div');
+            det.style.cssText = 'font-size:11px;line-height:1.5;color:#64748b;'
+                + 'border-top:1px solid #e2e8f0;padding-top:14px;word-break:break-all;';
+            det.appendChild(document.createTextNode(
+                'Show this to support: ' + navigator.userAgent
+                + ' | modern-syntax:' + (syntaxOk ? 'yes' : 'no')
+                + ' | storage:' + (storageOk ? 'yes' : 'no')));
+
+            card.appendChild(h);
+            card.appendChild(p);
+            card.appendChild(ol);
+            card.appendChild(det);
+            wrap.appendChild(card);
+
+            document.body.innerHTML = '';
+            document.body.appendChild(wrap);
+        }
+
+        if (document.addEventListener) {
+            document.addEventListener('DOMContentLoaded', render, false);
+        } else if (document.attachEvent) {
+            document.attachEvent('onreadystatechange', function () {
+                if (document.readyState === 'complete') { render(); }
+            });
+        }
+    })();
+    </script>
+
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -591,18 +713,36 @@
         }
 
         // ── Button state helpers ──
+        /* btnIcon is deliberately NOT cached in a const. Every swap below
+           replaces the node through outerHTML, so a reference captured at load
+           is DETACHED from the moment Sign In is pressed once. Writing
+           outerHTML on a parentless node throws NoModificationAllowedError
+           ("This element has no parent node") on older Chrome — and it threw
+           HERE, inside setBtnLoading, after `loginBtn.disabled = true` and
+           before the label changed. That left a dead, disabled button still
+           reading "Sign In" with a 🚫 cursor, and mmLogin was never called at
+           all. It killed "Yes, Log In Here" on the force-login modal outright,
+           so a user whose session was open on another device could not get in.
+           Newer Chrome follows the spec and silently no-ops instead, so there
+           the only symptom was a spinner that never appeared — the same bug,
+           invisible. Re-query every time, and never let a missing icon stop a
+           login. */
         const loginBtn  = document.getElementById('loginBtn');
-        const btnIcon   = document.getElementById('btnIcon');
         const btnText   = document.getElementById('btnText');
+
+        function swapBtnIcon(svg) {
+            const icon = document.getElementById('btnIcon');
+            if (icon && icon.parentNode) icon.outerHTML = svg;
+        }
 
         function setBtnLoading() {
             loginBtn.disabled = true;
-            btnIcon.outerHTML = `<svg id="btnIcon" class="spinner" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>`;
+            swapBtnIcon(`<svg id="btnIcon" class="spinner" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>`);
             btnText.textContent = 'Signing in…';
         }
 
         function setBtnSuccess(name) {
-            document.getElementById('btnIcon').outerHTML = `<svg id="btnIcon" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`;
+            swapBtnIcon(`<svg id="btnIcon" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`);
             btnText.textContent = `Welcome, ${name}!`;
             loginBtn.style.background = 'linear-gradient(135deg,#10b981,#059669)';
             loginBtn.style.boxShadow  = '0 8px 20px -4px rgba(16,185,129,0.5)';
@@ -611,7 +751,7 @@
 
         function setBtnDefault() {
             loginBtn.disabled = false;
-            document.getElementById('btnIcon').outerHTML = `<svg id="btnIcon" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>`;
+            swapBtnIcon(`<svg id="btnIcon" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>`);
             btnText.textContent = mmT('login.btn');
         }
 
