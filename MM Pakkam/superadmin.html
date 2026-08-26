@@ -595,6 +595,12 @@
             <b>All time</b> shows who has leaned on it since they joined. Shops over
             <b>100 scans this month</b> are marked — that is the point to have a conversation.
         </p>
+        <p style="font-size:.8rem;color:var(--text3);margin-bottom:14px">
+            <b>Cost</b> is the real one: each scan's own token counts at the model's published rate,
+            converted at ₹<span id="ocrFx"></span> to the dollar. Two shops on the same scan count can
+            cost very different amounts — a 40-line invoice reads far more than a 6-line one, and
+            <b>Avg ₹/scan</b> is where that shows.
+        </p>
         <div class="ocr-wrap">
             <table class="tbl">
                 <thead><tr>
@@ -604,9 +610,11 @@
                     <th style="text-align:right">All time</th>
                     <th>Share of all scans</th>
                     <th style="text-align:right">Lines read</th>
+                    <th style="text-align:right">Cost this month</th>
+                    <th style="text-align:right">Avg ₹/scan</th>
                     <th>Last scan</th>
                 </tr></thead>
-                <tbody id="ocrBody"><tr><td colspan="7"><div class="ld"><div class="sp"></div>Loading…</div></td></tr></tbody>
+                <tbody id="ocrBody"><tr><td colspan="9"><div class="ld"><div class="sp"></div>Loading…</div></td></tr></tbody>
             </table>
         </div>
     </div>
@@ -813,6 +821,68 @@ function switchTab(id, el) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   WHAT A SCAN ACTUALLY COST US
+
+   mm-ocr already writes input_tokens, output_tokens and model on every
+   ocr_usage row, so the cost of a scan is not an estimate — it is the
+   token count times the published rate. A flat "roughly ₹2 a scan" hides
+   the thing worth seeing: a shop photographing 40-line invoices costs
+   several times what a shop photographing 6-line ones does, at the same
+   scan count.
+
+   Rates are USD per MILLION tokens, straight from the provider's public
+   pricing, checked 2026-08-25:
+     gemini-2.5-pro   $1.25 in / $10.00 out   (prompts under 200K)
+     claude-opus-5    $5.00 in / $25.00 out
+     claude-sonnet-5  $2.00 in / $10.00 out
+     claude-haiku-4-5 $1.00 in /  $5.00 out
+   Vertex bills Claude at its own partner rates rather than these; treat a
+   Claude row as the right order of magnitude, not an invoice.
+
+   ⚠️ These numbers go stale. They are HERE, in one block with a date on
+   them, precisely so that updating them is a two-minute edit and not an
+   archaeology dig through the render function.
+   ═══════════════════════════════════════════════════════════════════════ */
+const SCAN_USD_INR = 95.7;          // USD→INR, 2026-08-25
+
+/* Matched against ocr_usage.model, which mm-ocr writes as "<model>@<backend>"
+   — so these test the START of the string and ignore the backend suffix. */
+const SCAN_RATES = [
+    { re: /^gemini-2\.5-pro/i,    inp: 1.25, out: 10.00 },
+    { re: /^claude-opus-5/i,      inp: 5.00, out: 25.00 },
+    { re: /^claude-opus-4/i,      inp: 5.00, out: 25.00 },
+    { re: /^claude-sonnet-5/i,    inp: 2.00, out: 10.00 },
+    { re: /^claude-haiku-4-5/i,   inp: 1.00, out:  5.00 },
+];
+
+/* What one scan cost, in rupees — or null when we genuinely cannot say.
+   NULL IS NOT ZERO. A row from before the token columns were written, or
+   from a model that is not in the table above, has an UNKNOWN cost, and
+   quietly folding it in as ₹0 would under-report exactly the shop we most
+   need to look at. The caller counts these separately and says so. */
+function _scanCost(r) {
+    const rate = SCAN_RATES.find(x => x.re.test(String(r.model || '')));
+    if (!rate) return null;
+    // == null catches BOTH null and undefined, and it has to come before
+    // Number(): Number(null) is 0, not NaN, so a row with no token counts
+    // would otherwise price at a confident ₹0.00 and drag the average down.
+    if (r.input_tokens == null || r.output_tokens == null) return null;
+    const i = Number(r.input_tokens), o = Number(r.output_tokens);
+    if (!Number.isFinite(i) || !Number.isFinite(o)) return null;
+    return ((i / 1e6) * rate.inp + (o / 1e6) * rate.out) * SCAN_USD_INR;
+}
+
+/* Paise matter at this size — a scan costs a rupee or two, so rounding to
+   whole rupees the way the revenue tiles do would print "₹2" for everything
+   and the per-scan column would carry no information at all. */
+function _scanRs(v) {
+    if (v === null || v === undefined) return '—';
+    const n = Number(v) || 0;
+    return '₹' + (n < 100 ? n.toFixed(2)
+                          : Math.round(n).toLocaleString('en-IN'));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    OCR SCAN USAGE — who is spending our money
 
    Every cloud scan is a paid call, so this table exists to answer one
@@ -832,6 +902,11 @@ function renderOcr() {
 
     const rows = Array.isArray(window.allOcr) ? window.allOcr : [];
 
+    // The caption quotes the FX rate from the constant, never a second copy of
+    // the number — otherwise updating one leaves the page stating the other.
+    const fx = document.getElementById('ocrFx');
+    if (fx) fx.textContent = SCAN_USD_INR.toFixed(2);
+
     // auth uid -> the shop that login belongs to
     const uidToTenant = {};
     (allUsers || []).forEach(u => {
@@ -844,6 +919,9 @@ function renderOcr() {
 
     const byShop = {};
     let grand = 0, grandMonth = 0, orphan = 0;
+    // Costed scans are counted apart from scanned scans: an average taken over
+    // rows we could not price would be an average of the wrong denominator.
+    let grandCost = 0, grandCostMonth = 0, costedAll = 0, uncosted = 0;
     rows.forEach(r => {
         const day = String(r.day || '').slice(0, 10);
         // A scan from a login that no longer exists still cost us money, so it
@@ -851,10 +929,24 @@ function renderOcr() {
         const shop = uidToTenant[r.user_id] || null;
         const key = shop || '(deleted login)';
         if (!shop) orphan++;
-        const s = byShop[key] || (byShop[key] = { scans: 0, month: 0, week: 0, lines: 0, last: '' });
+        const s = byShop[key] || (byShop[key] = {
+            scans: 0, month: 0, week: 0, lines: 0, last: '',
+            cost: 0, costMonth: 0, costed: 0
+        });
         s.scans++;
         s.lines += Number(r.lines) || 0;
-        if (day.slice(0, 7) === monthKey) { s.month++; grandMonth++; }
+
+        const cost = _scanCost(r);
+        if (cost === null) { uncosted++; }
+        else {
+            s.cost += cost; s.costed++;
+            grandCost += cost; costedAll++;
+        }
+
+        if (day.slice(0, 7) === monthKey) {
+            s.month++; grandMonth++;
+            if (cost !== null) { s.costMonth += cost; grandCostMonth += cost; }
+        }
         if (day >= weekAgo) s.week++;
         if (day > s.last) s.last = day;
         grand++;
@@ -871,13 +963,16 @@ function renderOcr() {
         const t = (v, l) => `<div><b>${v}</b><span>${l}</span></div>`;
         totals.innerHTML =
             t(grandMonth.toLocaleString('en-IN'), 'Scans this month') +
+            t(costedAll ? _scanRs(grandCostMonth) : '—', 'Cost this month') +
+            t(costedAll ? _scanRs(grandCost / costedAll) : '—', 'Average per scan') +
             t(grand.toLocaleString('en-IN'), 'Scans all time') +
+            t(costedAll ? _scanRs(grandCost) : '—', 'Cost all time') +
             t(list.filter(x => x.month > 0).length, 'Shops scanning this month') +
             t((list[0] && list[0].month) ? escHtml(_ocrName(list[0].shop)) : '—', 'Heaviest this month');
     }
 
     if (!list.length) {
-        body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:26px;color:var(--text3)">No scans recorded yet.</td></tr>';
+        body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:26px;color:var(--text3)">No scans recorded yet.</td></tr>';
         return;
     }
 
@@ -896,10 +991,22 @@ function renderOcr() {
                     <span style="font-size:.72rem;color:var(--text3);min-width:2.4rem;text-align:right">${pct}%</span>
                 </div></td>
             <td style="text-align:right">${s.lines.toLocaleString('en-IN')}</td>
+            <td style="text-align:right">${s.costed ? _scanRs(s.costMonth) : '<span class="ocr-none">—</span>'}</td>
+            <td style="text-align:right">${s.costed ? _scanRs(s.cost / s.costed) : '<span class="ocr-none">—</span>'}</td>
             <td>${s.last ? escHtml(s.last) : '<span class="ocr-none">—</span>'}</td>
         </tr>`;
-    }).join('') + (orphan ? `<tr><td colspan="7" style="font-size:.74rem;color:var(--text3);padding-top:12px">
+    }).join('')
+    + (orphan ? `<tr><td colspan="9" style="font-size:.74rem;color:var(--text3);padding-top:12px">
             ${orphan} scan(s) came from a login that has since been deleted. They still cost us, so they are counted above.
+        </td></tr>` : '')
+    /* Say it out loud rather than letting a dash pass for a small bill. A
+       whole column of "—" means the token columns are not reaching this page
+       — the usual cause is an mm-admin that selects named columns and does
+       not yet include input_tokens/output_tokens/model. */
+    + (uncosted ? `<tr><td colspan="9" style="font-size:.74rem;color:var(--text3);padding-top:12px">
+            ${uncosted.toLocaleString('en-IN')} of ${grand.toLocaleString('en-IN')} scan(s) could not be costed — no token counts recorded, or a model
+            not in the rate table. They are counted in the scan columns but excluded from every ₹ figure,
+            so the real spend is higher than shown.${costedAll ? '' : ' No scan at all carries token counts: check that mm-admin returns input_tokens, output_tokens and model.'}
         </td></tr>` : '');
 }
 
