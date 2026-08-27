@@ -621,6 +621,7 @@
     <script src="js/combo.js"></script>
     <script src="js/drug-master.js"></script>
     <script src="js/thermal-print.js"></script>
+    <script src="js/print-doc.js"></script>
     <!-- xlsx (Excel import) and html2canvas (bill softcopy) are heavy and only
          needed on demand — they're lazy-loaded via mmLoadScript() when used, so
          they never block page load. -->
@@ -3039,13 +3040,20 @@
 
         function printInvoice() {
             const bill = window.currentPrintBill;
-            if (!bill) return;
+            /* This used to `return` on its own here. If the bill reference had
+               gone (a reload between saving and pressing Print), the button was
+               simply dead and said nothing — the exact report we could never
+               act on. Every exit from here now speaks. */
+            if (!bill) {
+                mmAlert('This bill is no longer loaded, so there is nothing to print.\n\nFind it on the Report page and print it from there.',
+                        { title: '🖨️ Nothing to print' });
+                return;
+            }
             const inner = buildInvoiceHtml(bill);
-            const printWindow = window.open('', '_blank');
-            if (!printWindow) { alert('Please allow popups to print invoices.'); return; }
-            printWindow.document.write(`<html><head><title>Invoice - ${bill.billNo}</title><style>body{margin:0;padding:0;background:#fff;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}@page{margin:0.5cm;}}</style></head><body>${inner}</body></html>`);
-            printWindow.document.close();
-            setTimeout(() => { printWindow.focus(); printWindow.print(); }, 500);
+            const html = `<html><head><title>Invoice - ${bill.billNo}</title><style>body{margin:0;padding:0;background:#fff;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}@page{margin:0.5cm;}}</style></head><body>${inner}</body></html>`;
+            // mmPrintDoc prints from an iframe in this page, so no popup has to
+            // be allowed for a bill to reach paper. It says so itself if it fails.
+            mmPrintDoc(html, { title: 'Invoice - ' + bill.billNo });
             closeSuccessModal();
         }
 

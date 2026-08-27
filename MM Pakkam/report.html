@@ -783,6 +783,7 @@
     <script src="js/pnl.js"></script>
     <script src="js/position.js"></script>
     <script src="js/keyboard-nav.js"></script>
+    <script src="js/print-doc.js"></script>
 
     <!-- ── DELIBERATELY NOT LOADED HERE ──────────────────────────────────────
          tally-export · gstr1-export · einvoice-export · prefile-check ·
@@ -2974,13 +2975,15 @@
         }
 
         function printGstr3b() {
-            if (!_g3b) return;
+            if (!_g3b) {
+                mmAlert('Work out the worksheet first — there is nothing to print yet.',
+                        { title: '🖨️ Nothing to print' });
+                return;
+            }
             const r = _g3b, s = mmGstr3b.settle(r, r.manual);
             const sp = window.mmShopProfile || {};
             const line = (a, b) => `<tr><td>${a}</td><td style="text-align:right">${g3bMoney(b)}</td></tr>`;
-            const w = window.open('', '_blank');
-            if (!w) { mmAlert('Allow pop-ups to print the worksheet.'); return; }
-            w.document.write(`<html><head><title>GSTR-3B worksheet ${_te(r.period)}</title>
+            mmPrintDoc(`<html><head><title>GSTR-3B worksheet ${_te(r.period)}</title>
                 <style>body{font-family:system-ui,sans-serif;padding:24px;color:#0f172a}
                 h1{font-size:1.1rem;margin:0 0 2px}h2{font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;color:#0d9488;margin:18px 0 4px}
                 table{width:100%;border-collapse:collapse;font-size:.86rem}td{padding:4px 0;border-bottom:1px solid #eee}
@@ -3010,8 +3013,7 @@
                 <div class="note"><b>This is a worksheet, not a return.</b> The input credit shown comes from the
                 purchase register and is the most that might be claimed — only what appears in GSTR-2B may
                 actually be taken. Check on the portal before filing.</div>
-                </body></html>`);
-            w.document.close(); w.focus(); w.print();
+                </body></html>`, { title: 'GSTR-3B worksheet ' + _te(r.period) });
         }
 
         /* ══════════════════════════════════════════════════════════════════
@@ -7262,18 +7264,17 @@
                 ? `${fmtD(from)} &mdash; ${fmtD(to)}`
                 : (from ? `From ${fmtD(from)}` : (to ? `Up to ${fmtD(to)}` : 'All Dates'));
 
-            const printWin = window.open('', '_blank');
-            if (!printWin) { alert('Please allow popups to print the report.'); return; }
-
             const now = new Date().toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
 
-            printWin.document.write(`<!DOCTYPE html>
+            /* No Google Fonts link here. It was copied in with the site-wide
+               "don't block first paint" change, but nothing in this document
+               asks for Inter — the body is 'Segoe UI', Arial — so it only ever
+               made the hardcopy wait on a network round trip it did not need. */
+            const printHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Report - Billware</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"></noscript>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; background: white; color: #0f172a; padding: 1rem; font-size: 0.8rem; }
@@ -7409,10 +7410,12 @@
 <div class="no-print print-btn-wrap">
   <button class="print-btn" onclick="window.print()">🖨️ Print Hardcopy</button>
 </div>
-<script>window.onload = () => window.print();<\/script>
 <\/body>
-<\/html>`);
-            printWin.document.close();
+<\/html>`;
+            /* The document no longer prints itself on load — mmPrintDoc owns the
+               timing now, because a document that also auto-prints throws a
+               second dialog when it is rendered in an iframe. */
+            mmPrintDoc(printHtml, { title: 'Report - Billware' });
         }
 
         /* Export GST - SpreadsheetML (.xls) — Perfect Accountant Format */
@@ -8149,22 +8152,25 @@
 
         function printBill(id) {
             const bill = getBillObj(id);
-            if(!bill) return;
+            // Was a bare `return` — a dead button and not a word about why.
+            if(!bill) {
+                mmAlert('That bill could not be loaded, so there is nothing to print.\n\nRefresh the page and search for it again.',
+                        { title: '🖨️ Nothing to print' });
+                return;
+            }
             const html = getBillHTML(bill);
-            const printWindow = window.open('', '_blank');
-            if(!printWindow) { alert('Please allow popups to print invoices.'); return; }
-            printWindow.document.write(`
+            // No `onload="window.print()"` on the body: mmPrintDoc owns the timing.
+            mmPrintDoc(`
                 <html>
                 <head>
                     <title>Invoice - ${bill.billNo || id}</title>
                     <style>@media print { body { padding: 0; margin: 0; } }</style>
                 </head>
-                <body onload="window.print();">
+                <body>
                     ${html}
                 </body>
                 </html>
-            `);
-            printWindow.document.close();
+            `, { title: 'Invoice - ' + (bill.billNo || id) });
         }
 
         // ══════════════════════════════════════

@@ -263,7 +263,9 @@
                 '<div class="sign">For ' + esc(shop.name || 'the shop') + '</div>' +
               '</div>' +
             '</div>' +
-            '<script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>' +
+            // No self-printing script: mmPrintDoc owns the timing, and a
+            // document that also prints itself throws a second dialog when it
+            // is rendered in an iframe rather than a popup.
             '</body></html>';
     }
 
@@ -283,15 +285,17 @@
             if (typeof mmAlert === 'function') mmAlert('That note could not be found. Reload the page and try again.');
             return false;
         }
-        var w = window.open('', '_blank');
-        if (!w) {
+        // Prints from an iframe in the current page, so no pop-up has to be
+        // allowed for a filed note to reach paper. mmPrintDoc reports its own
+        // failures, and only a real print is written to the audit trail.
+        if (typeof mmPrintDoc !== 'function') {
             if (typeof mmAlert === 'function') {
-                mmAlert('Your browser blocked the print window. Allow pop-ups for this site and try again.');
+                mmAlert('The print helper did not load. Refresh the page and try again.',
+                        { title: '🖨️ Could not print' });
             }
             return false;
         }
-        w.document.write(build(note));
-        w.document.close();
+        if (!mmPrintDoc(build(note), { title: 'Note ' + note.no })) return false;
         if (typeof mmAudit === 'function') mmAudit('Note printed', note.no, inr(note.gross));
         return true;
     }

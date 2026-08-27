@@ -31,6 +31,7 @@
     <script src="js/finance.js"></script>
     <script src="js/position.js"></script>
     <script src="js/keyboard-nav.js"></script>
+    <script src="js/print-doc.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -2588,7 +2589,13 @@
         }
 
         function printStatement() {
-            if (!_stmtData) return;
+            // Was a bare `return`: press Print with no statement loaded and the
+            // button was dead and silent. Say it instead.
+            if (!_stmtData) {
+                mmAlert('No statement is open, so there is nothing to print.\n\nOpen a customer from the Khata list first.',
+                        { title: '🖨️ Nothing to print' });
+                return;
+            }
             let shop = '';
             try { shop = (document.getElementById('shopNameHeader')?.textContent || '').trim(); } catch (e) {}
             if (!shop || shop === '...') shop = 'My Shop';
@@ -2610,10 +2617,7 @@
                 + '<table><thead><tr><th>Date</th><th>Details</th><th style="text-align:right;">Debit (+)</th><th style="text-align:right;">Credit (−)</th><th style="text-align:right;">Balance</th></tr></thead><tbody>'
                 + rowsHtml + '</tbody></table>'
                 + '<div class="total">Total Outstanding: ' + m(_stmtData.currentBalance) + '</div></body></html>';
-            const w = window.open('', '_blank');
-            if (!w) { if (typeof mmAlert === 'function') mmAlert('Please allow pop-ups to print the statement.'); return; }
-            w.document.write(html); w.document.close();
-            w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 300);
+            mmPrintDoc(html, { title: 'Statement - ' + _stmtData.name });
         }
 
         /* ══════════════════════════════════════════════════════════════════
@@ -3451,10 +3455,7 @@
                 </div>
                 </body></html>`;
 
-            const w = window.open('', '_blank');
-            if (!w) { mmAlert('Please allow pop-ups to print the statement.'); return; }
-            w.document.write(html); w.document.close();
-            w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 350);
+            mmPrintDoc(html, { title: 'Statement' });
         }
 
         function closeFinModals() {
