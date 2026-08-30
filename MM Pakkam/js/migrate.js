@@ -409,16 +409,57 @@ function plan(records, existing, kind) {
     const have = {};
     (existing || []).forEach(e => { const k = keyOf(e, kind); if (k) have[k] = e; });
 
+    /* A missing phone is not a different phone.
+       Identity for a person is name+phone, because two people really do
+       share a first name. But once a shop can load SEVERAL files at once,
+       one of those files routinely has no phone column at all — and then
+       "Ravi Kumar|9876543210" and "Ravi Kumar|" are two keys for one man:
+       two customers, and two opening balances, which is the khata doubled.
+       So a blank phone matches ANY phone on the same name, in either
+       direction, while two different numbers stay two different people.
+       The fold is never silent — it lands in skip with its own reason and
+       the preview says so before anything is written. */
+    const soft = (kind === 'customers' || kind === 'doctors');
+    const softIdx = {};      // name -> { any, blank }
+    const softAdd = (idx, rec) => {
+        const n = idkey(rec.name);
+        if (!n) return;
+        const e = idx[n] || (idx[n] = { any: false, blank: false });
+        e.any = true;
+        if (!rec.phone) e.blank = true;
+    };
+    const softHit = (idx, rec) => {
+        const e = idx[idkey(rec.name)];
+        if (!e || !e.any) return false;
+        return rec.phone ? !!e.blank : true;   // a blank folds into anything
+    };
+    const softWhy = rec => rec.phone
+        ? 'the same name is there with no phone number against it'
+        : 'this row has no phone number, so it was matched on the name alone';
+    const haveIdx = {};
+    if (soft) (existing || []).forEach(e => softAdd(haveIdx, { name: e.name, phone: e.phone || '' }));
+
     (records || []).forEach(rec => {
         const k = keyOf(rec, kind);
         if (!k) return;
         if (seen[k]) {
-            res.skip.push({ rec: rec, why: 'appears twice in the file' });
+            res.skip.push({ rec: rec, where: 'file', why: 'appears twice in the file' });
+            return;
+        }
+        if (soft && softHit(softIdx, rec)) {
+            res.skip.push({ rec: rec, where: 'file', fold: true,
+                            why: 'appears in another row too — ' + softWhy(rec) });
             return;
         }
         seen[k] = 1;
+        if (soft) softAdd(softIdx, rec);
         if (have[k]) {
-            res.skip.push({ rec: rec, why: 'already in Billware', existing: have[k] });
+            res.skip.push({ rec: rec, where: 'shop', why: 'already in Billware', existing: have[k] });
+            return;
+        }
+        if (soft && softHit(haveIdx, rec)) {
+            res.skip.push({ rec: rec, where: 'shop', fold: true,
+                            why: 'already in Billware — ' + softWhy(rec) });
             return;
         }
         res.create.push(rec);
