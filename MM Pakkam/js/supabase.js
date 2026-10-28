@@ -1106,7 +1106,7 @@ async function dbAddPurchase(row) {
     // Note: avoid .single() here — it throws PGRST116 if RLS prevents read-back
     // even when the insert itself succeeded, causing a false "Saved Offline" error.
     const ed = row.expireDate || row.expire_date || '';
-    const { error } = await _supabase.from('purchases').insert({
+    const payload = {
         bill_no:      row.billNo     || '',
         firm:         row.firm       || '',
         date:         row.date       || new Date().toISOString().slice(0,10),
@@ -1120,8 +1120,24 @@ async function dbAddPurchase(row) {
         rate:         Number(row.rate)     || 0,
         gst:          Number(row.gst)      || 0,
         hsn:          row.hsn || row.hsn_code || '',
+        // Selling discount for this batch, so Sales can auto-fill Disc %.
+        // It is NOT part of what was paid for this purchase.
+        discount:     Number(row.discount) || 0,
         user_id:      user,
-    });
+    };
+    let { error } = await _supabase.from('purchases').insert(payload);
+    /* The discount column arrives with migrations/add_purchase_discount.sql.
+       If this code reaches a database that has not run it yet, PostgREST
+       rejects the WHOLE insert (42703) — which would stop stock being recorded
+       at all, for a field nobody would miss. Retry once without it: the
+       purchase is never lost, and discounts start saving on their own the
+       moment the migration is applied. */
+    if (error && (error.code === '42703' || /discount/i.test(error.message || ''))) {
+        console.warn('[db] purchases.discount missing — run migrations/add_purchase_discount.sql. Saving this purchase without the discount.');
+        const retry = Object.assign({}, payload);
+        delete retry.discount;
+        ({ error } = await _supabase.from('purchases').insert(retry));
+    }
     if (error) { console.error('purchase add:', error); return { success: false, message: error.message }; }
     return { success: true };
 }

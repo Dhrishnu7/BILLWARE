@@ -270,6 +270,26 @@
         }
         .t-input[readonly]:hover { border-color: transparent; background: #f0fdf4; }
 
+        /* Discount cell: typeable box + quick-pick dropdown */
+        .disc-cell { display: flex; align-items: center; gap: 3px; }
+        .disc-cell .t-input { flex: 1 1 auto; }
+        .disc-pick {
+            flex: 0 0 auto;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #059669;
+            background: #f0fdf4;
+            border: 1.5px solid #d1fae5;
+            border-radius: 8px;
+            padding: 0.35rem 0.1rem;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.18s ease;
+        }
+        .disc-pick:hover { border-color: #10b981; background: white; }
+        .disc-pick:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.12); }
+
         /* Remove row btn */
         .remove-row-btn {
             width: 26px; height: 26px;
@@ -1043,10 +1063,12 @@
 
             // Clear batch dropdown and dependent fields
             batchSelect.innerHTML = '<option value="">— Select Batch —</option>';
-            ['exp_','pack_','hsn_','mrp_','rate_','gst_','stock_','total_'].forEach(pfx => {
+            ['exp_','pack_','hsn_','mrp_','rate_','gst_','discount_','stock_','total_'].forEach(pfx => {
                 const el = document.getElementById(pfx + id);
                 if (el) el.value = '';
             });
+            // discount_ was just cleared — put its quick-pick back to "%" to match
+            syncDiscPick(id);
 
             // Clear any stale "Promise Order" button + stock colour from a previous lookup
             const stalePO = document.getElementById('promiseBtn_' + id);
@@ -1171,6 +1193,9 @@
             const pPack = match.pack || 1;
             const pGST  = match.gst  || 0;
             const pHSN  = match.hsn  || match.hsn_code || '';
+            // Selling discount the owner set for this batch on the Purchase page.
+            // A suggestion, not a rule — the biller can still change it.
+            const pDisc = parseFloat(match.discount) || 0;
 
             const hsnEl      = document.getElementById('hsn_' + id);
             if (hsnEl) hsnEl.value = pHSN;
@@ -1180,6 +1205,7 @@
             const mrpEl      = document.getElementById('mrp_' + id);
             const rateEl     = document.getElementById('rate_' + id);
             const gstEl      = document.getElementById('gst_' + id);
+            const discEl     = document.getElementById('discount_' + id);
             const stockEl    = document.getElementById('stock_' + id);
 
             if (expEl) { expEl.value = pExp; flashCell(expEl); }
@@ -1187,6 +1213,11 @@
             if (mrpEl) { mrpEl.value = salesMrp > 0 ? salesMrp : ''; flashCell(mrpEl); }
             if (rateEl) { rateEl.value = salesRate > 0 ? salesRate : ''; flashCell(rateEl); }
             if (gstEl) { gstEl.value = pGST; flashCell(gstEl); }
+            if (discEl) {
+                discEl.value = pDisc > 0 ? pDisc : '';
+                syncDiscPick(id);
+                if (pDisc > 0) flashCell(discEl);
+            }
 
             if (stockEl) {
                 stockEl.value = getStock(match.productName || match.product_name, match.batchNo || match.batch_no);
@@ -1733,8 +1764,27 @@
                     oninput="calcRowTotal(${id})"
                     onfocus="if(window.mmWatchGstInput)mmWatchGstInput(this)"
                     title="GST slab — medicines are 0, 5, 12 or 18%"></td>
-                <td><input class="t-input" id="discount_${id}" type="number" placeholder="0" min="0" max="100" step="0.01" style="min-width:56px;"
-                    oninput="calcRowTotal(${id})"></td>
+                <td>
+                    <div class="disc-cell">
+                        <input class="t-input" id="discount_${id}" type="number" placeholder="0" min="0" max="100" step="0.01" style="min-width:48px;"
+                            oninput="syncDiscPick(${id}); calcRowTotal(${id})">
+                        <select class="disc-pick" id="discsel_${id}" onchange="applyDiscPick(${id})"
+                            title="Pick a common discount % — or just type any value in the box">
+                            <option value="">%</option>
+                            <option value="50">50</option>
+                            <option value="45">45</option>
+                            <option value="40">40</option>
+                            <option value="35">35</option>
+                            <option value="30">30</option>
+                            <option value="25">25</option>
+                            <option value="20">20</option>
+                            <option value="15">15</option>
+                            <option value="10">10</option>
+                            <option value="5">5</option>
+                            <option value="0">0</option>
+                        </select>
+                    </div>
+                </td>
                 <td><input class="t-input" id="total_${id}" type="text" readonly placeholder="—" style="min-width:80px;"></td>
                 <td>
                     <button type="button" class="remove-row-btn" onclick="removeRow(${id})" title="Remove row"
@@ -1749,6 +1799,29 @@
             // Focus product name of new row
             setTimeout(() => document.getElementById('product_' + id)?.focus(), 50);
             return id; // return row id for programmatic use
+        }
+
+        /* -- Discount quick-pick. The typed box stays the source of truth;
+              the dropdown only writes into it, so every save/read path is unchanged. -- */
+        function applyDiscPick(id) {
+            const sel = document.getElementById('discsel_' + id);
+            const inp = document.getElementById('discount_' + id);
+            if (!sel || !inp || sel.value === '') return;
+            inp.value = sel.value;
+            calcRowTotal(id);
+        }
+
+        // Typing a value the list doesn't have drops the dropdown back to "%" so it never lies
+        function syncDiscPick(id) {
+            const sel = document.getElementById('discsel_' + id);
+            const inp = document.getElementById('discount_' + id);
+            if (!sel || !inp) return;
+            const v = (inp.value || '').trim();
+            let match = '';
+            for (let i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value !== '' && sel.options[i].value === v) { match = v; break; }
+            }
+            sel.value = match;
         }
 
         /* -- Auto-fill Schedule H drugs from register into sales rows -- */

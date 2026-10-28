@@ -201,6 +201,27 @@
             cursor: default;
         }
 
+        /* ── Discount cell: typeable box + quick-pick dropdown ──
+           The dropdown only writes into the box; the box stays the real field. */
+        .disc-cell { display: flex; align-items: stretch; gap: 0.4rem; }
+        .disc-cell input { flex: 1 1 auto; min-width: 0; }
+        .disc-pick {
+            flex: 0 0 auto;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #92400e;
+            background: #fef3c7;
+            border: 1.5px solid #fcd34d;
+            border-radius: 12px;
+            padding: 0.8rem 0.4rem;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.22s ease;
+        }
+        .disc-pick:hover { border-color: #f59e0b; background: #fde68a; }
+        .disc-pick:focus { border-color: #f59e0b; box-shadow: 0 0 0 4px rgba(245,158,11,0.12); }
+
         /* ── Divider ── */
         .divider {
             grid-column: 1 / -1;
@@ -930,6 +951,30 @@
                                title="GST slab — medicines are 0, 5, 12 or 18%">
                     </div>
                     <div class="form-group">
+                        <label>Discount (%) <span style="font-weight:400;color:#94a3b8;" data-mmt="pur.li.disc.hint">(used when you sell)</span></label>
+                        <div class="disc-cell">
+                            <input type="number" class="li-discount" placeholder="0" min="0" max="100" step="0.01"
+                                   oninput="syncPurchaseDiscPick(this)"
+                                   data-mmt-title="pur.li.disc.tip"
+                                   title="Default discount for this medicine. It does NOT change this purchase total — it auto-fills Disc % on the Sales page when you sell this batch.">
+                            <select class="disc-pick li-discpick" onchange="applyPurchaseDiscPick(this)"
+                                    title="Pick a common discount % — or just type any value in the box">
+                                <option value="">%</option>
+                                <option value="50">50</option>
+                                <option value="45">45</option>
+                                <option value="40">40</option>
+                                <option value="35">35</option>
+                                <option value="30">30</option>
+                                <option value="25">25</option>
+                                <option value="20">20</option>
+                                <option value="15">15</option>
+                                <option value="10">10</option>
+                                <option value="5">5</option>
+                                <option value="0">0</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
                         <label>Total (₹)</label>
                         <input type="text" class="li-total" placeholder="Auto-calculated" data-mmt-ph="pur.li.total.ph" readonly>
                     </div>
@@ -1012,6 +1057,32 @@
             const total = (rate * qty) + (rate * qty * gst / 100);
             el.querySelector('.li-total').value = total > 0 ? '₹ ' + total.toFixed(2) : '';
             updateGrandTotal();
+        }
+
+        /* ── Discount quick-pick ──────────────────────────────────────────
+           This discount is the shop's SELLING discount for the medicine, not a
+           trade discount from the distributor. It deliberately does NOT feed
+           calcItemTotal(): what you owe this supplier is unchanged by it. It is
+           carried on the purchase record so Sales can auto-fill Disc % for this
+           batch. The typed box is the real field; the dropdown only writes into it. */
+        function applyPurchaseDiscPick(sel) {
+            const cell = sel.closest('.disc-cell');
+            const inp  = cell && cell.querySelector('.li-discount');
+            if (!inp || sel.value === '') return;
+            inp.value = sel.value;
+        }
+
+        // Typing a value the list doesn't have drops the dropdown back to "%" so it never lies
+        function syncPurchaseDiscPick(inp) {
+            const cell = inp.closest('.disc-cell');
+            const sel  = cell && cell.querySelector('.li-discpick');
+            if (!sel) return;
+            const v = (inp.value || '').trim();
+            let match = '';
+            for (let i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value !== '' && sel.options[i].value === v) { match = v; break; }
+            }
+            sel.value = match;
         }
 
         // ── Grand Total ──
@@ -1141,6 +1212,9 @@
                     rate,
                     gst:        item.querySelector('.li-gst').value,
                     hsn:        item.querySelector('.li-hsn')?.value || '',
+                    // Selling discount for this batch — carried to Sales, never
+                    // applied to this purchase's own total.
+                    discount:   item.querySelector('.li-discount')?.value || '',
                     scheduleH,
                     savedAt:    new Date().toISOString()
                 });
@@ -1554,6 +1628,7 @@
                     rate:       item.querySelector('.li-rate').value,
                     gst:        item.querySelector('.li-gst').value,
                     hsn:        item.querySelector('.li-hsn')?.value || '',
+                    discount:   item.querySelector('.li-discount')?.value || '',
                 });
             });
             localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -1589,6 +1664,8 @@
                     el.querySelector('.li-rate').value        = d.rate        || '';
                     el.querySelector('.li-gst').value         = d.gst         || '';
                     el.querySelector('.li-hsn').value         = d.hsn         || '';
+                    const dEl = el.querySelector('.li-discount');
+                    if (dEl) { dEl.value = d.discount || ''; syncPurchaseDiscPick(dEl); }
                     calcItemTotal(id);
                     const inputEl = el.querySelector('.li-productName');
                     if (inputEl && typeof DrugMaster !== 'undefined') DrugMaster.init(inputEl, el);
